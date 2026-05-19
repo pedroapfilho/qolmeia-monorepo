@@ -7,81 +7,114 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  name          String?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Custom fields
-  username        String?   @unique
-  displayUsername String?   @unique
-  displayName     String?
-
-  accounts      Account[]
-  sessions      Session[]
-
-  @@index([email])
+enum Channel {
+  WEB_CHAT
+  TELEGRAM
 }
 
-model Session {
+enum ConversationStatus {
+  ACTIVE
+  RESOLVED
+  ARCHIVED
+}
+
+enum MessageSender {
+  CUSTOMER
+  AGENT
+  SYSTEM
+}
+
+enum ContentType {
+  TEXT
+  AUDIO
+  IMAGE
+  DOCUMENT
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  timezone        String   @default("America/Sao_Paulo")
+  currency        String   @default("BRL")
+  // The "soul" — accessed ONLY via KnowledgeProvider.getBusinessContext().
+  businessProfile Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  telegramLink  TelegramLink?
+  customers     Customer[]
+  conversations Conversation[]
+
+  @@index([slug])
+}
+
+model TelegramLink {
+  id             String       @id @default(cuid())
+  telegramChatId String       @unique
+  orgId          String       @unique
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Customer {
   id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  phone     String?
+  email     String?
+  name      String?
+  meta      Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ipAddress String?
-  userAgent String?
+  conversations Conversation[]
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([token])
+  @@unique([orgId, phone])
+  @@unique([orgId, email])
+  @@index([orgId])
 }
 
-model Account {
-  id           String @id @default(cuid())
-  accountId    String
-  providerId   String
-  userId       String
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Conversation {
+  id         String             @id @default(cuid())
+  channel    Channel            @default(TELEGRAM)
+  externalId String?
+  status     ConversationStatus @default(ACTIVE)
+  orgId      String
+  org        Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer?          @relation(fields: [customerId], references: [id])
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
-  accessToken  String? @db.Text
-  refreshToken String? @db.Text
-  idToken      String? @db.Text
+  messages Message[]
 
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-
-  scope     String?
-  password  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([providerId, accountId])
+  @@index([orgId, status])
 }
 
-model Verification {
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  sender         MessageSender
+  content        String
+  contentType    ContentType   @default(TEXT)
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, createdAt])
+}
+
+model WebhookEvent {
   id         String   @id @default(cuid())
-  identifier String
-  value      String
-  expiresAt  DateTime
+  provider   String
+  externalId String
+  payload    Json
+  status     String   @default("processed")
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
 
-  @@unique([identifier, value])
-  @@index([identifier])
-}
-
-// Better Auth database-backed rate limiting — required when auth config has
-// `rateLimit.storage: "database"`. Rows are written on first limited request.
-model RateLimit {
-  id          String @id @default(cuid())
-  key         String @unique
-  count       Int
-  lastRequest BigInt
+  @@unique([provider, externalId])
 }
