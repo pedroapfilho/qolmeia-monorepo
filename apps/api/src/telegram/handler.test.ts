@@ -153,4 +153,59 @@ describe("handleIncomingMessage", () => {
     const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(reply).toContain("Tive um problema processando sua mensagem");
   });
+
+  it("strips non-serializable function refs from attachments before persisting", async () => {
+    const fetchData = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+    const deps = makeDeps();
+    const thread = makeThread();
+
+    await handleIncomingMessage(
+      deps,
+      thread,
+      makeMessage({
+        attachments: [
+          {
+            fetchData,
+            mimeType: "audio/ogg",
+            name: undefined,
+          },
+        ],
+        text: "",
+      }),
+    );
+
+    const webhookCreate = (deps.prisma as never as { webhookEvent: { create: ReturnType<typeof vi.fn> } }).webhookEvent.create;
+    expect(webhookCreate).toHaveBeenCalledOnce();
+    const payload = webhookCreate.mock.calls[0]![0].data.payload as {
+      attachments?: Array<Record<string, unknown>>;
+    };
+    expect(typeof payload.attachments?.[0]?.fetchData).not.toBe("function");
+    expect(payload.attachments?.[0]?.mimeType).toBe("audio/ogg");
+    expect(() => JSON.stringify(payload)).not.toThrow();
+
+    const messageCreate = (deps.prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create;
+    expect(messageCreate).toHaveBeenCalledOnce();
+    const metadata = messageCreate.mock.calls[0]![0].data.metadata as {
+      attachments?: Array<Record<string, unknown>>;
+    };
+    expect(typeof metadata.attachments?.[0]?.fetchData).not.toBe("function");
+    expect(() => JSON.stringify(metadata)).not.toThrow();
+  });
+
+  it("apologises (not throws) when a DB write fails before extraction", async () => {
+    const prisma = makePrisma();
+    (prisma as never as { webhookEvent: { create: ReturnType<typeof vi.fn> } }).webhookEvent.create.mockRejectedValue(
+      new Error("prisma kaboom"),
+    );
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await expect(
+      handleIncomingMessage(deps, thread, makeMessage({ text: "olá" })),
+    ).resolves.toBeUndefined();
+
+    expect(deps.extractFromMessage).not.toHaveBeenCalled();
+    const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(reply).toContain("Tive um problema processando sua mensagem");
+  });
 });
