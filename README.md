@@ -100,6 +100,24 @@ main worktree:        https://qolmeia.api.localhost
 branch fix-webhook:   https://fix-webhook.qolmeia.api.localhost
 ```
 
+## Telegram bot (local dev)
+
+The bot (`@qolmeia_mvp_v0_bot`) receives updates via webhook. Telegram requires a
+public HTTPS URL, so tunnel the local API to expose it:
+
+1. `docker compose up -d` (Postgres + Redis)
+2. `pnpm dev --filter=api`
+3. `cloudflared tunnel --url http://localhost:4000` (or `ngrok http 4000`)
+4. Register the webhook — token and secret are in `apps/api/.env`:
+
+   ```bash
+   curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+     -d "url=https://<your-tunnel-host>/telegram/webhook" \
+     -d "secret_token=<TELEGRAM_WEBHOOK_SECRET_TOKEN>"
+   ```
+
+5. Message the bot on Telegram — it persists the message and replies.
+
 ## Scripts
 
 | Command             | Description                   |
