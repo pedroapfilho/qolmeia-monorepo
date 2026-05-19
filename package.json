@@ -13,7 +13,6 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "turbo run db:generate",
     "db:push": "turbo run db:push",
-    "db:seed": "turbo run db:seed",
     "test": "turbo run test",
     "fallow": "fallow",
     "fallow:dead": "fallow dead-code",
