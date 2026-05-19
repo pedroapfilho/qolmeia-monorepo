@@ -22,7 +22,6 @@ pnpm test                         # vitest unit tests
 # Database (Prisma, schema in packages/db/prisma/schema.prisma)
 pnpm db:generate                  # generate Prisma client
 pnpm db:push                      # push schema to database
-pnpm db:seed                      # seed database
 ```
 
 ## Architecture

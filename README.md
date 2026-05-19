@@ -76,7 +76,6 @@ Edit `apps/api/.env` and set at minimum:
 ```bash
 pnpm db:generate    # generate the Prisma client
 pnpm db:push        # apply the schema to your database
-pnpm db:seed        # optional: seed sample data
 ```
 
 ### 6. Run the dev server
@@ -114,5 +113,4 @@ branch fix-webhook:   https://fix-webhook.qolmeia.api.localhost
 | `pnpm typecheck`    | Run TypeScript checks         |
 | `pnpm db:generate`  | Generate Prisma client        |
 | `pnpm db:push`      | Push schema to database       |
-| `pnpm db:seed`      | Seed database                 |
 | `pnpm clean`        | Clean all build artifacts     |
