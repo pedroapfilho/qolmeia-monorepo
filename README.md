@@ -56,7 +56,7 @@ sudo portless proxy start --https   # binds :443, trusts the local cert
 ### 3. Start local infrastructure
 
 ```bash
-docker compose up -d   # starts Postgres on :5432 and Redis on :6379
+docker compose up -d   # starts Postgres on :5436 and Redis on :6382
 ```
 
 ### 4. Configure environment variables

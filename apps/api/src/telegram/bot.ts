@@ -13,7 +13,7 @@ void env.TELEGRAM_BOT_TOKEN;
 void env.TELEGRAM_WEBHOOK_SECRET_TOKEN;
 
 const bot = new Chat({
-  adapters: { telegram: createTelegramAdapter() },
+  adapters: { telegram: createTelegramAdapter({ mode: "webhook" }) },
   logger: "info",
   state: createRedisState(),
   userName: env.TELEGRAM_BOT_USERNAME,

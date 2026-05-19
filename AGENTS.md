@@ -85,13 +85,9 @@ branch fix-webhook:   https://fix-webhook.qolmeia.api.localhost
 - **Testing**: Vitest for unit tests. `@repo/config-vitest` exports `node.ts` config.
 - **Bundler (api)**: tsdown (not tsc). Outputs to `dist/`.
 
-## CI (GitHub Actions)
+## CI
 
-- `test.yml` — `pnpm test`
-- `lint.yml` — `pnpm oxlint --format=github .`
-- `format.yml` — `pnpm run format:check`
-- `fallow.yml` — `pnpm fallow:dead` (cross-file dead code, unused exports, circular deps)
-- All use `permissions: { contents: read }` and `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`
+GitHub Actions workflows are not yet set up. Run `pnpm test`, `pnpm lint`, `pnpm format:check`, and `pnpm fallow:dead` locally before merging.
 
 ## Prisma
 
