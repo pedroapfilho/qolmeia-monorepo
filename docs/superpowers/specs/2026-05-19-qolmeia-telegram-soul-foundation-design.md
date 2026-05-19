@@ -123,7 +123,7 @@ After Phase 0 removes the Better Auth models, these are the **entire** schema. C
 - `Organization` — `id`, `name`, `slug @unique`, `timezone @default("America/Sao_Paulo")`, `currency @default("BRL")`, **`businessProfile Json?`** (the soul; accessed only via `KnowledgeProvider`), timestamps.
 - `TelegramLink` — `telegramChatId String @unique`, `orgId`, relation to `Organization`, timestamps. (Maps a Telegram chat to the Organization being onboarded.)
 - `Customer` — canonical shape (`orgId`, `phone?`, `email?`, `name?`, `meta?`), `@@unique([orgId, phone])`, `@@unique([orgId, email])`. Defined now for schema stability; not heavily used in Phase 1.
-- `Conversation` — canonical: `channel Channel @default(WEB_CHAT)`, `externalId?`, `status`, `orgId`, `customerId?`, timestamps.
+- `Conversation` — `channel Channel @default(TELEGRAM)` (Telegram-only MVP), `externalId?`, `status`, `orgId`, `customerId?`, timestamps.
 - `Message` — canonical: `conversationId`, `externalId?`, `sender MessageSender`, `content`, `contentType ContentType @default(TEXT)`, `metadata?`, `@@unique([conversationId, externalId])`.
 - `WebhookEvent` — canonical: `provider`, `externalId`, `payload Json`, `status @default("processed")`, `@@unique([provider, externalId])`.
 - Enums: extend `Channel` with `TELEGRAM`; reuse canonical `ConversationStatus`, `MessageSender`, `ContentType` (`TEXT`/`AUDIO`/`IMAGE`/...).
