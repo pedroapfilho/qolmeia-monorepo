@@ -1,10 +1,17 @@
 import type { PrismaClient } from "@repo/db";
 
 import { logger } from "../lib/logger";
+import { applySoulUpdate as applySoulUpdateDefault } from "../soul/apply";
+import { extractFromMessage as extractFromMessageDefault } from "../soul/extract";
+import { getBusinessContext as getBusinessContextDefault } from "../soul/knowledge-provider";
+import { buildReply } from "../soul/reply";
+import type { SoulProfile } from "../soul/soul";
 
-type HandlerDeps = { prisma: Pick<PrismaClient, "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"> };
-
-type IncomingAttachment = { mimeType?: string; name?: string };
+type IncomingAttachment = {
+  fetchData?: () => Promise<Uint8Array>;
+  mimeType?: string;
+  name?: string;
+};
 
 type IncomingMessage = {
   attachments?: Array<IncomingAttachment>;
@@ -17,17 +24,32 @@ type IncomingThread = {
   post: (text: string) => Promise<unknown>;
 };
 
-const ACK_REPLY =
-  "Recebi sua mensagem 👋 Em breve vou transformar seus áudios no perfil do seu negócio.";
+type HandlerDeps = {
+  applySoulUpdate?: typeof applySoulUpdateDefault;
+  extractFromMessage?: typeof extractFromMessageDefault;
+  getBusinessContext?: typeof getBusinessContextDefault;
+  prisma: Pick<PrismaClient, "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
+};
+
+const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
+const EXTRACT_FAILED_REPLY = "Tive um problema processando sua mensagem, pode tentar de novo?";
 
 const slugify = (chatId: string): string => `org-tg-${chatId}`.toLowerCase();
+
+const findAudioAttachment = (attachments: ReadonlyArray<IncomingAttachment>) =>
+  attachments.find((a) => (a.mimeType ?? "").startsWith("audio"));
 
 const handleIncomingMessage = async (
   deps: HandlerDeps,
   thread: IncomingThread,
   message: IncomingMessage,
 ): Promise<void> => {
-  const { prisma } = deps;
+  const {
+    applySoulUpdate = applySoulUpdateDefault,
+    extractFromMessage = extractFromMessageDefault,
+    getBusinessContext = getBusinessContextDefault,
+    prisma,
+  } = deps;
 
   // Durable audit + idempotency (complements the adapter's in-memory dedup).
   const existing = await prisma.webhookEvent.findUnique({
@@ -37,15 +59,14 @@ const handleIncomingMessage = async (
     return;
   }
   await prisma.webhookEvent.create({
-    data: { externalId: message.id, payload: { ...message }, provider: "telegram" },
+    data: { externalId: message.id, payload: { ...message } as unknown as object, provider: "telegram" },
   });
 
-  // Resolve identity: one Telegram chat == one Organization being onboarded.
+  // Resolve identity: one Telegram chat == one Organization.
   let link = await prisma.telegramLink.findUnique({
     select: { orgId: true },
     where: { telegramChatId: thread.id },
   });
-
   if (!link) {
     const org = await prisma.organization.create({
       data: {
@@ -69,9 +90,8 @@ const handleIncomingMessage = async (
       select: { id: true },
     }));
 
-  const hasAudio = (message.attachments ?? []).some((a) =>
-    (a.mimeType ?? "").startsWith("audio"),
-  );
+  const audio = findAudioAttachment(message.attachments ?? []);
+  const hasAudio = audio !== undefined;
 
   await prisma.message.create({
     data: {
@@ -79,13 +99,74 @@ const handleIncomingMessage = async (
       contentType: hasAudio ? "AUDIO" : "TEXT",
       conversationId: conversation.id,
       externalId: message.id,
-      metadata: { attachments: message.attachments ?? [] },
+      metadata: { attachments: message.attachments ?? [] } as unknown as object,
       sender: "CUSTOMER",
     },
   });
 
-  await thread.post(ACK_REPLY);
-  logger.info({ chatId: thread.id, messageId: message.id }, "telegram message handled");
+  // Skip extract if no audio AND text is empty/whitespace.
+  const text = (message.text ?? "").trim();
+  if (!hasAudio && text.length === 0) {
+    const empty: SoulProfile = {};
+    await thread.post(buildReply(empty, []));
+    return;
+  }
+
+  let bytes: Uint8Array;
+  if (hasAudio) {
+    try {
+      if (!audio.fetchData) {
+        throw new Error("attachment has no fetchData");
+      }
+      bytes = await audio.fetchData();
+    } catch (error) {
+      logger.error(
+        { chatId: thread.id, error, messageId: message.id },
+        "audio.download_failed",
+      );
+      await thread.post(DOWNLOAD_FAILED_REPLY);
+      return;
+    }
+  } else {
+    bytes = new Uint8Array();
+  }
+
+  const currentContext = await getBusinessContext(link.orgId);
+
+  let result: Awaited<ReturnType<typeof extractFromMessage>>;
+  try {
+    result = hasAudio
+      ? await extractFromMessage(
+          { bytes, kind: "audio", mediaType: audio.mimeType ?? "audio/ogg" },
+          currentContext,
+        )
+      : await extractFromMessage({ kind: "text", text }, currentContext);
+  } catch (error) {
+    logger.error({ chatId: thread.id, error, messageId: message.id }, "extract.failed");
+    await thread.post(EXTRACT_FAILED_REPLY);
+    return;
+  }
+
+  const { capturedFields, newProfile } = await applySoulUpdate(
+    link.orgId,
+    result.partial,
+    prisma,
+  );
+
+  const reply = buildReply(newProfile, capturedFields);
+  await thread.post(reply);
+
+  logger.info(
+    {
+      capturedFields,
+      chatId: thread.id,
+      kind: hasAudio ? "audio" : "text",
+      messageId: message.id,
+      tokensIn: result.usage.inputTokens,
+      tokensOut: result.usage.outputTokens,
+    },
+    "telegram message handled",
+  );
 };
 
 export { handleIncomingMessage };
