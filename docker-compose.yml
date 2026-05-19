@@ -1,0 +1,42 @@
+name: qolmeia
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: qolmeia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qolmeia
+      POSTGRES_PASSWORD: qolmeia123
+      POSTGRES_DB: qolmeia
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qolmeia -d qolmeia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: qolmeia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
