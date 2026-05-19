@@ -5,7 +5,7 @@ This file provides guidance to AI coding agents when working with code in this r
 ## Commands
 
 ```bash
-# Development (runs the API via Turborepo + portless)
+# Development (runs the API via Turborepo)
 pnpm dev                          # start the api
 pnpm dev --filter=api             # explicit filter (same result)
 
@@ -32,7 +32,7 @@ pnpm db:push                      # push schema to database
 
 | App   | Framework                | Dev URL                         | Purpose                               |
 | ----- | ------------------------ | ------------------------------- | ------------------------------------- |
-| `api` | Hono on Node.js (tsdown) | `https://qolmeia.api.localhost` | Backend API, Telegram webhook + soul pipeline |
+| `api` | Hono on Node.js (tsdown) | `http://localhost:4000` | Backend API, Telegram webhook + soul pipeline |
 
 ### Packages
 
@@ -46,36 +46,6 @@ pnpm db:push                      # push schema to database
 
 - **API structure**: Hono app with versioned routes (`/api/v1/*`), health at `/healthz` and `/readyz`, OpenAPI at `/openapi.json`, Scalar UI at `/docs`, LLM text at `/llms.txt`.
 - **Build order**: Turborepo handles `^build` dependencies — packages build before the app.
-
-## Portless (Dev URLs)
-
-Every dev server runs behind portless, giving the API a stable HTTPS URL on `.localhost` instead of a raw port number.
-
-### Setup (one-time per machine)
-
-```bash
-npm install -g portless                # global install (or upgrade)
-sudo portless proxy start --https      # start the daemon on :443
-```
-
-The proxy auto-restarts on subsequent invocations once trusted.
-
-### URLs
-
-| Service | URL                             | Started by |
-| ------- | ------------------------------- | ---------- |
-| `api`   | `https://qolmeia.api.localhost` | `pnpm dev` |
-
-The api also exposes `/openapi.json`, the Scalar UI at `/docs`, and a markdown export at `/llms.txt` — see `apps/api/src/lib/openapi.ts`.
-
-### Worktrees
-
-Branch name auto-prefixes the subdomain — no port collisions between concurrent worktrees:
-
-```
-main worktree:        https://qolmeia.api.localhost
-branch fix-webhook:   https://fix-webhook.qolmeia.api.localhost
-```
 
 ## Tooling
 

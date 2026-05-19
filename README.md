@@ -17,7 +17,7 @@ Monorepo for the Qolmeia API — a Hono-on-Node backend that hosts the Telegram 
 
 | App   | Description      | Dev URL                       |
 | ----- | ---------------- | ----------------------------- |
-| `api` | Hono backend API | `https://qolmeia.api.localhost` |
+| `api` | Hono backend API | `http://localhost:4000` |
 
 ## Packages
 
@@ -34,7 +34,6 @@ Monorepo for the Qolmeia API — a Hono-on-Node backend that hosts the Telegram 
 - **Node.js 24** (use `nvm install 24 && nvm use 24`)
 - **pnpm 10** (`npm install -g pnpm@10`)
 - **Docker** for local Postgres + Redis (see `docker-compose.yml`)
-- **portless** for stable HTTPS dev URLs (see below)
 
 ### 1. Install dependencies
 
@@ -42,24 +41,13 @@ Monorepo for the Qolmeia API — a Hono-on-Node backend that hosts the Telegram 
 pnpm install
 ```
 
-### 2. Install portless and start the HTTPS proxy
-
-Dev servers run behind [portless](https://www.npmjs.com/package/portless), which gives the API a stable `https://*.localhost` URL.
-
-One-time per machine:
-
-```bash
-npm install -g portless
-sudo portless proxy start --https   # binds :443, trusts the local cert
-```
-
-### 3. Start local infrastructure
+### 2. Start local infrastructure
 
 ```bash
 docker compose up -d   # starts Postgres on :5436 and Redis on :6382
 ```
 
-### 4. Configure environment variables
+### 3. Configure environment variables
 
 ```bash
 cp apps/api/.env.example apps/api/.env
@@ -71,14 +59,14 @@ Edit `apps/api/.env` and set at minimum:
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET_TOKEN`
 - `REDIS_URL` — already pre-set for local Docker
 
-### 5. Initialize the database
+### 4. Initialize the database
 
 ```bash
 pnpm db:generate    # generate the Prisma client
 pnpm db:push        # apply the schema to your database
 ```
 
-### 6. Run the dev server
+### 5. Run the dev server
 
 ```bash
 pnpm dev
@@ -86,19 +74,10 @@ pnpm dev
 
 Open:
 
-- API: <https://qolmeia.api.localhost>
-  - OpenAPI docs (Scalar): <https://qolmeia.api.localhost/docs>
-  - Schema JSON: <https://qolmeia.api.localhost/openapi.json>
-  - LLM-friendly text: <https://qolmeia.api.localhost/llms.txt>
-
-### Worktrees
-
-Branch name auto-prefixes the subdomain — concurrent worktrees don't collide:
-
-```
-main worktree:        https://qolmeia.api.localhost
-branch fix-webhook:   https://fix-webhook.qolmeia.api.localhost
-```
+- API: <http://localhost:4000>
+  - OpenAPI docs (Scalar): <http://localhost:4000/docs>
+  - Schema JSON: <http://localhost:4000/openapi.json>
+  - LLM-friendly text: <http://localhost:4000/llms.txt>
 
 ## Telegram bot (local dev)
 
