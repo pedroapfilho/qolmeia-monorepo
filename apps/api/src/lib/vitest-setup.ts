@@ -7,3 +7,4 @@ vi.stubEnv("REDIS_URL", "redis://localhost:6379");
 vi.stubEnv("TELEGRAM_BOT_TOKEN", "123:abc");
 vi.stubEnv("TELEGRAM_BOT_USERNAME", "qolmeia_bot");
 vi.stubEnv("TELEGRAM_WEBHOOK_SECRET_TOKEN", "secret");
+vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");

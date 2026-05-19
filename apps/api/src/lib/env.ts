@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  AI_GATEWAY_API_KEY: z.string().optional(),
+  AI_GATEWAY_API_KEY: z.string().min(1),
   CORS_ORIGINS: z.string().default("*"),
   DATABASE_URL: z.string().min(1),
   HOST: z.string().default("0.0.0.0"),
