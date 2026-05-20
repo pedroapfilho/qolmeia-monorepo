@@ -29,6 +29,7 @@ type AgentRunResult = {
 type AgentDispatchArgs = {
   agentInstance: AgentInstance;
   currentContext: string;
+  dispatcher: AgentDispatcher;
   existingAssets: ReadonlyArray<ExistingAssetSummary>;
   input: AgentRunInput;
   newAssets: ReadonlyArray<AssetSummary>;

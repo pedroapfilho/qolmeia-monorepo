@@ -1,9 +1,11 @@
+import { createRedisState } from "@chat-adapter/state-redis";
+import { createTelegramAdapter } from "@chat-adapter/telegram";
 import { prisma } from "@repo/db";
 import { Chat } from "chat";
-import { createTelegramAdapter } from "@chat-adapter/telegram";
-import { createRedisState } from "@chat-adapter/state-redis";
 
+import { dispatcher } from "../agents/main-dispatcher";
 import { env } from "../lib/env";
+
 import { handleIncomingMessage } from "./handler";
 
 // Ensure env validation has run and these vars are present before the SDK
@@ -25,12 +27,12 @@ const bot = new Chat({
 // handler is registered, per SDK routing rules).
 bot.onNewMention(async (thread, message) => {
   await thread.subscribe();
-  await handleIncomingMessage({ prisma }, thread, message);
+  await handleIncomingMessage({ dispatcher, prisma }, thread, message);
 });
 
 // All follow-up messages in subscribed threads.
 bot.onSubscribedMessage(async (thread, message) => {
-  await handleIncomingMessage({ prisma }, thread, message);
+  await handleIncomingMessage({ dispatcher, prisma }, thread, message);
 });
 
 export { bot };

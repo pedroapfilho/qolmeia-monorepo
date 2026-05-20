@@ -17,6 +17,7 @@ describe("createSerialDispatcher", () => {
     const args = {
       agentInstance: { id: "ai_1" },
       currentContext: "",
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "hi" },
       newAssets: [],

@@ -37,6 +37,7 @@ describe("runAgentInstance", () => {
     const result = await runAgentInstance({
       agentInstance,
       currentContext: "",
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "oi" },
       newAssets: [],
@@ -83,6 +84,7 @@ describe("runAgentInstance", () => {
     await runAgentInstance({
       agentInstance,
       currentContext: "",
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "oi" },
       newAssets: [],
@@ -108,6 +110,7 @@ describe("runAgentInstance", () => {
       runAgentInstance({
         agentInstance,
         currentContext: "",
+        dispatcher: { enqueueAndAwait: vi.fn() } as never,
         existingAssets: [],
         input: { imageBytes: [], text: "oi" },
         newAssets: [],
@@ -152,6 +155,7 @@ describe("runAgentInstance", () => {
     const result = await runAgentInstance({
       agentInstance,
       currentContext: "",
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "gera uma imagem" },
       newAssets: [],

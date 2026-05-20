@@ -1,8 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
-import { createSerialDispatcher } from "../agents/dispatcher";
 import type { AgentDispatcher } from "../agents/dispatcher";
-import { runAgentInstance } from "../agents/runtime";
 import { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
 import { logger } from "../lib/logger";
@@ -47,7 +45,7 @@ const extFromMime = (mimeType: string): string => {
 };
 
 type HandlerDeps = {
-  dispatcher?: AgentDispatcher;
+  dispatcher: AgentDispatcher;
   fetchAsset?: typeof fetchAssetDefault;
   getBusinessContext?: typeof getBusinessContextDefault;
   ingestBrandAsset?: typeof ingestBrandAssetDefault;
@@ -112,7 +110,7 @@ const handleIncomingMessage = async (
   message: IncomingMessage,
 ): Promise<void> => {
   const {
-    dispatcher = createSerialDispatcher(runAgentInstance),
+    dispatcher,
     fetchAsset: doFetch = fetchAssetDefault,
     getBusinessContext = getBusinessContextDefault,
     ingestBrandAsset = ingestBrandAssetDefault,
@@ -289,6 +287,7 @@ const handleIncomingMessage = async (
     const result = await dispatcher.enqueueAndAwait({
       agentInstance,
       currentContext,
+      dispatcher,
       existingAssets,
       input: {
         audioBytes,
