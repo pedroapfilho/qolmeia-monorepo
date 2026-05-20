@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { Skill } from "./types";
+import { defineSkill } from "./types";
 
 const labelBrandAssetInput = z.object({
   assetId: z.string().min(1),
@@ -16,7 +16,7 @@ type LabelBrandAssetInput = z.infer<typeof labelBrandAssetInput>;
 
 type LabelBrandAssetOutput = { ok: true };
 
-const labelBrandAssetSkill: Skill<LabelBrandAssetInput, LabelBrandAssetOutput> = {
+const labelBrandAssetSkill = defineSkill<LabelBrandAssetInput, LabelBrandAssetOutput>({
   description:
     "Anote metadados visuais de UM asset que o dono enviou. Use um assetId de 'Novos assets'. Chame uma vez por assetId.",
   displayName: "Label Brand Asset",
@@ -37,7 +37,7 @@ const labelBrandAssetSkill: Skill<LabelBrandAssetInput, LabelBrandAssetOutput> =
   inputSchema: labelBrandAssetInput,
   requiredConnectorTypes: [],
   requiresApprovalDefault: false,
-};
+});
 
 export { labelBrandAssetSkill };
 export type { LabelBrandAssetInput, LabelBrandAssetOutput };

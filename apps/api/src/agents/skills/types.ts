@@ -21,4 +21,14 @@ type Skill<TInput, TOutput> = {
   requiresApprovalDefault: boolean;
 };
 
-export type { Skill, SkillContext };
+// Heterogeneous-array escape hatch. The registry holds skills of varying
+// TInput/TOutput; AnySkill is the widened super-type. Skills declared via
+// defineSkill keep their precise types at the call site.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySkill = Skill<any, any>;
+
+const defineSkill = <TInput, TOutput>(config: Skill<TInput, TOutput>): Skill<TInput, TOutput> =>
+  config;
+
+export { defineSkill };
+export type { AnySkill, Skill, SkillContext };

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { logger } from "../../lib/logger";
 import { findTemplateBySlug } from "../templates/registry";
 
-import type { Skill } from "./types";
+import { defineSkill } from "./types";
 
 const delegateToSpecialistInput = z.object({
   subtask: z.string().min(1).max(2000),
@@ -21,7 +21,10 @@ type DelegateToSpecialistOutput =
     }
   | { error: string; ok: false };
 
-const delegateToSpecialistSkill: Skill<DelegateToSpecialistInput, DelegateToSpecialistOutput> = {
+const delegateToSpecialistSkill = defineSkill<
+  DelegateToSpecialistInput,
+  DelegateToSpecialistOutput
+>({
   description:
     "Delegue parte do trabalho para um agente especialista. Use quando a tarefa envolver expertise específica (design, marketing, atendimento). Passe o templateSlug do especialista e uma descrição clara do subtask em pt-BR.",
   displayName: "Delegate to Specialist",
@@ -80,7 +83,7 @@ const delegateToSpecialistSkill: Skill<DelegateToSpecialistInput, DelegateToSpec
   inputSchema: delegateToSpecialistInput,
   requiredConnectorTypes: [],
   requiresApprovalDefault: false,
-};
+});
 
 export { delegateToSpecialistSkill };
 export type { DelegateToSpecialistInput, DelegateToSpecialistOutput };

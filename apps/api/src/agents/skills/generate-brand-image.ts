@@ -4,7 +4,7 @@ import { ingestGeneratedAsset } from "../../knowledge/brand-asset";
 import { generateBrandImageBytes } from "../../lib/image-gen";
 import { logger } from "../../lib/logger";
 
-import type { Skill } from "./types";
+import { defineSkill } from "./types";
 
 const generateBrandImageInput = z.object({
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3"]).default("1:1"),
@@ -22,7 +22,7 @@ type BrandAssetMetadata = {
   typography?: string;
 } | null;
 
-const generateBrandImageSkill: Skill<GenerateBrandImageInput, GenerateBrandImageOutput> = {
+const generateBrandImageSkill = defineSkill<GenerateBrandImageInput, GenerateBrandImageOutput>({
   description:
     "Gere uma imagem para o dono baseada no perfil do negócio (soul + brand assets). Use APENAS quando o dono pedir explicitamente. AT MOST 1 call por mensagem.",
   displayName: "Generate Brand Image",
@@ -85,7 +85,7 @@ const generateBrandImageSkill: Skill<GenerateBrandImageInput, GenerateBrandImage
   inputSchema: generateBrandImageInput,
   requiredConnectorTypes: [],
   requiresApprovalDefault: false,
-};
+});
 
 export { generateBrandImageSkill };
 export type { GenerateBrandImageInput, GenerateBrandImageOutput };

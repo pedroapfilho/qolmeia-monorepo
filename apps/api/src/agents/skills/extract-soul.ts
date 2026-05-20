@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { applySoulUpdate } from "../../knowledge/apply";
 
-import type { Skill } from "./types";
+import { defineSkill } from "./types";
 
 const extractSoulInput = z.object({
   brandVoice: z.string().nullable(),
@@ -18,7 +18,7 @@ type ExtractSoulOutput = {
   capturedFields: ReadonlyArray<keyof ExtractSoulInput>;
 };
 
-const extractSoulSkill: Skill<ExtractSoulInput, ExtractSoulOutput> = {
+const extractSoulSkill = defineSkill<ExtractSoulInput, ExtractSoulOutput>({
   description:
     "Atualize os 5 campos do perfil do dono. Use SOMENTE quando a mensagem trouxer info ou correção. Campos não mencionados ficam null.",
   displayName: "Extract Soul",
@@ -30,7 +30,7 @@ const extractSoulSkill: Skill<ExtractSoulInput, ExtractSoulOutput> = {
   inputSchema: extractSoulInput,
   requiredConnectorTypes: [],
   requiresApprovalDefault: false,
-};
+});
 
 export { extractSoulSkill };
 export type { ExtractSoulInput, ExtractSoulOutput };

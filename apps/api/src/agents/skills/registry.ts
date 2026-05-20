@@ -5,19 +5,19 @@ import { delegateToSpecialistSkill } from "./delegate-to-specialist";
 import { extractSoulSkill } from "./extract-soul";
 import { generateBrandImageSkill } from "./generate-brand-image";
 import { labelBrandAssetSkill } from "./label-brand-asset";
-import type { Skill } from "./types";
+import type { AnySkill } from "./types";
 
-const ALL_SKILLS: ReadonlyArray<Skill<unknown, unknown>> = [
-  delegateToSpecialistSkill as Skill<unknown, unknown>,
-  extractSoulSkill as Skill<unknown, unknown>,
-  generateBrandImageSkill as Skill<unknown, unknown>,
-  labelBrandAssetSkill as Skill<unknown, unknown>,
-];
+const ALL_SKILLS = [
+  delegateToSpecialistSkill,
+  extractSoulSkill,
+  generateBrandImageSkill,
+  labelBrandAssetSkill,
+] as const satisfies ReadonlyArray<AnySkill>;
 
-const findSkillById = (id: string): Skill<unknown, unknown> | undefined =>
-  ALL_SKILLS.find((s) => s.id === id);
+const findSkillById = (id: string): AnySkill | undefined =>
+  (ALL_SKILLS as ReadonlyArray<AnySkill>).find((s) => s.id === id);
 
-const renderSchema = (schema: Skill<unknown, unknown>["inputSchema"]): object => {
+const renderSchema = (schema: AnySkill["inputSchema"]): object => {
   // Zod 4 exposes z.toJSONSchema as a top-level helper. If at runtime this
   // throws (older Zod or unsupported schema feature), the catch returns {}
   // so syncSkills still proceeds — the Skill table column is informational
@@ -31,7 +31,7 @@ const renderSchema = (schema: Skill<unknown, unknown>["inputSchema"]): object =>
 
 const syncSkills = async (prisma: Pick<PrismaClient, "skill">): Promise<void> => {
   await Promise.all(
-    ALL_SKILLS.map((skill) => {
+    (ALL_SKILLS as ReadonlyArray<AnySkill>).map((skill) => {
       const baseFields = {
         description: skill.description,
         displayName: skill.displayName,
