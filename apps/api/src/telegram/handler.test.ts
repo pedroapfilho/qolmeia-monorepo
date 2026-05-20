@@ -55,6 +55,7 @@ const makeDeps = (over: Partial<{
           targetAudience: null,
           whatYouDo: "salão",
         },
+        reply: "Anotei que vocês são um salão! Qual seu público-alvo?",
         usage: { inputTokens: 1, outputTokens: 1 },
       })) as unknown as HandlerDeps["extractFromMessage"],
     getBusinessContext: (over.getBusinessContext ?? vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
@@ -74,7 +75,7 @@ describe("handleIncomingMessage", () => {
     expect(deps.extractFromMessage).toHaveBeenCalledOnce();
     expect(deps.applySoulUpdate).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem 👋");
+    expect(thread.post).toHaveBeenCalledWith("Anotei que vocês são um salão! Qual seu público-alvo?");
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {

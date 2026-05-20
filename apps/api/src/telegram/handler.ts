@@ -29,9 +29,6 @@ type HandlerDeps = {
   prisma: Pick<PrismaClient, "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
 };
 
-// Temporary inline reply for the happy path in Task 2.5.1; replaced by the
-// LLM-built `result.reply` in Task 2.5.3.
-const TEMP_HAPPY_REPLY = "Recebi sua mensagem 👋";
 const EMPTY_TEXT_REPLY = "Recebi sua mensagem, mas não entendi. Pode tentar de novo?";
 const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
 const EXTRACT_FAILED_REPLY = "Tive um problema processando sua mensagem, pode tentar de novo?";
@@ -181,7 +178,7 @@ const handleIncomingMessage = async (
 
     const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
 
-    await thread.post(TEMP_HAPPY_REPLY);
+    await thread.post(result.reply);
 
     logger.info(
       {
@@ -189,6 +186,7 @@ const handleIncomingMessage = async (
         chatId: thread.id,
         kind: hasAudio ? "audio" : "text",
         messageId: message.id,
+        replyLength: result.reply.length,
         tokensIn: result.usage.inputTokens,
         tokensOut: result.usage.outputTokens,
       },
