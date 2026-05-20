@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ALL_TEMPLATES, findTemplateBySlug, syncTemplates } from "./registry";
+import {
+  ALL_TEMPLATES,
+  findTemplateBySlug,
+  syncTemplates,
+  validateCanDelegateTo,
+} from "./registry";
 
 describe("templates registry", () => {
   it("exports the Controller and Designer templates", () => {
@@ -67,5 +72,50 @@ describe("templates registry", () => {
       "generateBrandImage",
       "labelBrandAsset",
     ]);
+  });
+});
+
+const mkTemplate = (slug: string, edges: Array<string>) => ({
+  canDelegateTo: edges,
+  compatibleInboundConnectorTypes: [],
+  compatibleOutboundConnectorTypes: [],
+  defaultBudgetCents: 0,
+  defaultEnabledSkillIds: [],
+  defaultMission: "",
+  defaultSystemPrompt: "",
+  description: "",
+  displayName: "",
+  slug,
+});
+
+describe("validateCanDelegateTo", () => {
+  it("accepts the production registry", () => {
+    expect(() => validateCanDelegateTo(ALL_TEMPLATES)).not.toThrow();
+  });
+
+  it("rejects a direct self-cycle", () => {
+    const templates = [mkTemplate("a", ["a"])];
+    expect(() => validateCanDelegateTo(templates)).toThrow(/cycle/iv);
+  });
+
+  it("rejects a 2-cycle", () => {
+    expect(() => validateCanDelegateTo([mkTemplate("a", ["b"]), mkTemplate("b", ["a"])])).toThrow(
+      /cycle/iv,
+    );
+  });
+
+  it("rejects a delegate-to-unknown reference", () => {
+    const templates = [mkTemplate("real", ["ghost"])];
+    expect(() => validateCanDelegateTo(templates)).toThrow(/unknown template/iv);
+  });
+
+  it("accepts a longer acyclic DAG", () => {
+    expect(() =>
+      validateCanDelegateTo([
+        mkTemplate("a", ["b", "c"]),
+        mkTemplate("b", ["c"]),
+        mkTemplate("c", []),
+      ]),
+    ).not.toThrow();
   });
 });
