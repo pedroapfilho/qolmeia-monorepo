@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aggregateSteps } from "./step-aggregator";
+import { aggregateSteps, extractActionsFromSteps } from "./step-aggregator";
 
 const KNOWN_IDS = ["extractSoul", "generateBrandImage", "labelBrandAsset", "delegateToSpecialist"];
 
@@ -110,5 +110,69 @@ describe("aggregateSteps", () => {
       KNOWN_IDS,
     );
     expect(out.generatedAssetIds).toEqual([]);
+  });
+});
+
+describe("extractActionsFromSteps", () => {
+  it("returns empty when steps are empty", () => {
+    expect(extractActionsFromSteps([], KNOWN_IDS)).toEqual([]);
+  });
+
+  it("pairs a tool-call with its result and emits success=true on ok output", () => {
+    const out = extractActionsFromSteps(
+      [
+        {
+          content: [
+            { input: { whatYouDo: "salão" }, toolName: "extractSoul", type: "tool-call" },
+            {
+              output: { capturedFields: ["whatYouDo"], ok: true },
+              toolName: "extractSoul",
+              type: "tool-result",
+            },
+          ],
+        },
+      ],
+      KNOWN_IDS,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.skillId).toBe("extractSoul");
+    expect(out[0]!.success).toBe(true);
+    expect(out[0]!.input).toEqual({ whatYouDo: "salão" });
+  });
+
+  it("emits success=false when output.ok is false (captures error)", () => {
+    const out = extractActionsFromSteps(
+      [
+        {
+          content: [
+            { toolName: "generateBrandImage", type: "tool-call" },
+            {
+              output: { error: "gateway 500", ok: false },
+              toolName: "generateBrandImage",
+              type: "tool-result",
+            },
+          ],
+        },
+      ],
+      KNOWN_IDS,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.success).toBe(false);
+    expect(out[0]!.errorMessage).toBe("gateway 500");
+  });
+
+  it("ignores tool calls for unknown skill IDs", () => {
+    const out = extractActionsFromSteps(
+      [
+        {
+          content: [
+            { toolName: "ghostTool", type: "tool-call" },
+            { output: { ok: true }, toolName: "ghostTool", type: "tool-result" },
+          ],
+        },
+      ],
+      KNOWN_IDS,
+    );
+    expect(out).toEqual([]);
   });
 });

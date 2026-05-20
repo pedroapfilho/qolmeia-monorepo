@@ -23,10 +23,15 @@ describe("runAgentInstance", () => {
     } as never);
 
     const prisma = {
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn(),
+      },
       brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     } as never;
 
     const agentInstance = {
+      budgetCents: 0,
       enabledSkillIds: null,
       id: "ai_1",
       mission: "",
@@ -72,10 +77,15 @@ describe("runAgentInstance", () => {
     } as never);
 
     const prisma = {
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn(),
+      },
       brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     } as never;
 
     const agentInstance = {
+      budgetCents: 0,
       enabledSkillIds: ["extractSoul"],
       id: "ai_2",
       mission: "",
@@ -99,8 +109,15 @@ describe("runAgentInstance", () => {
   });
 
   it("throws when the agent's templateSlug isn't in the registry", async () => {
-    const prisma = { brandAsset: { findMany: vi.fn(), update: vi.fn() } } as never;
+    const prisma = {
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn(),
+      },
+      brandAsset: { findMany: vi.fn(), update: vi.fn() },
+    } as never;
     const agentInstance = {
+      budgetCents: 0,
       enabledSkillIds: null,
       id: "ai_3",
       mission: "",
@@ -144,9 +161,14 @@ describe("runAgentInstance", () => {
     } as never);
 
     const prisma = {
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn(),
+      },
       brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     } as never;
     const agentInstance = {
+      budgetCents: 0,
       enabledSkillIds: null,
       id: "ai_4",
       mission: "",
@@ -196,9 +218,14 @@ describe("runAgentInstance", () => {
     } as never);
 
     const prisma = {
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn(),
+      },
       brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     } as never;
     const agentInstance = {
+      budgetCents: 0,
       enabledSkillIds: null,
       id: "ai_ctl",
       mission: "",

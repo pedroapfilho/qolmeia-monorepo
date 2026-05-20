@@ -1,9 +1,13 @@
 import { gateway, generateText, stepCountIs, tool } from "ai";
 
+import { logger } from "../lib/logger";
+
+import { recordAgentAction } from "./actions";
+import { checkBudgetThresholds, computeRunCost } from "./cost";
 import type { AgentDispatchArgs, AgentRunResult } from "./dispatcher";
 import { ALL_SKILLS, findSkillById } from "./skills/registry";
 import type { AnySkill, SkillContext } from "./skills/types";
-import { aggregateSteps } from "./step-aggregator";
+import { aggregateSteps, extractActionsFromSteps } from "./step-aggregator";
 import type { StepShape } from "./step-aggregator";
 import { findTemplateBySlug } from "./templates/registry";
 import { renderSystemPrompt } from "./templates/renderer";
@@ -104,6 +108,54 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     steps,
     ALL_SKILLS.map((s) => s.id),
   );
+
+  // Persist one AgentAction per tool call. v0: all AUTO_APPROVED.
+  const extracted = extractActionsFromSteps(
+    steps,
+    ALL_SKILLS.map((s) => s.id),
+  );
+  const totalActions = Math.max(extracted.length, 1);
+  const tokensPerAction = {
+    inputTokens: Math.floor((result.usage.inputTokens ?? 0) / totalActions),
+    outputTokens: Math.floor((result.usage.outputTokens ?? 0) / totalActions),
+  };
+
+  try {
+    await Promise.all(
+      extracted.map((ex) => {
+        const cost = computeRunCost({
+          externalSkillCalls:
+            ex.success && ex.skillId === "generateBrandImage" ? ["generateBrandImage"] : [],
+          inputTokens: tokensPerAction.inputTokens,
+          outputTokens: tokensPerAction.outputTokens,
+        });
+        return recordAgentAction({
+          agentInstanceId: agentInstance.id,
+          costCents: cost.costCents,
+          costInputTokens: tokensPerAction.inputTokens,
+          costOutputTokens: tokensPerAction.outputTokens,
+          errorMessage: ex.errorMessage,
+          prisma,
+          proposedInput: (ex.input as object) ?? {},
+          proposedSummary: `${ex.skillId} ${ex.success ? "executed" : "failed"}`,
+          resultJson: (ex.output as object | null) ?? null,
+          skillId: ex.skillId,
+        });
+      }),
+    );
+
+    // Soft-warn if budget threshold crossed.
+    if (agentInstance.budgetCents > 0) {
+      await checkBudgetThresholds({
+        agentInstanceId: agentInstance.id,
+        budgetCents: agentInstance.budgetCents,
+        orgId: agentInstance.orgId,
+        prisma,
+      });
+    }
+  } catch (error) {
+    logger.error({ agentInstanceId: agentInstance.id, error }, "agentAction.persist.failed");
+  }
 
   return {
     generatedAssetIds,
