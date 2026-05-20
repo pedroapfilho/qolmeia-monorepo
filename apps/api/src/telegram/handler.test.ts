@@ -20,6 +20,16 @@ const makePrisma = () => {
   const org = { id: "org_1" };
   const conversation = { id: "conv_1" };
   return {
+    agentInstance: {
+      upsert: vi.fn().mockResolvedValue({
+        displayName: "Designer",
+        enabledSkillIds: null,
+        id: "ai_test",
+        mission: "",
+        orgId: "org_1",
+        templateSlug: "designer",
+      }),
+    },
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
     },
@@ -37,31 +47,37 @@ const makePrisma = () => {
   } as never;
 };
 
-const makeDeps = (over: Partial<{
-  fetchAsset: ReturnType<typeof vi.fn>;
-  getBusinessContext: ReturnType<typeof vi.fn>;
-  ingestBrandAsset: ReturnType<typeof vi.fn>;
-  prisma: ReturnType<typeof makePrisma>;
-  runAgent: ReturnType<typeof vi.fn>;
-}> = {}): HandlerDeps => {
+const makeDispatcher = (
+  enqueueAndAwait = vi.fn().mockResolvedValue({
+    generatedAssetIds: [],
+    text: "Anotei!",
+    toolCallSummary: { extractSoul: 1, generateBrandImage: 0, labelBrandAsset: 0 },
+    usage: { inputTokens: 1, outputTokens: 1 },
+  }),
+) => ({ enqueueAndAwait });
+
+const makeDeps = (
+  over: Partial<{
+    dispatcher: ReturnType<typeof makeDispatcher>;
+    fetchAsset: ReturnType<typeof vi.fn>;
+    getBusinessContext: ReturnType<typeof vi.fn>;
+    ingestBrandAsset: ReturnType<typeof vi.fn>;
+    prisma: ReturnType<typeof makePrisma>;
+  }> = {},
+): HandlerDeps => {
   const prisma = over.prisma ?? makePrisma();
   return {
+    dispatcher: (over.dispatcher ?? makeDispatcher()) as unknown as HandlerDeps["dispatcher"],
     fetchAsset: over.fetchAsset as unknown as HandlerDeps["fetchAsset"],
-    getBusinessContext: (over.getBusinessContext ?? vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
-    ingestBrandAsset:
-      (over.ingestBrandAsset ??
-      vi.fn().mockImplementation((a: { mimeType: string }) =>
-        Promise.resolve({ assetId: `asset_${a.mimeType}`, deduped: false }),
-      )) as unknown as HandlerDeps["ingestBrandAsset"],
+    getBusinessContext: (over.getBusinessContext ??
+      vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
+    ingestBrandAsset: (over.ingestBrandAsset ??
+      vi
+        .fn()
+        .mockImplementation((a: { mimeType: string }) =>
+          Promise.resolve({ assetId: `asset_${a.mimeType}`, deduped: false }),
+        )) as unknown as HandlerDeps["ingestBrandAsset"],
     prisma: prisma as unknown as HandlerDeps["prisma"],
-    runAgent:
-      (over.runAgent ??
-      vi.fn().mockResolvedValue({
-        generatedAssetIds: [],
-        text: "Anotei!",
-        toolCallSummary: { extractSoul: 1, generateBrandImage: 0, labelBrandAsset: 0 },
-        usage: { inputTokens: 1, outputTokens: 1 },
-      })) as unknown as HandlerDeps["runAgent"],
   };
 };
 
@@ -72,23 +88,29 @@ describe("handleIncomingMessage", () => {
 
     await handleIncomingMessage(deps, thread, makeMessage({ text: "sou um salão" }));
 
-    expect(deps.runAgent).toHaveBeenCalledOnce();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledWith("Anotei!");
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {
     const prisma = makePrisma();
-    (prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
+    (
+      prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }
+    ).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
     const deps = makeDeps({ prisma });
     const thread = makeThread();
 
     await handleIncomingMessage(deps, thread, makeMessage());
 
-    expect(deps.runAgent).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).not.toHaveBeenCalled();
     expect(thread.post).not.toHaveBeenCalled();
   });
 
-  it("downloads audio attachments and forwards bytes to runAgent", async () => {
+  it("downloads audio attachments and forwards bytes to the dispatcher", async () => {
     const bytes = new Uint8Array([7, 7, 7]);
     const fetchData = vi.fn().mockResolvedValue(bytes);
     const deps = makeDeps();
@@ -104,12 +126,13 @@ describe("handleIncomingMessage", () => {
     );
 
     expect(fetchData).toHaveBeenCalledOnce();
-    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { input: { audioBytes?: Uint8Array; audioMime?: string } };
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as { input: { audioBytes?: Uint8Array; audioMime?: string } };
     expect(call.input.audioBytes).toBe(bytes);
     expect(call.input.audioMime).toBe("audio/ogg");
   });
 
-  it("ingests image attachments and passes new assets + image bytes to runAgent", async () => {
+  it("ingests image attachments and passes new assets + image bytes to the dispatcher", async () => {
     const imageBytes = new Uint8Array([1, 2, 3]);
     const fetchData = vi.fn().mockResolvedValue(imageBytes);
     const ingestBrandAsset = vi.fn().mockResolvedValue({ assetId: "asset_logo", deduped: false });
@@ -129,11 +152,14 @@ describe("handleIncomingMessage", () => {
     expect(ingestBrandAsset).toHaveBeenCalledWith(
       expect.objectContaining({ bytes: imageBytes, mimeType: "image/png", orgId: "org_1" }),
     );
-    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as {
       input: { imageBytes: Array<{ assetId: string; bytes: Uint8Array; mimeType: string }> };
       newAssets: Array<{ assetId: string; deduped: boolean; mimeType: string }>;
     };
-    expect(call.newAssets).toEqual([{ assetId: "asset_logo", deduped: false, mimeType: "image/png" }]);
+    expect(call.newAssets).toEqual([
+      { assetId: "asset_logo", deduped: false, mimeType: "image/png" },
+    ]);
     expect(call.input.imageBytes).toEqual([
       { assetId: "asset_logo", bytes: imageBytes, mimeType: "image/png" },
     ]);
@@ -142,7 +168,9 @@ describe("handleIncomingMessage", () => {
   it("on dedup hit does NOT include bytes in input.imageBytes but does flag in newAssets", async () => {
     const bytes = new Uint8Array([5]);
     const fetchData = vi.fn().mockResolvedValue(bytes);
-    const ingestBrandAsset = vi.fn().mockResolvedValue({ assetId: "asset_existing", deduped: true });
+    const ingestBrandAsset = vi
+      .fn()
+      .mockResolvedValue({ assetId: "asset_existing", deduped: true });
     const deps = makeDeps({ ingestBrandAsset });
     const thread = makeThread();
 
@@ -155,7 +183,8 @@ describe("handleIncomingMessage", () => {
       }),
     );
 
-    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as {
       input: { imageBytes: Array<unknown> };
       newAssets: Array<{ deduped: boolean }>;
     };
@@ -180,17 +209,19 @@ describe("handleIncomingMessage", () => {
     );
 
     expect(ingestBrandAsset).not.toHaveBeenCalled();
-    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { oversizeCount: number };
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as { oversizeCount: number };
     expect(call.oversizeCount).toBe(1);
   });
 
   it("replies with the empty-text static when message is whitespace + no attachments", async () => {
-    const deps = makeDeps({ ingestBrandAsset: vi.fn(), runAgent: vi.fn() });
+    const dispatcher = makeDispatcher();
+    const deps = makeDeps({ dispatcher, ingestBrandAsset: vi.fn() });
     const thread = makeThread();
 
     await handleIncomingMessage(deps, thread, makeMessage({ text: "   " }));
 
-    expect(deps.runAgent).not.toHaveBeenCalled();
+    expect(dispatcher.enqueueAndAwait).not.toHaveBeenCalled();
     expect(thread.post).toHaveBeenCalledWith(
       "Recebi sua mensagem, mas não entendi. Pode tentar de novo?",
     );
@@ -204,19 +235,22 @@ describe("handleIncomingMessage", () => {
       deps,
       thread,
       makeMessage({
-        attachments: [{ fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" }],
+        attachments: [
+          { fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" },
+        ],
         text: "",
       }),
     );
 
-    expect(deps.runAgent).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).not.toHaveBeenCalled();
     expect(thread.post).toHaveBeenCalledWith("Não consegui baixar seu áudio, pode reenviar?");
   });
 
-  it("apologises when runAgent throws (top-level catch)", async () => {
-    const deps = makeDeps({
-      runAgent: vi.fn().mockRejectedValue(new Error("agent failed")),
-    });
+  it("apologises when dispatcher throws (top-level catch)", async () => {
+    const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
+    const deps = makeDeps({ dispatcher });
     const thread = makeThread();
 
     await handleIncomingMessage(deps, thread, makeMessage({ text: "olá" }));
@@ -226,27 +260,33 @@ describe("handleIncomingMessage", () => {
     );
   });
 
-  it("posts generated image via thread.post({ files, markdown }) when runAgent returns generatedAssetIds", async () => {
+  it("posts generated image via thread.post({ files, markdown }) when dispatcher returns generatedAssetIds", async () => {
     const generatedBytes = new Uint8Array([99, 98, 97]);
     const fetchAssetMock = vi.fn().mockResolvedValue(generatedBytes);
 
     const prisma = makePrisma();
-    (prisma as never as { brandAsset: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> } }).brandAsset = {
+    (
+      prisma as never as {
+        brandAsset: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
+      }
+    ).brandAsset = {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue({ mimeType: "image/png", r2Key: "org_1/gen.png" }),
     };
 
     const deps: HandlerDeps = {
+      dispatcher: makeDispatcher(
+        vi.fn().mockResolvedValue({
+          generatedAssetIds: ["asset_gen_1"],
+          text: "Pronto, gerei a imagem!",
+          toolCallSummary: { extractSoul: 0, generateBrandImage: 1, labelBrandAsset: 0 },
+          usage: { inputTokens: 1, outputTokens: 1 },
+        }),
+      ) as unknown as HandlerDeps["dispatcher"],
       fetchAsset: fetchAssetMock as unknown as HandlerDeps["fetchAsset"],
       getBusinessContext: vi.fn().mockResolvedValue("") as never,
       ingestBrandAsset: vi.fn() as never,
       prisma: prisma as never,
-      runAgent: vi.fn().mockResolvedValue({
-        generatedAssetIds: ["asset_gen_1"],
-        text: "Pronto, gerei a imagem!",
-        toolCallSummary: { extractSoul: 0, generateBrandImage: 1, labelBrandAsset: 0 },
-        usage: { inputTokens: 1, outputTokens: 1 },
-      }) as never,
     };
 
     const thread = makeThread();
@@ -256,7 +296,13 @@ describe("handleIncomingMessage", () => {
     expect(fetchAssetMock).toHaveBeenCalledWith("org_1/gen.png");
     expect(thread.post).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledWith({
-      files: [{ data: Buffer.from(generatedBytes), filename: "qolmeia-asset_gen_1.png", mimeType: "image/png" }],
+      files: [
+        {
+          data: Buffer.from(generatedBytes),
+          filename: "qolmeia-asset_gen_1.png",
+          mimeType: "image/png",
+        },
+      ],
       markdown: "Pronto, gerei a imagem!",
     });
   });

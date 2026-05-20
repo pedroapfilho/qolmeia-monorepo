@@ -1,8 +1,10 @@
 import type { PrismaClient } from "@repo/db";
 
+import { createSerialDispatcher } from "../agents/dispatcher";
+import type { AgentDispatcher } from "../agents/dispatcher";
+import { runAgentInstance } from "../agents/runtime";
 import { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
-import { runAgent as runAgentDefault } from "../lib/ai";
 import { logger } from "../lib/logger";
 import { fetchAsset as fetchAssetDefault } from "../lib/storage";
 
@@ -45,12 +47,14 @@ const extFromMime = (mimeType: string): string => {
 };
 
 type HandlerDeps = {
+  dispatcher?: AgentDispatcher;
   fetchAsset?: typeof fetchAssetDefault;
   getBusinessContext?: typeof getBusinessContextDefault;
   ingestBrandAsset?: typeof ingestBrandAssetDefault;
   prisma: Pick<
     PrismaClient,
     | "$transaction"
+    | "agentInstance"
     | "brandAsset"
     | "conversation"
     | "message"
@@ -58,7 +62,6 @@ type HandlerDeps = {
     | "telegramLink"
     | "webhookEvent"
   >;
-  runAgent?: typeof runAgentDefault;
 };
 
 const EMPTY_TEXT_REPLY = "Recebi sua mensagem, mas não entendi. Pode tentar de novo?";
@@ -109,11 +112,11 @@ const handleIncomingMessage = async (
   message: IncomingMessage,
 ): Promise<void> => {
   const {
+    dispatcher = createSerialDispatcher(runAgentInstance),
     fetchAsset: doFetch = fetchAssetDefault,
     getBusinessContext = getBusinessContextDefault,
     ingestBrandAsset = ingestBrandAssetDefault,
     prisma,
-    runAgent = runAgentDefault,
   } = deps;
 
   try {
@@ -272,7 +275,19 @@ const handleIncomingMessage = async (
       mimeType: r.mimeType,
     }));
 
-    const result = await runAgent({
+    const agentInstance = await prisma.agentInstance.upsert({
+      create: {
+        displayName: "Designer",
+        mission: "",
+        orgId: link.orgId,
+        templateSlug: "designer",
+      },
+      update: {},
+      where: { orgId_templateSlug: { orgId: link.orgId, templateSlug: "designer" } },
+    });
+
+    const result = await dispatcher.enqueueAndAwait({
+      agentInstance,
       currentContext,
       existingAssets,
       input: {
@@ -282,7 +297,6 @@ const handleIncomingMessage = async (
         text: text.length > 0 ? text : undefined,
       },
       newAssets,
-      orgId: link.orgId,
       oversizeCount,
       prisma: prisma as PrismaClient,
     });
