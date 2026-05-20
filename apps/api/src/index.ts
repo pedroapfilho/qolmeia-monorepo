@@ -20,6 +20,7 @@ import {
   securityHeaders,
   standardRateLimit,
 } from "./middleware/security";
+import { connectorsTelegramRoutes } from "./routes/connectors/telegram";
 import { telegramWebhookRoutes } from "./routes/telegram/webhook";
 
 const app = createOpenAPIApp();
@@ -57,7 +58,8 @@ app.use("*", async (c, next) => {
 
 app.use("/api/*", standardRateLimit);
 app.use("/api/v1/*", apiRateLimit);
-app.route("/telegram", telegramWebhookRoutes);
+app.route("/telegram", telegramWebhookRoutes); // legacy — keep for now
+app.route("/connectors", connectorsTelegramRoutes); // new
 
 const healthRoute = createRoute({
   description: "Liveness probe — does not touch the database.",

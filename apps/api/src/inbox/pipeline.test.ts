@@ -33,6 +33,7 @@ const makePrisma = () => {
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    connectorInstance: { findFirst: vi.fn().mockResolvedValue(null) },
     conversation: {
       create: vi.fn().mockResolvedValue(conversation),
       findFirst: vi.fn().mockResolvedValue(null),
@@ -258,6 +259,32 @@ describe("handleInboundMessage", () => {
     expect(thread.post).toHaveBeenCalledWith(
       "Tive um problema processando sua mensagem, pode tentar de novo?",
     );
+  });
+
+  it("uses ConnectorInstance.config.chatId lookup when available, bypassing TelegramLink", async () => {
+    const prisma = makePrisma();
+    // ConnectorInstance match found — TelegramLink should never be consulted.
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_1", orgId: "org_ci" });
+    // Conversation already exists for the connector.
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_ci" });
+
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá via connector" }));
+
+    expect(
+      (prisma as never as { telegramLink: { findUnique: ReturnType<typeof vi.fn> } }).telegramLink
+        .findUnique,
+    ).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
+    expect(thread.post).toHaveBeenCalledWith("Anotei!");
   });
 
   it("posts generated image via thread.post({ files, markdown }) when dispatcher returns generatedAssetIds", async () => {

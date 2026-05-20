@@ -4,7 +4,12 @@ import { toJsonSafe } from "./json-safe";
 
 type IngestPrisma = Pick<
   PrismaClient,
-  "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"
+  | "connectorInstance"
+  | "conversation"
+  | "message"
+  | "organization"
+  | "telegramLink"
+  | "webhookEvent"
 >;
 
 type IncomingAttachment = {
@@ -50,14 +55,60 @@ const resolveOrgAndConversation = async ({
 }: {
   prisma: IngestPrisma;
   telegramChatId: string;
-}): Promise<{ conversationId: string; orgId: string }> => {
+}): Promise<{ connectorInstanceId: string | null; conversationId: string; orgId: string }> => {
+  // 1. Prefer ConnectorInstance lookup (Phase 5h+).
+  const connector = await prisma.connectorInstance.findFirst({
+    select: { id: true, orgId: true },
+    where: {
+      config: { equals: { chatId: telegramChatId } },
+      type: "TELEGRAM",
+    },
+  });
+
+  if (connector) {
+    const conversation =
+      (await prisma.conversation.findFirst({
+        select: { id: true },
+        where: { channel: "TELEGRAM", connectorInstanceId: connector.id, orgId: connector.orgId },
+      })) ??
+      (await prisma.conversation.create({
+        data: {
+          channel: "TELEGRAM",
+          connectorInstanceId: connector.id,
+          externalId: telegramChatId,
+          orgId: connector.orgId,
+        },
+        select: { id: true },
+      }));
+
+    return {
+      connectorInstanceId: connector.id,
+      conversationId: conversation.id,
+      orgId: connector.orgId,
+    };
+  }
+
+  // 2. Fallback: legacy TelegramLink lookup. New rows will also dual-write a
+  //    ConnectorInstance so subsequent inbound messages take the path above.
   let link = await prisma.telegramLink.findUnique({
     select: { orgId: true },
     where: { telegramChatId },
   });
+
   if (!link) {
+    // First contact for this chat. Create org + telegramLink + connectorInstance
+    // + conversation atomically.
     const org = await prisma.organization.create({
       data: {
+        connectorInstances: {
+          create: {
+            capabilities: { inbound: true, outbound: true },
+            config: { chatId: telegramChatId },
+            displayName: `Telegram — ${telegramChatId}`,
+            senderRole: "OWNER",
+            type: "TELEGRAM",
+          },
+        },
         conversations: { create: { channel: "TELEGRAM", externalId: telegramChatId } },
         name: `Negócio ${telegramChatId}`,
         slug: slugify(telegramChatId),
@@ -68,6 +119,7 @@ const resolveOrgAndConversation = async ({
     link = { orgId: org.id };
   }
 
+  // 3. Find or create a Conversation for the legacy path.
   const conversation =
     (await prisma.conversation.findFirst({
       select: { id: true },
@@ -78,7 +130,7 @@ const resolveOrgAndConversation = async ({
       select: { id: true },
     }));
 
-  return { conversationId: conversation.id, orgId: link.orgId };
+  return { connectorInstanceId: null, conversationId: conversation.id, orgId: link.orgId };
 };
 
 const persistInboundMessage = async ({

@@ -25,6 +25,7 @@ type PipelineDeps = {
     | "$transaction"
     | "agentInstance"
     | "brandAsset"
+    | "connectorInstance"
     | "conversation"
     | "message"
     | "organization"
@@ -44,7 +45,12 @@ const handleInboundMessage = async (
       return;
     }
 
-    const { conversationId, orgId } = await resolveOrgAndConversation({
+    const {
+      // TODO: thread into AgentDispatchArgs for senderRole-aware approval
+      connectorInstanceId: _connectorInstanceId,
+      conversationId,
+      orgId,
+    } = await resolveOrgAndConversation({
       prisma: deps.prisma,
       telegramChatId: thread.id,
     });
