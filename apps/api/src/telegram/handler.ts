@@ -2,6 +2,7 @@ import type { PrismaClient } from "@repo/db";
 
 import { runAgent as runAgentDefault } from "../lib/ai";
 import { logger } from "../lib/logger";
+import { fetchAsset as fetchAssetDefault } from "../lib/storage";
 import { ingestBrandAsset as ingestBrandAssetDefault } from "../soul/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../soul/knowledge-provider";
 
@@ -20,9 +21,11 @@ type IncomingMessage = {
 type IncomingThread = {
   id: string;
   post: (text: string) => Promise<unknown>;
+  postImage?: (args: { bytes: Uint8Array; caption?: string; mimeType?: string }) => Promise<unknown>;
 };
 
 type HandlerDeps = {
+  fetchAsset?: typeof fetchAssetDefault;
   getBusinessContext?: typeof getBusinessContextDefault;
   ingestBrandAsset?: typeof ingestBrandAssetDefault;
   prisma: Pick<
@@ -80,6 +83,7 @@ const handleIncomingMessage = async (
   message: IncomingMessage,
 ): Promise<void> => {
   const {
+    fetchAsset: doFetch = fetchAssetDefault,
     getBusinessContext = getBusinessContextDefault,
     ingestBrandAsset = ingestBrandAssetDefault,
     prisma,
@@ -261,11 +265,30 @@ const handleIncomingMessage = async (
       prisma: prisma as PrismaClient,
     });
 
+    if (result.generatedAssetIds.length > 0 && thread.postImage) {
+      const postImageFn = thread.postImage.bind(thread);
+      await Promise.allSettled(
+        result.generatedAssetIds.map(async (assetId) => {
+          try {
+            const row = await prisma.brandAsset.findUnique({
+              select: { mimeType: true, r2Key: true },
+              where: { id: assetId },
+            });
+            if (!row) { return; }
+            const bytes = await doFetch(row.r2Key);
+            await postImageFn({ bytes, mimeType: row.mimeType });
+          } catch (error) {
+            logger.error({ assetId, chatId: thread.id, error }, "generated_image.post_failed");
+          }
+        }),
+      );
+    }
     await thread.post(result.text);
 
     logger.info(
       {
         chatId: thread.id,
+        generatedAssetIds: result.generatedAssetIds,
         messageId: message.id,
         newAssetIds: newAssets.map((a) => a.assetId),
         oversizeCount,

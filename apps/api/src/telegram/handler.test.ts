@@ -38,6 +38,7 @@ const makePrisma = () => {
 };
 
 const makeDeps = (over: Partial<{
+  fetchAsset: ReturnType<typeof vi.fn>;
   getBusinessContext: ReturnType<typeof vi.fn>;
   ingestBrandAsset: ReturnType<typeof vi.fn>;
   prisma: ReturnType<typeof makePrisma>;
@@ -45,6 +46,7 @@ const makeDeps = (over: Partial<{
 }> = {}): HandlerDeps => {
   const prisma = over.prisma ?? makePrisma();
   return {
+    fetchAsset: over.fetchAsset as unknown as HandlerDeps["fetchAsset"],
     getBusinessContext: (over.getBusinessContext ?? vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
     ingestBrandAsset:
       (over.ingestBrandAsset ??
@@ -55,8 +57,9 @@ const makeDeps = (over: Partial<{
     runAgent:
       (over.runAgent ??
       vi.fn().mockResolvedValue({
+        generatedAssetIds: [],
         text: "Anotei!",
-        toolCallSummary: { extractSoul: 1, labelBrandAsset: 0 },
+        toolCallSummary: { extractSoul: 1, generateBrandImage: 0, labelBrandAsset: 0 },
         usage: { inputTokens: 1, outputTokens: 1 },
       })) as unknown as HandlerDeps["runAgent"],
   };
@@ -221,5 +224,39 @@ describe("handleIncomingMessage", () => {
     expect(thread.post).toHaveBeenCalledWith(
       "Tive um problema processando sua mensagem, pode tentar de novo?",
     );
+  });
+
+  it("posts generated image bytes when runAgent returns generatedAssetIds", async () => {
+    const generatedBytes = new Uint8Array([99, 98, 97]);
+    const fetchAssetMock = vi.fn().mockResolvedValue(generatedBytes);
+    const postImageMock = vi.fn().mockResolvedValue(undefined);
+
+    const prisma = makePrisma();
+    (prisma as never as { brandAsset: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> } }).brandAsset = {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue({ mimeType: "image/png", r2Key: "org_1/gen.png" }),
+    };
+
+    const deps: HandlerDeps = {
+      fetchAsset: fetchAssetMock as unknown as HandlerDeps["fetchAsset"],
+      getBusinessContext: vi.fn().mockResolvedValue("") as never,
+      ingestBrandAsset: vi.fn() as never,
+      prisma: prisma as never,
+      runAgent: vi.fn().mockResolvedValue({
+        generatedAssetIds: ["asset_gen_1"],
+        text: "Pronto, gerei a imagem!",
+        toolCallSummary: { extractSoul: 0, generateBrandImage: 1, labelBrandAsset: 0 },
+        usage: { inputTokens: 1, outputTokens: 1 },
+      }) as never,
+    };
+
+    const thread = { id: "tg_chat_42", post: vi.fn().mockResolvedValue(undefined), postImage: postImageMock };
+
+    await handleIncomingMessage(deps, thread as never, makeMessage({ text: "gera uma imagem" }));
+
+    expect(fetchAssetMock).toHaveBeenCalledWith("org_1/gen.png");
+    expect(postImageMock).toHaveBeenCalledOnce();
+    expect(postImageMock).toHaveBeenCalledWith(expect.objectContaining({ bytes: generatedBytes }));
+    expect(thread.post).toHaveBeenCalledWith("Pronto, gerei a imagem!");
   });
 });
