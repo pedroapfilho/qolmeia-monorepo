@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { handleIncomingMessage, type HandlerDeps } from "./handler";
+import { handleInboundMessage, type PipelineDeps } from "./pipeline";
 
 const makeThread = () => ({ id: "tg_chat_42", post: vi.fn().mockResolvedValue(undefined) });
 
@@ -64,29 +64,29 @@ const makeDeps = (
     ingestBrandAsset: ReturnType<typeof vi.fn>;
     prisma: ReturnType<typeof makePrisma>;
   }> = {},
-): HandlerDeps => {
+): PipelineDeps => {
   const prisma = over.prisma ?? makePrisma();
   return {
-    dispatcher: (over.dispatcher ?? makeDispatcher()) as unknown as HandlerDeps["dispatcher"],
-    fetchAsset: over.fetchAsset as unknown as HandlerDeps["fetchAsset"],
+    dispatcher: (over.dispatcher ?? makeDispatcher()) as unknown as PipelineDeps["dispatcher"],
+    fetchAsset: over.fetchAsset as unknown as PipelineDeps["fetchAsset"],
     getBusinessContext: (over.getBusinessContext ??
-      vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
+      vi.fn().mockResolvedValue("")) as unknown as PipelineDeps["getBusinessContext"],
     ingestBrandAsset: (over.ingestBrandAsset ??
       vi
         .fn()
         .mockImplementation((a: { mimeType: string }) =>
           Promise.resolve({ assetId: `asset_${a.mimeType}`, deduped: false }),
-        )) as unknown as HandlerDeps["ingestBrandAsset"],
-    prisma: prisma as unknown as HandlerDeps["prisma"],
+        )) as unknown as PipelineDeps["ingestBrandAsset"],
+    prisma: prisma as unknown as PipelineDeps["prisma"],
   };
 };
 
-describe("handleIncomingMessage", () => {
+describe("handleInboundMessage", () => {
   it("creates org+conversation+message and posts the agent's text on text input", async () => {
     const deps = makeDeps();
     const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread, makeMessage({ text: "sou um salão" }));
+    await handleInboundMessage(deps, thread, makeMessage({ text: "sou um salão" }));
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
@@ -102,7 +102,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps({ prisma });
     const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread, makeMessage());
+    await handleInboundMessage(deps, thread, makeMessage());
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
@@ -116,7 +116,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps();
     const thread = makeThread();
 
-    await handleIncomingMessage(
+    await handleInboundMessage(
       deps,
       thread,
       makeMessage({
@@ -139,7 +139,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps({ ingestBrandAsset });
     const thread = makeThread();
 
-    await handleIncomingMessage(
+    await handleInboundMessage(
       deps,
       thread,
       makeMessage({
@@ -174,7 +174,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps({ ingestBrandAsset });
     const thread = makeThread();
 
-    await handleIncomingMessage(
+    await handleInboundMessage(
       deps,
       thread,
       makeMessage({
@@ -199,7 +199,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps({ ingestBrandAsset });
     const thread = makeThread();
 
-    await handleIncomingMessage(
+    await handleInboundMessage(
       deps,
       thread,
       makeMessage({
@@ -219,7 +219,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps({ dispatcher, ingestBrandAsset: vi.fn() });
     const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread, makeMessage({ text: "   " }));
+    await handleInboundMessage(deps, thread, makeMessage({ text: "   " }));
 
     expect(dispatcher.enqueueAndAwait).not.toHaveBeenCalled();
     expect(thread.post).toHaveBeenCalledWith(
@@ -231,7 +231,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps();
     const thread = makeThread();
 
-    await handleIncomingMessage(
+    await handleInboundMessage(
       deps,
       thread,
       makeMessage({
@@ -253,7 +253,7 @@ describe("handleIncomingMessage", () => {
     const deps = makeDeps({ dispatcher });
     const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
 
     expect(thread.post).toHaveBeenCalledWith(
       "Tive um problema processando sua mensagem, pode tentar de novo?",
@@ -274,7 +274,7 @@ describe("handleIncomingMessage", () => {
       findUnique: vi.fn().mockResolvedValue({ mimeType: "image/png", r2Key: "org_1/gen.png" }),
     };
 
-    const deps: HandlerDeps = {
+    const deps: PipelineDeps = {
       dispatcher: makeDispatcher(
         vi.fn().mockResolvedValue({
           generatedAssetIds: ["asset_gen_1"],
@@ -282,8 +282,8 @@ describe("handleIncomingMessage", () => {
           toolCallSummary: { extractSoul: 0, generateBrandImage: 1, labelBrandAsset: 0 },
           usage: { inputTokens: 1, outputTokens: 1 },
         }),
-      ) as unknown as HandlerDeps["dispatcher"],
-      fetchAsset: fetchAssetMock as unknown as HandlerDeps["fetchAsset"],
+      ) as unknown as PipelineDeps["dispatcher"],
+      fetchAsset: fetchAssetMock as unknown as PipelineDeps["fetchAsset"],
       getBusinessContext: vi.fn().mockResolvedValue("") as never,
       ingestBrandAsset: vi.fn() as never,
       prisma: prisma as never,
@@ -291,7 +291,7 @@ describe("handleIncomingMessage", () => {
 
     const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread, makeMessage({ text: "gera uma imagem" }));
+    await handleInboundMessage(deps, thread, makeMessage({ text: "gera uma imagem" }));
 
     expect(fetchAssetMock).toHaveBeenCalledWith("org_1/gen.png");
     expect(thread.post).toHaveBeenCalledOnce();

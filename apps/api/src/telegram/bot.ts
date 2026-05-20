@@ -4,9 +4,8 @@ import { prisma } from "@repo/db";
 import { Chat } from "chat";
 
 import { dispatcher } from "../agents/main-dispatcher";
+import { handleInboundMessage } from "../inbox/pipeline";
 import { env } from "../lib/env";
-
-import { handleIncomingMessage } from "./handler";
 
 // Ensure env validation has run and these vars are present before the SDK
 // reads them from process.env at adapter construction time.
@@ -27,12 +26,12 @@ const bot = new Chat({
 // handler is registered, per SDK routing rules).
 bot.onNewMention(async (thread, message) => {
   await thread.subscribe();
-  await handleIncomingMessage({ dispatcher, prisma }, thread, message);
+  await handleInboundMessage({ dispatcher, prisma }, thread, message);
 });
 
 // All follow-up messages in subscribed threads.
 bot.onSubscribedMessage(async (thread, message) => {
-  await handleIncomingMessage({ dispatcher, prisma }, thread, message);
+  await handleInboundMessage({ dispatcher, prisma }, thread, message);
 });
 
 export { bot };
