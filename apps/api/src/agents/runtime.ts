@@ -1,56 +1,12 @@
 import { gateway, generateText, stepCountIs, tool } from "ai";
 
-import type {
-  AgentDispatchArgs,
-  AgentRunResult,
-  AssetSummary,
-  ExistingAssetSummary,
-} from "./dispatcher";
+import type { AgentDispatchArgs, AgentRunResult } from "./dispatcher";
 import { ALL_SKILLS, findSkillById } from "./skills/registry";
-import type { Skill, SkillContext } from "./skills/types";
+import type { AnySkill, SkillContext } from "./skills/types";
+import { aggregateSteps } from "./step-aggregator";
+import type { StepShape } from "./step-aggregator";
 import { findTemplateBySlug } from "./templates/registry";
-
-const renderAssetsBlock = (assets: ReadonlyArray<AssetSummary>): string => {
-  if (assets.length === 0) {
-    return "(nenhum)";
-  }
-  return assets
-    .map(
-      (a) =>
-        `- assetId: ${a.assetId}, mimeType: ${a.mimeType}${a.deduped ? " (já estava no perfil — NÃO labelar)" : ""}`,
-    )
-    .join("\n");
-};
-
-const renderExistingBlock = (assets: ReadonlyArray<ExistingAssetSummary>): string => {
-  if (assets.length === 0) {
-    return "(nenhum)";
-  }
-  return assets
-    .map(
-      (a) =>
-        `- assetId: ${a.assetId}, mimeType: ${a.mimeType}, metadata: ${JSON.stringify(a.metadata)}`,
-    )
-    .join("\n");
-};
-
-const renderSystemPrompt = (
-  template: string,
-  args: {
-    currentContext: string;
-    existingAssets: ReadonlyArray<ExistingAssetSummary>;
-    newAssets: ReadonlyArray<AssetSummary>;
-    oversizeCount: number;
-  },
-): string =>
-  template
-    .replace(
-      "{{currentContext}}",
-      args.currentContext.length > 0 ? args.currentContext : "(perfil vazio)",
-    )
-    .replace("{{existingAssetsBlock}}", renderExistingBlock(args.existingAssets))
-    .replace("{{newAssetsBlock}}", renderAssetsBlock(args.newAssets))
-    .replace("{{oversizeCount}}", String(args.oversizeCount));
+import { renderSystemPrompt } from "./templates/renderer";
 
 const buildUserContent = (input: AgentDispatchArgs["input"]) => {
   const parts: Array<
@@ -74,14 +30,14 @@ const buildUserContent = (input: AgentDispatchArgs["input"]) => {
 const resolveEnabledSkills = (
   enabledSkillIds: unknown,
   templateDefaultSkillIds: ReadonlyArray<string>,
-): ReadonlyArray<Skill<unknown, unknown>> => {
+): ReadonlyArray<AnySkill> => {
   // enabledSkillIds is Json? on AgentInstance: null = use template defaults,
   // [] = explicit empty (no skills), [...] = explicit override.
   const ids: ReadonlyArray<string> =
     enabledSkillIds === null || enabledSkillIds === undefined
       ? templateDefaultSkillIds
       : (enabledSkillIds as ReadonlyArray<string>);
-  const resolved: Array<Skill<unknown, unknown>> = [];
+  const resolved: Array<AnySkill> = [];
   for (const id of ids) {
     const skill = findSkillById(id);
     if (skill) {
@@ -143,49 +99,16 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     tools,
   });
 
-  // Aggregate tool calls/results across ALL agent steps. AI SDK v6's
-  // top-level result.toolCalls / result.toolResults only contain the LAST
-  // step's entries — when the model calls a tool in step 1 then writes text
-  // in step 2, those arrays are empty. The actual per-step data lives in
-  // step.content[] as discriminated items. Tool return values are under
-  // `output`, not `result`.
-  type StepContentItem = {
-    output?: {
-      assetId?: string;
-      generatedAssetIds?: ReadonlyArray<string>;
-      ok?: boolean;
-    };
-    toolName?: string;
-    type: string;
-  };
-  type StepShape = { content?: Array<StepContentItem> };
-  const steps = (result as { steps?: Array<StepShape> }).steps ?? [];
-
-  const summary: Record<string, number> = Object.fromEntries(ALL_SKILLS.map((s) => [s.id, 0]));
-  const generatedAssetIds: Array<string> = [];
-  for (const step of steps) {
-    for (const item of step.content ?? []) {
-      if (item.type === "tool-call" && item.toolName && item.toolName in summary) {
-        summary[item.toolName] = (summary[item.toolName] ?? 0) + 1;
-        continue;
-      }
-      if (item.type === "tool-result" && item.output?.ok === true) {
-        if (item.toolName === "generateBrandImage" && item.output.assetId) {
-          generatedAssetIds.push(item.output.assetId);
-        } else if (
-          item.toolName === "delegateToSpecialist" &&
-          Array.isArray(item.output.generatedAssetIds)
-        ) {
-          generatedAssetIds.push(...item.output.generatedAssetIds);
-        }
-      }
-    }
-  }
+  const steps = (result as { steps?: ReadonlyArray<StepShape> }).steps ?? [];
+  const { generatedAssetIds, toolCallSummary } = aggregateSteps(
+    steps,
+    ALL_SKILLS.map((s) => s.id),
+  );
 
   return {
     generatedAssetIds,
     text: result.text,
-    toolCallSummary: summary,
+    toolCallSummary,
     usage: {
       inputTokens: result.usage.inputTokens ?? 0,
       outputTokens: result.usage.outputTokens ?? 0,
