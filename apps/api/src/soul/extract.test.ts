@@ -10,7 +10,7 @@ import { extractFromMessage } from "./extract";
 
 const mocked = vi.mocked(mockedExtract);
 
-const stubReturn = () =>
+const stubReturn = (reply: string) =>
   mocked.mockResolvedValue({
     partial: {
       brandVoice: null,
@@ -19,17 +19,19 @@ const stubReturn = () =>
       targetAudience: null,
       whatYouDo: "salão",
     },
+    reply,
     usage: { inputTokens: 1, outputTokens: 1 },
-  } as never);
+  });
 
 describe("extractFromMessage", () => {
   it("builds a text input from a text message and passes the current context", async () => {
-    stubReturn();
+    stubReturn("Anotei!");
     const result = await extractFromMessage(
       { kind: "text", text: "sou um salão" },
       "# Business Context\n\nwhatYouDo: x",
     );
     expect(result.partial.whatYouDo).toBe("salão");
+    expect(result.reply).toBe("Anotei!");
     expect(mocked).toHaveBeenCalledWith(
       { kind: "text", text: "sou um salão" },
       "# Business Context\n\nwhatYouDo: x",
@@ -37,12 +39,13 @@ describe("extractFromMessage", () => {
   });
 
   it("builds an audio input and forwards bytes + mediaType", async () => {
-    stubReturn();
+    stubReturn("Recebi seu áudio.");
     const bytes = new Uint8Array([9, 9]);
-    await extractFromMessage(
+    const result = await extractFromMessage(
       { bytes, kind: "audio", mediaType: "audio/ogg" },
       "(perfil vazio)",
     );
+    expect(result.reply).toBe("Recebi seu áudio.");
     expect(mocked).toHaveBeenCalledWith(
       { bytes, kind: "audio", mediaType: "audio/ogg" },
       "(perfil vazio)",

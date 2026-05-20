@@ -12,22 +12,25 @@ import { extractSoul, type Input } from "./ai";
 
 const mockedGenerateObject = vi.mocked(generateObject);
 
-const stubGenerate = (object: unknown) => {
+const stubGenerate = (partial: unknown, reply: string) => {
   mockedGenerateObject.mockResolvedValue({
-    object,
+    object: { partial, reply },
     usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
   } as never);
 };
 
 describe("extractSoul", () => {
   it("calls generateObject with the model, schema, system prompt, and text input", async () => {
-    stubGenerate({
-      brandVoice: null,
-      differentiator: null,
-      location: null,
-      targetAudience: null,
-      whatYouDo: "Salão de cabelo",
-    });
+    stubGenerate(
+      {
+        brandVoice: null,
+        differentiator: null,
+        location: null,
+        targetAudience: null,
+        whatYouDo: "Salão de cabelo",
+      },
+      "Anotei que vocês são um salão! Qual seu público-alvo?",
+    );
 
     const input: Input = { kind: "text", text: "Sou um salão de cabelo" };
     const result = await extractSoul(input, "(perfil vazio)");
@@ -38,27 +41,32 @@ describe("extractSoul", () => {
       system: string;
     };
     expect(args.system).toContain("(perfil vazio)");
-    expect(args.system).toContain("Não invente");
+    expect(args.system).toContain("Você é um assistente onboarding");
+    expect(args.system).toContain("brandVoice");
     expect(args.messages[0]!.role).toBe("user");
     expect(args.messages[0]!.content[0]!.type).toBe("text");
     expect(args.messages[0]!.content[0]!.text).toBe("Sou um salão de cabelo");
 
     expect(result.partial.whatYouDo).toBe("Salão de cabelo");
+    expect(result.reply).toBe("Anotei que vocês são um salão! Qual seu público-alvo?");
     expect(result.usage.inputTokens).toBe(10);
     expect(result.usage.outputTokens).toBe(5);
   });
 
   it("sends audio bytes as a file content part", async () => {
-    stubGenerate({
-      brandVoice: null,
-      differentiator: null,
-      location: null,
-      targetAudience: null,
-      whatYouDo: null,
-    });
+    stubGenerate(
+      {
+        brandVoice: null,
+        differentiator: null,
+        location: null,
+        targetAudience: null,
+        whatYouDo: null,
+      },
+      "Recebi seu áudio.",
+    );
     const bytes = new Uint8Array([1, 2, 3]);
 
-    await extractSoul(
+    const result = await extractSoul(
       { bytes, kind: "audio", mediaType: "audio/ogg" },
       "# Business Context\n\nwhatYouDo: salão",
     );
@@ -67,9 +75,10 @@ describe("extractSoul", () => {
       messages: Array<{ content: Array<{ data?: Uint8Array; mediaType?: string; type: string }> }>;
       system: string;
     };
-    expect(args.system).toContain("Campos a extrair:");
+    expect(args.system).toContain("whatYouDo: salão");
     expect(args.messages[0]!.content[0]!.type).toBe("file");
     expect(args.messages[0]!.content[0]!.data).toBe(bytes);
     expect(args.messages[0]!.content[0]!.mediaType).toBe("audio/ogg");
+    expect(result.reply).toBe("Recebi seu áudio.");
   });
 });
