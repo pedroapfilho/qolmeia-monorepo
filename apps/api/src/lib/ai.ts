@@ -8,6 +8,7 @@ import { applySoulUpdate } from "../soul/apply";
 
 import { generateBrandImageBytes } from "./image-gen";
 import { env } from "./env";
+import { logger } from "./logger";
 import { fetchAsset } from "./storage";
 
 void env.AI_GATEWAY_API_KEY;
@@ -195,7 +196,9 @@ const runAgent = async (args: {
           });
           return { assetId, ok: true as const };
         } catch (error) {
-          return { error: String(error), ok: false as const };
+          const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+          logger.error({ error: message, orgId }, "generateBrandImage.failed");
+          return { error: message, ok: false as const };
         }
       },
       inputSchema: generateBrandImageToolInput,
@@ -234,22 +237,36 @@ const runAgent = async (args: {
     tools,
   });
 
+  // Aggregate tool calls/results across ALL agent steps. AI SDK v6's
+  // result.toolCalls / result.toolResults only contain the LAST step's
+  // entries — when the model calls a tool in step 1 then writes text in
+  // step 2, the top-level arrays are empty. We walk result.steps for the
+  // true totals.
+  type StepShape = {
+    toolCalls?: Array<{ toolName: string }>;
+    toolResults?: Array<{ result?: { assetId?: string; ok?: boolean }; toolName: string }>;
+  };
+  const steps = ((result as { steps?: Array<StepShape> }).steps ?? []);
+
   const summary = { extractSoul: 0, generateBrandImage: 0, labelBrandAsset: 0 };
-  for (const call of result.toolCalls) {
-    const name = (call as { toolName: string }).toolName;
-    if (name === "extractSoul") {
-      summary.extractSoul += 1;
-    } else if (name === "generateBrandImage") {
-      summary.generateBrandImage += 1;
-    } else if (name === "labelBrandAsset") {
-      summary.labelBrandAsset += 1;
+  for (const step of steps) {
+    for (const call of step.toolCalls ?? []) {
+      if (call.toolName === "extractSoul") {
+        summary.extractSoul += 1;
+      } else if (call.toolName === "generateBrandImage") {
+        summary.generateBrandImage += 1;
+      } else if (call.toolName === "labelBrandAsset") {
+        summary.labelBrandAsset += 1;
+      }
     }
   }
 
   const generatedAssetIds: Array<string> = [];
-  for (const entry of (result.toolResults ?? []) as Array<{ result?: { assetId?: string; ok?: boolean }; toolName: string }>) {
-    if (entry.toolName === "generateBrandImage" && entry.result?.ok === true && entry.result.assetId) {
-      generatedAssetIds.push(entry.result.assetId);
+  for (const step of steps) {
+    for (const entry of step.toolResults ?? []) {
+      if (entry.toolName === "generateBrandImage" && entry.result?.ok === true && entry.result.assetId) {
+        generatedAssetIds.push(entry.result.assetId);
+      }
     }
   }
 

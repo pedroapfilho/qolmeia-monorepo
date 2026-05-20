@@ -61,14 +61,20 @@ describe("runAgent", () => {
     expect(result.toolCallSummary.generateBrandImage).toBe(0);
   });
 
-  it("counts toolCalls in toolCallSummary", async () => {
+  it("counts toolCalls across all agent steps in toolCallSummary", async () => {
     generateTextMock.mockResolvedValue({
-      text: "Done.",
-      toolCalls: [
-        { toolName: "extractSoul" },
-        { toolName: "labelBrandAsset" },
-        { toolName: "labelBrandAsset" },
+      steps: [
+        {
+          toolCalls: [{ toolName: "extractSoul" }, { toolName: "labelBrandAsset" }],
+          toolResults: [],
+        },
+        {
+          toolCalls: [{ toolName: "labelBrandAsset" }],
+          toolResults: [],
+        },
       ],
+      text: "Done.",
+      toolCalls: [],
       toolResults: [],
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
@@ -85,15 +91,26 @@ describe("runAgent", () => {
       prisma,
     });
 
+    // 1 extractSoul + 2 labelBrandAsset (1 in step 1, 1 in step 2)
     expect(result.toolCallSummary).toEqual({ extractSoul: 1, generateBrandImage: 0, labelBrandAsset: 2 });
   });
 
-  it("when generateBrandImage tool is called, generatedAssetIds collects the asset ids", async () => {
+  it("when generateBrandImage tool is called in an earlier step, generatedAssetIds collects the asset ids", async () => {
+    // AI SDK v6: result.toolCalls/toolResults only show the LAST step; we
+    // walk result.steps for the true total. Model called the tool in step 1,
+    // then produced text in step 2.
     generateTextMock.mockResolvedValue({
       files: [],
+      steps: [
+        {
+          toolCalls: [{ toolName: "generateBrandImage" }],
+          toolResults: [{ result: { assetId: "asset_gen_1", ok: true }, toolName: "generateBrandImage" }],
+        },
+        { toolCalls: [], toolResults: [] },
+      ],
       text: "Pronto! Gerei a imagem.",
-      toolCalls: [{ toolName: "generateBrandImage" }],
-      toolResults: [{ result: { assetId: "asset_gen_1", ok: true }, toolName: "generateBrandImage" }],
+      toolCalls: [],
+      toolResults: [],
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
     } as never);
 
