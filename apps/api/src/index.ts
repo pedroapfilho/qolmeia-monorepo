@@ -7,6 +7,8 @@ import { createMarkdownFromOpenApi } from "@scalar/openapi-to-markdown";
 import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 
+import { syncSkills } from "./agents/skills/registry";
+import { syncTemplates } from "./agents/templates/registry";
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
 import { createOpenAPIApp } from "./lib/openapi";
@@ -165,6 +167,10 @@ logger.info(
   },
   "🚀 Starting server...",
 );
+
+await syncSkills(prisma);
+await syncTemplates(prisma);
+logger.info("Skill and template registries synced.");
 
 serve({
   fetch: app.fetch,
