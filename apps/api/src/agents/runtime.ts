@@ -105,7 +105,13 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     template.defaultEnabledSkillIds,
   );
 
-  const ctx: SkillContext = { orgId: agentInstance.orgId, prisma };
+  const ctx: SkillContext = {
+    agentInstanceId: agentInstance.id,
+    dispatcher: args.dispatcher,
+    orgId: agentInstance.orgId,
+    parentRunArgs: args,
+    prisma,
+  };
   const tools = Object.fromEntries(
     skills.map((skill) => [
       skill.id,

@@ -40,7 +40,13 @@ describe("labelBrandAssetSkill", () => {
         styleDescriptors: ["minimalista"],
         typography: "sans",
       },
-      { orgId: "org_1", prisma: fakePrisma },
+      {
+        agentInstanceId: "ai_1",
+        dispatcher: { enqueueAndAwait: vi.fn() } as never,
+        orgId: "org_1",
+        parentRunArgs: {} as never,
+        prisma: fakePrisma,
+      },
     );
 
     expect(update).toHaveBeenCalledWith({

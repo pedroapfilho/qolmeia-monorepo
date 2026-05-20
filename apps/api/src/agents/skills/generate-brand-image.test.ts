@@ -53,7 +53,13 @@ describe("generateBrandImageSkill", () => {
 
     const result = await generateBrandImageSkill.execute(
       { aspectRatio: "1:1", prompt: "Banner de promo" },
-      { orgId: "org_1", prisma: fakePrisma },
+      {
+        agentInstanceId: "ai_1",
+        dispatcher: { enqueueAndAwait: vi.fn() } as never,
+        orgId: "org_1",
+        parentRunArgs: {} as never,
+        prisma: fakePrisma,
+      },
     );
 
     expect(findMany).toHaveBeenCalledWith({
@@ -84,7 +90,13 @@ describe("generateBrandImageSkill", () => {
 
     const result = await generateBrandImageSkill.execute(
       { aspectRatio: "1:1", prompt: "x" },
-      { orgId: "org_1", prisma: fakePrisma },
+      {
+        agentInstanceId: "ai_1",
+        dispatcher: { enqueueAndAwait: vi.fn() } as never,
+        orgId: "org_1",
+        parentRunArgs: {} as never,
+        prisma: fakePrisma,
+      },
     );
 
     expect(result.ok).toBe(false);

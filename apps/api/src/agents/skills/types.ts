@@ -1,8 +1,13 @@
 import type { ConnectorType, PrismaClient } from "@repo/db";
 import type { z } from "zod";
 
+import type { AgentDispatchArgs, AgentDispatcher } from "../dispatcher";
+
 type SkillContext = {
+  agentInstanceId: string;
+  dispatcher: AgentDispatcher;
   orgId: string;
+  parentRunArgs: AgentDispatchArgs;
   prisma: PrismaClient;
 };
 

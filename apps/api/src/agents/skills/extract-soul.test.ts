@@ -42,7 +42,13 @@ describe("extractSoulSkill", () => {
         targetAudience: null,
         whatYouDo: "salão",
       },
-      { orgId: "org_1", prisma: fakePrisma },
+      {
+        agentInstanceId: "ai_1",
+        dispatcher: { enqueueAndAwait: vi.fn() } as never,
+        orgId: "org_1",
+        parentRunArgs: {} as never,
+        prisma: fakePrisma,
+      },
     );
 
     expect(applySoulUpdate).toHaveBeenCalledOnce();
