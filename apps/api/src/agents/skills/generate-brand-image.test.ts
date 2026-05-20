@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { generateBrandImageSkill } from "./generate-brand-image";
 
+vi.mock("../../knowledge/brand-context", () => ({
+  enrichPromptWithBrand: vi.fn((prompt: string, aspect: string) => `ENRICHED[${aspect}]:${prompt}`),
+  getBrandContext: vi.fn(),
+}));
 vi.mock("../../lib/image-gen", () => ({
   generateBrandImageBytes: vi.fn(),
 }));
@@ -24,33 +28,27 @@ describe("generateBrandImageSkill", () => {
     });
     expect(parsed.aspectRatio).toBe("16:9");
 
-    // default aspectRatio
     const defaulted = generateBrandImageSkill.inputSchema.parse({ prompt: "x" });
     expect(defaulted.aspectRatio).toBe("1:1");
 
-    // prompt too long
     expect(() => generateBrandImageSkill.inputSchema.parse({ prompt: "x".repeat(2001) })).toThrow();
   });
 
-  it("execute() composes brand context, calls image-gen, ingests result", async () => {
+  it("execute() flows: getBrandContext → enrichPromptWithBrand → generateBrandImageBytes → ingestGeneratedAsset", async () => {
+    const { enrichPromptWithBrand, getBrandContext } =
+      await import("../../knowledge/brand-context");
     const { generateBrandImageBytes } = await import("../../lib/image-gen");
     const { ingestGeneratedAsset } = await import("../../knowledge/brand-asset");
 
+    vi.mocked(getBrandContext).mockResolvedValueOnce({
+      palette: ["#FF0000"],
+      styles: ["moderno"],
+      typography: "sans",
+    });
     vi.mocked(generateBrandImageBytes).mockResolvedValueOnce(new Uint8Array([1, 2, 3]));
     vi.mocked(ingestGeneratedAsset).mockResolvedValueOnce({ assetId: "gen_1" });
 
-    const findMany = vi.fn().mockResolvedValue([
-      {
-        metadata: {
-          palette: ["#FF0000"],
-          styleDescriptors: ["moderno"],
-          typography: "sans",
-        },
-      },
-      { metadata: { source: "generated" } }, // should be skipped
-    ]);
-    const fakePrisma = { brandAsset: { findMany } } as never;
-
+    const fakePrisma = { id: "fake-prisma" } as never;
     const result = await generateBrandImageSkill.execute(
       { aspectRatio: "1:1", prompt: "Banner de promo" },
       {
@@ -62,31 +60,26 @@ describe("generateBrandImageSkill", () => {
       },
     );
 
-    expect(findMany).toHaveBeenCalledWith({
-      orderBy: { createdAt: "desc" },
-      select: { metadata: true },
-      take: 3,
-      where: { orgId: "org_1" },
+    expect(getBrandContext).toHaveBeenCalledWith("org_1", fakePrisma);
+    expect(enrichPromptWithBrand).toHaveBeenCalledWith("Banner de promo", "1:1", {
+      palette: ["#FF0000"],
+      styles: ["moderno"],
+      typography: "sans",
     });
-    expect(generateBrandImageBytes).toHaveBeenCalledOnce();
-    const callArgs = vi.mocked(generateBrandImageBytes).mock.calls[0]![0];
-    expect(callArgs.aspectRatio).toBe("1:1");
-    expect(callArgs.prompt).toContain("Banner de promo");
-    expect(callArgs.prompt).toContain("Aspect ratio: 1:1.");
-    expect(callArgs.prompt).toContain("#FF0000");
-    expect(callArgs.prompt).toContain("moderno");
-    expect(callArgs.prompt).toContain("sans");
+    expect(generateBrandImageBytes).toHaveBeenCalledWith({
+      aspectRatio: "1:1",
+      prompt: "ENRICHED[1:1]:Banner de promo",
+    });
     expect(ingestGeneratedAsset).toHaveBeenCalledOnce();
     expect(result).toEqual({ assetId: "gen_1", ok: true });
   });
 
   it("execute() returns { ok: false, error } when image generation fails", async () => {
+    const { getBrandContext } = await import("../../knowledge/brand-context");
     const { generateBrandImageBytes } = await import("../../lib/image-gen");
 
+    vi.mocked(getBrandContext).mockResolvedValueOnce({ palette: [], styles: [] });
     vi.mocked(generateBrandImageBytes).mockRejectedValueOnce(new Error("gateway 500"));
-
-    const findMany = vi.fn().mockResolvedValue([]);
-    const fakePrisma = { brandAsset: { findMany } } as never;
 
     const result = await generateBrandImageSkill.execute(
       { aspectRatio: "1:1", prompt: "x" },
@@ -95,7 +88,7 @@ describe("generateBrandImageSkill", () => {
         dispatcher: { enqueueAndAwait: vi.fn() } as never,
         orgId: "org_1",
         parentRunArgs: {} as never,
-        prisma: fakePrisma,
+        prisma: {} as never,
       },
     );
 
