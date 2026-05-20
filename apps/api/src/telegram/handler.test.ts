@@ -22,12 +22,12 @@ const makePrisma = () => {
   return {
     agentInstance: {
       upsert: vi.fn().mockResolvedValue({
-        displayName: "Designer",
+        displayName: "Controller",
         enabledSkillIds: null,
         id: "ai_test",
         mission: "",
         orgId: "org_1",
-        templateSlug: "designer",
+        templateSlug: "controller",
       }),
     },
     brandAsset: {

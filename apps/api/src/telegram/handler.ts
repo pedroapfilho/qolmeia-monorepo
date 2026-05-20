@@ -275,13 +275,13 @@ const handleIncomingMessage = async (
 
     const agentInstance = await prisma.agentInstance.upsert({
       create: {
-        displayName: "Designer",
+        displayName: "Controller",
         mission: "",
         orgId: link.orgId,
-        templateSlug: "designer",
+        templateSlug: "controller",
       },
       update: {},
-      where: { orgId_templateSlug: { orgId: link.orgId, templateSlug: "designer" } },
+      where: { orgId_templateSlug: { orgId: link.orgId, templateSlug: "controller" } },
     });
 
     const result = await dispatcher.enqueueAndAwait({
