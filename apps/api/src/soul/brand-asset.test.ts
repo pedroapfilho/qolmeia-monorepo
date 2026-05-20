@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ingestBrandAsset, type IngestStorage } from "./brand-asset";
+import { ingestBrandAsset, ingestGeneratedAsset, type IngestStorage } from "./brand-asset";
 
 const makeStorage = (): IngestStorage => ({
   assetKey: vi.fn((orgId: string, sha256: string, ext: string) => `org_${orgId}/${sha256}.${ext}`),
@@ -78,5 +78,51 @@ describe("ingestBrandAsset", () => {
     });
 
     expect(storage.assetKey).toHaveBeenCalledWith("org_1", expect.any(String), "png");
+  });
+});
+
+describe("ingestGeneratedAsset", () => {
+  it("sets metadata.source='generated' + prompt + generatedAt ISO string", async () => {
+    const storage = makeStorage();
+    const prisma = makePrisma(null);
+    const bytes = new Uint8Array([42, 43]);
+
+    const result = await ingestGeneratedAsset({
+      bytes,
+      mimeType: "image/png",
+      orgId: "org_1",
+      prisma: prisma as never,
+      prompt: "Logo moderno minimalista",
+      storage,
+    });
+
+    expect(result.assetId).toBe("asset_new");
+    expect(prisma.brandAsset.create).toHaveBeenCalledOnce();
+    const createArgs = prisma.brandAsset.create.mock.calls[0]![0] as { data: { metadata: { generatedAt: string; prompt: string; source: string } } };
+    expect(createArgs.data.metadata.source).toBe("generated");
+    expect(createArgs.data.metadata.prompt).toBe("Logo moderno minimalista");
+    expect(createArgs.data.metadata.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/v);
+  });
+
+  it("dedup hit: returns existing assetId without upload + create", async () => {
+    const storage = makeStorage();
+    const prisma = makePrisma({
+      id: "asset_existing",
+      r2Key: "org_org_1/abc.png",
+      sha256: "fbc1a9f858ea9e177916964bd88c3d37b91a1e84412765e29950777f265c4b75", // sha256 of [42,43]
+    });
+
+    const result = await ingestGeneratedAsset({
+      bytes: new Uint8Array([42, 43]),
+      mimeType: "image/png",
+      orgId: "org_1",
+      prisma: prisma as never,
+      prompt: "x",
+      storage,
+    });
+
+    expect(result.assetId).toBe("asset_existing");
+    expect(storage.uploadAsset).not.toHaveBeenCalled();
+    expect(prisma.brandAsset.create).not.toHaveBeenCalled();
   });
 });

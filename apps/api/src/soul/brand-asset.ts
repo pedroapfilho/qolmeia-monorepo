@@ -62,5 +62,49 @@ const ingestBrandAsset = async (args: {
   return { assetId: row.id, deduped: false };
 };
 
-export { ingestBrandAsset };
+const ingestGeneratedAsset = async (args: {
+  bytes: Uint8Array;
+  mimeType: string;
+  orgId: string;
+  prisma: IngestPrisma;
+  prompt: string;
+  storage?: IngestStorage;
+}): Promise<{ assetId: string }> => {
+  const storage: IngestStorage = args.storage ?? {
+    assetKey: defaultAssetKey,
+    uploadAsset: defaultUpload,
+  };
+  const sha256 = sha256Hex(args.bytes);
+
+  const existing = await args.prisma.brandAsset.findUnique({
+    where: { orgId_sha256: { orgId: args.orgId, sha256 } },
+  });
+  if (existing) {
+    return { assetId: existing.id };
+  }
+
+  const ext = mimeToExt(args.mimeType);
+  const key = storage.assetKey(args.orgId, sha256, ext);
+
+  await storage.uploadAsset({ bytes: args.bytes, key, mimeType: args.mimeType });
+
+  const row = await args.prisma.brandAsset.create({
+    data: {
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        prompt: args.prompt,
+        source: "generated",
+      },
+      mimeType: args.mimeType,
+      orgId: args.orgId,
+      r2Key: key,
+      sha256,
+      size: args.bytes.byteLength,
+    },
+  });
+
+  return { assetId: row.id };
+};
+
+export { ingestBrandAsset, ingestGeneratedAsset };
 export type { IngestPrisma, IngestStorage };
