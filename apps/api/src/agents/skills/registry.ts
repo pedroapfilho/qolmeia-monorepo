@@ -5,6 +5,8 @@ import { delegateToSpecialistSkill } from "./delegate-to-specialist";
 import { extractSoulSkill } from "./extract-soul";
 import { generateBrandImageSkill } from "./generate-brand-image";
 import { labelBrandAssetSkill } from "./label-brand-asset";
+import { readKnowledgeDocSkill } from "./read-knowledge-doc";
+import { searchKnowledgeSkill } from "./search-knowledge";
 import type { AnySkill } from "./types";
 
 const ALL_SKILLS = [
@@ -12,6 +14,8 @@ const ALL_SKILLS = [
   extractSoulSkill,
   generateBrandImageSkill,
   labelBrandAssetSkill,
+  readKnowledgeDocSkill,
+  searchKnowledgeSkill,
 ] as const satisfies ReadonlyArray<AnySkill>;
 
 const findSkillById = (id: string): AnySkill | undefined =>

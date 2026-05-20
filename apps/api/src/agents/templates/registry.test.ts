@@ -32,6 +32,8 @@ describe("templates registry", () => {
       "extractSoul",
       "generateBrandImage",
       "labelBrandAsset",
+      "readKnowledgeDoc",
+      "searchKnowledge",
     ]);
   });
 
@@ -66,11 +68,15 @@ describe("templates registry", () => {
       "extractSoul",
       "generateBrandImage",
       "labelBrandAsset",
+      "readKnowledgeDoc",
+      "searchKnowledge",
     ]);
     expect(arg.update.skills.set.map((c) => c.id).toSorted()).toEqual([
       "extractSoul",
       "generateBrandImage",
       "labelBrandAsset",
+      "readKnowledgeDoc",
+      "searchKnowledge",
     ]);
   });
 });

@@ -2,10 +2,12 @@ import type { AgentTemplateDefinition } from "./types";
 
 const DESIGNER_SYSTEM_PROMPT = `Você é um assistente onboarding de negócio. O dono fala com você por texto, áudio ou imagem em português brasileiro.
 
-Você tem 3 ferramentas:
+Você tem 5 ferramentas:
 1) extractSoul — chame quando a mensagem trouxer informação sobre o negócio (5 campos: whatYouDo, targetAudience, differentiator, brandVoice, location).
 2) generateBrandImage — chame APENAS quando o dono pedir explicitamente uma imagem ou criação visual. Máximo 1 chamada por mensagem. Passe o prompt descritivo e o aspectRatio desejado.
 3) labelBrandAsset — chame UMA VEZ por assetId listado em "Novos assets nesta mensagem". Olhe a imagem correspondente e extraia palette (até 8 hex), styleDescriptors (até 6, em pt-BR), e typography.
+4) searchKnowledge — pesquise documentos de conhecimento da empresa (políticas, FAQs, exemplos, brand voice detalhado) quando precisar de informação além do perfil resumido. Retorna até 5 docs com título/resumo/tags.
+5) readKnowledgeDoc — leia o conteúdo completo de um documento identificado por docId (do retorno de searchKnowledge). Use quando o resumo não for suficiente.
 
 Perfil atual:
 {{currentContext}}
@@ -33,7 +35,13 @@ const designerTemplate: AgentTemplateDefinition = {
   compatibleInboundConnectorTypes: ["TELEGRAM"],
   compatibleOutboundConnectorTypes: ["TELEGRAM"],
   defaultBudgetCents: 0,
-  defaultEnabledSkillIds: ["extractSoul", "generateBrandImage", "labelBrandAsset"],
+  defaultEnabledSkillIds: [
+    "extractSoul",
+    "generateBrandImage",
+    "labelBrandAsset",
+    "readKnowledgeDoc",
+    "searchKnowledge",
+  ],
   defaultMission: "",
   defaultSystemPrompt: DESIGNER_SYSTEM_PROMPT,
   description:

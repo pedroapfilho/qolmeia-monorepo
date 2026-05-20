@@ -66,6 +66,12 @@ enum AgentActionStatus {
   EXECUTED
 }
 
+enum KnowledgeDocContentType {
+  MARKDOWN
+  PLAIN_TEXT
+  JSON
+}
+
 model AgentTemplate {
   slug                             String          @id
   displayName                      String
@@ -195,6 +201,7 @@ model Organization {
   brandAssets        BrandAsset[]
   connectorInstances ConnectorInstance[]
   agentInstances     AgentInstance[]
+  knowledgeDocs      KnowledgeDoc[]
 
   @@index([slug])
 }
@@ -286,4 +293,21 @@ model BrandAsset {
 
   @@unique([orgId, sha256])
   @@index([orgId, createdAt])
+}
+
+model KnowledgeDoc {
+  id          String                  @id @default(cuid())
+  orgId       String
+  r2Key       String
+  title       String
+  summary     String                  @db.Text
+  tags        String[]
+  contentType KnowledgeDocContentType @default(MARKDOWN)
+  size        Int
+  org         Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@index([orgId, createdAt])
+  @@index([orgId])
 }

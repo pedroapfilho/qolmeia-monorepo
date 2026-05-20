@@ -37,5 +37,14 @@ export default defineConfig({
         "no-console": "off",
       },
     },
+    // CLI seed scripts are run via tsx directly — they're not production code.
+    // `no-console` and `no-process-exit` are inapplicable in this context.
+    {
+      files: ["apps/api/src/scripts/**/*.ts"],
+      rules: {
+        "no-console": "off",
+        "unicorn/no-process-exit": "off",
+      },
+    },
   ],
 });

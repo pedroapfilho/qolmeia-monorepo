@@ -3,13 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import { ALL_SKILLS, findSkillById, syncSkills } from "./registry";
 
 describe("skill registry", () => {
-  it("exports the 4 Phase 5b/5d skills", () => {
+  it("exports the 6 skills (Phase 5b/5d + KR)", () => {
     const ids = ALL_SKILLS.map((s) => s.id).toSorted();
     expect(ids).toEqual([
       "delegateToSpecialist",
       "extractSoul",
       "generateBrandImage",
       "labelBrandAsset",
+      "readKnowledgeDoc",
+      "searchKnowledge",
     ]);
   });
 
@@ -24,7 +26,7 @@ describe("skill registry", () => {
 
     await syncSkills(fakePrisma);
 
-    expect(upsert).toHaveBeenCalledTimes(4);
+    expect(upsert).toHaveBeenCalledTimes(6);
     const firstCallArg = upsert.mock.calls[0]![0] as {
       create: {
         description: string;

@@ -14,7 +14,7 @@ import { runAgentInstance } from "./runtime";
 const mockedGenerateText = vi.mocked(generateText as unknown as ReturnType<typeof vi.fn>);
 
 describe("runAgentInstance", () => {
-  it("loads the Designer template, builds the system prompt, and wires all 3 skills", async () => {
+  it("loads the Designer template, builds the system prompt, and wires all 5 skills", async () => {
     mockedGenerateText.mockResolvedValue({
       text: "Olá!",
       toolCalls: [],
@@ -54,6 +54,8 @@ describe("runAgentInstance", () => {
       "extractSoul",
       "generateBrandImage",
       "labelBrandAsset",
+      "readKnowledgeDoc",
+      "searchKnowledge",
     ]);
     expect(args.system).toContain("(perfil vazio)");
     expect(args.system).toContain("Você é um assistente onboarding");
