@@ -31,6 +31,41 @@ enum ContentType {
   DOCUMENT
 }
 
+enum AgentInstanceStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum ConnectorType {
+  TELEGRAM
+  WHATSAPP
+  FRESHA
+  GOOGLE_MY_BUSINESS
+  INSTAGRAM
+}
+
+enum SenderRole {
+  OWNER
+  CUSTOMER
+}
+
+enum BindingDirection {
+  INBOUND
+  OUTBOUND
+  BOTH
+}
+
+enum AgentActionStatus {
+  DRAFTED
+  AUTO_APPROVED
+  APPROVED
+  REJECTED
+  EDITED
+  EXPIRED
+  FAILED
+  EXECUTED
+}
+
 model Organization {
   id              String   @id @default(cuid())
   name            String
@@ -60,15 +95,15 @@ model TelegramLink {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   orgId     String
   org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   phone     String?
   email     String?
   name      String?
   meta      Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   conversations Conversation[]
 
