@@ -1,0 +1,216 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { prisma } from "../client";
+
+// These tests hit the live local Postgres (docker-compose, host port 5436).
+// They assume `pnpm db:push` has been run. Each test creates its own scoped
+// fixtures with unique-by-test prefixes so the suite can run repeatedly
+// without an explicit truncate.
+
+const PREFIX = `p5a-${Date.now()}`;
+const tag = (key: string): string => `${PREFIX}-${key}`;
+
+describe("Phase 5a schema", () => {
+  beforeAll(() => {
+    // Sanity: the new models exist on the typed Prisma client.
+    expect(prisma.agentTemplate).toBeDefined();
+    expect(prisma.skill).toBeDefined();
+    expect(prisma.connectorInstance).toBeDefined();
+    expect(prisma.agentInstance).toBeDefined();
+    expect(prisma.agentConnectorBinding).toBeDefined();
+    expect(prisma.agentAction).toBeDefined();
+  });
+
+  afterAll(async () => {
+    // Best-effort cleanup of anything we inserted under our prefix.
+    await prisma.agentAction.deleteMany({
+      where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
+    });
+    await prisma.agentConnectorBinding.deleteMany({
+      where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
+    });
+    await prisma.agentInstance.deleteMany({ where: { org: { slug: { startsWith: PREFIX } } } });
+    await prisma.connectorInstance.deleteMany({ where: { org: { slug: { startsWith: PREFIX } } } });
+    await prisma.organization.deleteMany({ where: { slug: { startsWith: PREFIX } } });
+    await prisma.skill.deleteMany({ where: { id: { startsWith: PREFIX } } });
+    await prisma.agentTemplate.deleteMany({ where: { slug: { startsWith: PREFIX } } });
+  });
+
+  it("creates a Skill row", async () => {
+    const skill = await prisma.skill.create({
+      data: {
+        description: "A skill used in Phase 5a CRUD tests.",
+        displayName: "Test Skill",
+        id: tag("skill-1"),
+        parametersJsonSchema: { properties: {}, type: "object" },
+        requiredConnectorTypes: [],
+        requiresApprovalDefault: false,
+      },
+    });
+    expect(skill.id).toBe(tag("skill-1"));
+    expect(skill.requiredConnectorTypes).toEqual([]);
+  });
+
+  it("creates an AgentTemplate row with the many-to-many skill relation", async () => {
+    const skill = await prisma.skill.create({
+      data: {
+        description: "for template binding",
+        displayName: "Tag-2 Skill",
+        id: tag("skill-2"),
+        parametersJsonSchema: { properties: {}, type: "object" },
+        requiredConnectorTypes: ["TELEGRAM"],
+      },
+    });
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: ["TELEGRAM"],
+        compatibleOutboundConnectorTypes: ["TELEGRAM", "WHATSAPP"],
+        defaultMission: "mission",
+        defaultSystemPrompt: "system",
+        description: "Phase 5a CRUD",
+        displayName: "Template 1",
+        skills: { connect: [{ id: skill.id }] },
+        slug: tag("tpl-1"),
+      },
+      include: { skills: true },
+    });
+    expect(template.slug).toBe(tag("tpl-1"));
+    expect(template.skills).toHaveLength(1);
+    expect(template.skills[0]!.id).toBe(skill.id);
+    expect(template.compatibleOutboundConnectorTypes).toEqual(["TELEGRAM", "WHATSAPP"]);
+  });
+
+  it("creates an Organization + ConnectorInstance + AgentInstance + Binding + Action chain", async () => {
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: ["TELEGRAM"],
+        compatibleOutboundConnectorTypes: ["TELEGRAM"],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T2",
+        slug: tag("tpl-2"),
+      },
+    });
+    const skill = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "S3",
+        id: tag("skill-3"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "Phase 5a org", slug: tag("org") },
+    });
+    const connector = await prisma.connectorInstance.create({
+      data: {
+        capabilities: { inbound: true, outbound: true },
+        config: { chatId: "test-chat" },
+        displayName: "Phase 5a chat",
+        orgId: org.id,
+        senderRole: "OWNER",
+        type: "TELEGRAM",
+      },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        budgetCents: 5000,
+        displayName: "Phase 5a agent",
+        mission: "test",
+        orgId: org.id,
+        templateSlug: template.slug,
+      },
+    });
+    const binding = await prisma.agentConnectorBinding.create({
+      data: {
+        agentInstanceId: agent.id,
+        connectorInstanceId: connector.id,
+        direction: "BOTH",
+      },
+    });
+    const action = await prisma.agentAction.create({
+      data: {
+        agentInstanceId: agent.id,
+        proposedInput: { foo: "bar" },
+        proposedSummary: "test summary",
+        skillId: skill.id,
+      },
+    });
+    const child = await prisma.agentAction.create({
+      data: {
+        agentInstanceId: agent.id,
+        parentActionId: action.id,
+        proposedInput: {},
+        proposedSummary: "child",
+        skillId: skill.id,
+      },
+    });
+
+    expect(connector.senderRole).toBe("OWNER");
+    expect(agent.status).toBe("ACTIVE");
+    expect(binding.direction).toBe("BOTH");
+    expect(action.status).toBe("DRAFTED");
+    expect(action.costCurrency).toBe("BRL");
+    expect(child.parentActionId).toBe(action.id);
+
+    // (orgId, templateSlug) unique
+    await expect(
+      prisma.agentInstance.create({
+        data: {
+          displayName: "dup",
+          mission: "",
+          orgId: org.id,
+          templateSlug: template.slug,
+        },
+      }),
+    ).rejects.toThrow();
+
+    // Cascade delete: removing the org wipes downstream rows.
+    await prisma.agentAction.deleteMany({ where: { agentInstanceId: agent.id } });
+    await prisma.organization.delete({ where: { id: org.id } });
+    const remainingAgent = await prisma.agentInstance.findUnique({ where: { id: agent.id } });
+    const remainingConnector = await prisma.connectorInstance.findUnique({
+      where: { id: connector.id },
+    });
+    expect(remainingAgent).toBeNull();
+    expect(remainingConnector).toBeNull();
+  });
+
+  it("preserves enabledSkillIds null/[] distinction", async () => {
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T3",
+        slug: tag("tpl-3"),
+      },
+    });
+    // Two orgs because (orgId, templateSlug) is unique on AgentInstance.
+    const orgA = await prisma.organization.create({ data: { name: "n", slug: tag("org-a") } });
+    const orgB = await prisma.organization.create({ data: { name: "n", slug: tag("org-b") } });
+
+    const usingDefaults = await prisma.agentInstance.create({
+      data: { displayName: "a", mission: "", orgId: orgA.id, templateSlug: template.slug },
+    });
+    expect(usingDefaults.enabledSkillIds).toBeNull();
+
+    const explicitlyEmpty = await prisma.agentInstance.create({
+      data: {
+        displayName: "b",
+        enabledSkillIds: [],
+        mission: "",
+        orgId: orgB.id,
+        templateSlug: template.slug,
+      },
+    });
+    expect(explicitlyEmpty.enabledSkillIds).toEqual([]);
+  });
+});
