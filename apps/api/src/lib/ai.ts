@@ -1,24 +1,12 @@
-import { gateway, generateText, stepCountIs, tool } from "ai";
-import { z } from "zod";
-
 import type { PrismaClient } from "@repo/db";
+import { gateway, generateText, stepCountIs, tool } from "ai";
 
-import { ingestGeneratedAsset } from "../soul/brand-asset";
-import { applySoulUpdate } from "../soul/apply";
+import { ALL_SKILLS } from "../agents/skills/registry";
+import type { SkillContext } from "../agents/skills/types";
 
-import { generateBrandImageBytes } from "./image-gen";
 import { env } from "./env";
-import { logger } from "./logger";
 
 void env.AI_GATEWAY_API_KEY;
-
-const partialSoulSchema = z.object({
-  brandVoice: z.string().nullable(),
-  differentiator: z.string().nullable(),
-  location: z.string().nullable(),
-  targetAudience: z.string().nullable(),
-  whatYouDo: z.string().nullable(),
-});
 
 type AgentInput = {
   audioBytes?: Uint8Array;
@@ -37,26 +25,6 @@ type AgentResult = {
   toolCallSummary: { extractSoul: number; generateBrandImage: number; labelBrandAsset: number };
   usage: { inputTokens: number; outputTokens: number };
 };
-
-const extractSoulToolInput = z.object({
-  brandVoice: z.string().nullable(),
-  differentiator: z.string().nullable(),
-  location: z.string().nullable(),
-  targetAudience: z.string().nullable(),
-  whatYouDo: z.string().nullable(),
-});
-
-const generateBrandImageToolInput = z.object({
-  aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3"]).default("1:1"),
-  prompt: z.string().min(1).max(2000),
-});
-
-const labelBrandAssetToolInput = z.object({
-  assetId: z.string().min(1),
-  palette: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/iv)).min(1).max(8),
-  styleDescriptors: z.array(z.string().min(1)).min(1).max(6),
-  typography: z.enum(["serif", "sans", "script", "handwritten", "decorative", "unknown"]),
-});
 
 const AGENT_SYSTEM_TEMPLATE = `Você é um assistente onboarding de negócio. O dono fala com você por texto, áudio ou imagem em português brasileiro.
 
@@ -91,7 +59,10 @@ const renderAssetsBlock = (assets: ReadonlyArray<AssetSummary>): string => {
     return "(nenhum)";
   }
   return assets
-    .map((a) => `- assetId: ${a.assetId}, mimeType: ${a.mimeType}${a.deduped ? " (já estava no perfil — NÃO labelar)" : ""}`)
+    .map(
+      (a) =>
+        `- assetId: ${a.assetId}, mimeType: ${a.mimeType}${a.deduped ? " (já estava no perfil — NÃO labelar)" : ""}`,
+    )
     .join("\n");
 };
 
@@ -100,7 +71,10 @@ const renderExistingBlock = (assets: ReadonlyArray<ExistingAssetSummary>): strin
     return "(nenhum)";
   }
   return assets
-    .map((a) => `- assetId: ${a.assetId}, mimeType: ${a.mimeType}, metadata: ${JSON.stringify(a.metadata)}`)
+    .map(
+      (a) =>
+        `- assetId: ${a.assetId}, mimeType: ${a.mimeType}, metadata: ${JSON.stringify(a.metadata)}`,
+    )
     .join("\n");
 };
 
@@ -120,8 +94,7 @@ const renderAgentSystem = (args: {
 
 const buildAgentUserContent = (input: AgentInput) => {
   const parts: Array<
-    | { data: Uint8Array; mediaType: string; type: "file" }
-    | { text: string; type: "text" }
+    { data: Uint8Array; mediaType: string; type: "file" } | { text: string; type: "text" }
   > = [];
   if (input.audioBytes) {
     parts.push({ data: input.audioBytes, mediaType: input.audioMime ?? "audio/ogg", type: "file" });
@@ -149,102 +122,17 @@ const runAgent = async (args: {
 }): Promise<AgentResult> => {
   const { orgId, prisma } = args;
 
-  const tools = {
-    extractSoul: tool({
-      description:
-        "Atualize os 5 campos do perfil do dono. Use SOMENTE quando a mensagem trouxer info ou correção. Campos não mencionados ficam null.",
-      execute: async (partial) => {
-        const out = await applySoulUpdate(orgId, partial, prisma);
-        return { capturedFields: out.capturedFields };
-      },
-      inputSchema: extractSoulToolInput,
-    }),
-    generateBrandImage: tool({
-      description:
-        "Gere uma imagem para o dono baseada no perfil do negócio (soul + brand assets). Use APENAS quando o dono pedir explicitamente. AT MOST 1 call por mensagem.",
-      execute: async ({ aspectRatio, prompt }: z.infer<typeof generateBrandImageToolInput>) => {
-        try {
-          // Read recent uploaded assets' metadata and fold their palette/style
-          // into the text prompt. gpt-image-1 takes text only, so we describe
-          // the brand instead of passing image bytes.
-          const refRows = await prisma.brandAsset.findMany({
-            orderBy: { createdAt: "desc" },
-            select: { metadata: true },
-            take: 3,
-            where: { orgId },
-          });
-          const palette = new Set<string>();
-          const styles = new Set<string>();
-          let typography: string | undefined;
-          for (const row of refRows) {
-            const meta = row.metadata as {
-              palette?: Array<string>;
-              source?: string;
-              styleDescriptors?: Array<string>;
-              typography?: string;
-            } | null;
-            if (!meta || meta.source === "generated") {
-              continue;
-            }
-            for (const hex of meta.palette ?? []) {
-              palette.add(hex);
-            }
-            for (const s of meta.styleDescriptors ?? []) {
-              styles.add(s);
-            }
-            if (!typography && meta.typography && meta.typography !== "unknown") {
-              typography = meta.typography;
-            }
-          }
-
-          const brandLines: Array<string> = [];
-          if (palette.size > 0) {
-            brandLines.push(`Brand palette: ${[...palette].join(", ")}.`);
-          }
-          if (styles.size > 0) {
-            brandLines.push(`Brand style: ${[...styles].join(", ")}.`);
-          }
-          if (typography) {
-            brandLines.push(`Typography hint: ${typography}.`);
-          }
-          const fullPrompt = `${prompt}\n\nAspect ratio: ${aspectRatio}.${brandLines.length > 0 ? `\n\n${brandLines.join(" ")}` : ""}`;
-
-          const bytes = await generateBrandImageBytes({ aspectRatio, prompt: fullPrompt });
-          const { assetId } = await ingestGeneratedAsset({
-            bytes,
-            mimeType: "image/png",
-            orgId,
-            prisma,
-            prompt,
-          });
-          return { assetId, ok: true as const };
-        } catch (error) {
-          const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-          logger.error({ error: message, orgId }, "generateBrandImage.failed");
-          return { error: message, ok: false as const };
-        }
-      },
-      inputSchema: generateBrandImageToolInput,
-    }),
-    labelBrandAsset: tool({
-      description:
-        "Anote metadados visuais de UM asset que o dono enviou. Use um assetId de 'Novos assets'. Chame uma vez por assetId.",
-      execute: async (toolArgs) => {
-        await prisma.brandAsset.update({
-          data: {
-            metadata: {
-              palette: toolArgs.palette,
-              styleDescriptors: toolArgs.styleDescriptors,
-              typography: toolArgs.typography,
-            },
-          },
-          where: { id: toolArgs.assetId },
-        });
-        return { ok: true };
-      },
-      inputSchema: labelBrandAssetToolInput,
-    }),
-  };
+  const ctx: SkillContext = { orgId, prisma };
+  const tools = Object.fromEntries(
+    ALL_SKILLS.map((skill) => [
+      skill.id,
+      tool({
+        description: skill.description,
+        execute: (input: unknown) => skill.execute(input, ctx),
+        inputSchema: skill.inputSchema,
+      }),
+    ]),
+  );
 
   const result = await generateText({
     messages: [{ content: buildAgentUserContent(args.input), role: "user" }],
@@ -275,7 +163,7 @@ const runAgent = async (args: {
     type: string;
   };
   type StepShape = { content?: Array<StepContentItem> };
-  const steps = ((result as { steps?: Array<StepShape> }).steps ?? []);
+  const steps = (result as { steps?: Array<StepShape> }).steps ?? [];
 
   const summary = { extractSoul: 0, generateBrandImage: 0, labelBrandAsset: 0 };
   const generatedAssetIds: Array<string> = [];
@@ -313,5 +201,5 @@ const runAgent = async (args: {
   };
 };
 
-export { partialSoulSchema, runAgent };
+export { runAgent };
 export type { AgentInput, AgentResult, AssetSummary, ExistingAssetSummary };
