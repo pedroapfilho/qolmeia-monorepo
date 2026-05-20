@@ -66,6 +66,118 @@ enum AgentActionStatus {
   EXECUTED
 }
 
+model AgentTemplate {
+  slug                             String          @id
+  displayName                      String
+  description                      String          @db.Text
+  defaultSystemPrompt              String          @db.Text
+  defaultMission                   String          @db.Text
+  compatibleInboundConnectorTypes  ConnectorType[]
+  compatibleOutboundConnectorTypes ConnectorType[]
+  canDelegateTo                    String[]
+  defaultBudgetCents               Int             @default(0)
+  skills                           Skill[]         @relation("TemplateSkills")
+  instances                        AgentInstance[]
+  createdAt                        DateTime        @default(now())
+  updatedAt                        DateTime        @updatedAt
+}
+
+model Skill {
+  id                      String          @id
+  displayName             String
+  description             String          @db.Text
+  parametersJsonSchema    Json
+  requiresApprovalDefault Boolean         @default(false)
+  requiredConnectorTypes  ConnectorType[]
+  templates               AgentTemplate[] @relation("TemplateSkills")
+  agentActions            AgentAction[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+}
+
+model ConnectorInstance {
+  id            String                  @id @default(cuid())
+  orgId         String
+  type          ConnectorType
+  displayName   String
+  config        Json
+  capabilities  Json
+  senderRole    SenderRole
+  org           Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bindings      AgentConnectorBinding[]
+  conversations Conversation[]
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@index([orgId, type])
+}
+
+model AgentInstance {
+  id              String                  @id @default(cuid())
+  orgId           String
+  templateSlug    String
+  displayName     String
+  mission         String                  @db.Text
+  // null = use template default skill set; [] = explicit empty (no skills enabled).
+  // Stored as Json? to preserve the null/[] distinction (Prisma scalar lists
+  // can't be nullable in Postgres).
+  enabledSkillIds Json?
+  budgetCents     Int                     @default(0)
+  status          AgentInstanceStatus     @default(ACTIVE)
+  org             Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template        AgentTemplate           @relation(fields: [templateSlug], references: [slug])
+  bindings        AgentConnectorBinding[]
+  actions         AgentAction[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@unique([orgId, templateSlug])
+  @@index([orgId])
+}
+
+model AgentConnectorBinding {
+  id                  String            @id @default(cuid())
+  agentInstanceId     String
+  connectorInstanceId String
+  direction           BindingDirection
+  agentInstance       AgentInstance     @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  connectorInstance   ConnectorInstance @relation(fields: [connectorInstanceId], references: [id], onDelete: Cascade)
+  createdAt           DateTime          @default(now())
+
+  @@unique([agentInstanceId, connectorInstanceId, direction])
+  @@index([connectorInstanceId, direction])
+}
+
+model AgentAction {
+  id               String            @id @default(cuid())
+  agentInstanceId  String
+  skillId          String
+  triggerMessageId String?
+  parentActionId   String?
+  proposedInput    Json
+  proposedSummary  String            @db.Text
+  status           AgentActionStatus @default(DRAFTED)
+  decidedByUserId  String?
+  decidedAt        DateTime?
+  executedAt       DateTime?
+  resultJson       Json?
+  errorMessage     String?           @db.Text
+  costCents        Int               @default(0)
+  costCurrency     String            @default("BRL")
+  costInputTokens  Int               @default(0)
+  costOutputTokens Int               @default(0)
+  agentInstance    AgentInstance     @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  skill            Skill             @relation(fields: [skillId], references: [id])
+  parent           AgentAction?      @relation("ChildActions", fields: [parentActionId], references: [id])
+  children         AgentAction[]     @relation("ChildActions")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([agentInstanceId, status, createdAt])
+  @@index([triggerMessageId])
+  @@index([parentActionId])
+}
+
 model Organization {
   id              String   @id @default(cuid())
   name            String
@@ -77,10 +189,12 @@ model Organization {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  telegramLink  TelegramLink?
-  customers     Customer[]
-  conversations Conversation[]
-  brandAssets   BrandAsset[]
+  telegramLink       TelegramLink?
+  customers          Customer[]
+  conversations      Conversation[]
+  brandAssets        BrandAsset[]
+  connectorInstances ConnectorInstance[]
+  agentInstances     AgentInstance[]
 
   @@index([slug])
 }
@@ -113,20 +227,23 @@ model Customer {
 }
 
 model Conversation {
-  id         String             @id @default(cuid())
-  channel    Channel            @default(TELEGRAM)
-  externalId String?
-  status     ConversationStatus @default(ACTIVE)
-  orgId      String
-  org        Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  customerId String?
-  customer   Customer?          @relation(fields: [customerId], references: [id])
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  id                  String             @id @default(cuid())
+  channel             Channel            @default(TELEGRAM)
+  externalId          String?
+  status              ConversationStatus @default(ACTIVE)
+  orgId               String
+  org                 Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customerId          String?
+  customer            Customer?          @relation(fields: [customerId], references: [id])
+  connectorInstanceId String?
+  connectorInstance   ConnectorInstance? @relation(fields: [connectorInstanceId], references: [id])
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   messages Message[]
 
   @@index([orgId, status])
+  @@index([connectorInstanceId])
 }
 
 model Message {
