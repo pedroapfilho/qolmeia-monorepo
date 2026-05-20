@@ -8,9 +8,9 @@ const makePrisma = (existing: unknown) => {
     updated.businessProfile = data.businessProfile;
     return Promise.resolve(updated);
   });
-  const findUnique = vi.fn().mockResolvedValue(
-    existing === undefined ? null : { businessProfile: existing },
-  );
+  const findUnique = vi
+    .fn()
+    .mockResolvedValue(existing === undefined ? null : { businessProfile: existing });
   const tx = { organization: { findUnique, update } };
   return {
     _tx: tx,

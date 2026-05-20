@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { applySoulUpdate } from "../../soul/apply";
+import { applySoulUpdate } from "../../knowledge/apply";
 
 import type { Skill } from "./types";
 

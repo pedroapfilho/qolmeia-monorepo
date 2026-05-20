@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { getBusinessContext } from "./knowledge-provider";
+import { getBusinessContext } from "./provider";
 
 const makePrisma = (businessProfile: unknown) =>
   ({
     organization: {
-      findUnique: vi.fn().mockResolvedValue(
-        businessProfile === undefined ? null : { businessProfile },
-      ),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue(businessProfile === undefined ? null : { businessProfile }),
     },
   }) as never;
 

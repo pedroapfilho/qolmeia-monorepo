@@ -1,10 +1,10 @@
 import type { PrismaClient } from "@repo/db";
 
+import { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
+import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
 import { runAgent as runAgentDefault } from "../lib/ai";
 import { logger } from "../lib/logger";
 import { fetchAsset as fetchAssetDefault } from "../lib/storage";
-import { ingestBrandAsset as ingestBrandAssetDefault } from "../soul/brand-asset";
-import { getBusinessContext as getBusinessContextDefault } from "../soul/knowledge-provider";
 
 type IncomingAttachment = {
   fetchData?: () => Promise<Uint8Array>;
@@ -35,8 +35,12 @@ type IncomingThread = {
 };
 
 const extFromMime = (mimeType: string): string => {
-  if (mimeType === "image/png") { return "png"; }
-  if (mimeType === "image/jpeg" || mimeType === "image/jpg") { return "jpg"; }
+  if (mimeType === "image/png") {
+    return "png";
+  }
+  if (mimeType === "image/jpeg" || mimeType === "image/jpg") {
+    return "jpg";
+  }
   return "bin";
 };
 
@@ -46,7 +50,13 @@ type HandlerDeps = {
   ingestBrandAsset?: typeof ingestBrandAssetDefault;
   prisma: Pick<
     PrismaClient,
-    "$transaction" | "brandAsset" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"
+    | "$transaction"
+    | "brandAsset"
+    | "conversation"
+    | "message"
+    | "organization"
+    | "telegramLink"
+    | "webhookEvent"
   >;
   runAgent?: typeof runAgentDefault;
 };
@@ -186,10 +196,7 @@ const handleIncomingMessage = async (
       try {
         bytes = await img.fetchData();
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "image.download_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "image.download_failed");
         return { kind: "skip" };
       }
       if (bytes.byteLength > MAX_IMAGE_BYTES) {
@@ -205,10 +212,7 @@ const handleIncomingMessage = async (
         });
         return { assetId, bytes, deduped, kind: "ok", mimeType };
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "image.ingest_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "image.ingest_failed");
         return { kind: "skip" };
       }
     };
@@ -248,10 +252,7 @@ const handleIncomingMessage = async (
         }
         audioBytes = await audio.fetchData();
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "audio.download_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "audio.download_failed");
         await thread.post(DOWNLOAD_FAILED_REPLY);
         return;
       }
@@ -274,7 +275,12 @@ const handleIncomingMessage = async (
     const result = await runAgent({
       currentContext,
       existingAssets,
-      input: { audioBytes, audioMime: audio?.mimeType, imageBytes, text: text.length > 0 ? text : undefined },
+      input: {
+        audioBytes,
+        audioMime: audio?.mimeType,
+        imageBytes,
+        text: text.length > 0 ? text : undefined,
+      },
       newAssets,
       orgId: link.orgId,
       oversizeCount,
@@ -288,7 +294,9 @@ const handleIncomingMessage = async (
           select: { mimeType: true, r2Key: true },
           where: { id: assetId },
         });
-        if (!row) { return; }
+        if (!row) {
+          return;
+        }
         const bytes = await doFetch(row.r2Key);
         const filename = `qolmeia-${assetId}.${extFromMime(row.mimeType)}`;
         await thread.post({
@@ -298,7 +306,11 @@ const handleIncomingMessage = async (
       } catch (error) {
         logger.error({ assetId, chatId: thread.id, error }, "generated_image.post_failed");
         if (isLast) {
-          try { await thread.post(result.text); } catch { /* already logged above */ }
+          try {
+            await thread.post(result.text);
+          } catch {
+            /* already logged above */
+          }
         }
       }
     });

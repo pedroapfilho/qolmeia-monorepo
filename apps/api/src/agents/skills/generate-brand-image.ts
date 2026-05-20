@@ -1,8 +1,8 @@
 import { z } from "zod";
 
+import { ingestGeneratedAsset } from "../../knowledge/brand-asset";
 import { generateBrandImageBytes } from "../../lib/image-gen";
 import { logger } from "../../lib/logger";
-import { ingestGeneratedAsset } from "../../soul/brand-asset";
 
 import type { Skill } from "./types";
 

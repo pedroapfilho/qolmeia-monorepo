@@ -5,7 +5,7 @@ import { generateBrandImageSkill } from "./generate-brand-image";
 vi.mock("../../lib/image-gen", () => ({
   generateBrandImageBytes: vi.fn(),
 }));
-vi.mock("../../soul/brand-asset", () => ({
+vi.mock("../../knowledge/brand-asset", () => ({
   ingestGeneratedAsset: vi.fn(),
 }));
 
@@ -34,7 +34,7 @@ describe("generateBrandImageSkill", () => {
 
   it("execute() composes brand context, calls image-gen, ingests result", async () => {
     const { generateBrandImageBytes } = await import("../../lib/image-gen");
-    const { ingestGeneratedAsset } = await import("../../soul/brand-asset");
+    const { ingestGeneratedAsset } = await import("../../knowledge/brand-asset");
 
     vi.mocked(generateBrandImageBytes).mockResolvedValueOnce(new Uint8Array([1, 2, 3]));
     vi.mocked(ingestGeneratedAsset).mockResolvedValueOnce({ assetId: "gen_1" });

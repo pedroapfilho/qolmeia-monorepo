@@ -12,16 +12,25 @@ type IngestStorage = {
 };
 
 const mimeToExt = (mimeType: string): string => {
-  if (mimeType === "image/gif") { return "gif"; }
-  if (mimeType === "image/heic") { return "heic"; }
-  if (mimeType === "image/jpeg" || mimeType === "image/jpg") { return "jpg"; }
-  if (mimeType === "image/png") { return "png"; }
-  if (mimeType === "image/webp") { return "webp"; }
+  if (mimeType === "image/gif") {
+    return "gif";
+  }
+  if (mimeType === "image/heic") {
+    return "heic";
+  }
+  if (mimeType === "image/jpeg" || mimeType === "image/jpg") {
+    return "jpg";
+  }
+  if (mimeType === "image/png") {
+    return "png";
+  }
+  if (mimeType === "image/webp") {
+    return "webp";
+  }
   return "bin";
 };
 
-const sha256Hex = (bytes: Uint8Array): string =>
-  createHash("sha256").update(bytes).digest("hex");
+const sha256Hex = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 
 const ingestBrandAsset = async (args: {
   bytes: Uint8Array;

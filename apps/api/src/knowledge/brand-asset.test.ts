@@ -9,9 +9,15 @@ const makeStorage = (): IngestStorage => ({
 
 const makePrisma = (existing: { id: string; r2Key: string; sha256: string } | null) => ({
   brandAsset: {
-    create: vi.fn().mockImplementation(({ data }: { data: { sha256: string } }) =>
-      Promise.resolve({ id: "asset_new", r2Key: `org_org_1/${data.sha256}.jpg`, sha256: data.sha256 }),
-    ),
+    create: vi
+      .fn()
+      .mockImplementation(({ data }: { data: { sha256: string } }) =>
+        Promise.resolve({
+          id: "asset_new",
+          r2Key: `org_org_1/${data.sha256}.jpg`,
+          sha256: data.sha256,
+        }),
+      ),
     findUnique: vi.fn().mockResolvedValue(existing),
   },
 });
@@ -98,7 +104,9 @@ describe("ingestGeneratedAsset", () => {
 
     expect(result.assetId).toBe("asset_new");
     expect(prisma.brandAsset.create).toHaveBeenCalledOnce();
-    const createArgs = prisma.brandAsset.create.mock.calls[0]![0] as { data: { metadata: { generatedAt: string; prompt: string; source: string } } };
+    const createArgs = prisma.brandAsset.create.mock.calls[0]![0] as {
+      data: { metadata: { generatedAt: string; prompt: string; source: string } };
+    };
     expect(createArgs.data.metadata.source).toBe("generated");
     expect(createArgs.data.metadata.prompt).toBe("Logo moderno minimalista");
     expect(createArgs.data.metadata.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/v);

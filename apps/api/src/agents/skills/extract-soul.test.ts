@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { extractSoulSkill } from "./extract-soul";
 
-vi.mock("../../soul/apply", () => ({
+vi.mock("../../knowledge/apply", () => ({
   applySoulUpdate: vi.fn(),
 }));
 
@@ -27,7 +27,7 @@ describe("extractSoulSkill", () => {
   });
 
   it("execute() forwards to applySoulUpdate(orgId, partial, prisma) and returns capturedFields", async () => {
-    const { applySoulUpdate } = await import("../../soul/apply");
+    const { applySoulUpdate } = await import("../../knowledge/apply");
     vi.mocked(applySoulUpdate).mockResolvedValueOnce({
       capturedFields: ["whatYouDo"],
       newProfile: { whatYouDo: "salão" },
