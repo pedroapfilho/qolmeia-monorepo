@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/ai", () => ({
   extractSoul: vi.fn(),
+  runAgent: vi.fn(),
 }));
 
 import { extractSoul as mockedExtract } from "../lib/ai";
