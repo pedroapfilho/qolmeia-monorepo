@@ -65,12 +65,13 @@ describe("runAgent", () => {
     generateTextMock.mockResolvedValue({
       steps: [
         {
-          toolCalls: [{ toolName: "extractSoul" }, { toolName: "labelBrandAsset" }],
-          toolResults: [],
+          content: [
+            { toolName: "extractSoul", type: "tool-call" },
+            { toolName: "labelBrandAsset", type: "tool-call" },
+          ],
         },
         {
-          toolCalls: [{ toolName: "labelBrandAsset" }],
-          toolResults: [],
+          content: [{ toolName: "labelBrandAsset", type: "tool-call" }],
         },
       ],
       text: "Done.",
@@ -103,10 +104,12 @@ describe("runAgent", () => {
       files: [],
       steps: [
         {
-          toolCalls: [{ toolName: "generateBrandImage" }],
-          toolResults: [{ result: { assetId: "asset_gen_1", ok: true }, toolName: "generateBrandImage" }],
+          content: [
+            { toolName: "generateBrandImage", type: "tool-call" },
+            { output: { assetId: "asset_gen_1", ok: true }, toolName: "generateBrandImage", type: "tool-result" },
+          ],
         },
-        { toolCalls: [], toolResults: [] },
+        { content: [] },
       ],
       text: "Pronto! Gerei a imagem.",
       toolCalls: [],
