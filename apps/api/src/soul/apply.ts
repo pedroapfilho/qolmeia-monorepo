@@ -1,7 +1,15 @@
 import type { PrismaClient } from "@repo/db";
 
-import type { PartialSoul } from "../lib/ai";
 import { SOUL_FIELDS, type SoulProfile } from "./soul";
+
+// Mirrors partialSoulSchema in lib/ai — keep in sync if soul fields change.
+type PartialSoul = {
+  brandVoice: string | null;
+  differentiator: string | null;
+  location: string | null;
+  targetAudience: string | null;
+  whatYouDo: string | null;
+};
 
 type ApplyPrisma = Pick<PrismaClient, "$transaction" | "organization">;
 
@@ -58,4 +66,4 @@ const applySoulUpdate = (
 };
 
 export { applySoulUpdate };
-export type { ApplyPrisma };
+export type { ApplyPrisma, PartialSoul };

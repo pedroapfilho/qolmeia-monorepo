@@ -20,6 +20,9 @@ const makePrisma = () => {
   const org = { id: "org_1" };
   const conversation = { id: "conv_1" };
   return {
+    brandAsset: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     conversation: {
       create: vi.fn().mockResolvedValue(conversation),
       findFirst: vi.fn().mockResolvedValue(null),
@@ -35,47 +38,39 @@ const makePrisma = () => {
 };
 
 const makeDeps = (over: Partial<{
-  applySoulUpdate: ReturnType<typeof vi.fn>;
-  extractFromMessage: ReturnType<typeof vi.fn>;
   getBusinessContext: ReturnType<typeof vi.fn>;
+  ingestBrandAsset: ReturnType<typeof vi.fn>;
   prisma: ReturnType<typeof makePrisma>;
+  runAgent: ReturnType<typeof vi.fn>;
 }> = {}): HandlerDeps => {
   const prisma = over.prisma ?? makePrisma();
   return {
-    applySoulUpdate:
-      (over.applySoulUpdate ??
-      vi.fn().mockResolvedValue({ capturedFields: ["whatYouDo"], newProfile: { whatYouDo: "salão" } })) as unknown as HandlerDeps["applySoulUpdate"],
-    extractFromMessage:
-      (over.extractFromMessage ??
-      vi.fn().mockResolvedValue({
-        partial: {
-          brandVoice: null,
-          differentiator: null,
-          location: null,
-          targetAudience: null,
-          whatYouDo: "salão",
-        },
-        reply: "Anotei que vocês são um salão! Qual seu público-alvo?",
-        usage: { inputTokens: 1, outputTokens: 1 },
-      })) as unknown as HandlerDeps["extractFromMessage"],
     getBusinessContext: (over.getBusinessContext ?? vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
+    ingestBrandAsset:
+      (over.ingestBrandAsset ??
+      vi.fn().mockImplementation((a: { mimeType: string }) =>
+        Promise.resolve({ assetId: `asset_${a.mimeType}`, deduped: false }),
+      )) as unknown as HandlerDeps["ingestBrandAsset"],
     prisma: prisma as unknown as HandlerDeps["prisma"],
+    runAgent:
+      (over.runAgent ??
+      vi.fn().mockResolvedValue({
+        text: "Anotei!",
+        toolCallSummary: { extractSoul: 1, labelBrandAsset: 0 },
+        usage: { inputTokens: 1, outputTokens: 1 },
+      })) as unknown as HandlerDeps["runAgent"],
   };
 };
 
 describe("handleIncomingMessage", () => {
-  it("creates org+conversation+message and replies with the captured/missing summary", async () => {
+  it("creates org+conversation+message and posts the agent's text on text input", async () => {
     const deps = makeDeps();
     const thread = makeThread();
 
     await handleIncomingMessage(deps, thread, makeMessage({ text: "sou um salão" }));
 
-    expect((deps.prisma as never as { organization: { create: ReturnType<typeof vi.fn> } }).organization.create).toHaveBeenCalledOnce();
-    expect((deps.prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create).toHaveBeenCalledOnce();
-    expect(deps.extractFromMessage).toHaveBeenCalledOnce();
-    expect(deps.applySoulUpdate).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith("Anotei que vocês são um salão! Qual seu público-alvo?");
+    expect(deps.runAgent).toHaveBeenCalledOnce();
+    expect(thread.post).toHaveBeenCalledWith("Anotei!");
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {
@@ -86,12 +81,11 @@ describe("handleIncomingMessage", () => {
 
     await handleIncomingMessage(deps, thread, makeMessage());
 
-    expect(deps.extractFromMessage).not.toHaveBeenCalled();
-    expect(deps.applySoulUpdate).not.toHaveBeenCalled();
+    expect(deps.runAgent).not.toHaveBeenCalled();
     expect(thread.post).not.toHaveBeenCalled();
   });
 
-  it("downloads audio attachments and forwards bytes to extractFromMessage", async () => {
+  it("downloads audio attachments and forwards bytes to runAgent", async () => {
     const bytes = new Uint8Array([7, 7, 7]);
     const fetchData = vi.fn().mockResolvedValue(bytes);
     const deps = makeDeps();
@@ -107,27 +101,99 @@ describe("handleIncomingMessage", () => {
     );
 
     expect(fetchData).toHaveBeenCalledOnce();
-    expect(deps.extractFromMessage).toHaveBeenCalledWith(
-      { bytes, kind: "audio", mediaType: "audio/ogg" },
-      "",
-    );
+    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { input: { audioBytes?: Uint8Array; audioMime?: string } };
+    expect(call.input.audioBytes).toBe(bytes);
+    expect(call.input.audioMime).toBe("audio/ogg");
   });
 
-  it("replies with the nothing-captured nudge for empty text without calling extract", async () => {
-    const deps = makeDeps({
-      applySoulUpdate: vi.fn(),
-      extractFromMessage: vi.fn(),
-    });
+  it("ingests image attachments and passes new assets + image bytes to runAgent", async () => {
+    const imageBytes = new Uint8Array([1, 2, 3]);
+    const fetchData = vi.fn().mockResolvedValue(imageBytes);
+    const ingestBrandAsset = vi.fn().mockResolvedValue({ assetId: "asset_logo", deduped: false });
+    const deps = makeDeps({ ingestBrandAsset });
+    const thread = makeThread();
+
+    await handleIncomingMessage(
+      deps,
+      thread,
+      makeMessage({
+        attachments: [{ fetchData, mimeType: "image/png", name: "logo.png" }],
+        text: "minha logo",
+      }),
+    );
+
+    expect(fetchData).toHaveBeenCalledOnce();
+    expect(ingestBrandAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: imageBytes, mimeType: "image/png", orgId: "org_1" }),
+    );
+    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      input: { imageBytes: Array<{ assetId: string; bytes: Uint8Array; mimeType: string }> };
+      newAssets: Array<{ assetId: string; deduped: boolean; mimeType: string }>;
+    };
+    expect(call.newAssets).toEqual([{ assetId: "asset_logo", deduped: false, mimeType: "image/png" }]);
+    expect(call.input.imageBytes).toEqual([
+      { assetId: "asset_logo", bytes: imageBytes, mimeType: "image/png" },
+    ]);
+  });
+
+  it("on dedup hit does NOT include bytes in input.imageBytes but does flag in newAssets", async () => {
+    const bytes = new Uint8Array([5]);
+    const fetchData = vi.fn().mockResolvedValue(bytes);
+    const ingestBrandAsset = vi.fn().mockResolvedValue({ assetId: "asset_existing", deduped: true });
+    const deps = makeDeps({ ingestBrandAsset });
+    const thread = makeThread();
+
+    await handleIncomingMessage(
+      deps,
+      thread,
+      makeMessage({
+        attachments: [{ fetchData, mimeType: "image/jpeg" }],
+        text: "",
+      }),
+    );
+
+    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      input: { imageBytes: Array<unknown> };
+      newAssets: Array<{ deduped: boolean }>;
+    };
+    expect(call.newAssets[0]!.deduped).toBe(true);
+    expect(call.input.imageBytes).toEqual([]);
+  });
+
+  it("skips images larger than 20MB and reports oversizeCount", async () => {
+    const bigBytes = new Uint8Array(21_000_000);
+    const fetchData = vi.fn().mockResolvedValue(bigBytes);
+    const ingestBrandAsset = vi.fn();
+    const deps = makeDeps({ ingestBrandAsset });
+    const thread = makeThread();
+
+    await handleIncomingMessage(
+      deps,
+      thread,
+      makeMessage({
+        attachments: [{ fetchData, mimeType: "image/jpeg" }],
+        text: "logo gigante",
+      }),
+    );
+
+    expect(ingestBrandAsset).not.toHaveBeenCalled();
+    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { oversizeCount: number };
+    expect(call.oversizeCount).toBe(1);
+  });
+
+  it("replies with the empty-text static when message is whitespace + no attachments", async () => {
+    const deps = makeDeps({ ingestBrandAsset: vi.fn(), runAgent: vi.fn() });
     const thread = makeThread();
 
     await handleIncomingMessage(deps, thread, makeMessage({ text: "   " }));
 
-    expect(deps.extractFromMessage).not.toHaveBeenCalled();
-    expect(deps.applySoulUpdate).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem, mas não entendi. Pode tentar de novo?");
+    expect(deps.runAgent).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith(
+      "Recebi sua mensagem, mas não entendi. Pode tentar de novo?",
+    );
   });
 
-  it("apologises (not throws) when audio download fails", async () => {
+  it("apologises when audio download fails", async () => {
     const deps = makeDeps();
     const thread = makeThread();
 
@@ -140,76 +206,20 @@ describe("handleIncomingMessage", () => {
       }),
     );
 
-    expect(deps.extractFromMessage).not.toHaveBeenCalled();
-    const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-    expect(reply).toContain("Não consegui baixar seu áudio");
+    expect(deps.runAgent).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith("Não consegui baixar seu áudio, pode reenviar?");
   });
 
-  it("apologises (not throws) when extractFromMessage fails", async () => {
+  it("apologises when runAgent throws (top-level catch)", async () => {
     const deps = makeDeps({
-      extractFromMessage: vi.fn().mockRejectedValue(new Error("rate-limited")),
+      runAgent: vi.fn().mockRejectedValue(new Error("agent failed")),
     });
     const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread, makeMessage({ text: "sou um salão" }));
+    await handleIncomingMessage(deps, thread, makeMessage({ text: "olá" }));
 
-    expect(deps.applySoulUpdate).not.toHaveBeenCalled();
-    const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-    expect(reply).toContain("Tive um problema processando sua mensagem");
-  });
-
-  it("strips non-serializable function refs from attachments before persisting", async () => {
-    const fetchData = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-    const deps = makeDeps();
-    const thread = makeThread();
-
-    await handleIncomingMessage(
-      deps,
-      thread,
-      makeMessage({
-        attachments: [
-          {
-            fetchData,
-            mimeType: "audio/ogg",
-            name: undefined,
-          },
-        ],
-        text: "",
-      }),
+    expect(thread.post).toHaveBeenCalledWith(
+      "Tive um problema processando sua mensagem, pode tentar de novo?",
     );
-
-    const webhookCreate = (deps.prisma as never as { webhookEvent: { create: ReturnType<typeof vi.fn> } }).webhookEvent.create;
-    expect(webhookCreate).toHaveBeenCalledOnce();
-    const payload = webhookCreate.mock.calls[0]![0].data.payload as {
-      attachments?: Array<Record<string, unknown>>;
-    };
-    expect(typeof payload.attachments?.[0]?.fetchData).not.toBe("function");
-    expect(payload.attachments?.[0]?.mimeType).toBe("audio/ogg");
-    expect(() => JSON.stringify(payload)).not.toThrow();
-
-    const messageCreate = (deps.prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create;
-    expect(messageCreate).toHaveBeenCalledOnce();
-    const metadata = messageCreate.mock.calls[0]![0].data.metadata as {
-      attachments?: Array<Record<string, unknown>>;
-    };
-    expect(typeof metadata.attachments?.[0]?.fetchData).not.toBe("function");
-    expect(() => JSON.stringify(metadata)).not.toThrow();
-  });
-
-  it("apologises (not throws) when a DB write fails before extraction", async () => {
-    const prisma = makePrisma();
-    (prisma as never as { webhookEvent: { create: ReturnType<typeof vi.fn> } }).webhookEvent.create.mockRejectedValue(
-      new Error("prisma kaboom"),
-    );
-    const deps = makeDeps({ prisma });
-    const thread = makeThread();
-
-    await expect(
-      handleIncomingMessage(deps, thread, makeMessage({ text: "olá" })),
-    ).resolves.toBeUndefined();
-
-    expect(deps.extractFromMessage).not.toHaveBeenCalled();
-    const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-    expect(reply).toContain("Tive um problema processando sua mensagem");
   });
 });

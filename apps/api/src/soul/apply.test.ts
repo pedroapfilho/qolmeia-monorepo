@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { applySoulUpdate } from "./apply";
-import type { PartialSoul } from "../lib/ai";
+import { applySoulUpdate, type PartialSoul } from "./apply";
 
 const makePrisma = (existing: unknown) => {
   const updated: { businessProfile?: unknown } = { businessProfile: existing };

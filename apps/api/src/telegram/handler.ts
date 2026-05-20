@@ -1,8 +1,8 @@
 import type { PrismaClient } from "@repo/db";
 
+import { runAgent as runAgentDefault } from "../lib/ai";
 import { logger } from "../lib/logger";
-import { applySoulUpdate as applySoulUpdateDefault } from "../soul/apply";
-import { extractFromMessage as extractFromMessageDefault } from "../soul/extract";
+import { ingestBrandAsset as ingestBrandAssetDefault } from "../soul/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../soul/knowledge-provider";
 
 type IncomingAttachment = {
@@ -23,20 +23,27 @@ type IncomingThread = {
 };
 
 type HandlerDeps = {
-  applySoulUpdate?: typeof applySoulUpdateDefault;
-  extractFromMessage?: typeof extractFromMessageDefault;
   getBusinessContext?: typeof getBusinessContextDefault;
-  prisma: Pick<PrismaClient, "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
+  ingestBrandAsset?: typeof ingestBrandAssetDefault;
+  prisma: Pick<
+    PrismaClient,
+    "$transaction" | "brandAsset" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"
+  >;
+  runAgent?: typeof runAgentDefault;
 };
 
 const EMPTY_TEXT_REPLY = "Recebi sua mensagem, mas não entendi. Pode tentar de novo?";
 const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
 const EXTRACT_FAILED_REPLY = "Tive um problema processando sua mensagem, pode tentar de novo?";
+const MAX_IMAGE_BYTES = 20_000_000;
 
 const slugify = (chatId: string): string => `org-tg-${chatId}`.toLowerCase();
 
 const findAudioAttachment = (attachments: ReadonlyArray<IncomingAttachment>) =>
   attachments.find((a) => (a.mimeType ?? "").startsWith("audio"));
+
+const findImageAttachments = (attachments: ReadonlyArray<IncomingAttachment>) =>
+  attachments.filter((a) => (a.mimeType ?? "").startsWith("image"));
 
 // Prisma's Json columns can't store functions (the SDK's attachments carry a
 // `fetchData` AsyncFunction). Walk the value and strip anything not
@@ -73,10 +80,10 @@ const handleIncomingMessage = async (
   message: IncomingMessage,
 ): Promise<void> => {
   const {
-    applySoulUpdate = applySoulUpdateDefault,
-    extractFromMessage = extractFromMessageDefault,
     getBusinessContext = getBusinessContextDefault,
+    ingestBrandAsset = ingestBrandAssetDefault,
     prisma,
+    runAgent = runAgentDefault,
   } = deps;
 
   try {
@@ -123,11 +130,21 @@ const handleIncomingMessage = async (
 
     const audio = findAudioAttachment(message.attachments ?? []);
     const hasAudio = audio !== undefined;
+    const images = findImageAttachments(message.attachments ?? []);
+
+    let contentType: "AUDIO" | "IMAGE" | "TEXT";
+    if (hasAudio) {
+      contentType = "AUDIO";
+    } else if (images.length > 0) {
+      contentType = "IMAGE";
+    } else {
+      contentType = "TEXT";
+    }
 
     await prisma.message.create({
       data: {
         content: message.text ?? "",
-        contentType: hasAudio ? "AUDIO" : "TEXT",
+        contentType,
         conversationId: conversation.id,
         externalId: message.id,
         metadata: toJsonSafe({ attachments: message.attachments ?? [] }) as object,
@@ -135,19 +152,81 @@ const handleIncomingMessage = async (
       },
     });
 
+    // Pre-process image attachments: download → 20 MB check → ingest (sha256 + R2 + row).
+    type ImageResult =
+      | { assetId: string; bytes: Uint8Array; deduped: boolean; kind: "ok"; mimeType: string }
+      | { kind: "oversize" }
+      | { kind: "skip" };
+
+    const processImage = async (img: IncomingAttachment): Promise<ImageResult> => {
+      if (!img.fetchData) {
+        return { kind: "skip" };
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = await img.fetchData();
+      } catch (error) {
+        logger.error(
+          { chatId: thread.id, error, messageId: message.id },
+          "image.download_failed",
+        );
+        return { kind: "skip" };
+      }
+      if (bytes.byteLength > MAX_IMAGE_BYTES) {
+        return { kind: "oversize" };
+      }
+      const mimeType = img.mimeType ?? "application/octet-stream";
+      try {
+        const { assetId, deduped } = await ingestBrandAsset({
+          bytes,
+          mimeType,
+          orgId: link.orgId,
+          prisma,
+        });
+        return { assetId, bytes, deduped, kind: "ok", mimeType };
+      } catch (error) {
+        logger.error(
+          { chatId: thread.id, error, messageId: message.id },
+          "image.ingest_failed",
+        );
+        return { kind: "skip" };
+      }
+    };
+
+    const imageResults = await Promise.allSettled(images.map(processImage));
+
+    const newAssets: Array<{ assetId: string; deduped: boolean; mimeType: string }> = [];
+    const imageBytes: Array<{ assetId: string; bytes: Uint8Array; mimeType: string }> = [];
+    let oversizeCount = 0;
+
+    for (const settled of imageResults) {
+      if (settled.status === "rejected") {
+        continue;
+      }
+      const r = settled.value;
+      if (r.kind === "oversize") {
+        oversizeCount += 1;
+      } else if (r.kind === "ok") {
+        newAssets.push({ assetId: r.assetId, deduped: r.deduped, mimeType: r.mimeType });
+        if (!r.deduped) {
+          imageBytes.push({ assetId: r.assetId, bytes: r.bytes, mimeType: r.mimeType });
+        }
+      }
+    }
+
     const text = (message.text ?? "").trim();
-    if (!hasAudio && text.length === 0) {
+    if (!hasAudio && text.length === 0 && newAssets.length === 0 && oversizeCount === 0) {
       await thread.post(EMPTY_TEXT_REPLY);
       return;
     }
 
-    let bytes: Uint8Array;
+    let audioBytes: Uint8Array | undefined;
     if (hasAudio) {
       try {
         if (!audio.fetchData) {
           throw new Error("attachment has no fetchData");
         }
-        bytes = await audio.fetchData();
+        audioBytes = await audio.fetchData();
       } catch (error) {
         logger.error(
           { chatId: thread.id, error, messageId: message.id },
@@ -156,39 +235,44 @@ const handleIncomingMessage = async (
         await thread.post(DOWNLOAD_FAILED_REPLY);
         return;
       }
-    } else {
-      bytes = new Uint8Array();
     }
 
     const currentContext = await getBusinessContext(link.orgId);
 
-    let result: Awaited<ReturnType<typeof extractFromMessage>>;
-    try {
-      result = hasAudio
-        ? await extractFromMessage(
-            { bytes, kind: "audio", mediaType: audio.mimeType ?? "audio/ogg" },
-            currentContext,
-          )
-        : await extractFromMessage({ kind: "text", text }, currentContext);
-    } catch (error) {
-      logger.error({ chatId: thread.id, error, messageId: message.id }, "extract.failed");
-      await thread.post(EXTRACT_FAILED_REPLY);
-      return;
-    }
+    const existingRows = await prisma.brandAsset.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, metadata: true, mimeType: true },
+      take: 20,
+      where: { orgId: link.orgId },
+    });
+    const existingAssets = existingRows.map((r) => ({
+      assetId: r.id,
+      metadata: r.metadata,
+      mimeType: r.mimeType,
+    }));
 
-    const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
+    const result = await runAgent({
+      currentContext,
+      existingAssets,
+      input: { audioBytes, audioMime: audio?.mimeType, imageBytes, text: text.length > 0 ? text : undefined },
+      newAssets,
+      orgId: link.orgId,
+      oversizeCount,
+      prisma: prisma as PrismaClient,
+    });
 
-    await thread.post(result.reply);
+    await thread.post(result.text);
 
     logger.info(
       {
-        capturedFields,
         chatId: thread.id,
-        kind: hasAudio ? "audio" : "text",
         messageId: message.id,
-        replyLength: result.reply.length,
+        newAssetIds: newAssets.map((a) => a.assetId),
+        oversizeCount,
+        replyLength: result.text.length,
         tokensIn: result.usage.inputTokens,
         tokensOut: result.usage.outputTokens,
+        toolCallSummary: result.toolCallSummary,
       },
       "telegram message handled",
     );
