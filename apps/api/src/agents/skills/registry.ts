@@ -2,6 +2,7 @@ import type { PrismaClient } from "@repo/db";
 import { z } from "zod";
 
 import { delegateToSpecialistSkill } from "./delegate-to-specialist";
+import { draftMarketingStrategySkill } from "./draft-marketing-strategy";
 import { extractSoulSkill } from "./extract-soul";
 import { generateBrandImageSkill } from "./generate-brand-image";
 import { labelBrandAssetSkill } from "./label-brand-asset";
@@ -11,6 +12,7 @@ import type { AnySkill } from "./types";
 
 const ALL_SKILLS = [
   delegateToSpecialistSkill,
+  draftMarketingStrategySkill,
   extractSoulSkill,
   generateBrandImageSkill,
   labelBrandAssetSkill,

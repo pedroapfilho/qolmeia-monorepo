@@ -10,7 +10,7 @@ import {
 describe("templates registry", () => {
   it("exports the Controller and Designer templates", () => {
     const slugs = ALL_TEMPLATES.map((t) => t.slug).toSorted();
-    expect(slugs).toEqual(["controller", "designer"]);
+    expect(slugs).toEqual(["controller", "designer", "marketing-strategist"]);
   });
 
   it("findTemplateBySlug returns matching template or undefined", () => {
@@ -43,10 +43,30 @@ describe("templates registry", () => {
     if (!controller) {
       return;
     }
-    expect(controller.canDelegateTo).toEqual(["designer"]);
+    expect(controller.canDelegateTo).toEqual(["designer", "marketing-strategist"]);
     expect(controller.defaultEnabledSkillIds).toEqual(["delegateToSpecialist"]);
     expect(controller.defaultSystemPrompt).toContain("{{currentContext}}");
     expect(controller.defaultSystemPrompt).toContain("delegateToSpecialist");
+  });
+
+  it("Marketing Strategist template can delegate to designer and lists the 4 expected skills", () => {
+    const ms = findTemplateBySlug("marketing-strategist");
+    expect(ms).toBeDefined();
+    if (!ms) {
+      return;
+    }
+    expect(ms.canDelegateTo).toEqual(["designer"]);
+    expect(ms.defaultEnabledSkillIds.toSorted()).toEqual([
+      "delegateToSpecialist",
+      "draftMarketingStrategy",
+      "readKnowledgeDoc",
+      "searchKnowledge",
+    ]);
+  });
+
+  it("Controller can delegate to designer AND marketing-strategist", () => {
+    const controller = findTemplateBySlug("controller");
+    expect(controller?.canDelegateTo.toSorted()).toEqual(["designer", "marketing-strategist"]);
   });
 
   it("syncTemplates upserts each template with skill connections", async () => {
