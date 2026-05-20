@@ -2,6 +2,24 @@
 
 Monorepo for the Qolmeia API — a Hono-on-Node backend that hosts the Telegram webhook and soul pipeline.
 
+## How it works (in one screen)
+
+A Brazilian local-business owner messages [`@qolmeia_mvp_v0_bot`](https://t.me/qolmeia_mvp_v0_bot) on Telegram. Each update flows:
+
+```
+Telegram → cloudflared → POST /telegram/webhook → Chat SDK adapter →
+telegram/handler.ts → lib/ai.runAgent (Vercel AI SDK generateText with 3 tools)
+  ├─ extractSoul         → writes the 5 soul fields to Organization.businessProfile
+  ├─ labelBrandAsset     → annotates an uploaded logo (palette/style/typography)
+  └─ generateBrandImage  → calls openai/gpt-image-1 via the Gateway, uploads the
+                           PNG to R2, persists a BrandAsset row, returns the id
+→ handler posts the agent's pt-BR text + any generated images back via Telegram.
+```
+
+State lives in **Postgres** (Prisma — `Organization`, `TelegramLink`, `Customer`, `Conversation`, `Message`, `WebhookEvent`, `BrandAsset`), **Redis** (Chat SDK conversation state + dedup), and **Cloudflare R2** (uploaded + generated brand assets, S3-compatible, SHA-256-keyed). One AI key (`AI_GATEWAY_API_KEY`) routes both text (`google/gemini-2.5-flash`) and image generation (`openai/gpt-image-1`) through Vercel AI Gateway.
+
+Full walkthrough — components, data model, request lifecycle, seams, phase history, roadmap — lives in **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**.
+
 ## Stack
 
 - **Framework:** Hono (Node.js)
@@ -15,17 +33,17 @@ Monorepo for the Qolmeia API — a Hono-on-Node backend that hosts the Telegram 
 
 ## Apps
 
-| App   | Description      | Dev URL                       |
-| ----- | ---------------- | ----------------------------- |
+| App   | Description      | Dev URL                 |
+| ----- | ---------------- | ----------------------- |
 | `api` | Hono backend API | `http://localhost:4000` |
 
 ## Packages
 
-| Package                   | Description                    |
-| ------------------------- | ------------------------------ |
-| `@repo/db`                | Prisma database client         |
-| `@repo/config-vitest`     | Shared Vitest test configs     |
-| `@repo/typescript-config` | Shared TypeScript configs      |
+| Package                   | Description                |
+| ------------------------- | -------------------------- |
+| `@repo/db`                | Prisma database client     |
+| `@repo/config-vitest`     | Shared Vitest test configs |
+| `@repo/typescript-config` | Shared TypeScript configs  |
 
 ## Setup
 
@@ -99,15 +117,15 @@ public HTTPS URL, so tunnel the local API to expose it:
 
 ## Scripts
 
-| Command             | Description                   |
-| ------------------- | ----------------------------- |
-| `pnpm dev`          | Start the API in development  |
-| `pnpm build`        | Build all packages + app      |
-| `pnpm test`         | Run Vitest unit tests         |
-| `pnpm lint`         | Run oxlint                    |
-| `pnpm format`       | Format with oxfmt             |
-| `pnpm format:check` | Check formatting              |
-| `pnpm typecheck`    | Run TypeScript checks         |
-| `pnpm db:generate`  | Generate Prisma client        |
-| `pnpm db:push`      | Push schema to database       |
-| `pnpm clean`        | Clean all build artifacts     |
+| Command             | Description                  |
+| ------------------- | ---------------------------- |
+| `pnpm dev`          | Start the API in development |
+| `pnpm build`        | Build all packages + app     |
+| `pnpm test`         | Run Vitest unit tests        |
+| `pnpm lint`         | Run oxlint                   |
+| `pnpm format`       | Format with oxfmt            |
+| `pnpm format:check` | Check formatting             |
+| `pnpm typecheck`    | Run TypeScript checks        |
+| `pnpm db:generate`  | Generate Prisma client       |
+| `pnpm db:push`      | Push schema to database      |
+| `pnpm clean`        | Clean all build artifacts    |
