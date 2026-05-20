@@ -2,7 +2,6 @@ import type { PrismaClient } from "@repo/db";
 
 import { SOUL_FIELDS, type SoulProfile } from "./soul";
 
-// Mirrors partialSoulSchema in lib/ai — keep in sync if soul fields change.
 type PartialSoul = {
   brandVoice: string | null;
   differentiator: string | null;
