@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
+import { ensureAgentInstance } from "../agents/agent-instance";
 import type { AgentDispatcher, AgentRunResult } from "../agents/dispatcher";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
@@ -56,15 +57,10 @@ const runAgentForInbound = async ({
     mimeType: r.mimeType,
   }));
 
-  const agentInstance = await deps.prisma.agentInstance.upsert({
-    create: {
-      displayName: "Controller",
-      mission: "",
-      orgId,
-      templateSlug: "controller",
-    },
-    update: {},
-    where: { orgId_templateSlug: { orgId, templateSlug: "controller" } },
+  const agentInstance = await ensureAgentInstance({
+    orgId,
+    prisma: deps.prisma,
+    templateSlug: "controller",
   });
 
   const text = (message.text ?? "").trim();

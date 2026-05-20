@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { logger } from "../../lib/logger";
+import { ensureAgentInstance } from "../agent-instance";
 import { findTemplateBySlug } from "../templates/registry";
 
 import { defineSkill } from "./types";
@@ -45,17 +46,10 @@ const delegateToSpecialistSkill = defineSkill<
         return { error, ok: false };
       }
 
-      const childAgent = await ctx.prisma.agentInstance.upsert({
-        create: {
-          displayName: targetTemplate.displayName,
-          mission: "",
-          orgId: ctx.orgId,
-          templateSlug: targetTemplateSlug,
-        },
-        update: {},
-        where: {
-          orgId_templateSlug: { orgId: ctx.orgId, templateSlug: targetTemplateSlug },
-        },
+      const childAgent = await ensureAgentInstance({
+        orgId: ctx.orgId,
+        prisma: ctx.prisma,
+        templateSlug: targetTemplateSlug,
       });
 
       const childResult = await ctx.dispatcher.enqueueAndAwait({

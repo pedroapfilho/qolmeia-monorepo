@@ -83,6 +83,7 @@ describe("delegateToSpecialistSkill", () => {
     const { findTemplateBySlug } = await import("../templates/registry");
     vi.mocked(findTemplateBySlug)
       .mockReturnValueOnce({ canDelegateTo: ["designer"], slug: "controller" } as never)
+      .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never)
       .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never);
 
     const childAgent = { id: "ai_designer", orgId: "org_1", templateSlug: "designer" };
@@ -146,6 +147,7 @@ describe("delegateToSpecialistSkill", () => {
     const { findTemplateBySlug } = await import("../templates/registry");
     vi.mocked(findTemplateBySlug)
       .mockReturnValueOnce({ canDelegateTo: ["designer"], slug: "controller" } as never)
+      .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never)
       .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never);
 
     const enqueueAndAwait = vi.fn().mockRejectedValue(new Error("worker exploded"));
