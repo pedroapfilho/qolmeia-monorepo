@@ -7,10 +7,10 @@ import { env } from "./env";
 void env.AI_GATEWAY_API_KEY;
 
 const partialSoulSchema = z.object({
-  competitors: z.string().nullable(),
-  contextLinks: z.array(z.string()).nullable(),
+  brandVoice: z.string().nullable(),
+  differentiator: z.string().nullable(),
+  location: z.string().nullable(),
   targetAudience: z.string().nullable(),
-  whatYouDeliver: z.string().nullable(),
   whatYouDo: z.string().nullable(),
 });
 
@@ -26,7 +26,15 @@ const SYSTEM_PROMPT_TEMPLATE = `Você extrai informações de negócio do dono.
 Aqui está o perfil atual:
 {{currentContext}}
 A mensagem do usuário pode estar em áudio ou texto, em português brasileiro.
-Atualize SOMENTE os campos que a mensagem deixa explícitos. Preserve correções (ex.: "na verdade meus concorrentes são X"). não invente; deixe campos não mencionados como null.`;
+
+Campos a extrair:
+- whatYouDo: o que vocês fazem e entregam
+- targetAudience: seu público-alvo
+- differentiator: o que diferencia vocês dos concorrentes
+- brandVoice: tom de voz / personalidade da marca
+- location: cidade / região de atuação
+
+Atualize SOMENTE os campos que a mensagem deixa explícitos. Preserve correções (ex.: "na verdade meu público é X"). Não invente; deixe campos não mencionados como null.`;
 
 const renderSystemPrompt = (currentContext: string): string =>
   SYSTEM_PROMPT_TEMPLATE.replace(

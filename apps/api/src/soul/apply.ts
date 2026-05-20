@@ -5,18 +5,6 @@ import { SOUL_FIELDS, type SoulProfile } from "./soul";
 
 type ApplyPrisma = Pick<PrismaClient, "$transaction" | "organization">;
 
-const dedupe = (xs: ReadonlyArray<string>): Array<string> => {
-  const seen = new Set<string>();
-  const out: Array<string> = [];
-  for (const x of xs) {
-    if (!seen.has(x)) {
-      seen.add(x);
-      out.push(x);
-    }
-  }
-  return out;
-};
-
 const applySoulUpdate = (
   orgId: string,
   partial: PartialSoul,
@@ -43,31 +31,18 @@ const applySoulUpdate = (
       if (incoming === undefined || incoming === null) {
         continue;
       }
-
-      if (field === "contextLinks") {
-        const existingLinks = existing.contextLinks ?? [];
-        const merged = dedupe([...existingLinks, ...(incoming as Array<string>)]);
-        const changed =
-          merged.length !== existingLinks.length ||
-          merged.some((v, i) => v !== existingLinks[i]);
-        next.contextLinks = merged;
-        if (changed) {
-          captured.push("contextLinks");
-        }
-        continue;
-      }
-
-      const scalarIncoming = incoming as string;
-      const scalarExisting = existing[field] as string | undefined;
-      if (scalarIncoming !== scalarExisting) {
-        if (field === "competitors") {
-          next.competitors = scalarIncoming;
+      const scalarExisting = existing[field];
+      if (incoming !== scalarExisting) {
+        if (field === "whatYouDo") {
+          next.whatYouDo = incoming;
         } else if (field === "targetAudience") {
-          next.targetAudience = scalarIncoming;
-        } else if (field === "whatYouDeliver") {
-          next.whatYouDeliver = scalarIncoming;
-        } else if (field === "whatYouDo") {
-          next.whatYouDo = scalarIncoming;
+          next.targetAudience = incoming;
+        } else if (field === "differentiator") {
+          next.differentiator = incoming;
+        } else if (field === "brandVoice") {
+          next.brandVoice = incoming;
+        } else if (field === "location") {
+          next.location = incoming;
         }
         captured.push(field);
       }

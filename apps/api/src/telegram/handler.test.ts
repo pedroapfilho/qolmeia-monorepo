@@ -48,7 +48,13 @@ const makeDeps = (over: Partial<{
     extractFromMessage:
       (over.extractFromMessage ??
       vi.fn().mockResolvedValue({
-        partial: { whatYouDo: "salão" },
+        partial: {
+          brandVoice: null,
+          differentiator: null,
+          location: null,
+          targetAudience: null,
+          whatYouDo: "salão",
+        },
         usage: { inputTokens: 1, outputTokens: 1 },
       })) as unknown as HandlerDeps["extractFromMessage"],
     getBusinessContext: (over.getBusinessContext ?? vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
@@ -68,9 +74,7 @@ describe("handleIncomingMessage", () => {
     expect(deps.extractFromMessage).toHaveBeenCalledOnce();
     expect(deps.applySoulUpdate).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledOnce();
-    const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-    expect(reply).toContain("Anotei: o que vocês fazem.");
-    expect(reply).toContain("Ainda preciso saber:");
+    expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem 👋");
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {
@@ -119,8 +123,7 @@ describe("handleIncomingMessage", () => {
 
     expect(deps.extractFromMessage).not.toHaveBeenCalled();
     expect(deps.applySoulUpdate).not.toHaveBeenCalled();
-    const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-    expect(reply).toContain("Não consegui captar nada útil");
+    expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem, mas não entendi. Pode tentar de novo?");
   });
 
   it("apologises (not throws) when audio download fails", async () => {

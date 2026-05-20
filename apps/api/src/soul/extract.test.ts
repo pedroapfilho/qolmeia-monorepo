@@ -13,14 +13,14 @@ const mocked = vi.mocked(mockedExtract);
 const stubReturn = () =>
   mocked.mockResolvedValue({
     partial: {
-      competitors: null,
-      contextLinks: null,
+      brandVoice: null,
+      differentiator: null,
+      location: null,
       targetAudience: null,
-      whatYouDeliver: null,
       whatYouDo: "salão",
     },
     usage: { inputTokens: 1, outputTokens: 1 },
-  });
+  } as never);
 
 describe("extractFromMessage", () => {
   it("builds a text input from a text message and passes the current context", async () => {

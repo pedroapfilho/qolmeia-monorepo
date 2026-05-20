@@ -22,10 +22,10 @@ const stubGenerate = (object: unknown) => {
 describe("extractSoul", () => {
   it("calls generateObject with the model, schema, system prompt, and text input", async () => {
     stubGenerate({
-      competitors: null,
-      contextLinks: null,
+      brandVoice: null,
+      differentiator: null,
+      location: null,
       targetAudience: null,
-      whatYouDeliver: null,
       whatYouDo: "Salão de cabelo",
     });
 
@@ -38,7 +38,7 @@ describe("extractSoul", () => {
       system: string;
     };
     expect(args.system).toContain("(perfil vazio)");
-    expect(args.system).toContain("não invente");
+    expect(args.system).toContain("Não invente");
     expect(args.messages[0]!.role).toBe("user");
     expect(args.messages[0]!.content[0]!.type).toBe("text");
     expect(args.messages[0]!.content[0]!.text).toBe("Sou um salão de cabelo");
@@ -50,10 +50,10 @@ describe("extractSoul", () => {
 
   it("sends audio bytes as a file content part", async () => {
     stubGenerate({
-      competitors: null,
-      contextLinks: null,
+      brandVoice: null,
+      differentiator: null,
+      location: null,
       targetAudience: null,
-      whatYouDeliver: null,
       whatYouDo: null,
     });
     const bytes = new Uint8Array([1, 2, 3]);
@@ -67,7 +67,7 @@ describe("extractSoul", () => {
       messages: Array<{ content: Array<{ data?: Uint8Array; mediaType?: string; type: string }> }>;
       system: string;
     };
-    expect(args.system).toContain("whatYouDo: salão");
+    expect(args.system).toContain("Campos a extrair:");
     expect(args.messages[0]!.content[0]!.type).toBe("file");
     expect(args.messages[0]!.content[0]!.data).toBe(bytes);
     expect(args.messages[0]!.content[0]!.mediaType).toBe("audio/ogg");

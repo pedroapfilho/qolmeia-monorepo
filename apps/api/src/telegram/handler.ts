@@ -4,8 +4,6 @@ import { logger } from "../lib/logger";
 import { applySoulUpdate as applySoulUpdateDefault } from "../soul/apply";
 import { extractFromMessage as extractFromMessageDefault } from "../soul/extract";
 import { getBusinessContext as getBusinessContextDefault } from "../soul/knowledge-provider";
-import { buildReply } from "../soul/reply";
-import type { SoulProfile } from "../soul/soul";
 
 type IncomingAttachment = {
   fetchData?: () => Promise<Uint8Array>;
@@ -31,6 +29,10 @@ type HandlerDeps = {
   prisma: Pick<PrismaClient, "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
 };
 
+// Temporary inline reply for the happy path in Task 2.5.1; replaced by the
+// LLM-built `result.reply` in Task 2.5.3.
+const TEMP_HAPPY_REPLY = "Recebi sua mensagem 👋";
+const EMPTY_TEXT_REPLY = "Recebi sua mensagem, mas não entendi. Pode tentar de novo?";
 const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
 const EXTRACT_FAILED_REPLY = "Tive um problema processando sua mensagem, pode tentar de novo?";
 
@@ -41,9 +43,7 @@ const findAudioAttachment = (attachments: ReadonlyArray<IncomingAttachment>) =>
 
 // Prisma's Json columns can't store functions (the SDK's attachments carry a
 // `fetchData` AsyncFunction). Walk the value and strip anything not
-// JSON-representable: functions and `undefined` are dropped, Date → ISO string.
-// `structuredClone` is not an option here — it throws on functions, which is
-// the exact case we're working around.
+// JSON-representable.
 const toJsonSafe = (value: unknown): unknown => {
   if (value === null) {
     return null;
@@ -83,7 +83,6 @@ const handleIncomingMessage = async (
   } = deps;
 
   try {
-    // Durable audit + idempotency (complements the adapter's in-memory dedup).
     const existing = await prisma.webhookEvent.findUnique({
       where: { provider_externalId: { externalId: message.id, provider: "telegram" } },
     });
@@ -98,7 +97,6 @@ const handleIncomingMessage = async (
       },
     });
 
-    // Resolve identity: one Telegram chat == one Organization.
     let link = await prisma.telegramLink.findUnique({
       select: { orgId: true },
       where: { telegramChatId: thread.id },
@@ -140,11 +138,9 @@ const handleIncomingMessage = async (
       },
     });
 
-    // Skip extract if no audio AND text is empty/whitespace.
     const text = (message.text ?? "").trim();
     if (!hasAudio && text.length === 0) {
-      const empty: SoulProfile = {};
-      await thread.post(buildReply(empty, []));
+      await thread.post(EMPTY_TEXT_REPLY);
       return;
     }
 
@@ -183,14 +179,9 @@ const handleIncomingMessage = async (
       return;
     }
 
-    const { capturedFields, newProfile } = await applySoulUpdate(
-      link.orgId,
-      result.partial,
-      prisma,
-    );
+    const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
 
-    const reply = buildReply(newProfile, capturedFields);
-    await thread.post(reply);
+    await thread.post(TEMP_HAPPY_REPLY);
 
     logger.info(
       {
@@ -204,9 +195,6 @@ const handleIncomingMessage = async (
       "telegram message handled",
     );
   } catch (error) {
-    // Safety net for any error escaping the inner specific catches (e.g. DB
-    // failure on findUnique/create, applySoulUpdate transaction failure).
-    // Spec §6 "Never silent-fail": always log + post a user-visible reply.
     logger.error({ chatId: thread.id, error, messageId: message.id }, "handler.failed");
     try {
       await thread.post(EXTRACT_FAILED_REPLY);

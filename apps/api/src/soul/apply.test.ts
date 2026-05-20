@@ -21,15 +21,20 @@ const makePrisma = (existing: unknown) => {
   } as never;
 };
 
+const emptyPartial: PartialSoul = {
+  brandVoice: null,
+  differentiator: null,
+  location: null,
+  targetAudience: null,
+  whatYouDo: null,
+};
+
 describe("applySoulUpdate", () => {
   it("overwrites scalar fields the model returned and preserves others", async () => {
     const prisma = makePrisma({ targetAudience: "antigo", whatYouDo: "salão" });
     const partial: PartialSoul = {
-      competitors: null,
-      contextLinks: null,
+      ...emptyPartial,
       targetAudience: "novo público",
-      whatYouDeliver: null,
-      whatYouDo: null,
     };
     const result = await applySoulUpdate("org_1", partial, prisma);
 
@@ -38,31 +43,25 @@ describe("applySoulUpdate", () => {
     expect(result.capturedFields).toEqual(["targetAudience"]);
   });
 
-  it("unions and dedupes contextLinks arrays in insertion order", async () => {
-    const prisma = makePrisma({ contextLinks: ["https://a", "https://b"] });
+  it("overwrites the new differentiator, brandVoice, and location fields", async () => {
+    const prisma = makePrisma({});
     const partial: PartialSoul = {
-      competitors: null,
-      contextLinks: ["https://b", "https://c"],
-      targetAudience: null,
-      whatYouDeliver: null,
-      whatYouDo: null,
+      ...emptyPartial,
+      brandVoice: "descontraído e jovem",
+      differentiator: "atendimento personalizado",
+      location: "São Paulo",
     };
     const result = await applySoulUpdate("org_1", partial, prisma);
 
-    expect(result.newProfile.contextLinks).toEqual(["https://a", "https://b", "https://c"]);
-    expect(result.capturedFields).toEqual(["contextLinks"]);
+    expect(result.newProfile.differentiator).toBe("atendimento personalizado");
+    expect(result.newProfile.brandVoice).toBe("descontraído e jovem");
+    expect(result.newProfile.location).toBe("São Paulo");
+    expect(result.capturedFields).toEqual(["differentiator", "brandVoice", "location"]);
   });
 
   it("captures nothing when partial only contains nulls", async () => {
     const prisma = makePrisma({ whatYouDo: "salão" });
-    const partial: PartialSoul = {
-      competitors: null,
-      contextLinks: null,
-      targetAudience: null,
-      whatYouDeliver: null,
-      whatYouDo: null,
-    };
-    const result = await applySoulUpdate("org_1", partial, prisma);
+    const result = await applySoulUpdate("org_1", emptyPartial, prisma);
 
     expect(result.capturedFields).toEqual([]);
     expect(result.newProfile.whatYouDo).toBe("salão");
@@ -71,10 +70,7 @@ describe("applySoulUpdate", () => {
   it("starts from empty when org has no businessProfile yet", async () => {
     const prisma = makePrisma(null);
     const partial: PartialSoul = {
-      competitors: null,
-      contextLinks: null,
-      targetAudience: null,
-      whatYouDeliver: null,
+      ...emptyPartial,
       whatYouDo: "salão",
     };
     const result = await applySoulUpdate("org_1", partial, prisma);
