@@ -1,9 +1,13 @@
 import type { PrismaClient } from "@repo/db";
 
+import { controllerTemplate } from "./controller";
 import { designerTemplate } from "./designer";
 import type { AgentTemplateDefinition } from "./types";
 
-const ALL_TEMPLATES: ReadonlyArray<AgentTemplateDefinition> = [designerTemplate];
+const ALL_TEMPLATES: ReadonlyArray<AgentTemplateDefinition> = [
+  controllerTemplate,
+  designerTemplate,
+];
 
 const findTemplateBySlug = (slug: string): AgentTemplateDefinition | undefined =>
   ALL_TEMPLATES.find((t) => t.slug === slug);

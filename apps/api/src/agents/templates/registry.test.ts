@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ALL_TEMPLATES, findTemplateBySlug, syncTemplates } from "./registry";
 
 describe("templates registry", () => {
-  it("exports the Designer template", () => {
-    const slugs = ALL_TEMPLATES.map((t) => t.slug);
-    expect(slugs).toContain("designer");
+  it("exports the Controller and Designer templates", () => {
+    const slugs = ALL_TEMPLATES.map((t) => t.slug).toSorted();
+    expect(slugs).toEqual(["controller", "designer"]);
   });
 
   it("findTemplateBySlug returns matching template or undefined", () => {
@@ -28,6 +28,18 @@ describe("templates registry", () => {
       "generateBrandImage",
       "labelBrandAsset",
     ]);
+  });
+
+  it("Controller template can delegate to designer and has delegateToSpecialist skill", () => {
+    const controller = findTemplateBySlug("controller");
+    expect(controller).toBeDefined();
+    if (!controller) {
+      return;
+    }
+    expect(controller.canDelegateTo).toEqual(["designer"]);
+    expect(controller.defaultEnabledSkillIds).toEqual(["delegateToSpecialist"]);
+    expect(controller.defaultSystemPrompt).toContain("{{currentContext}}");
+    expect(controller.defaultSystemPrompt).toContain("delegateToSpecialist");
   });
 
   it("syncTemplates upserts each template with skill connections", async () => {
