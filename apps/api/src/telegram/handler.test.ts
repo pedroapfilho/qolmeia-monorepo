@@ -226,10 +226,9 @@ describe("handleIncomingMessage", () => {
     );
   });
 
-  it("posts generated image bytes when runAgent returns generatedAssetIds", async () => {
+  it("posts generated image via thread.post({ files, markdown }) when runAgent returns generatedAssetIds", async () => {
     const generatedBytes = new Uint8Array([99, 98, 97]);
     const fetchAssetMock = vi.fn().mockResolvedValue(generatedBytes);
-    const postImageMock = vi.fn().mockResolvedValue(undefined);
 
     const prisma = makePrisma();
     (prisma as never as { brandAsset: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> } }).brandAsset = {
@@ -250,13 +249,15 @@ describe("handleIncomingMessage", () => {
       }) as never,
     };
 
-    const thread = { id: "tg_chat_42", post: vi.fn().mockResolvedValue(undefined), postImage: postImageMock };
+    const thread = makeThread();
 
-    await handleIncomingMessage(deps, thread as never, makeMessage({ text: "gera uma imagem" }));
+    await handleIncomingMessage(deps, thread, makeMessage({ text: "gera uma imagem" }));
 
     expect(fetchAssetMock).toHaveBeenCalledWith("org_1/gen.png");
-    expect(postImageMock).toHaveBeenCalledOnce();
-    expect(postImageMock).toHaveBeenCalledWith(expect.objectContaining({ bytes: generatedBytes }));
-    expect(thread.post).toHaveBeenCalledWith("Pronto, gerei a imagem!");
+    expect(thread.post).toHaveBeenCalledOnce();
+    expect(thread.post).toHaveBeenCalledWith({
+      files: [{ data: Buffer.from(generatedBytes), filename: "qolmeia-asset_gen_1.png", mimeType: "image/png" }],
+      markdown: "Pronto, gerei a imagem!",
+    });
   });
 });

@@ -18,10 +18,26 @@ type IncomingMessage = {
   text?: string;
 };
 
+type PostableFile = {
+  data: Buffer | Uint8Array;
+  filename: string;
+  mimeType?: string;
+};
+
+type PostableMessage = {
+  files?: ReadonlyArray<PostableFile>;
+  markdown: string;
+};
+
 type IncomingThread = {
   id: string;
-  post: (text: string) => Promise<unknown>;
-  postImage?: (args: { bytes: Uint8Array; caption?: string; mimeType?: string }) => Promise<unknown>;
+  post: (message: string | PostableMessage) => Promise<unknown>;
+};
+
+const extFromMime = (mimeType: string): string => {
+  if (mimeType === "image/png") { return "png"; }
+  if (mimeType === "image/jpeg" || mimeType === "image/jpg") { return "jpg"; }
+  return "bin";
 };
 
 type HandlerDeps = {
@@ -265,25 +281,29 @@ const handleIncomingMessage = async (
       prisma: prisma as PrismaClient,
     });
 
-    if (result.generatedAssetIds.length > 0 && thread.postImage) {
-      const postImageFn = thread.postImage.bind(thread);
-      await Promise.allSettled(
-        result.generatedAssetIds.map(async (assetId) => {
-          try {
-            const row = await prisma.brandAsset.findUnique({
-              select: { mimeType: true, r2Key: true },
-              where: { id: assetId },
-            });
-            if (!row) { return; }
-            const bytes = await doFetch(row.r2Key);
-            await postImageFn({ bytes, mimeType: row.mimeType });
-          } catch (error) {
-            logger.error({ assetId, chatId: thread.id, error }, "generated_image.post_failed");
-          }
-        }),
-      );
-    }
-    await thread.post(result.text);
+    const postImages = result.generatedAssetIds.map(async (assetId, i, arr) => {
+      const isLast = i === arr.length - 1;
+      try {
+        const row = await prisma.brandAsset.findUnique({
+          select: { mimeType: true, r2Key: true },
+          where: { id: assetId },
+        });
+        if (!row) { return; }
+        const bytes = await doFetch(row.r2Key);
+        const filename = `qolmeia-${assetId}.${extFromMime(row.mimeType)}`;
+        await thread.post({
+          files: [{ data: Buffer.from(bytes), filename, mimeType: row.mimeType }],
+          markdown: isLast ? result.text : "",
+        });
+      } catch (error) {
+        logger.error({ assetId, chatId: thread.id, error }, "generated_image.post_failed");
+        if (isLast) {
+          try { await thread.post(result.text); } catch { /* already logged above */ }
+        }
+      }
+    });
+
+    await (postImages.length > 0 ? Promise.allSettled(postImages) : thread.post(result.text));
 
     logger.info(
       {
