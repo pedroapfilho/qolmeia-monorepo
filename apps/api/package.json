@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.75",
+    "@aws-sdk/client-s3": "^3.1050.0",
     "@chat-adapter/state-redis": "^4.29.0",
     "@chat-adapter/telegram": "^4.29.0",
     "@hono/node-server": "^2.0.2",

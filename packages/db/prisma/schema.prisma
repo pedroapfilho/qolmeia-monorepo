@@ -45,6 +45,7 @@ model Organization {
   telegramLink  TelegramLink?
   customers     Customer[]
   conversations Conversation[]
+  brandAssets   BrandAsset[]
 
   @@index([slug])
 }
@@ -117,4 +118,20 @@ model WebhookEvent {
   createdAt  DateTime @default(now())
 
   @@unique([provider, externalId])
+}
+
+model BrandAsset {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  r2Key     String
+  sha256    String
+  mimeType  String
+  size      Int
+  metadata  Json         @default("{}")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([orgId, sha256])
+  @@index([orgId, createdAt])
 }
