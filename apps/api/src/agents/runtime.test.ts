@@ -166,4 +166,55 @@ describe("runAgentInstance", () => {
     expect(result.generatedAssetIds).toEqual(["asset_gen_1"]);
     expect(result.toolCallSummary.generateBrandImage).toBe(1);
   });
+
+  it("aggregates generatedAssetIds from delegateToSpecialist tool-results", async () => {
+    mockedGenerateText.mockResolvedValue({
+      steps: [
+        {
+          content: [
+            { toolName: "delegateToSpecialist", type: "tool-call" },
+            {
+              output: {
+                generatedAssetIds: ["asset_via_child_1", "asset_via_child_2"],
+                ok: true,
+                text: "child reply",
+                usage: { inputTokens: 1, outputTokens: 1 },
+              },
+              toolName: "delegateToSpecialist",
+              type: "tool-result",
+            },
+          ],
+        },
+        { content: [] },
+      ],
+      text: "Pronto via controller.",
+      toolCalls: [],
+      toolResults: [],
+      usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 },
+    } as never);
+
+    const prisma = {
+      brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+    } as never;
+    const agentInstance = {
+      enabledSkillIds: null,
+      id: "ai_ctl",
+      mission: "",
+      orgId: "org_1",
+      templateSlug: "designer",
+    } as never;
+
+    const result = await runAgentInstance({
+      agentInstance,
+      currentContext: "",
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
+      existingAssets: [],
+      input: { imageBytes: [], text: "delega aí" },
+      newAssets: [],
+      oversizeCount: 0,
+      prisma,
+    });
+
+    expect(result.generatedAssetIds).toEqual(["asset_via_child_1", "asset_via_child_2"]);
+  });
 });

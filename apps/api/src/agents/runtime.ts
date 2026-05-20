@@ -150,7 +150,11 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
   // step.content[] as discriminated items. Tool return values are under
   // `output`, not `result`.
   type StepContentItem = {
-    output?: { assetId?: string; ok?: boolean };
+    output?: {
+      assetId?: string;
+      generatedAssetIds?: ReadonlyArray<string>;
+      ok?: boolean;
+    };
     toolName?: string;
     type: string;
   };
@@ -165,13 +169,15 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
         summary[item.toolName] = (summary[item.toolName] ?? 0) + 1;
         continue;
       }
-      if (
-        item.type === "tool-result" &&
-        item.toolName === "generateBrandImage" &&
-        item.output?.ok === true &&
-        item.output.assetId
-      ) {
-        generatedAssetIds.push(item.output.assetId);
+      if (item.type === "tool-result" && item.output?.ok === true) {
+        if (item.toolName === "generateBrandImage" && item.output.assetId) {
+          generatedAssetIds.push(item.output.assetId);
+        } else if (
+          item.toolName === "delegateToSpecialist" &&
+          Array.isArray(item.output.generatedAssetIds)
+        ) {
+          generatedAssetIds.push(...item.output.generatedAssetIds);
+        }
       }
     }
   }
