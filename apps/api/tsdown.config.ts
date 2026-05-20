@@ -10,7 +10,7 @@ export default defineConfig({
     // so tsdown must bundle them into the output instead of leaving them as external imports.
     alwaysBundle: ["@repo/db"],
   },
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/workers/index.ts"],
   format: ["esm"],
   platform: "node",
   plugins: [

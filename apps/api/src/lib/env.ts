@@ -4,6 +4,7 @@ export const envSchema = z.object({
   AI_GATEWAY_API_KEY: z.string().min(1),
   CORS_ORIGINS: z.string().default("*"),
   DATABASE_URL: z.string().min(1),
+  DISPATCH_MODE: z.enum(["serial", "queue"]).default("serial"),
   HOST: z.string().default("0.0.0.0"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.string().default("4000"),
