@@ -95,6 +95,96 @@ describe("GET /approvals", () => {
   });
 });
 
+const buildDetailRow = (overrides: { id?: string; orgId?: string } = {}) => ({
+  agentInstance: {
+    displayName: "Marketing Bot",
+    id: "ag_1",
+    orgId: overrides.orgId ?? "org_a",
+    templateSlug: "marketing-strategist",
+  },
+  agentInstanceId: "ag_1",
+  createdAt: new Date("2026-01-15T00:00:00.000Z"),
+  id: overrides.id ?? "act_1",
+  proposedInput: { tone: "warm" },
+  proposedSummary: "Send brand image",
+  skill: {
+    description: "Generate a brand image",
+    displayName: "Generate Brand Image",
+    id: "generateBrandImage",
+    parametersJsonSchema: {
+      properties: { tone: { type: "string" } },
+      type: "object",
+    },
+  },
+  skillId: "generateBrandImage",
+  status: "DRAFTED",
+});
+
+describe("GET /approvals/:id", () => {
+  it("returns the action plus skill schema for the caller's org", async () => {
+    const findUnique = vi.fn().mockResolvedValue(buildDetailRow());
+    const prisma = {
+      activityLog: { create: vi.fn() },
+      agentAction: { findMany: vi.fn(), findUnique, update: vi.fn() },
+      agentInstance: { findUniqueOrThrow: vi.fn() },
+    } as never;
+
+    const routes = buildApprovalsRoutes({ prisma });
+    const app = buildAppWithGuard({ orgId: "org_a", role: "OWNER", session }, routes);
+    const res = await app.fetch(new Request("http://localhost/act_1"));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      action: {
+        agentInstance: { displayName: string; templateSlug: string };
+        id: string;
+        proposedInput: unknown;
+        skill: { id: string; parametersJsonSchema: unknown };
+        status: string;
+      };
+    };
+    expect(body.action.id).toBe("act_1");
+    expect(body.action.skill.id).toBe("generateBrandImage");
+    expect(body.action.skill.parametersJsonSchema).toEqual({
+      properties: { tone: { type: "string" } },
+      type: "object",
+    });
+    expect(body.action.agentInstance.displayName).toBe("Marketing Bot");
+    expect(body.action.agentInstance.templateSlug).toBe("marketing-strategist");
+    expect(body.action.status).toBe("DRAFTED");
+  });
+
+  it("returns 404 when the action belongs to a different org", async () => {
+    const findUnique = vi.fn().mockResolvedValue(buildDetailRow({ orgId: "org_other" }));
+    const prisma = {
+      activityLog: { create: vi.fn() },
+      agentAction: { findMany: vi.fn(), findUnique, update: vi.fn() },
+      agentInstance: { findUniqueOrThrow: vi.fn() },
+    } as never;
+
+    const routes = buildApprovalsRoutes({ prisma });
+    const app = buildAppWithGuard({ orgId: "org_a", role: "OWNER", session }, routes);
+    const res = await app.fetch(new Request("http://localhost/act_1"));
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 when the action does not exist", async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const prisma = {
+      activityLog: { create: vi.fn() },
+      agentAction: { findMany: vi.fn(), findUnique, update: vi.fn() },
+      agentInstance: { findUniqueOrThrow: vi.fn() },
+    } as never;
+
+    const routes = buildApprovalsRoutes({ prisma });
+    const app = buildAppWithGuard({ orgId: "org_a", role: "OWNER", session }, routes);
+    const res = await app.fetch(new Request("http://localhost/missing"));
+
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("POST /approvals/:id/approve", () => {
   it("calls approveAction with the session user", async () => {
     const approveAction = vi.fn().mockResolvedValue({ id: "act_1", status: "APPROVED" });

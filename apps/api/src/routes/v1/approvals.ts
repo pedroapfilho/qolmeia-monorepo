@@ -9,6 +9,44 @@ import type { StaffContextVars } from "@/middleware/require-staff";
 
 type ApprovalsPrisma = Pick<PrismaClient, "activityLog" | "agentAction" | "agentInstance">;
 
+type DetailActionRow = {
+  agentInstance: { displayName: string; id: string; orgId: string; templateSlug: string };
+  agentInstanceId: string;
+  createdAt: Date;
+  id: string;
+  proposedInput: unknown;
+  proposedSummary: string;
+  skill: {
+    description: string;
+    displayName: string;
+    id: string;
+    parametersJsonSchema: unknown;
+  };
+  skillId: string;
+  status: string;
+};
+
+const serialiseDetail = (row: DetailActionRow) => ({
+  agentInstance: {
+    displayName: row.agentInstance.displayName,
+    id: row.agentInstance.id,
+    templateSlug: row.agentInstance.templateSlug,
+  },
+  agentInstanceId: row.agentInstanceId,
+  createdAt: row.createdAt.toISOString(),
+  id: row.id,
+  proposedInput: row.proposedInput,
+  proposedSummary: row.proposedSummary,
+  skill: {
+    description: row.skill.description,
+    displayName: row.skill.displayName,
+    id: row.skill.id,
+    parametersJsonSchema: row.skill.parametersJsonSchema,
+  },
+  skillId: row.skillId,
+  status: row.status,
+});
+
 // Injected so tests can spy on the transitions without re-mocking the
 // whole prisma surface. Defaults wire up to the existing approval helpers.
 type ApprovalsRouteDeps = {
@@ -95,6 +133,36 @@ const buildApprovalsRoutes = (
       items: response.items.map((row) => serialiseDrafted(row as DraftedActionRow)),
       nextCursor: response.nextCursor,
     });
+  });
+
+  // GET /approvals/:id — single action + the skill's JSON schema so the
+  // backoffice can render a schema-driven editor without a second round-trip.
+  app.get("/:id", async (c) => {
+    const orgId = c.get("orgId");
+    const id = c.req.param("id");
+
+    const row = await prisma.agentAction.findUnique({
+      include: {
+        agentInstance: {
+          select: { displayName: true, id: true, orgId: true, templateSlug: true },
+        },
+        skill: {
+          select: {
+            description: true,
+            displayName: true,
+            id: true,
+            parametersJsonSchema: true,
+          },
+        },
+      },
+      where: { id },
+    });
+
+    if (!row || row.agentInstance.orgId !== orgId) {
+      return notFound(c, "Approval not found");
+    }
+
+    return c.json({ action: serialiseDetail(row as DetailActionRow) });
   });
 
   // Looks the action up and verifies it belongs to the caller's org. Returns
