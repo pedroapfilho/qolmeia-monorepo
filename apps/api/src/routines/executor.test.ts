@@ -128,8 +128,7 @@ describe("executeRoutine", () => {
 
     // ROUTINE_TRIGGERED activity logged BEFORE dispatch.
     const triggerCall = prisma.mocks.activityCreate.mock.calls.find(
-      (c) =>
-        (c[0] as { data: { type: string } }).data.type === "ROUTINE_TRIGGERED",
+      (c) => (c[0] as { data: { type: string } }).data.type === "ROUTINE_TRIGGERED",
     );
     expect(triggerCall).toBeDefined();
     const triggerData = (triggerCall![0] as { data: { refId: string; refType: string } }).data;

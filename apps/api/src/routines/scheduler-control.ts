@@ -5,8 +5,8 @@ import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
 import { createRoutineQueue } from "./queue";
-import { reconcileRoutines } from "./reconcile";
 import type { RoutineJobData } from "./queue";
+import { reconcileRoutines } from "./reconcile";
 
 // Lazy-built BullMQ queue used by the API process (NOT the worker) to
 // reconcile routine schedulers after /ligar/desligar. The worker has its

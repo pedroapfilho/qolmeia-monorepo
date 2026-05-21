@@ -18,9 +18,7 @@ const makePrisma = ({
   existingRoutine: boolean;
 }) => {
   const agentFindUnique = vi.fn().mockResolvedValue(agentExists ? { id: "agent_1" } : null);
-  const routineFindUnique = vi
-    .fn()
-    .mockResolvedValue(existingRoutine ? { id: "routine_1" } : null);
+  const routineFindUnique = vi.fn().mockResolvedValue(existingRoutine ? { id: "routine_1" } : null);
   const routineCreate = vi.fn().mockResolvedValue({ id: "routine_new" });
   const routineUpdate = vi.fn().mockResolvedValue({ id: "routine_1" });
   return {

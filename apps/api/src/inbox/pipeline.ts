@@ -32,8 +32,10 @@ type PipelineDeps = {
     | "brandAsset"
     | "connectorInstance"
     | "conversation"
+    | "knowledgeDoc"
     | "message"
     | "organization"
+    | "routine"
     | "telegramLink"
     | "webhookEvent"
   >;

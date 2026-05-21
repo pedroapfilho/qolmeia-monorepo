@@ -4,12 +4,14 @@ import { reconcileRoutines, schedulerIdFor } from "./reconcile";
 
 type FakeScheduler = { key: string; pattern?: string; tz?: string };
 
-const makePrisma = (rows: ReadonlyArray<{
-  enabled: boolean;
-  id: string;
-  schedule: string;
-  timezone: string;
-}>) => {
+const makePrisma = (
+  rows: ReadonlyArray<{
+    enabled: boolean;
+    id: string;
+    schedule: string;
+    timezone: string;
+  }>,
+) => {
   const findMany = vi.fn().mockResolvedValue(rows);
   return { mocks: { findMany }, routine: { findMany } };
 };
@@ -73,9 +75,7 @@ describe("reconcileRoutines", () => {
     const prisma = makePrisma([
       { enabled: true, id: "r1", schedule: "0 9 * * 1", timezone: "America/Sao_Paulo" },
     ]);
-    const queue = makeQueue([
-      { key: "routine:r1", pattern: "0 3 * * *", tz: "America/Sao_Paulo" },
-    ]);
+    const queue = makeQueue([{ key: "routine:r1", pattern: "0 3 * * *", tz: "America/Sao_Paulo" }]);
     const summary = await reconcileRoutines({
       prisma: prisma as never,
       queue: queue as never,
@@ -94,9 +94,7 @@ describe("reconcileRoutines", () => {
     const prisma = makePrisma([
       { enabled: true, id: "r1", schedule: "0 3 * * *", timezone: "UTC" },
     ]);
-    const queue = makeQueue([
-      { key: "routine:r1", pattern: "0 3 * * *", tz: "America/Sao_Paulo" },
-    ]);
+    const queue = makeQueue([{ key: "routine:r1", pattern: "0 3 * * *", tz: "America/Sao_Paulo" }]);
     const summary = await reconcileRoutines({
       prisma: prisma as never,
       queue: queue as never,
@@ -108,9 +106,7 @@ describe("reconcileRoutines", () => {
     const prisma = makePrisma([
       { enabled: true, id: "r1", schedule: "0 3 * * *", timezone: "America/Sao_Paulo" },
     ]);
-    const queue = makeQueue([
-      { key: "routine:r1", pattern: "0 3 * * *", tz: "America/Sao_Paulo" },
-    ]);
+    const queue = makeQueue([{ key: "routine:r1", pattern: "0 3 * * *", tz: "America/Sao_Paulo" }]);
     const summary = await reconcileRoutines({
       prisma: prisma as never,
       queue: queue as never,
@@ -122,9 +118,7 @@ describe("reconcileRoutines", () => {
 
   it("leaves non-routine schedulers alone", async () => {
     const prisma = makePrisma([]);
-    const queue = makeQueue([
-      { key: "some-other-system:job-1", pattern: "0 0 * * *" },
-    ]);
+    const queue = makeQueue([{ key: "some-other-system:job-1", pattern: "0 0 * * *" }]);
     const summary = await reconcileRoutines({
       prisma: prisma as never,
       queue: queue as never,

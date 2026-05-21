@@ -89,10 +89,10 @@ describe("nightlyKnowledgeSummary", () => {
     const callB = prisma.mocks.findMany.mock.calls[1]![0] as { take: number };
     expect(callB.take).toBe(5);
 
-    await nightlyKnowledgeSummary.buildPrompt(
-      { maxDocs: "ten" } as never,
-      { orgId: "o", prisma: prisma as never },
-    );
+    await nightlyKnowledgeSummary.buildPrompt({ maxDocs: "ten" } as never, {
+      orgId: "o",
+      prisma: prisma as never,
+    });
     const callC = prisma.mocks.findMany.mock.calls[2]![0] as { take: number };
     expect(callC.take).toBe(5);
   });
