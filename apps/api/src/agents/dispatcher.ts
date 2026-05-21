@@ -42,16 +42,14 @@ type DispatchOrigin =
   | {
       childTemplateSlug: string;
       kind: "delegation";
-      parentAgentInstanceId: string;
-      // TODO: once AgentRun lands (Group 3.1), key by `parentRunId` instead
-      // of `parentAgentInstanceId + Date.now()` so two delegations from the
-      // same parent run dedup against each other.
+      // The parent AgentRun id is the canonical dedup token: identical
+      // subtasks from the same parent run coalesce against each other.
+      parentRunId: string;
       subtaskHash: string;
     };
 
 type AgentDispatchArgs = {
   agentInstance: AgentInstance;
-  currentContext: string;
   dispatcher: AgentDispatcher;
   dispatchOrigin?: DispatchOrigin;
   existingAssets: ReadonlyArray<ExistingAssetSummary>;
@@ -59,6 +57,13 @@ type AgentDispatchArgs = {
   newAssets: ReadonlyArray<AssetSummary>;
   oversizeCount: number;
   prisma: PrismaClient;
+  // The AgentRun row this dispatch belongs to. Set by the orchestrator
+  // (inbox/agent-step or delegate-to-specialist) before enqueue; the
+  // runtime reads contextSnapshot + systemPrompt from this row.
+  runId: string;
+  // Fully rendered system prompt — duplicated from AgentRun.systemPrompt
+  // so the worker doesn't need to re-fetch the row to call the model.
+  systemPrompt: string;
 };
 
 type AgentRunner = (args: AgentDispatchArgs) => Promise<AgentRunResult>;
@@ -76,7 +81,7 @@ const buildCoalesceKey = (origin: DispatchOrigin): string => {
     const connector = origin.connectorInstanceId ?? "legacy";
     return `inbox:${connector}:${origin.externalThreadId}:${origin.triggerMessageExternalId}`;
   }
-  return `delegate:${origin.parentAgentInstanceId}:${origin.childTemplateSlug}:${origin.subtaskHash}`;
+  return `delegate:${origin.parentRunId}:${origin.childTemplateSlug}:${origin.subtaskHash}`;
 };
 
 export { buildCoalesceKey, createSerialDispatcher };

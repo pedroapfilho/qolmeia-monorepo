@@ -11,7 +11,6 @@ import type { AnySkill, SkillContext } from "./skills/types";
 import { aggregateSteps, extractActionsFromSteps } from "./step-aggregator";
 import type { StepShape } from "./step-aggregator";
 import { findTemplateBySlug } from "./templates/registry";
-import { renderSystemPrompt } from "./templates/renderer";
 
 const buildUserContent = (input: AgentDispatchArgs["input"]) => {
   const parts: Array<
@@ -56,8 +55,7 @@ const resolveEnabledSkills = async (
 };
 
 const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult> => {
-  const { agentInstance, currentContext, existingAssets, input, newAssets, oversizeCount, prisma } =
-    args;
+  const { agentInstance, input, prisma, runId, systemPrompt } = args;
 
   const template = findTemplateBySlug(agentInstance.templateSlug);
   if (!template) {
@@ -75,6 +73,7 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     dispatcher: args.dispatcher,
     orgId: agentInstance.orgId,
     parentRunArgs: args,
+    parentRunId: runId,
     prisma,
   };
   const tools = Object.fromEntries(
@@ -88,22 +87,11 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     ]),
   );
 
-  const baseSystem = renderSystemPrompt(template.defaultSystemPrompt, {
-    currentContext,
-    existingAssets,
-    newAssets,
-    oversizeCount,
-  });
-  const system =
-    agentInstance.mission.length > 0
-      ? `${baseSystem}\n\nMissão deste agente:\n${agentInstance.mission}`
-      : baseSystem;
-
   const result = await generateText({
     messages: [{ content: buildUserContent(input), role: "user" }],
     model: gateway("google/gemini-2.5-flash"),
     stopWhen: stepCountIs(5),
-    system,
+    system: systemPrompt,
     temperature: 0.2,
     tools,
   });
@@ -144,6 +132,7 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
           proposedInput: (ex.input as object) ?? {},
           proposedSummary: `${ex.skillId} ${ex.success ? "executed" : "failed"}`,
           resultJson: (ex.output as object | null) ?? null,
+          runId,
           skillId: ex.skillId,
         });
       }),

@@ -32,7 +32,7 @@ const makePrisma = (
 });
 
 describe("runAgentInstance", () => {
-  it("loads the Designer template, builds the system prompt, and wires all 5 skills", async () => {
+  it("uses the systemPrompt passed in (no template rendering) and wires all 5 designer skills", async () => {
     mockedGenerateText.mockResolvedValue({
       text: "Olá!",
       toolCalls: [],
@@ -52,13 +52,14 @@ describe("runAgentInstance", () => {
 
     const result = await runAgentInstance({
       agentInstance,
-      currentContext: "",
       dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "oi" },
       newAssets: [],
       oversizeCount: 0,
       prisma,
+      runId: "run_1",
+      systemPrompt: "PROMPT-FROZEN-AT-DISPATCH",
     });
 
     expect(mockedGenerateText).toHaveBeenCalledOnce();
@@ -73,8 +74,9 @@ describe("runAgentInstance", () => {
       "readKnowledgeDoc",
       "searchKnowledge",
     ]);
-    expect(args.system).toContain("(perfil vazio)");
-    expect(args.system).toContain("especialista em design da marca");
+    // Runtime does NOT re-render — it must pass through exactly what
+    // the dispatcher handed it.
+    expect(args.system).toBe("PROMPT-FROZEN-AT-DISPATCH");
     expect(result.text).toBe("Olá!");
     expect(result.usage.inputTokens).toBe(10);
   });
@@ -99,13 +101,14 @@ describe("runAgentInstance", () => {
 
     await runAgentInstance({
       agentInstance,
-      currentContext: "",
       dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "oi" },
       newAssets: [],
       oversizeCount: 0,
       prisma,
+      runId: "run_2",
+      systemPrompt: "p",
     });
 
     const args = mockedGenerateText.mock.calls.at(-1)![0] as { tools: Record<string, unknown> };
@@ -125,13 +128,14 @@ describe("runAgentInstance", () => {
     await expect(
       runAgentInstance({
         agentInstance,
-        currentContext: "",
         dispatcher: { enqueueAndAwait: vi.fn() } as never,
         existingAssets: [],
         input: { imageBytes: [], text: "oi" },
         newAssets: [],
         oversizeCount: 0,
         prisma,
+        runId: "run_3",
+        systemPrompt: "p",
       }),
     ).rejects.toThrow(/template/iv);
   });
@@ -168,13 +172,14 @@ describe("runAgentInstance", () => {
 
     const result = await runAgentInstance({
       agentInstance,
-      currentContext: "",
       dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "gera uma imagem" },
       newAssets: [],
       oversizeCount: 0,
       prisma,
+      runId: "run_4",
+      systemPrompt: "p",
     });
 
     expect(result.generatedAssetIds).toEqual(["asset_gen_1"]);
@@ -218,16 +223,68 @@ describe("runAgentInstance", () => {
 
     const result = await runAgentInstance({
       agentInstance,
-      currentContext: "",
       dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "delega aí" },
       newAssets: [],
       oversizeCount: 0,
       prisma,
+      runId: "run_ctl",
+      systemPrompt: "p",
     });
 
     expect(result.generatedAssetIds).toEqual(["asset_via_child_1", "asset_via_child_2"]);
+  });
+
+  it("persists AgentActions with runId tying them to the parent AgentRun", async () => {
+    mockedGenerateText.mockResolvedValue({
+      steps: [
+        {
+          content: [
+            { input: { foo: 1 }, toolName: "extractSoul", type: "tool-call" },
+            { output: { ok: true }, toolName: "extractSoul", type: "tool-result" },
+          ],
+        },
+      ],
+      text: ".",
+      toolCalls: [],
+      toolResults: [],
+      usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 },
+    } as never);
+
+    const create = vi.fn().mockResolvedValue({ id: "act_1" });
+    const prisma = {
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create,
+      },
+      agentSkillEnablement: { findMany: vi.fn().mockResolvedValue([]) },
+      brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+    } as never;
+
+    const agentInstance = {
+      budgetCents: 0,
+      id: "ai_run",
+      mission: "",
+      orgId: "org_1",
+      templateSlug: "designer",
+    } as never;
+
+    await runAgentInstance({
+      agentInstance,
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
+      existingAssets: [],
+      input: { imageBytes: [], text: "x" },
+      newAssets: [],
+      oversizeCount: 0,
+      prisma,
+      runId: "run_persist",
+      systemPrompt: "p",
+    });
+
+    expect(create).toHaveBeenCalledOnce();
+    const arg = create.mock.calls[0]![0] as { data: { runId: string | null } };
+    expect(arg.data.runId).toBe("run_persist");
   });
 });
 

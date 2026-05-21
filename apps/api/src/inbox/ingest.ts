@@ -157,8 +157,8 @@ const persistInboundMessage = async ({
   conversationId: string;
   message: IncomingMessage;
   prisma: IngestPrisma;
-}): Promise<void> => {
-  await prisma.message.create({
+}): Promise<{ id: string }> => {
+  const row = await prisma.message.create({
     data: {
       content: message.text ?? "",
       contentType,
@@ -167,7 +167,9 @@ const persistInboundMessage = async ({
       metadata: toJsonSafe({ attachments: message.attachments ?? [] }) as object,
       sender: "CUSTOMER",
     },
+    select: { id: true },
   });
+  return { id: row.id };
 };
 
 type PostableFile = {

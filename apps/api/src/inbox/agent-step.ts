@@ -1,7 +1,11 @@
 import type { PrismaClient } from "@repo/db";
 
 import { ensureAgentInstance } from "../agents/agent-instance";
+import { buildContextSnapshot } from "../agents/context-snapshot";
 import type { AgentDispatcher, AgentRunResult } from "../agents/dispatcher";
+import { createAgentRun, finalizeAgentRun } from "../agents/runs";
+import { findTemplateBySlug } from "../agents/templates/registry";
+import { renderSystemPrompt } from "../agents/templates/renderer";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
 import { logger } from "../lib/logger";
@@ -10,7 +14,10 @@ import { fetchAsset as fetchAssetDefault } from "../lib/storage";
 import type { ProcessedAttachments } from "./attachments";
 import type { IncomingMessage, IncomingThread } from "./ingest";
 
-type AgentStepPrisma = Pick<PrismaClient, "agentInstance" | "brandAsset">;
+type AgentStepPrisma = Pick<
+  PrismaClient,
+  "agentAction" | "agentInstance" | "agentRun" | "brandAsset" | "organization"
+>;
 
 type AgentStepDeps = {
   dispatcher: AgentDispatcher;
@@ -37,6 +44,7 @@ const runAgentForInbound = async ({
   externalThreadId,
   message,
   orgId,
+  triggerMessageId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
   // null when the conversation pre-dates Phase 5h (TelegramLink fallback).
@@ -46,10 +54,11 @@ const runAgentForInbound = async ({
   externalThreadId: string;
   message: IncomingMessage;
   orgId: string;
+  // The persisted Message.id, set by the inbox pipeline. Null when the
+  // message wasn't persisted (defensive — current pipeline always persists).
+  triggerMessageId: string | null;
 }): Promise<AgentRunResult> => {
   const getBusinessContext = deps.getBusinessContext ?? getBusinessContextDefault;
-
-  const currentContext = await getBusinessContext(orgId);
 
   const existingRows = await deps.prisma.brandAsset.findMany({
     orderBy: { createdAt: "desc" },
@@ -69,29 +78,83 @@ const runAgentForInbound = async ({
     templateSlug: "controller",
   });
 
+  const template = findTemplateBySlug(agentInstance.templateSlug);
+  if (!template) {
+    throw new Error(`Unknown agent template: ${agentInstance.templateSlug}`);
+  }
+
+  // Build context ONCE at dispatch time. Stored on AgentRun.contextSnapshot
+  // so the run replays against the same inputs even if businessProfile
+  // drifts mid-flight.
+  const contextSnapshot = await buildContextSnapshot({
+    existingAssets,
+    getBusinessContext,
+    mission: agentInstance.mission,
+    newAssets: attachments.newAssets,
+    orgId,
+    oversizeCount: attachments.oversizeCount,
+    prisma: deps.prisma,
+  });
+
+  const baseSystem = renderSystemPrompt(template.defaultSystemPrompt, {
+    currentContext: contextSnapshot.businessContext,
+    existingAssets: contextSnapshot.existingAssets,
+    newAssets: contextSnapshot.newAssets,
+    oversizeCount: contextSnapshot.oversizeCount,
+  });
+  const systemPrompt =
+    contextSnapshot.mission.length > 0
+      ? `${baseSystem}\n\nMissão deste agente:\n${contextSnapshot.mission}`
+      : baseSystem;
+
+  const run = await createAgentRun({
+    agentInstanceId: agentInstance.id,
+    contextSnapshot,
+    prisma: deps.prisma,
+    systemPrompt,
+    triggerMessageId,
+  });
+
   const text = (message.text ?? "").trim();
 
-  return deps.dispatcher.enqueueAndAwait({
-    agentInstance,
-    currentContext,
-    dispatcher: deps.dispatcher,
-    dispatchOrigin: {
-      connectorInstanceId,
-      externalThreadId,
-      kind: "inbound",
-      triggerMessageExternalId: message.id,
-    },
-    existingAssets,
-    input: {
-      audioBytes: attachments.audioBytes,
-      audioMime: attachments.audioMime,
-      imageBytes: attachments.imageBytes,
-      text: text.length > 0 ? text : undefined,
-    },
-    newAssets: attachments.newAssets,
-    oversizeCount: attachments.oversizeCount,
-    prisma: deps.prisma as PrismaClient,
-  });
+  try {
+    const result = await deps.dispatcher.enqueueAndAwait({
+      agentInstance,
+      dispatcher: deps.dispatcher,
+      dispatchOrigin: {
+        connectorInstanceId,
+        externalThreadId,
+        kind: "inbound",
+        triggerMessageExternalId: message.id,
+      },
+      existingAssets,
+      input: {
+        audioBytes: attachments.audioBytes,
+        audioMime: attachments.audioMime,
+        imageBytes: attachments.imageBytes,
+        text: text.length > 0 ? text : undefined,
+      },
+      newAssets: attachments.newAssets,
+      oversizeCount: attachments.oversizeCount,
+      prisma: deps.prisma as PrismaClient,
+      runId: run.id,
+      systemPrompt,
+    });
+
+    await finalizeAgentRun({ prisma: deps.prisma, result, runId: run.id });
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    await finalizeAgentRun({ error: err, prisma: deps.prisma, runId: run.id }).catch(
+      // The outer `error` is the dispatch failure we re-throw below; this
+      // inner callback fires only if the finalize-as-FAILED write itself
+      // also fails, so we log both separately.
+      (finalizeError: unknown) => {
+        logger.error({ error: finalizeError, runId: run.id }, "agentRun.finalize.failed");
+      },
+    );
+    throw error;
+  }
 };
 
 const postAgentResult = async ({

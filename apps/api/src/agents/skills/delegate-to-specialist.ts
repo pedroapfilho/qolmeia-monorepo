@@ -2,7 +2,10 @@ import { z } from "zod";
 
 import { logger } from "../../lib/logger";
 import { ensureAgentInstance } from "../agent-instance";
+import { buildContextSnapshot } from "../context-snapshot";
+import { createAgentRun, finalizeAgentRun, hashSubtask } from "../runs";
 import { findTemplateBySlug } from "../templates/registry";
+import { renderSystemPrompt } from "../templates/renderer";
 
 import { defineSkill } from "./types";
 
@@ -52,34 +55,77 @@ const delegateToSpecialistSkill = defineSkill<
         templateSlug: targetTemplateSlug,
       });
 
-      const childResult = await ctx.dispatcher.enqueueAndAwait({
-        ...ctx.parentRunArgs,
-        agentInstance: childAgent,
-        // Override the parent's inbound dispatchOrigin so the child gets a
-        // delegation coalesce key. Without this, two distinct delegations
-        // issued from the same parent run would collide on the inbox jobId
-        // and BullMQ would return the first child's result for both.
-        // TODO(Group 3.1): once AgentRun lands, replace
-        // `${parentAgentInstanceId}:${Date.now()}` with the parent's runId so
-        // identical subtasks from the same run dedup against each other.
-        dispatchOrigin: {
-          childTemplateSlug: targetTemplateSlug,
-          kind: "delegation",
-          parentAgentInstanceId: ctx.agentInstanceId,
-          subtaskHash: `${Date.now()}`,
-        },
-        input: {
-          ...ctx.parentRunArgs.input,
-          text: subtask,
-        },
+      // Rebuild the snapshot for the child — keeps the seam clean and
+      // ensures the child run sees the businessProfile as of its own
+      // dispatch time. We reuse parentRunArgs.existingAssets/newAssets so
+      // the child sees the same asset window as the parent.
+      const childSnapshot = await buildContextSnapshot({
+        existingAssets: ctx.parentRunArgs.existingAssets,
+        mission: childAgent.mission,
+        newAssets: ctx.parentRunArgs.newAssets,
+        orgId: ctx.orgId,
+        oversizeCount: ctx.parentRunArgs.oversizeCount,
+        prisma: ctx.prisma,
       });
 
-      return {
-        generatedAssetIds: childResult.generatedAssetIds,
-        ok: true,
-        text: childResult.text,
-        usage: childResult.usage,
-      };
+      const baseSystem = renderSystemPrompt(targetTemplate.defaultSystemPrompt, {
+        currentContext: childSnapshot.businessContext,
+        existingAssets: childSnapshot.existingAssets,
+        newAssets: childSnapshot.newAssets,
+        oversizeCount: childSnapshot.oversizeCount,
+      });
+      const childSystemPrompt =
+        childSnapshot.mission.length > 0
+          ? `${baseSystem}\n\nMissão deste agente:\n${childSnapshot.mission}`
+          : baseSystem;
+
+      const childRun = await createAgentRun({
+        agentInstanceId: childAgent.id,
+        contextSnapshot: childSnapshot,
+        parentRunId: ctx.parentRunId,
+        prisma: ctx.prisma,
+        systemPrompt: childSystemPrompt,
+      });
+
+      try {
+        const childResult = await ctx.dispatcher.enqueueAndAwait({
+          ...ctx.parentRunArgs,
+          agentInstance: childAgent,
+          // Override the parent's inbound dispatchOrigin so the child gets a
+          // delegation coalesce key. Keyed by the parent's runId so identical
+          // subtasks issued from the same parent run dedup against each other
+          // and so two distinct delegations get distinct jobIds.
+          dispatchOrigin: {
+            childTemplateSlug: targetTemplateSlug,
+            kind: "delegation",
+            parentRunId: ctx.parentRunId,
+            subtaskHash: hashSubtask(subtask),
+          },
+          input: {
+            ...ctx.parentRunArgs.input,
+            text: subtask,
+          },
+          runId: childRun.id,
+          systemPrompt: childSystemPrompt,
+        });
+
+        await finalizeAgentRun({ prisma: ctx.prisma, result: childResult, runId: childRun.id });
+
+        return {
+          generatedAssetIds: childResult.generatedAssetIds,
+          ok: true,
+          text: childResult.text,
+          usage: childResult.usage,
+        };
+      } catch (childError) {
+        const err = childError instanceof Error ? childError : new Error(String(childError));
+        await finalizeAgentRun({ error: err, prisma: ctx.prisma, runId: childRun.id }).catch(
+          (error: unknown) => {
+            logger.error({ error, runId: childRun.id }, "agentRun.finalize.failed");
+          },
+        );
+        throw childError;
+      }
     } catch (error) {
       const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       logger.error({ error: message, orgId: ctx.orgId }, "delegateToSpecialist.failed");

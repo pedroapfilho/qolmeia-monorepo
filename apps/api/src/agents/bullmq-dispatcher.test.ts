@@ -30,13 +30,14 @@ const successJob = (text = "from-worker") => ({
 const baseArgs = (over: Partial<AgentDispatchArgs> = {}): AgentDispatchArgs =>
   ({
     agentInstance: { id: "ai_1", orgId: "org_1", templateSlug: "controller" },
-    currentContext: "",
     dispatcher: {} as never,
     existingAssets: [],
     input: { imageBytes: [], text: "hi" },
     newAssets: [],
     oversizeCount: 0,
     prisma: {} as never,
+    runId: "run_1",
+    systemPrompt: "system",
     ...over,
   }) as AgentDispatchArgs;
 
@@ -72,7 +73,7 @@ describe("createBullMQDispatcher", () => {
     await close();
   });
 
-  it("uses delegate:<parentAgentInstanceId>:<childTemplateSlug>:<subtaskHash> as jobId for delegation runs", async () => {
+  it("uses delegate:<parentRunId>:<childTemplateSlug>:<subtaskHash> as jobId for delegation runs", async () => {
     addMock.mockReset().mockResolvedValue(successJob());
     const { close, dispatcher } = createBullMQDispatcher();
 
@@ -81,7 +82,7 @@ describe("createBullMQDispatcher", () => {
         dispatchOrigin: {
           childTemplateSlug: "designer",
           kind: "delegation",
-          parentAgentInstanceId: "ai_controller",
+          parentRunId: "run_parent",
           subtaskHash: "abc123",
         },
       }),
@@ -89,7 +90,7 @@ describe("createBullMQDispatcher", () => {
 
     expect(addMock).toHaveBeenCalledOnce();
     const opts = addMock.mock.calls[0]![2] as { jobId?: string };
-    expect(opts.jobId).toBe("delegate:ai_controller:designer:abc123");
+    expect(opts.jobId).toBe("delegate:run_parent:designer:abc123");
     await close();
   });
 

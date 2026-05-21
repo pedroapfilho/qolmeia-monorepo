@@ -45,6 +45,7 @@ describe("labelBrandAssetSkill", () => {
         dispatcher: { enqueueAndAwait: vi.fn() } as never,
         orgId: "org_1",
         parentRunArgs: {} as never,
+        parentRunId: "run_test",
         prisma: fakePrisma,
       },
     );

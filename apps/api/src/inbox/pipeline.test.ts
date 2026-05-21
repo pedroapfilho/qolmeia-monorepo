@@ -29,6 +29,10 @@ const makePrisma = () => {
         templateSlug: "controller",
       }),
     },
+    agentRun: {
+      create: vi.fn().mockResolvedValue({ id: "run_test" }),
+      update: vi.fn().mockResolvedValue({ id: "run_test" }),
+    },
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
     },
@@ -96,6 +100,80 @@ describe("handleInboundMessage", () => {
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledWith("Anotei!");
+  });
+
+  it("creates an AgentRun with the rendered systemPrompt + contextSnapshot before dispatch and finalizes after", async () => {
+    const prisma = makePrisma();
+    // Capture the persisted Message id so we can assert it lands on the run.
+    (prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create = vi
+      .fn()
+      .mockResolvedValue({ id: "m_persisted_1" });
+
+    const deps = makeDeps({
+      getBusinessContext: vi.fn().mockResolvedValue("BUSINESS-CTX-MD"),
+      prisma,
+    });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "sou um salão" }));
+
+    const create = (prisma as never as { agentRun: { create: ReturnType<typeof vi.fn> } }).agentRun
+      .create;
+    const update = (prisma as never as { agentRun: { update: ReturnType<typeof vi.fn> } }).agentRun
+      .update;
+
+    expect(create).toHaveBeenCalledOnce();
+    const createArgs = create.mock.calls[0]![0] as {
+      data: {
+        agentInstanceId: string;
+        contextSnapshot: { businessContext: string };
+        parentRunId: string | null;
+        systemPrompt: string;
+        triggerMessageId: string | null;
+      };
+    };
+    expect(createArgs.data.agentInstanceId).toBe("ai_test");
+    expect(createArgs.data.triggerMessageId).toBe("m_persisted_1");
+    expect(createArgs.data.parentRunId).toBeNull();
+    expect(createArgs.data.contextSnapshot.businessContext).toBe("BUSINESS-CTX-MD");
+    expect(createArgs.data.systemPrompt).toContain("BUSINESS-CTX-MD");
+
+    // Dispatch happens AFTER the run row is created, then the run is
+    // finalized as SUCCEEDED.
+    const dispatcher = deps.dispatcher as ReturnType<typeof makeDispatcher>;
+    expect(dispatcher.enqueueAndAwait).toHaveBeenCalledOnce();
+    const dispatchArg = dispatcher.enqueueAndAwait.mock.calls[0]![0] as {
+      runId: string;
+      systemPrompt: string;
+    };
+    expect(dispatchArg.runId).toBe("run_test");
+    expect(dispatchArg.systemPrompt).toBe(createArgs.data.systemPrompt);
+
+    expect(update).toHaveBeenCalledOnce();
+    const updateArgs = update.mock.calls[0]![0] as {
+      data: { status: string };
+      where: { id: string };
+    };
+    expect(updateArgs.where.id).toBe("run_test");
+    expect(updateArgs.data.status).toBe("SUCCEEDED");
+  });
+
+  it("finalizes the AgentRun as FAILED when the dispatcher throws", async () => {
+    const prisma = makePrisma();
+    const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
+    const deps = makeDeps({ dispatcher, prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const update = (prisma as never as { agentRun: { update: ReturnType<typeof vi.fn> } }).agentRun
+      .update;
+    expect(update).toHaveBeenCalledOnce();
+    const updateArgs = update.mock.calls[0]![0] as {
+      data: { errorMessage: string | null; status: string };
+    };
+    expect(updateArgs.data.status).toBe("FAILED");
+    expect(updateArgs.data.errorMessage).toBe("agent failed");
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {

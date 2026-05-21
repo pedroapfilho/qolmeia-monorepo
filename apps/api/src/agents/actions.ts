@@ -13,6 +13,9 @@ type CreateActionArgs = {
   proposedInput: object;
   proposedSummary: string;
   resultJson?: object | null;
+  // Parent AgentRun id. Optional during the transition window; new callers
+  // always pass it so AgentAction rows link back to their run.
+  runId?: string;
   skillId: string;
   triggerMessageId?: string;
 };
@@ -54,6 +57,7 @@ const recordAgentAction = (args: CreateActionArgs): Promise<AgentAction> => {
       proposedInput: args.proposedInput,
       proposedSummary: args.proposedSummary,
       resultJson: args.resultJson ?? undefined,
+      runId: args.runId ?? null,
       skillId: args.skillId,
       status,
       triggerMessageId: args.triggerMessageId ?? null, // TODO Phase 5h

@@ -17,7 +17,6 @@ import type {
 // module-level singletons; they cannot cross the queue boundary.
 type SerializedAgentJob = {
   agentInstance: AgentInstance;
-  currentContext: string;
   existingAssets: AgentDispatchArgs["existingAssets"];
   input: {
     audioBytes?: Uint8Array;
@@ -27,6 +26,8 @@ type SerializedAgentJob = {
   };
   newAssets: AgentDispatchArgs["newAssets"];
   oversizeCount: number;
+  runId: string;
+  systemPrompt: string;
 };
 
 const QUEUE_NAME = "qolmeia-agent-run";
@@ -57,11 +58,12 @@ const createBullMQDispatcher = (): {
       // Strip non-serializable fields (prisma, dispatcher) before enqueue.
       const payload: SerializedAgentJob = {
         agentInstance: args.agentInstance,
-        currentContext: args.currentContext,
         existingAssets: args.existingAssets,
         input: args.input,
         newAssets: args.newAssets,
         oversizeCount: args.oversizeCount,
+        runId: args.runId,
+        systemPrompt: args.systemPrompt,
       };
       // Coalesce by jobId: BullMQ short-circuits when a job with the same ID
       // is already queued/active/completed and `queue.add` returns the

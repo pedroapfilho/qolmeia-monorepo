@@ -8,6 +8,16 @@ vi.mock("../templates/registry", () => ({
   findTemplateBySlug: vi.fn(),
 }));
 
+vi.mock("../context-snapshot", () => ({
+  buildContextSnapshot: vi.fn().mockResolvedValue({
+    businessContext: "ctx",
+    existingAssets: [],
+    mission: "",
+    newAssets: [],
+    oversizeCount: 0,
+  }),
+}));
+
 describe("delegateToSpecialistSkill", () => {
   it("has the expected metadata", () => {
     expect(delegateToSpecialistSkill.id).toBe("delegateToSpecialist");
@@ -36,7 +46,10 @@ describe("delegateToSpecialistSkill", () => {
       .mockReturnValueOnce({ canDelegateTo: [], slug: "designer" } as never)
       .mockReturnValueOnce({ slug: "designer" } as never);
 
-    const fakePrisma = { agentInstance: { upsert: vi.fn() } } as never;
+    const fakePrisma = {
+      agentInstance: { upsert: vi.fn() },
+      agentRun: { create: vi.fn(), update: vi.fn() },
+    } as never;
     const fakeDispatcher = { enqueueAndAwait: vi.fn() } as never;
 
     const result = await delegateToSpecialistSkill.execute(
@@ -48,6 +61,7 @@ describe("delegateToSpecialistSkill", () => {
         parentRunArgs: {
           agentInstance: { templateSlug: "designer" },
         } as unknown as AgentDispatchArgs,
+        parentRunId: "run_parent",
         prisma: fakePrisma,
       },
     );
@@ -71,7 +85,11 @@ describe("delegateToSpecialistSkill", () => {
         parentRunArgs: {
           agentInstance: { templateSlug: "controller" },
         } as unknown as AgentDispatchArgs,
-        prisma: { agentInstance: { upsert: vi.fn() } } as never,
+        parentRunId: "run_parent",
+        prisma: {
+          agentInstance: { upsert: vi.fn() },
+          agentRun: { create: vi.fn(), update: vi.fn() },
+        } as never,
       },
     );
 
@@ -79,14 +97,29 @@ describe("delegateToSpecialistSkill", () => {
     expect((result as { error: string }).error).toMatch(/unknown template/iv);
   });
 
-  it("upserts the child AgentInstance and dispatches with swapped agent + subtask", async () => {
+  it("creates a child AgentRun, dispatches with parentRunId + hashed subtask, then finalizes", async () => {
     const { findTemplateBySlug } = await import("../templates/registry");
+    // findTemplateBySlug is called 3x: once for parent, once for target,
+    // and once inside ensureAgentInstance for the child template.
     vi.mocked(findTemplateBySlug)
       .mockReturnValueOnce({ canDelegateTo: ["designer"], slug: "controller" } as never)
-      .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never)
-      .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never);
+      .mockReturnValueOnce({
+        defaultSystemPrompt: "PROMPT",
+        displayName: "Designer",
+        slug: "designer",
+      } as never)
+      .mockReturnValueOnce({
+        defaultSystemPrompt: "PROMPT",
+        displayName: "Designer",
+        slug: "designer",
+      } as never);
 
-    const childAgent = { id: "ai_designer", orgId: "org_1", templateSlug: "designer" };
+    const childAgent = {
+      id: "ai_designer",
+      mission: "",
+      orgId: "org_1",
+      templateSlug: "designer",
+    };
     const upsert = vi.fn().mockResolvedValue(childAgent);
     const enqueueAndAwait = vi.fn().mockResolvedValue({
       generatedAssetIds: ["asset_gen_1"],
@@ -94,16 +127,22 @@ describe("delegateToSpecialistSkill", () => {
       toolCallSummary: {},
       usage: { inputTokens: 5, outputTokens: 3 },
     });
+    const runCreate = vi.fn().mockResolvedValue({ id: "run_child" });
+    const runUpdate = vi.fn().mockResolvedValue({ id: "run_child" });
 
     const parentArgs: AgentDispatchArgs = {
       agentInstance: { id: "ai_controller", orgId: "org_1", templateSlug: "controller" } as never,
-      currentContext: "perfil-X",
       dispatcher: { enqueueAndAwait } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "olá" },
       newAssets: [],
       oversizeCount: 0,
-      prisma: { agentInstance: { upsert } } as never,
+      prisma: {
+        agentInstance: { upsert },
+        agentRun: { create: runCreate, update: runUpdate },
+      } as never,
+      runId: "run_parent",
+      systemPrompt: "parent-system",
     };
 
     const result = await delegateToSpecialistSkill.execute(
@@ -113,27 +152,44 @@ describe("delegateToSpecialistSkill", () => {
         dispatcher: parentArgs.dispatcher,
         orgId: "org_1",
         parentRunArgs: parentArgs,
+        parentRunId: "run_parent",
         prisma: parentArgs.prisma,
       },
     );
 
     expect(upsert).toHaveBeenCalledOnce();
-    const upsertArgs = upsert.mock.calls[0]![0] as {
-      create: { templateSlug: string };
-      where: { orgId_templateSlug: { orgId: string; templateSlug: string } };
-    };
-    expect(upsertArgs.where.orgId_templateSlug).toEqual({
-      orgId: "org_1",
-      templateSlug: "designer",
-    });
-    expect(upsertArgs.create.templateSlug).toBe("designer");
 
+    // Child AgentRun created with parentRunId pointing at the parent.
+    expect(runCreate).toHaveBeenCalledOnce();
+    const runCreateArgs = runCreate.mock.calls[0]![0] as {
+      data: { agentInstanceId: string; parentRunId: string | null; systemPrompt: string };
+    };
+    expect(runCreateArgs.data.parentRunId).toBe("run_parent");
+    expect(runCreateArgs.data.agentInstanceId).toBe("ai_designer");
+
+    // Dispatch carries runId + delegation origin keyed by parentRunId.
     expect(enqueueAndAwait).toHaveBeenCalledOnce();
     const dispatchArgs = enqueueAndAwait.mock.calls[0]![0] as AgentDispatchArgs;
     expect(dispatchArgs.agentInstance).toBe(childAgent);
     expect(dispatchArgs.input.text).toBe("Gera uma imagem promocional");
-    expect(dispatchArgs.currentContext).toBe("perfil-X");
-    expect(dispatchArgs.dispatcher).toBe(parentArgs.dispatcher);
+    expect(dispatchArgs.runId).toBe("run_child");
+    expect(dispatchArgs.dispatchOrigin).toMatchObject({
+      childTemplateSlug: "designer",
+      kind: "delegation",
+      parentRunId: "run_parent",
+    });
+    // Subtask hash is deterministic and non-empty.
+    const origin = dispatchArgs.dispatchOrigin as { subtaskHash: string };
+    expect(origin.subtaskHash).toMatch(/^[a-f0-9]{16}$/v);
+
+    // Child run finalized as SUCCEEDED.
+    expect(runUpdate).toHaveBeenCalledOnce();
+    const runUpdateArgs = runUpdate.mock.calls[0]![0] as {
+      data: { status: string };
+      where: { id: string };
+    };
+    expect(runUpdateArgs.where.id).toBe("run_child");
+    expect(runUpdateArgs.data.status).toBe("SUCCEEDED");
 
     expect(result).toEqual({
       generatedAssetIds: ["asset_gen_1"],
@@ -143,19 +199,38 @@ describe("delegateToSpecialistSkill", () => {
     });
   });
 
-  it("returns ok:false when the child dispatch throws", async () => {
+  it("returns ok:false and finalizes the child run as FAILED when the dispatch throws", async () => {
     const { findTemplateBySlug } = await import("../templates/registry");
     vi.mocked(findTemplateBySlug)
       .mockReturnValueOnce({ canDelegateTo: ["designer"], slug: "controller" } as never)
-      .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never)
-      .mockReturnValueOnce({ displayName: "Designer", slug: "designer" } as never);
+      .mockReturnValueOnce({
+        defaultSystemPrompt: "PROMPT",
+        displayName: "Designer",
+        slug: "designer",
+      } as never)
+      .mockReturnValueOnce({
+        defaultSystemPrompt: "PROMPT",
+        displayName: "Designer",
+        slug: "designer",
+      } as never);
 
     const enqueueAndAwait = vi.fn().mockRejectedValue(new Error("worker exploded"));
+    const runCreate = vi.fn().mockResolvedValue({ id: "run_child" });
+    const runUpdate = vi.fn().mockResolvedValue({ id: "run_child" });
 
     const parentArgs = {
       agentInstance: { templateSlug: "controller" },
       dispatcher: { enqueueAndAwait },
+      existingAssets: [],
       input: { imageBytes: [], text: "olá" },
+      newAssets: [],
+      oversizeCount: 0,
+      prisma: {
+        agentInstance: { upsert: vi.fn().mockResolvedValue({ id: "ai_designer", mission: "" }) },
+        agentRun: { create: runCreate, update: runUpdate },
+      },
+      runId: "run_parent",
+      systemPrompt: "p",
     } as unknown as AgentDispatchArgs;
 
     const result = await delegateToSpecialistSkill.execute(
@@ -165,13 +240,17 @@ describe("delegateToSpecialistSkill", () => {
         dispatcher: parentArgs.dispatcher,
         orgId: "org_1",
         parentRunArgs: parentArgs,
-        prisma: {
-          agentInstance: { upsert: vi.fn().mockResolvedValue({ id: "ai_designer" }) },
-        } as never,
+        parentRunId: "run_parent",
+        prisma: parentArgs.prisma,
       },
     );
 
     expect(result.ok).toBe(false);
     expect((result as { error: string }).error).toContain("worker exploded");
+    // The child run was created AND finalized as FAILED.
+    expect(runCreate).toHaveBeenCalledOnce();
+    expect(runUpdate).toHaveBeenCalledOnce();
+    const runUpdateArgs = runUpdate.mock.calls[0]![0] as { data: { status: string } };
+    expect(runUpdateArgs.data.status).toBe("FAILED");
   });
 });

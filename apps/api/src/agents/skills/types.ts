@@ -8,6 +8,9 @@ type SkillContext = {
   dispatcher: AgentDispatcher;
   orgId: string;
   parentRunArgs: AgentDispatchArgs;
+  // The AgentRun id this skill is running inside. Skills that spawn child
+  // runs (delegateToSpecialist) thread it through as AgentRun.parentRunId.
+  parentRunId: string;
   prisma: PrismaClient;
 };
 

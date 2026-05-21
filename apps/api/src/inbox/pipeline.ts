@@ -24,7 +24,9 @@ type PipelineDeps = {
   prisma: Pick<
     PrismaClient,
     | "$transaction"
+    | "agentAction"
     | "agentInstance"
+    | "agentRun"
     | "brandAsset"
     | "connectorInstance"
     | "conversation"
@@ -103,7 +105,12 @@ const handleInboundMessage = async (
       contentType = "TEXT";
     }
 
-    await persistInboundMessage({ contentType, conversationId, message, prisma: deps.prisma });
+    const persistedMessage = await persistInboundMessage({
+      contentType,
+      conversationId,
+      message,
+      prisma: deps.prisma,
+    });
 
     const processed = await processIncomingAttachments({
       chatId: thread.id,
@@ -151,6 +158,7 @@ const handleInboundMessage = async (
       externalThreadId: thread.id,
       message,
       orgId,
+      triggerMessageId: persistedMessage.id,
     });
 
     await postAgentResult({
