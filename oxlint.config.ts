@@ -37,7 +37,10 @@ export default defineConfig({
         "apps/client/src/proxy.ts",
         "apps/client/src/lib/auth-helpers.ts",
         "apps/client/src/components/sign-out-button.tsx",
+        "apps/client/src/components/composer.tsx",
+        "apps/client/src/components/sse-subscriber.tsx",
         "apps/client/src/app/auth/verify/page.tsx",
+        "apps/client/src/app/(client)/page.tsx",
         "packages/auth/src/server.ts",
       ],
       rules: {
