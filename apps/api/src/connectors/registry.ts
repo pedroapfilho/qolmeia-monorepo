@@ -1,5 +1,6 @@
 import type { ConnectorType } from "@repo/db";
 
+import { telegramAdapter } from "./telegram/adapter";
 import type { ConnectorAdapter } from "./types";
 import { NotImplementedError } from "./types";
 
@@ -26,7 +27,7 @@ const ADAPTERS: Readonly<Record<ConnectorType, ConnectorAdapter>> = {
   FRESHA: buildUnimplementedAdapter("FRESHA", "Fresha"),
   GOOGLE_MY_BUSINESS: buildUnimplementedAdapter("GOOGLE_MY_BUSINESS", "GoogleMyBusiness"),
   INSTAGRAM: buildUnimplementedAdapter("INSTAGRAM", "Instagram"),
-  TELEGRAM: buildUnimplementedAdapter("TELEGRAM", "Telegram"),
+  TELEGRAM: telegramAdapter,
   WHATSAPP: buildUnimplementedAdapter("WHATSAPP", "WhatsApp"),
 };
 

@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { ADAPTERS, getAdapter } from "./registry";
+import { telegramAdapter } from "./telegram/adapter";
 import { NotImplementedError } from "./types";
 
 describe("getAdapter", () => {
+  it("returns telegramAdapter for TELEGRAM", () => {
+    expect(getAdapter("TELEGRAM")).toBe(telegramAdapter);
+  });
+
   it("returns an adapter for every ConnectorType enum variant", () => {
     const expectedVariants = [
       "FRESHA",
