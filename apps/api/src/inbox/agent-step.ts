@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
-import { ensureAgentInstance } from "../agents/agent-instance";
+import { findInboundAgentInstanceForConnector } from "../agents/agent-instance";
 import type { AgentDispatcher, AgentRunResult } from "../agents/dispatcher";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
@@ -10,7 +10,7 @@ import { fetchAsset as fetchAssetDefault } from "../lib/storage";
 import type { ProcessedAttachments } from "./attachments";
 import type { IncomingMessage, IncomingThread } from "./ingest";
 
-type AgentStepPrisma = Pick<PrismaClient, "agentInstance" | "brandAsset">;
+type AgentStepPrisma = Pick<PrismaClient, "agentConnectorBinding" | "agentInstance" | "brandAsset">;
 
 type AgentStepDeps = {
   dispatcher: AgentDispatcher;
@@ -30,13 +30,45 @@ const extFromMime = (mimeType: string): string => {
   return "bin";
 };
 
+const resolveInboundAgentInstance = async ({
+  connectorInstanceId,
+  orgId,
+  prisma,
+}: {
+  connectorInstanceId: string;
+  orgId: string;
+  prisma: AgentStepPrisma;
+}) => {
+  const lookup = await findInboundAgentInstanceForConnector({ connectorInstanceId, prisma });
+  if (lookup.kind === "found") {
+    return lookup.agentInstance;
+  }
+  if (lookup.kind === "ambiguous") {
+    logger.error(
+      {
+        candidateTemplateSlugs: lookup.candidateTemplateSlugs,
+        connectorInstanceId,
+        orgId,
+      },
+      "agent-step.routing.ambiguous_inbound_binding",
+    );
+    throw new Error(
+      `Multiple inbound bindings for ConnectorInstance ${connectorInstanceId}: ${lookup.candidateTemplateSlugs.join(", ")}`,
+    );
+  }
+  logger.error({ connectorInstanceId, orgId }, "agent-step.routing.missing_inbound_binding");
+  throw new Error(`No inbound binding for ConnectorInstance ${connectorInstanceId}`);
+};
+
 const runAgentForInbound = async ({
   attachments,
+  connectorInstanceId,
   deps,
   message,
   orgId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
+  connectorInstanceId: string;
   deps: AgentStepDeps;
   message: IncomingMessage;
   orgId: string;
@@ -57,10 +89,10 @@ const runAgentForInbound = async ({
     mimeType: r.mimeType,
   }));
 
-  const agentInstance = await ensureAgentInstance({
+  const agentInstance = await resolveInboundAgentInstance({
+    connectorInstanceId,
     orgId,
     prisma: deps.prisma,
-    templateSlug: "controller",
   });
 
   const text = (message.text ?? "").trim();
