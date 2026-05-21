@@ -3,21 +3,12 @@ import type { NextRequest } from "next/server";
 
 import { getAuth } from "@/lib/auth";
 
-// Protected: every backoffice route lives behind a session. The dashboard
-// "/" is included, plus the operator-facing surfaces that B.3+ will build out.
-const protectedRoutes = [
-  "/",
-  "/agents",
-  "/approvals",
-  "/activity",
-  "/soul",
-  "/runs",
-  "/team",
-  "/settings",
-];
+// Protected: every client route lives behind a session. The chat home
+// "/" plus assets/activity make up the customer surface.
+const protectedRoutes = ["/", "/assets", "/activity", "/no-access"];
 
 // Auth routes redirect away when the user is already signed in.
-const authRoutes = ["/login", "/register", "/recover", "/reset-password"];
+const authRoutes = ["/login", "/auth/verify"];
 
 const matchesRoute = (pathname: string, route: string): boolean => {
   if (route === "/") {
@@ -41,17 +32,19 @@ export const proxy = async (request: NextRequest) => {
       headers: request.headers,
     })
     .catch((error) => {
-      // Auth service failure (DB down, misconfiguration, etc.) — log so outages
-      // are observable, then treat as unauthenticated to keep the pipeline moving.
-      // Role enforcement happens at apps/api (require-staff middleware); the
-      // backoffice trusts the cookie + API responses, so this check is intentionally
-      // shallow.
       console.error("[proxy] getSession failed — treating as unauthenticated", {
         error,
         pathname,
       });
       return null;
     });
+
+  // /auth/verify is the magic-link landing — handle as auth-route (no
+  // session required to reach it, since the click flow exchanges a token
+  // *for* a session).
+  if (pathname.startsWith("/auth/verify")) {
+    return NextResponse.next();
+  }
 
   if (isProtectedRoute && !session) {
     const url = new URL("/login", request.url);

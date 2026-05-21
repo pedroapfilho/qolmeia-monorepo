@@ -127,6 +127,25 @@ type RunRow = {
   triggerMessageId: string | null;
 };
 
+type TeamRole = "OWNER" | "STAFF" | "CUSTOMER";
+
+type TeamMemberRow = {
+  createdAt: string;
+  id: string;
+  role: TeamRole;
+  user: {
+    displayName: string | null;
+    email: string;
+    id: string;
+    image: string | null;
+    name: string;
+  };
+};
+
+type TeamMembersResponse = {
+  items: ReadonlyArray<TeamMemberRow>;
+};
+
 export type {
   ActivityLogRefType,
   ActivityLogType,
@@ -139,4 +158,7 @@ export type {
   Paginated,
   RunRow,
   SoulPayload,
+  TeamMemberRow,
+  TeamMembersResponse,
+  TeamRole,
 };
