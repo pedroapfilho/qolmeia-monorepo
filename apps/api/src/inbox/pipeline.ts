@@ -23,6 +23,7 @@ type PipelineDeps = {
   prisma: Pick<
     PrismaClient,
     | "$transaction"
+    | "agentConnectorBinding"
     | "agentInstance"
     | "brandAsset"
     | "connectorInstance"

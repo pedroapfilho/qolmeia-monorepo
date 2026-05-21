@@ -1,9 +1,13 @@
 import type { PrismaClient } from "@repo/db";
 
+import { ensureInboundBindingForTelegramConnector } from "../agents/connector-binding-seed";
+
 import { toJsonSafe } from "./json-safe";
 
 type IngestPrisma = Pick<
   PrismaClient,
+  | "agentConnectorBinding"
+  | "agentInstance"
   | "connectorInstance"
   | "conversation"
   | "message"
@@ -81,6 +85,14 @@ const resolveOrgAndConversation = async ({
         select: { id: true },
       }));
 
+    // Idempotent backfill: existing ConnectorInstance rows that predate
+    // binding-driven routing need the Controller INBOUND binding too.
+    await ensureInboundBindingForTelegramConnector({
+      connectorInstanceId: connector.id,
+      orgId: connector.orgId,
+      prisma,
+    });
+
     return {
       connectorInstanceId: connector.id,
       conversationId: conversation.id,
@@ -94,6 +106,7 @@ const resolveOrgAndConversation = async ({
     select: { orgId: true },
     where: { telegramChatId },
   });
+  let newConnectorInstanceId: string | null = null;
 
   if (!link) {
     // First contact for this chat. Create org + telegramLink + connectorInstance
@@ -114,9 +127,13 @@ const resolveOrgAndConversation = async ({
         slug: slugify(telegramChatId),
         telegramLink: { create: { telegramChatId } },
       },
-      select: { id: true },
+      select: {
+        connectorInstances: { select: { id: true } },
+        id: true,
+      },
     });
     link = { orgId: org.id };
+    newConnectorInstanceId = org.connectorInstances[0]?.id ?? null;
   }
 
   // 3. Find or create a Conversation for the legacy path.
@@ -130,7 +147,21 @@ const resolveOrgAndConversation = async ({
       select: { id: true },
     }));
 
-  return { connectorInstanceId: null, conversationId: conversation.id, orgId: link.orgId };
+  // First-contact path: seed the Controller INBOUND binding for the new
+  // ConnectorInstance so the next inbound message can route via binding.
+  if (newConnectorInstanceId) {
+    await ensureInboundBindingForTelegramConnector({
+      connectorInstanceId: newConnectorInstanceId,
+      orgId: link.orgId,
+      prisma,
+    });
+  }
+
+  return {
+    connectorInstanceId: newConnectorInstanceId,
+    conversationId: conversation.id,
+    orgId: link.orgId,
+  };
 };
 
 const persistInboundMessage = async ({

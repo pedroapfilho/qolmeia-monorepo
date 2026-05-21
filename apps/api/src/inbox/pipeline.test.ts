@@ -17,18 +17,33 @@ const makeMessage = (
 });
 
 const makePrisma = () => {
-  const org = { id: "org_1" };
+  const agentInstance = {
+    displayName: "Controller",
+    enabledSkillIds: null,
+    id: "ai_test",
+    mission: "",
+    orgId: "org_1",
+    templateSlug: "controller",
+  };
+  const org = { connectorInstances: [{ id: "ci_new" }], id: "org_1" };
   const conversation = { id: "conv_1" };
   return {
+    agentConnectorBinding: {
+      // Default to one binding (Controller) so routing succeeds for tests
+      // that exercise the binding-driven inbound path.
+      findMany: vi.fn().mockResolvedValue([
+        {
+          agentInstance,
+          agentInstanceId: agentInstance.id,
+          connectorInstanceId: "ci_new",
+          direction: "INBOUND",
+          id: "binding_test",
+        },
+      ]),
+      upsert: vi.fn().mockResolvedValue({ id: "binding_test" }),
+    },
     agentInstance: {
-      upsert: vi.fn().mockResolvedValue({
-        displayName: "Controller",
-        enabledSkillIds: null,
-        id: "ai_test",
-        mission: "",
-        orgId: "org_1",
-        templateSlug: "controller",
-      }),
+      upsert: vi.fn().mockResolvedValue(agentInstance),
     },
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -285,6 +300,61 @@ describe("handleInboundMessage", () => {
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledWith("Anotei!");
+  });
+
+  it("seeds the Controller INBOUND binding on first contact (lazy ConnectorInstance creation)", async () => {
+    const prisma = makePrisma();
+    // No existing ConnectorInstance and no TelegramLink — first contact path.
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue(null);
+    (
+      prisma as never as { telegramLink: { findUnique: ReturnType<typeof vi.fn> } }
+    ).telegramLink.findUnique.mockResolvedValue(null);
+
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "primeira mensagem" }));
+
+    const bindingUpsert = (
+      prisma as never as { agentConnectorBinding: { upsert: ReturnType<typeof vi.fn> } }
+    ).agentConnectorBinding.upsert;
+    expect(bindingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          connectorInstanceId: "ci_new",
+          direction: "INBOUND",
+        }),
+      }),
+    );
+  });
+
+  it("backfills the INBOUND binding when an existing ConnectorInstance lacks one", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_legacy", orgId: "org_legacy" });
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_legacy" });
+
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "msg" }));
+
+    const bindingUpsert = (
+      prisma as never as { agentConnectorBinding: { upsert: ReturnType<typeof vi.fn> } }
+    ).agentConnectorBinding.upsert;
+    expect(bindingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          connectorInstanceId: "ci_legacy",
+          direction: "INBOUND",
+        }),
+      }),
+    );
   });
 
   it("posts generated image via thread.post({ files, markdown }) when dispatcher returns generatedAssetIds", async () => {
