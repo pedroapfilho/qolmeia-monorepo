@@ -5,15 +5,7 @@ import { getAuth } from "@/lib/auth";
 
 // Protected: every backoffice route lives behind a session. The dashboard
 // "/" is included, plus the operator-facing surfaces that B.3+ will build out.
-const protectedRoutes = [
-  "/",
-  "/agents",
-  "/approvals",
-  "/activity",
-  "/soul",
-  "/runs",
-  "/settings",
-];
+const protectedRoutes = ["/", "/agents", "/approvals", "/activity", "/soul", "/runs", "/settings"];
 
 // Auth routes redirect away when the user is already signed in.
 const authRoutes = ["/login", "/register", "/recover", "/reset-password"];
