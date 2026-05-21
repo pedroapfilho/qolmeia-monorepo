@@ -26,6 +26,9 @@ describe("Phase 5a schema", () => {
     await prisma.activityLog.deleteMany({
       where: { org: { slug: { startsWith: PREFIX } } },
     });
+    await prisma.routine.deleteMany({
+      where: { org: { slug: { startsWith: PREFIX } } },
+    });
     await prisma.agentSkillEnablement.deleteMany({
       where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
     });
@@ -470,6 +473,9 @@ describe("Phase 5a schema", () => {
       "INSTRUCTIONS_UPDATED",
       "BUSINESS_IDEA_UPDATED",
       "OWNER_COMMAND",
+      "ROUTINE_TRIGGERED",
+      "ROUTINE_ENABLED",
+      "ROUTINE_DISABLED",
     ] as const;
 
     // Insert serially via Promise chain to avoid no-await-in-loop without
@@ -504,5 +510,91 @@ describe("Phase 5a schema", () => {
     await prisma.organization.delete({ where: { id: org.id } });
     const remaining = await prisma.activityLog.findMany({ where: { orgId: org.id } });
     expect(remaining).toEqual([]);
+  });
+
+  it("round-trips Routine rows: paused by default, unique-per-org, cascades on org delete", async () => {
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T-Routine",
+        slug: tag("tpl-routine"),
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-routine") },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        displayName: "a-routine",
+        mission: "",
+        orgId: org.id,
+        templateSlug: template.slug,
+      },
+    });
+
+    const routine = await prisma.routine.create({
+      data: {
+        agentInstanceId: agent.id,
+        config: { maxDocs: 5 },
+        description: "Resumo noturno do conhecimento",
+        name: "nightly-knowledge-summary",
+        orgId: org.id,
+        schedule: "0 3 * * *",
+      },
+    });
+    expect(routine.enabled).toBe(false);
+    expect(routine.timezone).toBe("America/Sao_Paulo");
+    expect(routine.config).toEqual({ maxDocs: 5 });
+    expect(routine.lastRunAt).toBeNull();
+    expect(routine.lastRunStatus).toBeNull();
+    expect(routine.nextRunAt).toBeNull();
+
+    // (orgId, name) unique.
+    await expect(
+      prisma.routine.create({
+        data: {
+          agentInstanceId: agent.id,
+          name: "nightly-knowledge-summary",
+          orgId: org.id,
+          schedule: "0 4 * * *",
+        },
+      }),
+    ).rejects.toThrow();
+
+    // Flip enabled + record a successful run.
+    const enabled = await prisma.routine.update({
+      data: {
+        enabled: true,
+        lastRunAt: new Date(),
+        lastRunStatus: "SUCCEEDED",
+        nextRunAt: new Date(Date.now() + 86_400_000),
+      },
+      where: { id: routine.id },
+    });
+    expect(enabled.enabled).toBe(true);
+    expect(enabled.lastRunStatus).toBe("SUCCEEDED");
+    expect(enabled.lastRunAt).toBeInstanceOf(Date);
+    expect(enabled.nextRunAt).toBeInstanceOf(Date);
+
+    // ROUTINE refType is wired up.
+    await prisma.activityLog.create({
+      data: {
+        orgId: org.id,
+        refId: routine.id,
+        refType: "ROUTINE",
+        summary: "Rotina ligada pelo dono",
+        type: "ROUTINE_ENABLED",
+      },
+    });
+
+    // Cascade: removing the org wipes Routine + ActivityLog.
+    await prisma.organization.delete({ where: { id: org.id } });
+    const remainingRoutine = await prisma.routine.findUnique({ where: { id: routine.id } });
+    expect(remainingRoutine).toBeNull();
   });
 });

@@ -98,6 +98,9 @@ enum ActivityLogType {
   INSTRUCTIONS_UPDATED
   BUSINESS_IDEA_UPDATED
   OWNER_COMMAND
+  ROUTINE_TRIGGERED
+  ROUTINE_ENABLED
+  ROUTINE_DISABLED
 }
 
 // Identifies which entity the refId points at. NONE for free-floating events
@@ -107,6 +110,7 @@ enum ActivityLogRefType {
   AGENT_RUN
   AGENT_ACTION
   ORGANIZATION
+  ROUTINE
   NONE
 }
 
@@ -173,6 +177,7 @@ model AgentInstance {
   actions         AgentAction[]
   enablements     AgentSkillEnablement[]
   runs            AgentRun[]
+  routines        Routine[]
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
@@ -318,6 +323,7 @@ model Organization {
   agentInstances     AgentInstance[]
   knowledgeDocs      KnowledgeDoc[]
   activityLogs       ActivityLog[]
+  routines           Routine[]
 
   @@index([slug])
 }
@@ -456,4 +462,39 @@ model ActivityLog {
 
   @@index([orgId, createdAt])
   @@index([type, createdAt])
+}
+
+// Paused-by-default scheduled invocations of an AgentInstance. Owner-curated
+// (Paperclip-style — see docs/research/2026-05-20-paperclip-and-multica.md
+// §5.3): rows are upserted from a code-defined registry at seed time but
+// `enabled` always starts false. Owner flips with /ligar; the routine
+// scheduler worker reconciles BullMQ repeatable schedulers from these rows.
+model Routine {
+  id              String        @id @default(cuid())
+  orgId           String
+  agentInstanceId String
+  name            String
+  description     String?       @db.Text
+  // Cron expression in `timezone`. Parsed by BullMQ via cron-parser.
+  schedule        String
+  timezone        String        @default("America/Sao_Paulo")
+  // Paused by default. Owner must opt-in via /ligar to register the BullMQ
+  // job scheduler. /desligar unregisters without deleting the row.
+  enabled         Boolean       @default(false)
+  // Routine-specific knobs (e.g. { maxDocs: 5 }). Shape defined by the
+  // RoutineDefinition's buildPrompt — registry, not Prisma, owns validation.
+  config          Json          @default("{}")
+  lastRunAt       DateTime?
+  // "SUCCEEDED" | "FAILED". String over enum to keep registry evolutions
+  // (new statuses) from forcing migrations.
+  lastRunStatus   String?
+  // Computed at enable time, updated by the scheduler after each fire.
+  nextRunAt       DateTime?
+  org             Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  agentInstance   AgentInstance @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, enabled])
 }
