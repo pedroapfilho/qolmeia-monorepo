@@ -30,6 +30,10 @@ const ADAPTERS: Readonly<Record<ConnectorType, ConnectorAdapter>> = {
   GOOGLE_MY_BUSINESS: buildUnimplementedAdapter("GOOGLE_MY_BUSINESS", "GoogleMyBusiness"),
   INSTAGRAM: buildUnimplementedAdapter("INSTAGRAM", "Instagram"),
   TELEGRAM: telegramAdapter,
+  // Backoffice / client app embedded chat surface. Adapter ships with the
+  // web-chat connector later in Phase 5b; the enum value exists now so the
+  // schema + connector binding tables can refer to it.
+  WEB_CHAT: buildUnimplementedAdapter("WEB_CHAT", "WebChat"),
   WHATSAPP: whatsappAdapter,
 };
 
