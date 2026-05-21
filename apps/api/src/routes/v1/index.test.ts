@@ -1,7 +1,7 @@
 import type { Context, Hono, MiddlewareHandler, Next } from "hono";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AuthSession, StaffContextVars } from "@/middleware/require-staff";
+import type { AuthSession } from "@/middleware/require-staff";
 
 import { buildActivityRoutes } from "./activity";
 import { buildAgentsRoutes } from "./agents";
@@ -149,8 +149,13 @@ const buildPrisma = () => {
 const buildV1WithMocks = (
   guard: MiddlewareHandler,
   prisma: ReturnType<typeof buildPrisma>,
-): Hono<{ Variables: StaffContextVars }> =>
+): Hono =>
   buildV1Routes({
+    // Same guard wired into every surface — the cross-org test exercises
+    // staff routes; the explicit memberGuard + customerGuard mounts get
+    // their own assertions in web-chat.test.ts.
+    customerGuard: guard,
+    memberGuard: guard,
     routes: {
       activity: buildActivityRoutes({ prisma: prisma as never }),
       agents: buildAgentsRoutes({ prisma: prisma as never }),
