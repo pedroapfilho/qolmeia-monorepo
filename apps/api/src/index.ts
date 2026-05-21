@@ -20,6 +20,7 @@ import {
   securityHeaders,
   standardRateLimit,
 } from "./middleware/security";
+import { authRoutes } from "./routes/auth";
 import { connectorsTelegramRoutes } from "./routes/connectors/telegram";
 import { connectorsWhatsAppRoutes } from "./routes/connectors/whatsapp";
 
@@ -29,12 +30,23 @@ app.use("*", requestId);
 app.use("*", compress());
 app.use("*", requestSizeLimit());
 app.use("*", securityHeaders);
+// CORS — Better Auth cookies require `credentials: include` from the browser,
+// which forbids the wildcard `*` origin. When CORS_ORIGINS is "*" we keep the
+// permissive setup for non-credentialed callers (Telegram webhook, internal
+// probes); otherwise the configured origins get credentials echoed back so
+// the backoffice + client apps can hit /api/auth/* with cookies.
+const corsOrigins = env.CORS_ORIGINS.split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 app.use(
   "*",
   cors({
-    allowHeaders: ["Content-Type", "X-Request-Id"],
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    origin: env.CORS_ORIGINS.split(","),
+    allowHeaders: ["Content-Type", "X-Request-Id", "Cookie", "Authorization"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: corsOrigins.length > 0 && corsOrigins[0] !== "*",
+    exposeHeaders: ["Set-Cookie", "X-Request-Id"],
+    origin: corsOrigins.length > 0 ? corsOrigins : "*",
   }),
 );
 
@@ -58,6 +70,10 @@ app.use("*", async (c, next) => {
 
 app.use("/api/*", standardRateLimit);
 app.use("/api/v1/*", apiRateLimit);
+// Better Auth's basePath is "/api/auth"; mounting authRoutes at "/api" wires
+// `POST /api/auth/sign-in/email`, `POST /api/auth/sign-up/email`,
+// `POST /api/auth/sign-in/magic-link`, `GET /api/auth/get-session`, etc.
+app.route("/api", authRoutes);
 app.route("/connectors", connectorsTelegramRoutes);
 app.route("/connectors", connectorsWhatsAppRoutes);
 

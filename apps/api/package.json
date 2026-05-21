@@ -22,6 +22,7 @@
     "@chat-adapter/telegram": "^4.29.0",
     "@hono/node-server": "^2.0.2",
     "@hono/zod-openapi": "^1.4.0",
+    "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@scalar/hono-api-reference": "^0.10.14",
     "@scalar/openapi-to-markdown": "^0.5.14",

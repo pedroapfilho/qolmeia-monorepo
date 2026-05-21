@@ -2,6 +2,14 @@ import { z } from "zod";
 
 export const envSchema = z.object({
   AI_GATEWAY_API_KEY: z.string().min(1),
+  // Comma-separated extra hosts for Better Auth's dynamic baseURL.
+  AUTH_ALLOWED_HOSTS: z.string().optional(),
+  // From-address used by transactional email helpers. Defaults to the
+  // qolmeia.ai noreply mailbox when unset.
+  AUTH_FROM_EMAIL: z.string().optional(),
+  // Better Auth cookie/token signing secret. Required everywhere except
+  // local CLI scripts that explicitly skip env loading.
+  BETTER_AUTH_SECRET: z.string().min(32),
   CORS_ORIGINS: z.string().default("*"),
   DATABASE_URL: z.string().min(1),
   DISPATCH_MODE: z.enum(["serial", "queue"]).default("serial"),
@@ -15,9 +23,14 @@ export const envSchema = z.object({
   R2_REGION: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   REDIS_URL: z.string().min(1),
+  // Optional — when absent the email-sending hooks become no-ops so dev/CI
+  // can run without an external mail provider.
+  RESEND_API_KEY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_BOT_USERNAME: z.string().min(1),
   TELEGRAM_WEBHOOK_SECRET_TOKEN: z.string().min(1),
+  // Comma-separated extra origins for Better Auth's trustedOrigins.
+  TRUSTED_ORIGINS: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

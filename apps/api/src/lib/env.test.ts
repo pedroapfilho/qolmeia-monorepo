@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // Stub required vars before env.ts module loads so the fail-fast throw is satisfied.
 vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
+vi.stubEnv("BETTER_AUTH_SECRET", "test-secret-minimum-32-characters-long");
 vi.stubEnv("DATABASE_URL", "postgresql://u:p@localhost:5432/db");
 vi.stubEnv("R2_ACCESS_KEY_ID", "test-r2-key");
 vi.stubEnv("R2_ACCOUNT_ID", "test-account");
@@ -18,6 +19,7 @@ const { envSchema } = await import("./env");
 
 const base = {
   AI_GATEWAY_API_KEY: "test-key",
+  BETTER_AUTH_SECRET: "test-secret-minimum-32-characters-long",
   DATABASE_URL: "postgresql://u:p@localhost:5432/db",
   R2_ACCESS_KEY_ID: "test-r2-key",
   R2_ACCOUNT_ID: "test-account",

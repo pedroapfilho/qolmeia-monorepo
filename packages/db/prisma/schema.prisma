@@ -12,6 +12,12 @@ enum Channel {
   TELEGRAM
 }
 
+enum OrgRole {
+  OWNER
+  STAFF
+  CUSTOMER
+}
+
 enum ConversationStatus {
   ACTIVE
   RESOLVED
@@ -42,6 +48,7 @@ enum ConnectorType {
   FRESHA
   GOOGLE_MY_BUSINESS
   INSTAGRAM
+  WEB_CHAT
 }
 
 enum SenderRole {
@@ -101,6 +108,8 @@ enum ActivityLogType {
   ROUTINE_TRIGGERED
   ROUTINE_ENABLED
   ROUTINE_DISABLED
+  MEMBER_INVITED
+  MEMBER_JOINED
 }
 
 // Identifies which entity the refId points at. NONE for free-floating events
@@ -323,6 +332,7 @@ model Organization {
   knowledgeDocs      KnowledgeDoc[]
   activityLogs       ActivityLog[]
   routines           Routine[]
+  memberships        OrgMembership[]
 
   @@index([slug])
 }
@@ -487,4 +497,104 @@ model Routine {
 
   @@unique([orgId, name])
   @@index([orgId, enabled])
+}
+
+// Better Auth — see packages/auth/src/server.ts (createAuth). The shape
+// mirrors Better Auth's prisma adapter requirements; do not rename columns
+// without updating the adapter mapping. Custom fields (username,
+// displayUsername, displayName) are added via the username plugin + the
+// `user.additionalFields` config.
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  emailVerified   Boolean  @default(false)
+  name            String
+  image           String?
+  username        String?  @unique
+  displayUsername String?
+  displayName     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  memberships OrgMembership[]
+
+  @@index([email])
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  token          String   @unique
+  ipAddress      String?
+  userAgent      String?
+  // Set by Better Auth's admin/impersonation flows. Kept nullable so the
+  // column round-trips even when impersonation is disabled.
+  impersonatedBy String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  providerId            String
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String   @db.Text
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// Better Auth database-backed rate limiting — required because the auth
+// config sets `rateLimit.storage: "database"`. Rows are written on first
+// limited request.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
+// Per-user membership in an Organization. A user can belong to many orgs and
+// holds one role per org. (userId, orgId) is unique. role drives the
+// backoffice / client permission split (OWNER + STAFF see the backoffice;
+// CUSTOMER uses the client app).
+model OrgMembership {
+  id        String       @id @default(cuid())
+  userId    String
+  orgId     String
+  role      OrgRole
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([userId, orgId])
+  @@index([orgId, role])
 }
