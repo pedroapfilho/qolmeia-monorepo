@@ -66,6 +66,12 @@ enum AgentActionStatus {
   EXECUTED
 }
 
+enum AgentRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 enum KnowledgeDocContentType {
   MARKDOWN
   PLAIN_TEXT
@@ -134,6 +140,7 @@ model AgentInstance {
   bindings        AgentConnectorBinding[]
   actions         AgentAction[]
   enablements     AgentSkillEnablement[]
+  runs            AgentRun[]
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
@@ -181,6 +188,11 @@ model AgentAction {
   id               String            @id @default(cuid())
   agentInstanceId  String
   skillId          String
+  // Parent AgentRun this action belongs to. Nullable for backward compat
+  // with pre-Group-3.1 rows; new runs always set it. Group 3.x will tighten
+  // to non-null once backfill is in place. Pedro's local data has no rows
+  // worth migrating, so no one-shot script is needed.
+  runId            String?
   triggerMessageId String?
   parentActionId   String?
   proposedInput    Json
@@ -197,6 +209,7 @@ model AgentAction {
   costOutputTokens Int               @default(0)
   agentInstance    AgentInstance     @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
   skill            Skill             @relation(fields: [skillId], references: [id])
+  agentRun         AgentRun?         @relation(fields: [runId], references: [id], onDelete: Cascade)
   parent           AgentAction?      @relation("ChildActions", fields: [parentActionId], references: [id])
   children         AgentAction[]     @relation("ChildActions")
   createdAt        DateTime          @default(now())
@@ -205,6 +218,47 @@ model AgentAction {
   @@index([agentInstanceId, status, createdAt])
   @@index([triggerMessageId])
   @@index([parentActionId])
+  @@index([runId])
+}
+
+// Parent record for "one agent invocation". A single inbound message can
+// fan out into Controller → Strategist → Designer runs; each is its own
+// AgentRun row, linked via parentRunId. Holds the deterministic context
+// snapshot assembled at dispatch time so re-runs replay against the same
+// inputs (Multica-style — see docs/research/2026-05-20-paperclip-and-multica.md §5.3).
+model AgentRun {
+  id                String         @id @default(cuid())
+  agentInstanceId   String
+  // Links to Message for top-level inbound runs. Null for delegation
+  // children (the trigger lives one hop up via parentRunId) and future
+  // manual/scheduled runs.
+  triggerMessageId  String?
+  // Self-FK for the delegation chain. Null when this run is the root.
+  parentRunId       String?
+  // Serialized business context + assets + mission as of dispatch time.
+  // Read by the runtime via this column — runtime never re-reads the soul.
+  contextSnapshot   Json
+  // Fully rendered system prompt for this run. Stored so we can replay the
+  // exact prompt the model saw, even if the template definition drifts.
+  systemPrompt      String         @db.Text
+  status            AgentRunStatus @default(RUNNING)
+  costCents         Int            @default(0)
+  costInputTokens   Int            @default(0)
+  costOutputTokens  Int            @default(0)
+  startedAt         DateTime       @default(now())
+  finishedAt        DateTime?
+  errorMessage      String?        @db.Text
+  agentInstance     AgentInstance  @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  triggerMessage    Message?       @relation(fields: [triggerMessageId], references: [id])
+  parentRun         AgentRun?      @relation("ChildRuns", fields: [parentRunId], references: [id])
+  childRuns         AgentRun[]     @relation("ChildRuns")
+  actions           AgentAction[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([agentInstanceId, startedAt])
+  @@index([triggerMessageId])
+  @@index([parentRunId])
 }
 
 model Organization {
@@ -291,6 +345,7 @@ model Message {
   content        String
   contentType    ContentType   @default(TEXT)
   metadata       Json?
+  agentRuns      AgentRun[]
   createdAt      DateTime      @default(now())
 
   @@unique([conversationId, externalId])

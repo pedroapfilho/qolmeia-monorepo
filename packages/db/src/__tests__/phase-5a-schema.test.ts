@@ -29,6 +29,9 @@ describe("Phase 5a schema", () => {
     await prisma.agentAction.deleteMany({
       where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
     });
+    await prisma.agentRun.deleteMany({
+      where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
+    });
     await prisma.agentConnectorBinding.deleteMany({
       where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
     });
@@ -323,5 +326,121 @@ describe("Phase 5a schema", () => {
       where: { agentInstanceId: usingDefaults.id },
     });
     expect(enablements).toEqual([]);
+  });
+
+  it("round-trips AgentRun with contextSnapshot JSON, parent-child links, and FK to Message", async () => {
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T-Run",
+        slug: tag("tpl-run"),
+      },
+    });
+    const skill = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "S-Run",
+        id: tag("skill-run"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-run") },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        displayName: "a-run",
+        mission: "test",
+        orgId: org.id,
+        templateSlug: template.slug,
+      },
+    });
+    const conversation = await prisma.conversation.create({
+      data: { channel: "TELEGRAM", orgId: org.id },
+    });
+    const message = await prisma.message.create({
+      data: {
+        content: "ola",
+        conversationId: conversation.id,
+        sender: "CUSTOMER",
+      },
+    });
+
+    const parentRun = await prisma.agentRun.create({
+      data: {
+        agentInstanceId: agent.id,
+        contextSnapshot: { businessContext: "ctx", mission: "test" },
+        systemPrompt: "you are the controller",
+        triggerMessageId: message.id,
+      },
+    });
+    expect(parentRun.status).toBe("RUNNING");
+    expect(parentRun.parentRunId).toBeNull();
+    expect(parentRun.contextSnapshot).toEqual({
+      businessContext: "ctx",
+      mission: "test",
+    });
+    expect(parentRun.finishedAt).toBeNull();
+    expect(parentRun.costCents).toBe(0);
+
+    const childRun = await prisma.agentRun.create({
+      data: {
+        agentInstanceId: agent.id,
+        contextSnapshot: { businessContext: "ctx", mission: "designer subtask" },
+        parentRunId: parentRun.id,
+        systemPrompt: "you are the designer",
+      },
+    });
+    expect(childRun.parentRunId).toBe(parentRun.id);
+    expect(childRun.triggerMessageId).toBeNull();
+
+    // AgentAction.runId wires actions back to their parent run.
+    const action = await prisma.agentAction.create({
+      data: {
+        agentInstanceId: agent.id,
+        proposedInput: { foo: "bar" },
+        proposedSummary: "did the thing",
+        runId: childRun.id,
+        skillId: skill.id,
+      },
+    });
+    expect(action.runId).toBe(childRun.id);
+
+    // Finalize the parent run.
+    const finished = await prisma.agentRun.update({
+      data: {
+        costCents: 12,
+        costInputTokens: 100,
+        costOutputTokens: 50,
+        finishedAt: new Date(),
+        status: "SUCCEEDED",
+      },
+      where: { id: parentRun.id },
+    });
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.finishedAt).toBeInstanceOf(Date);
+    expect(finished.costCents).toBe(12);
+
+    // Eager-load child runs + actions via the relation.
+    const reloaded = await prisma.agentRun.findUnique({
+      include: { actions: true, childRuns: true },
+      where: { id: parentRun.id },
+    });
+    expect(reloaded?.childRuns.map((r) => r.id)).toEqual([childRun.id]);
+
+    // Cascade: deleting the parent AgentRun via the agent cascades to
+    // children and actions through the agentInstance FK.
+    await prisma.agentAction.deleteMany({ where: { agentInstanceId: agent.id } });
+    await prisma.agentRun.deleteMany({ where: { agentInstanceId: agent.id } });
+    const remaining = await prisma.agentRun.findMany({
+      where: { agentInstanceId: agent.id },
+    });
+    expect(remaining).toEqual([]);
   });
 });
