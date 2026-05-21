@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  AI_GATEWAY_API_KEY: z.string().min(1),
   // Comma-separated extra hosts for Better Auth's dynamic baseURL.
   AUTH_ALLOWED_HOSTS: z.string().optional(),
   // From-address used by transactional email helpers. Defaults to the
@@ -14,7 +13,15 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DISPATCH_MODE: z.enum(["serial", "queue"]).default("serial"),
   HOST: z.string().default("0.0.0.0"),
+  // OpenRouter model id used by lib/image-gen.ts. Exposed as an env var so
+  // ops can swap the image model without a redeploy (Nano Banana Pro's exact
+  // OpenRouter id may shift between previews). Find current ids at
+  // https://openrouter.ai/google.
+  IMAGE_GEN_MODEL: z.string().default("google/gemini-3-pro-image-preview"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  // Single OpenRouter key — covers agent text models AND image generation.
+  // Replaced AI_GATEWAY_API_KEY in the OpenRouter migration.
+  OPENROUTER_API_KEY: z.string().min(1),
   PORT: z.string().default("4000"),
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_ACCOUNT_ID: z.string().min(1),
@@ -31,6 +38,9 @@ export const envSchema = z.object({
   TELEGRAM_WEBHOOK_SECRET_TOKEN: z.string().min(1),
   // Comma-separated extra origins for Better Auth's trustedOrigins.
   TRUSTED_ORIGINS: z.string().optional(),
+  // Public-facing app URL — used as the HTTP-Referer header value when
+  // talking to OpenRouter so dashboard attribution is meaningful.
+  WEB_APP_URL: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
