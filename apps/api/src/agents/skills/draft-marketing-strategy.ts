@@ -49,7 +49,11 @@ const draftMarketingStrategySkill = defineSkill<
   id: "draftMarketingStrategy",
   inputSchema: draftMarketingStrategyInput,
   requiredConnectorTypes: [],
-  requiresApprovalDefault: false,
+  // Produces external-facing copy/strategy. Owner-side runs still auto-
+  // approve; CUSTOMER-side runs require approval before the draft is acted
+  // on. Future iterations may split this into draft (no approval) +
+  // publish (approval) once the runtime separates proposal from execution.
+  requiresApprovalDefault: true,
 });
 
 export { draftMarketingStrategySkill };

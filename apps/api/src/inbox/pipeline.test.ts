@@ -596,6 +596,40 @@ describe("handleInboundMessage", () => {
     expect(types).toEqual(["OWNER_COMMAND", "BUSINESS_IDEA_UPDATED"]);
   });
 
+  it("threads senderRole=OWNER from the legacy TelegramLink path into AgentDispatchArgs", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as { senderRole: "CUSTOMER" | "OWNER" | null };
+    expect(call.senderRole).toBe("OWNER");
+  });
+
+  it("threads senderRole=CUSTOMER when the resolving ConnectorInstance is customer-side", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({
+      id: "ci_cust",
+      orgId: "org_cust",
+      senderRole: "CUSTOMER",
+    });
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_cust" });
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "oi" }));
+
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as { senderRole: "CUSTOMER" | "OWNER" | null };
+    expect(call.senderRole).toBe("CUSTOMER");
+  });
+
   it("emits OWNER_COMMAND but no UPDATED row when reading bare /ideia", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });

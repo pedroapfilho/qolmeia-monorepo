@@ -50,17 +50,11 @@ const handleInboundMessage = async (
       return;
     }
 
-    const {
-      // TODO: thread into AgentDispatchArgs for senderRole-aware approval.
-      // Already used by the dispatcher to build the inbound coalesce key.
-      connectorInstanceId,
-      conversationId,
-      orgId,
-      senderRole,
-    } = await resolveOrgAndConversation({
-      prisma: deps.prisma,
-      telegramChatId: thread.id,
-    });
+    const { connectorInstanceId, conversationId, orgId, senderRole } =
+      await resolveOrgAndConversation({
+        prisma: deps.prisma,
+        telegramChatId: thread.id,
+      });
 
     // Owner-only slash commands (e.g. /instrucoes, /ideia) short-circuit the
     // agent runtime. Gated by senderRole so CUSTOMER-side connectors (Phase
@@ -183,6 +177,7 @@ const handleInboundMessage = async (
       externalThreadId: thread.id,
       message,
       orgId,
+      senderRole,
       triggerMessageId: persistedMessage.id,
     });
     const result = outcome.result;

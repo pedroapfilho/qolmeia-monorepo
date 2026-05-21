@@ -1,4 +1,4 @@
-import type { AgentInstance, PrismaClient } from "@repo/db";
+import type { AgentInstance, PrismaClient, SenderRole } from "@repo/db";
 
 type AgentRunInput = {
   audioBytes?: Uint8Array;
@@ -61,6 +61,13 @@ type AgentDispatchArgs = {
   // (inbox/agent-step or delegate-to-specialist) before enqueue; the
   // runtime reads contextSnapshot + systemPrompt from this row.
   runId: string;
+  // senderRole of the ConnectorInstance that triggered this run, snapshot at
+  // dispatch time. Threaded into recordAgentAction so the §8 approval rule
+  // (DRAFTED vs AUTO_APPROVED) can fire. Null when there's no connector
+  // (legacy TelegramLink path, internal delegations). At run-level granularity
+  // because v0 = one run, one trigger, one connector; multi-connector fan-in
+  // would force this down to the action level.
+  senderRole: SenderRole | null;
   // Fully rendered system prompt — duplicated from AgentRun.systemPrompt
   // so the worker doesn't need to re-fetch the row to call the model.
   systemPrompt: string;

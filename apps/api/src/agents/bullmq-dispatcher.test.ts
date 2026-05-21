@@ -37,6 +37,7 @@ const baseArgs = (over: Partial<AgentDispatchArgs> = {}): AgentDispatchArgs =>
     oversizeCount: 0,
     prisma: {} as never,
     runId: "run_1",
+    senderRole: "OWNER",
     systemPrompt: "system",
     ...over,
   }) as AgentDispatchArgs;

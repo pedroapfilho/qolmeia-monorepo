@@ -17,7 +17,9 @@ describe("generateBrandImageSkill", () => {
   it("has the expected metadata", () => {
     expect(generateBrandImageSkill.id).toBe("generateBrandImage");
     expect(generateBrandImageSkill.displayName).toBe("Generate Brand Image");
-    expect(generateBrandImageSkill.requiresApprovalDefault).toBe(false);
+    // Gated for CUSTOMER-side runs (Task 3.5 — §8 approval rule). OWNER-side
+    // runs still auto-approve via resolveActionStatus.
+    expect(generateBrandImageSkill.requiresApprovalDefault).toBe(true);
     expect(generateBrandImageSkill.requiredConnectorTypes).toEqual([]);
   });
 

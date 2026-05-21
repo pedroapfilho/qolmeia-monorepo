@@ -142,6 +142,7 @@ describe("delegateToSpecialistSkill", () => {
         agentRun: { create: runCreate, update: runUpdate },
       } as never,
       runId: "run_parent",
+      senderRole: "OWNER",
       systemPrompt: "parent-system",
     };
 

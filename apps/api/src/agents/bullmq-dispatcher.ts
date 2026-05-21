@@ -1,4 +1,4 @@
-import type { AgentInstance } from "@repo/db";
+import type { AgentInstance, SenderRole } from "@repo/db";
 import { type JobsOptions, Queue, QueueEvents } from "bullmq";
 
 import { env } from "../lib/env";
@@ -27,6 +27,7 @@ type SerializedAgentJob = {
   newAssets: AgentDispatchArgs["newAssets"];
   oversizeCount: number;
   runId: string;
+  senderRole: SenderRole | null;
   systemPrompt: string;
 };
 
@@ -63,6 +64,7 @@ const createBullMQDispatcher = (): {
         newAssets: args.newAssets,
         oversizeCount: args.oversizeCount,
         runId: args.runId,
+        senderRole: args.senderRole,
         systemPrompt: args.systemPrompt,
       };
       // Coalesce by jobId: BullMQ short-circuits when a job with the same ID

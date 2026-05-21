@@ -56,7 +56,7 @@ const resolveEnabledSkills = async (
 };
 
 const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult> => {
-  const { agentInstance, input, prisma, runId, systemPrompt } = args;
+  const { agentInstance, input, prisma, runId, senderRole, systemPrompt } = args;
 
   const template = findTemplateBySlug(agentInstance.templateSlug);
   if (!template) {
@@ -134,34 +134,64 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
           proposedSummary: `${ex.skillId} ${ex.success ? "executed" : "failed"}`,
           resultJson: (ex.output as object | null) ?? null,
           runId,
+          senderRole,
           skillId: ex.skillId,
         });
 
         const skill = findSkillById(ex.skillId);
         const skillName = skill?.displayName ?? ex.skillId;
-        const payload = ex.success
-          ? {
+        // Three outcomes: failure → ACTION_FAILED; success that auto-executed
+        // → ACTION_EXECUTED; success that is parked awaiting approval (the
+        // CUSTOMER + requiresApprovalDefault branch) → ACTION_DRAFTED. The
+        // DRAFTED path still records the tool call's output as proposed
+        // input so the owner can review it.
+        if (!ex.success) {
+          await logActivity({
+            orgId: agentInstance.orgId,
+            payload: {
+              agentInstanceId: agentInstance.id,
+              errorMessage: ex.errorMessage ?? null,
+              runId,
+              skillId: ex.skillId,
+            },
+            prisma,
+            refId: action.id,
+            refType: "AGENT_ACTION",
+            summary: `Skill ${skillName} falhou`,
+            type: "ACTION_FAILED",
+          });
+        } else if (action.status === "DRAFTED") {
+          await logActivity({
+            orgId: agentInstance.orgId,
+            payload: {
+              agentInstanceId: agentInstance.id,
+              proposedInput: (ex.input as object) ?? {},
+              runId,
+              skillId: ex.skillId,
+            },
+            prisma,
+            refId: action.id,
+            refType: "AGENT_ACTION",
+            summary: `Skill ${skillName} aguardando aprovação`,
+            type: "ACTION_DRAFTED",
+          });
+        } else {
+          await logActivity({
+            orgId: agentInstance.orgId,
+            payload: {
               agentInstanceId: agentInstance.id,
               costCents: cost.costCents,
               output: (ex.output as object | null) ?? null,
               runId,
               skillId: ex.skillId,
-            }
-          : {
-              agentInstanceId: agentInstance.id,
-              errorMessage: ex.errorMessage ?? null,
-              runId,
-              skillId: ex.skillId,
-            };
-        await logActivity({
-          orgId: agentInstance.orgId,
-          payload,
-          prisma,
-          refId: action.id,
-          refType: "AGENT_ACTION",
-          summary: ex.success ? `Skill ${skillName} executada` : `Skill ${skillName} falhou`,
-          type: ex.success ? "ACTION_EXECUTED" : "ACTION_FAILED",
-        });
+            },
+            prisma,
+            refId: action.id,
+            refType: "AGENT_ACTION",
+            summary: `Skill ${skillName} executada`,
+            type: "ACTION_EXECUTED",
+          });
+        }
         return action;
       }),
     );

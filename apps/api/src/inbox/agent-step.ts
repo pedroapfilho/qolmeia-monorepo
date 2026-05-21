@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@repo/db";
+import type { PrismaClient, SenderRole } from "@repo/db";
 
 import { ensureAgentInstance } from "../agents/agent-instance";
 import { buildContextSnapshot } from "../agents/context-snapshot";
@@ -50,6 +50,7 @@ const runAgentForInbound = async ({
   externalThreadId,
   message,
   orgId,
+  senderRole,
   triggerMessageId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
@@ -60,6 +61,10 @@ const runAgentForInbound = async ({
   externalThreadId: string;
   message: IncomingMessage;
   orgId: string;
+  // senderRole snapshot from the resolving ConnectorInstance. Threaded into
+  // AgentDispatchArgs so recordAgentAction can apply the §8 approval rule
+  // (DRAFTED for CUSTOMER + requires-approval skills).
+  senderRole: SenderRole | null;
   // The persisted Message.id, set by the inbox pipeline. Null when the
   // message wasn't persisted (defensive — current pipeline always persists).
   triggerMessageId: string | null;
@@ -151,6 +156,7 @@ const runAgentForInbound = async ({
       oversizeCount: attachments.oversizeCount,
       prisma: deps.prisma as PrismaClient,
       runId: run.id,
+      senderRole,
       systemPrompt,
     });
 

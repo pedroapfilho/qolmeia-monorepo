@@ -23,6 +23,7 @@ describe("createSerialDispatcher", () => {
       oversizeCount: 0,
       prisma: {},
       runId: "run_1",
+      senderRole: "OWNER",
       systemPrompt: "system",
     } as unknown as AgentDispatchArgs;
 

@@ -61,6 +61,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_1",
+      senderRole: "OWNER",
       systemPrompt: "PROMPT-FROZEN-AT-DISPATCH",
     });
 
@@ -110,6 +111,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_2",
+      senderRole: "OWNER",
       systemPrompt: "p",
     });
 
@@ -137,6 +139,7 @@ describe("runAgentInstance", () => {
         oversizeCount: 0,
         prisma,
         runId: "run_3",
+        senderRole: "OWNER",
         systemPrompt: "p",
       }),
     ).rejects.toThrow(/template/iv);
@@ -181,6 +184,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_4",
+      senderRole: "OWNER",
       systemPrompt: "p",
     });
 
@@ -232,6 +236,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_ctl",
+      senderRole: "OWNER",
       systemPrompt: "p",
     });
 
@@ -282,6 +287,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_persist",
+      senderRole: "OWNER",
       systemPrompt: "p",
     });
 
@@ -335,6 +341,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_emit",
+      senderRole: "OWNER",
       systemPrompt: "p",
     });
 
@@ -397,6 +404,7 @@ describe("runAgentInstance", () => {
       oversizeCount: 0,
       prisma,
       runId: "run_fail",
+      senderRole: "OWNER",
       systemPrompt: "p",
     });
 

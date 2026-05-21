@@ -42,7 +42,12 @@ const generateBrandImageSkill = defineSkill<GenerateBrandImageInput, GenerateBra
   id: "generateBrandImage",
   inputSchema: generateBrandImageInput,
   requiredConnectorTypes: [],
-  requiresApprovalDefault: false,
+  // External, owner-visible side effect. On owner-side connectors the
+  // approval rule still short-circuits to AUTO_APPROVED; flipping this to
+  // true gates the skill behind explicit approval the moment a CUSTOMER
+  // connector exists (Phase 5h+) so the agent can't burn image-gen budget
+  // or post off-brand visuals into a customer thread.
+  requiresApprovalDefault: true,
 });
 
 export { generateBrandImageSkill };
