@@ -27,6 +27,7 @@ type PipelineDeps = {
     | "$transaction"
     | "activityLog"
     | "agentAction"
+    | "agentConnectorBinding"
     | "agentInstance"
     | "agentRun"
     | "brandAsset"
@@ -36,7 +37,6 @@ type PipelineDeps = {
     | "message"
     | "organization"
     | "routine"
-    | "telegramLink"
     | "webhookEvent"
   >;
 };

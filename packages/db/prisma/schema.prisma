@@ -315,7 +315,6 @@ model Organization {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  telegramLink       TelegramLink?
   customers          Customer[]
   conversations      Conversation[]
   brandAssets        BrandAsset[]
@@ -326,15 +325,6 @@ model Organization {
   routines           Routine[]
 
   @@index([slug])
-}
-
-model TelegramLink {
-  id             String       @id @default(cuid())
-  telegramChatId String       @unique
-  orgId          String       @unique
-  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
 }
 
 model Customer {

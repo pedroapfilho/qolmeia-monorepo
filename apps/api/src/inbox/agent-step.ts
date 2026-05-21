@@ -1,6 +1,6 @@
 import type { PrismaClient, SenderRole } from "@repo/db";
 
-import { ensureAgentInstance } from "../agents/agent-instance";
+import { findInboundAgentInstanceForConnector } from "../agents/agent-instance";
 import { buildContextSnapshot } from "../agents/context-snapshot";
 import type { AgentDispatcher, AgentRunResult } from "../agents/dispatcher";
 import { createAgentRun, finalizeAgentRun } from "../agents/runs";
@@ -16,7 +16,13 @@ import type { IncomingMessage, IncomingThread } from "./ingest";
 
 type AgentStepPrisma = Pick<
   PrismaClient,
-  "activityLog" | "agentAction" | "agentInstance" | "agentRun" | "brandAsset" | "organization"
+  | "activityLog"
+  | "agentAction"
+  | "agentConnectorBinding"
+  | "agentInstance"
+  | "agentRun"
+  | "brandAsset"
+  | "organization"
 >;
 
 type AgentStepDeps = {
@@ -43,6 +49,36 @@ type InboundRunOutcome = {
   runId: string;
 };
 
+const resolveInboundAgentInstance = async ({
+  connectorInstanceId,
+  orgId,
+  prisma,
+}: {
+  connectorInstanceId: string;
+  orgId: string;
+  prisma: AgentStepPrisma;
+}) => {
+  const lookup = await findInboundAgentInstanceForConnector({ connectorInstanceId, prisma });
+  if (lookup.kind === "found") {
+    return lookup.agentInstance;
+  }
+  if (lookup.kind === "ambiguous") {
+    logger.error(
+      {
+        candidateTemplateSlugs: lookup.candidateTemplateSlugs,
+        connectorInstanceId,
+        orgId,
+      },
+      "agent-step.routing.ambiguous_inbound_binding",
+    );
+    throw new Error(
+      `Multiple inbound bindings for ConnectorInstance ${connectorInstanceId}: ${lookup.candidateTemplateSlugs.join(", ")}`,
+    );
+  }
+  logger.error({ connectorInstanceId, orgId }, "agent-step.routing.missing_inbound_binding");
+  throw new Error(`No inbound binding for ConnectorInstance ${connectorInstanceId}`);
+};
+
 const runAgentForInbound = async ({
   attachments,
   connectorInstanceId,
@@ -54,9 +90,7 @@ const runAgentForInbound = async ({
   triggerMessageId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
-  // null when the conversation pre-dates Phase 5h (TelegramLink fallback).
-  // Coalescing still works on (legacy, threadId, messageId).
-  connectorInstanceId: string | null;
+  connectorInstanceId: string;
   deps: AgentStepDeps;
   externalThreadId: string;
   message: IncomingMessage;
@@ -83,10 +117,10 @@ const runAgentForInbound = async ({
     mimeType: r.mimeType,
   }));
 
-  const agentInstance = await ensureAgentInstance({
+  const agentInstance = await resolveInboundAgentInstance({
+    connectorInstanceId,
     orgId,
     prisma: deps.prisma,
-    templateSlug: "controller",
   });
 
   const template = findTemplateBySlug(agentInstance.templateSlug);
