@@ -1,7 +1,5 @@
 import { env } from "./env";
 
-void env.AI_GATEWAY_API_KEY;
-
 type AspectRatio = "1:1" | "16:9" | "4:3" | "9:16";
 
 type GenerateImageArgs = {
@@ -9,11 +7,17 @@ type GenerateImageArgs = {
   prompt: string;
 };
 
-const GATEWAY_IMAGES_URL = "https://ai-gateway.vercel.sh/v1/images/generations";
-const MODEL = "openai/gpt-image-1";
+// OpenRouter exposes the OpenAI images API at this path. The response shape
+// mirrors OpenAI's: `{ data: [{ b64_json: "..." }] }`. The default image model
+// is Google's Nano Banana Pro (gemini-3-pro-image-preview); operators can
+// hot-swap via env.IMAGE_GEN_MODEL — see https://openrouter.ai/google for the
+// current list of image-capable model ids.
+const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images/generations";
 
-// gpt-image-1 accepts a fixed set of sizes. Map our aspect-ratio enum to the
-// closest available; "4:3" falls back to square since the model has no 4:3 size.
+// Aspect-ratio → OpenAI-style size string mapping. Kept in case the chosen
+// image model honors `size`; Nano Banana Pro currently ignores it (the prompt
+// itself controls composition), but the OpenAI-compatible endpoint accepts the
+// field regardless. "4:3" falls back to square because no exact 4:3 size exists.
 const aspectToSize = (aspectRatio: AspectRatio): string => {
   if (aspectRatio === "16:9") {
     return "1536x1024";
@@ -24,21 +28,21 @@ const aspectToSize = (aspectRatio: AspectRatio): string => {
   return "1024x1024";
 };
 
-// gpt-image-1 takes a text prompt only. Brand context (palette, voice) is
-// folded into the prompt by the caller — we do not pass reference image bytes.
-// We switched from Gemini-image-via-generateText because Vercel's AI Gateway
-// currently restricts that model on free credits; gpt-image-1 is unrestricted.
+// Brand context (palette, voice) is folded into the prompt by the caller; we
+// do not pass reference image bytes. Returns raw PNG bytes ready for R2 upload.
 const generateBrandImageBytes = async (args: GenerateImageArgs): Promise<Uint8Array> => {
-  const response = await fetch(GATEWAY_IMAGES_URL, {
+  const response = await fetch(OPENROUTER_IMAGES_URL, {
     body: JSON.stringify({
-      model: MODEL,
+      model: env.IMAGE_GEN_MODEL,
       n: 1,
       prompt: args.prompt,
       size: aspectToSize(args.aspectRatio),
     }),
     headers: {
-      authorization: `Bearer ${env.AI_GATEWAY_API_KEY}`,
+      authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
       "content-type": "application/json",
+      "HTTP-Referer": env.WEB_APP_URL ?? "https://qolmeia.ai",
+      "X-Title": "Qolmeia",
     },
     method: "POST",
   });
