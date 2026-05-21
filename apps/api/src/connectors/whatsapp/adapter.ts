@@ -1,5 +1,6 @@
+import crypto from "node:crypto";
+
 import type { ConnectorAdapter, NormalizedAttachment, NormalizedMessage } from "../types";
-import { NotImplementedError } from "../types";
 
 // Meta Cloud API webhook shapes — only the fields the parser consumes.
 // Reference: https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
@@ -65,6 +66,10 @@ type WhatsAppWebhookPayload = {
 
 type WhatsAppConfig = {
   accessToken: string;
+  // Meta App Secret used to verify the X-Hub-Signature-256 header. Optional
+  // for v0 — when absent, signature verification is skipped so operators can
+  // register the webhook before pasting the secret.
+  appSecret?: string;
   phoneNumberId: string;
   verifyToken: string;
 };
@@ -139,8 +144,92 @@ const parseInboundPayload: ConnectorAdapter["parseInboundPayload"] = (raw, _conn
   return Promise.resolve(result);
 };
 
-const sendOutbound: ConnectorAdapter["sendOutbound"] = () => {
-  throw new NotImplementedError("WhatsApp", "sendOutbound");
+const isWhatsAppConfig = (config: unknown): config is WhatsAppConfig => {
+  if (!isObject(config)) {
+    return false;
+  }
+  if (typeof config.accessToken !== "string" || config.accessToken.length === 0) {
+    return false;
+  }
+  if (typeof config.phoneNumberId !== "string" || config.phoneNumberId.length === 0) {
+    return false;
+  }
+  if (typeof config.verifyToken !== "string" || config.verifyToken.length === 0) {
+    return false;
+  }
+  return true;
+};
+
+type WhatsAppSendResponse = {
+  messages?: ReadonlyArray<{ id: string }>;
+};
+
+// Meta Cloud API uses graph.facebook.com/<version>/<phone_number_id>/messages.
+// v18.0 is the lowest version this code path was tested against; pinning the
+// version explicitly avoids silent breaking changes when Meta promotes the
+// "latest" alias.
+const META_API_VERSION = "v18.0";
+
+const sendText = async ({
+  accessToken,
+  phoneNumberId,
+  text,
+  threadId,
+}: {
+  accessToken: string;
+  phoneNumberId: string;
+  text: string;
+  threadId: string;
+}): Promise<string> => {
+  const response = await fetch(
+    `https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`,
+    {
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        text: { body: text },
+        to: threadId,
+        type: "text",
+      }),
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`WhatsApp sendMessage failed: HTTP ${response.status}`);
+  }
+  const body = (await response.json()) as WhatsAppSendResponse;
+  const messageId = body.messages?.[0]?.id;
+  if (!messageId) {
+    throw new Error("WhatsApp sendMessage returned no message id");
+  }
+  return messageId;
+};
+
+const sendOutbound: ConnectorAdapter["sendOutbound"] = async ({
+  connectorConfig,
+  payload,
+  threadId,
+}) => {
+  if (!isWhatsAppConfig(connectorConfig)) {
+    throw new Error("WhatsApp adapter: invalid connector config");
+  }
+  const hasText = typeof payload.text === "string" && payload.text.length > 0;
+  if (!hasText) {
+    // File uploads require a two-step flow (POST /media for the upload,
+    // then POST /messages with the returned media id). v0 only ships text;
+    // adding media is a follow-up — see Meta's media-upload docs.
+    throw new Error("WhatsApp adapter: file outbound not implemented (text-only in v0)");
+  }
+  const messageId = await sendText({
+    accessToken: connectorConfig.accessToken,
+    phoneNumberId: connectorConfig.phoneNumberId,
+    text: payload.text ?? "",
+    threadId,
+  });
+  return { externalMessageId: messageId };
 };
 
 const validateConfig: ConnectorAdapter["validateConfig"] = (config) => {
@@ -163,12 +252,88 @@ const validateConfig: ConnectorAdapter["validateConfig"] = (config) => {
   return { valid: true };
 };
 
+const readAppSecret = (connectorConfig: unknown): string | null => {
+  if (!isObject(connectorConfig)) {
+    return null;
+  }
+  if (typeof connectorConfig.appSecret === "string" && connectorConfig.appSecret.length > 0) {
+    return connectorConfig.appSecret;
+  }
+  return null;
+};
+
+const readVerifyToken = (connectorConfig: unknown): string | null => {
+  if (!isObject(connectorConfig)) {
+    return null;
+  }
+  if (typeof connectorConfig.verifyToken === "string" && connectorConfig.verifyToken.length > 0) {
+    return connectorConfig.verifyToken;
+  }
+  return null;
+};
+
+// HMAC-SHA256 verification of the X-Hub-Signature-256 header. Returns true
+// when appSecret is absent (lenient v0 — operators can register the webhook
+// before pasting the secret); when present, the comparison is constant-time.
+const verifySignature: NonNullable<ConnectorAdapter["verifySignature"]> = ({
+  connectorConfig,
+  headers,
+  rawBody,
+}) => {
+  const appSecret = readAppSecret(connectorConfig);
+  if (!appSecret) {
+    return Promise.resolve(true);
+  }
+  const signatureHeader = headers.get("x-hub-signature-256");
+  if (!signatureHeader) {
+    return Promise.resolve(false);
+  }
+  const prefix = "sha256=";
+  if (!signatureHeader.startsWith(prefix)) {
+    return Promise.resolve(false);
+  }
+  const provided = signatureHeader.slice(prefix.length);
+  const expected = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
+  if (provided.length !== expected.length) {
+    return Promise.resolve(false);
+  }
+  try {
+    return Promise.resolve(
+      crypto.timingSafeEqual(Buffer.from(provided, "hex"), Buffer.from(expected, "hex")),
+    );
+  } catch {
+    return Promise.resolve(false);
+  }
+};
+
+// Meta's hub.verify_token handshake. Dashboard hits the URL with
+// hub.mode=subscribe + hub.verify_token + hub.challenge; we echo the challenge
+// when the token matches the ConnectorInstance config.
+const verifyChallenge: NonNullable<ConnectorAdapter["verifyChallenge"]> = ({
+  connectorConfig,
+  query,
+}) => {
+  const mode = query.get("hub.mode");
+  const verifyToken = query.get("hub.verify_token");
+  const challenge = query.get("hub.challenge");
+  if (mode !== "subscribe" || !verifyToken || !challenge) {
+    return Promise.resolve({ valid: false });
+  }
+  const expected = readVerifyToken(connectorConfig);
+  if (!expected || expected !== verifyToken) {
+    return Promise.resolve({ valid: false });
+  }
+  return Promise.resolve({ challenge, valid: true });
+};
+
 const whatsappAdapter: ConnectorAdapter = {
-  capabilities: { inbound: true, outbound: false },
+  capabilities: { inbound: true, outbound: true },
   parseInboundPayload,
   sendOutbound,
   type: "WHATSAPP",
   validateConfig,
+  verifyChallenge,
+  verifySignature,
 };
 
 export type { WhatsAppConfig, WhatsAppMessage, WhatsAppWebhookPayload };

@@ -225,3 +225,43 @@ describe("telegramAdapter metadata", () => {
     expect(telegramAdapter.type).toBe("TELEGRAM");
   });
 });
+
+describe("telegramAdapter.verifySignature", () => {
+  const validConfig = { botToken: "BOT:TOKEN", secretToken: "secret" };
+
+  it("accepts requests with a matching X-Telegram-Bot-Api-Secret-Token", async () => {
+    const result = await telegramAdapter.verifySignature!({
+      connectorConfig: validConfig,
+      headers: new Headers({ "x-telegram-bot-api-secret-token": "secret" }),
+      rawBody: "{}",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("rejects requests when the secret token is missing", async () => {
+    const result = await telegramAdapter.verifySignature!({
+      connectorConfig: validConfig,
+      headers: new Headers(),
+      rawBody: "{}",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("rejects requests when the secret token mismatches", async () => {
+    const result = await telegramAdapter.verifySignature!({
+      connectorConfig: validConfig,
+      headers: new Headers({ "x-telegram-bot-api-secret-token": "wrong" }),
+      rawBody: "{}",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("rejects requests when the connector config is invalid", async () => {
+    const result = await telegramAdapter.verifySignature!({
+      connectorConfig: {},
+      headers: new Headers({ "x-telegram-bot-api-secret-token": "secret" }),
+      rawBody: "{}",
+    });
+    expect(result).toBe(false);
+  });
+});

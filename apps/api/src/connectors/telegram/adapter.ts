@@ -317,12 +317,30 @@ const sendOutbound: ConnectorAdapter["sendOutbound"] = async ({
   return { externalMessageId: String(lastMessageId) };
 };
 
+// Telegram does not sign payloads; it uses a static secret token echoed back
+// in the `X-Telegram-Bot-Api-Secret-Token` header. We compare it against the
+// per-connector secret to reject spoofed webhooks.
+const verifySignature: NonNullable<ConnectorAdapter["verifySignature"]> = ({
+  connectorConfig,
+  headers,
+}) => {
+  if (!isTelegramConfig(connectorConfig)) {
+    return Promise.resolve(false);
+  }
+  const provided = headers.get("x-telegram-bot-api-secret-token");
+  if (!provided) {
+    return Promise.resolve(false);
+  }
+  return Promise.resolve(provided === connectorConfig.secretToken);
+};
+
 const telegramAdapter: ConnectorAdapter = {
   capabilities: { inbound: true, outbound: true },
   parseInboundPayload,
   sendOutbound,
   type: "TELEGRAM",
   validateConfig,
+  verifySignature,
 };
 
 export type { TelegramConfig, TelegramMessage, TelegramUpdate };
