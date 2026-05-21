@@ -1,0 +1,101 @@
+import * as React from "react";
+import { describe, expect, it } from "vitest";
+
+import { ChangeEmail } from "../emails/change-email";
+import { MagicLinkEmail } from "../emails/magic-link";
+import { PasswordResetEmail } from "../emails/password-reset";
+import { SignUpAttemptEmail } from "../emails/sign-up-attempt";
+import { WelcomeEmail } from "../emails/welcome";
+
+import { previewEmail } from "./send-email";
+
+describe("WelcomeEmail render", () => {
+  it("includes the verification URL and Qolmeia branding", async () => {
+    const { html, text } = await previewEmail(
+      React.createElement(WelcomeEmail, {
+        userEmail: "user@example.com",
+        username: "Pedro",
+        verificationUrl: "https://app.qolmeia.ai/verify?token=abc",
+      }),
+    );
+    expect(html).toContain("https://app.qolmeia.ai/verify?token=abc");
+    expect(html).toContain("Welcome to Qolmeia");
+    // Headings come through uppercase in the plain-text render.
+    expect(text).toMatch(/welcome to qolmeia/iv);
+    expect(html).not.toContain("Acme");
+  });
+});
+
+describe("PasswordResetEmail render", () => {
+  it("includes the reset URL and Qolmeia branding", async () => {
+    const { html } = await previewEmail(
+      React.createElement(PasswordResetEmail, {
+        resetUrl: "https://app.qolmeia.ai/reset?token=xyz",
+        userEmail: "user@example.com",
+      }),
+    );
+    expect(html).toContain("https://app.qolmeia.ai/reset?token=xyz");
+    expect(html).toContain("Reset your password");
+    expect(html).not.toContain("Acme");
+  });
+});
+
+describe("SignUpAttemptEmail render", () => {
+  it("includes both sign-in and reset URLs", async () => {
+    const { html } = await previewEmail(
+      React.createElement(SignUpAttemptEmail, {
+        resetPasswordUrl: "https://app.qolmeia.ai/recover",
+        signInUrl: "https://app.qolmeia.ai/login",
+        userEmail: "user@example.com",
+      }),
+    );
+    expect(html).toContain("https://app.qolmeia.ai/login");
+    expect(html).toContain("https://app.qolmeia.ai/recover");
+    expect(html).toContain("Qolmeia");
+  });
+});
+
+describe("ChangeEmail render", () => {
+  it("renders both current and new emails", async () => {
+    const { html } = await previewEmail(
+      React.createElement(ChangeEmail, {
+        changeUrl: "https://app.qolmeia.ai/change?token=abc",
+        currentEmail: "old@example.com",
+        newEmail: "new@example.com",
+      }),
+    );
+    expect(html).toContain("old@example.com");
+    expect(html).toContain("new@example.com");
+    expect(html).toContain("https://app.qolmeia.ai/change?token=abc");
+  });
+});
+
+describe("MagicLinkEmail render", () => {
+  it("includes the magic link URL and pt-BR copy", async () => {
+    const { html, text } = await previewEmail(
+      React.createElement(MagicLinkEmail, {
+        url: "https://app.qolmeia.ai/auth/magic?token=mlk-123",
+        userEmail: "user@example.com",
+        username: "Pedro",
+      }),
+    );
+    expect(html).toContain("https://app.qolmeia.ai/auth/magic?token=mlk-123");
+    expect(html).toContain("Entre na Qolmeia");
+    expect(text).toMatch(/entre na qolmeia/iv);
+    expect(html).toContain("user@example.com");
+  });
+
+  it("renders without a username", async () => {
+    const { html, text } = await previewEmail(
+      React.createElement(MagicLinkEmail, {
+        url: "https://app.qolmeia.ai/auth/magic?token=mlk-456",
+        userEmail: "user@example.com",
+      }),
+    );
+    expect(html).toContain("https://app.qolmeia.ai/auth/magic?token=mlk-456");
+    // Greeting is followed by a comma in the plain-text render (React Email
+    // injects HTML comments between adjacent text nodes, so the HTML form is
+    // `Olá<!-- -->,` which doesn't textually contain `"Olá,"`).
+    expect(text).toContain("Olá,");
+  });
+});
