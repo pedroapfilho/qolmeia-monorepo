@@ -89,16 +89,17 @@ model AgentTemplate {
 }
 
 model Skill {
-  id                      String          @id
+  id                      String                 @id
   displayName             String
-  description             String          @db.Text
+  description             String                 @db.Text
   parametersJsonSchema    Json
-  requiresApprovalDefault Boolean         @default(false)
+  requiresApprovalDefault Boolean                @default(false)
   requiredConnectorTypes  ConnectorType[]
-  templates               AgentTemplate[] @relation("TemplateSkills")
+  templates               AgentTemplate[]        @relation("TemplateSkills")
   agentActions            AgentAction[]
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
+  enablements             AgentSkillEnablement[]
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
 }
 
 model ConnectorInstance {
@@ -134,11 +135,35 @@ model AgentInstance {
   template        AgentTemplate           @relation(fields: [templateSlug], references: [slug])
   bindings        AgentConnectorBinding[]
   actions         AgentAction[]
+  enablements     AgentSkillEnablement[]
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
   @@unique([orgId, templateSlug])
   @@index([orgId])
+}
+
+// Join table connecting AgentInstance ↔ Skill with per-instance enablement
+// metadata. Replaces the legacy AgentInstance.enabledSkillIds Json array.
+// Semantics: zero rows for an instance ⇒ fall back to the template's
+// defaultEnabledSkillIds (the null case). One or more rows ⇒ explicit skill
+// set (including the explicit-empty case once we expose UI to remove rows).
+model AgentSkillEnablement {
+  id              String        @id @default(cuid())
+  agentInstanceId String
+  skillId         String
+  enabledAt       DateTime      @default(now())
+  // User who enabled the skill. Nullable for system/migration enablements
+  // and because we don't have users yet.
+  enabledBy       String?
+  // Per-instance overrides for the skill's parameters / defaults. Null = use
+  // the skill's own defaults.
+  configOverride  Json?
+  agentInstance   AgentInstance @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  skill           Skill         @relation(fields: [skillId], references: [id])
+
+  @@unique([agentInstanceId, skillId])
+  @@index([agentInstanceId])
 }
 
 model AgentConnectorBinding {

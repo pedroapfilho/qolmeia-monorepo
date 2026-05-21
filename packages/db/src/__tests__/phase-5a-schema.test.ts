@@ -23,6 +23,9 @@ describe("Phase 5a schema", () => {
 
   afterAll(async () => {
     // Best-effort cleanup of anything we inserted under our prefix.
+    await prisma.agentSkillEnablement.deleteMany({
+      where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
+    });
     await prisma.agentAction.deleteMany({
       where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
     });
@@ -210,6 +213,91 @@ describe("Phase 5a schema", () => {
     });
     expect(cleared.agentInstructions).toBeNull();
     expect(cleared.businessIdea).toBeNull();
+  });
+
+  it("round-trips AgentSkillEnablement rows and enforces (agentInstanceId, skillId) uniqueness", async () => {
+    const skillA = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "EnA",
+        id: tag("skill-en-a"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const skillB = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "EnB",
+        id: tag("skill-en-b"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T-Enablement",
+        slug: tag("tpl-enablement"),
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-enablement") },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        displayName: "agent-en",
+        mission: "",
+        orgId: org.id,
+        templateSlug: template.slug,
+      },
+    });
+
+    const rowA = await prisma.agentSkillEnablement.create({
+      data: {
+        agentInstanceId: agent.id,
+        configOverride: { topK: 5 },
+        enabledBy: "user_test",
+        skillId: skillA.id,
+      },
+    });
+    const rowB = await prisma.agentSkillEnablement.create({
+      data: { agentInstanceId: agent.id, skillId: skillB.id },
+    });
+
+    expect(rowA.configOverride).toEqual({ topK: 5 });
+    expect(rowA.enabledBy).toBe("user_test");
+    expect(rowB.configOverride).toBeNull();
+    expect(rowB.enabledBy).toBeNull();
+    expect(rowA.enabledAt).toBeInstanceOf(Date);
+
+    // (agentInstanceId, skillId) unique.
+    await expect(
+      prisma.agentSkillEnablement.create({
+        data: { agentInstanceId: agent.id, skillId: skillA.id },
+      }),
+    ).rejects.toThrow();
+
+    // Eager-load via the AgentInstance relation.
+    const reloaded = await prisma.agentInstance.findUnique({
+      include: { enablements: { orderBy: { skillId: "asc" }, select: { skillId: true } } },
+      where: { id: agent.id },
+    });
+    expect(reloaded?.enablements.map((e) => e.skillId).toSorted()).toEqual(
+      [skillA.id, skillB.id].toSorted(),
+    );
+
+    // Cascade delete: removing the AgentInstance wipes its enablement rows.
+    await prisma.agentInstance.delete({ where: { id: agent.id } });
+    const remaining = await prisma.agentSkillEnablement.findMany({
+      where: { agentInstanceId: agent.id },
+    });
+    expect(remaining).toEqual([]);
   });
 
   it("preserves enabledSkillIds null/[] distinction", async () => {
