@@ -23,6 +23,7 @@ import {
 import { authRoutes } from "./routes/auth";
 import { connectorsTelegramRoutes } from "./routes/connectors/telegram";
 import { connectorsWhatsAppRoutes } from "./routes/connectors/whatsapp";
+import { buildV1Routes } from "./routes/v1";
 
 const app = createOpenAPIApp();
 
@@ -74,6 +75,10 @@ app.use("/api/v1/*", apiRateLimit);
 // `POST /api/auth/sign-in/email`, `POST /api/auth/sign-up/email`,
 // `POST /api/auth/sign-in/magic-link`, `GET /api/auth/get-session`, etc.
 app.route("/api", authRoutes);
+// Backoffice REST surface — every route here is gated by requireStaff,
+// configured inside buildV1Routes() so the guard is mounted exactly once
+// at the route group level (not via a separate `app.use(..., requireStaff)`).
+app.route("/api/v1", buildV1Routes());
 app.route("/connectors", connectorsTelegramRoutes);
 app.route("/connectors", connectorsWhatsAppRoutes);
 
