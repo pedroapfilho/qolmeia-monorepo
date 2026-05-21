@@ -55,6 +55,8 @@ const applySoulUpdate = (
       }
     }
 
+    // agentInstructions + businessIdea are operator-only; never written by
+    // skills (Paperclip plugin-llm-wiki reserved-files invariant).
     await tx.organization.update({
       data: { businessProfile: next as unknown as object },
       where: { id: orgId },

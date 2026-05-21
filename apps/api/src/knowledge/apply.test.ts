@@ -77,4 +77,26 @@ describe("applySoulUpdate", () => {
     expect(result.newProfile).toEqual({ whatYouDo: "salão" });
     expect(result.capturedFields).toEqual(["whatYouDo"]);
   });
+
+  it("never writes agentInstructions or businessIdea (owner-only fields)", async () => {
+    const prisma = makePrisma({ whatYouDo: "salão" });
+    const partial: PartialSoul = {
+      ...emptyPartial,
+      brandVoice: "leve",
+      whatYouDo: "novo",
+    };
+    await applySoulUpdate("org_1", partial, prisma);
+
+    const updateCalls = (
+      prisma as unknown as {
+        organization: { update: { mock: { calls: Array<Array<{ data: Record<string, unknown> }>> } } };
+      }
+    ).organization.update.mock.calls;
+
+    expect(updateCalls).toHaveLength(1);
+    const data = updateCalls[0]![0]!.data;
+    expect(Object.keys(data)).toEqual(["businessProfile"]);
+    expect(data).not.toHaveProperty("agentInstructions");
+    expect(data).not.toHaveProperty("businessIdea");
+  });
 });
