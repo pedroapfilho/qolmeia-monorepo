@@ -63,7 +63,7 @@ describe("runAgentInstance", () => {
       "searchKnowledge",
     ]);
     expect(args.system).toContain("(perfil vazio)");
-    expect(args.system).toContain("Você é um assistente onboarding");
+    expect(args.system).toContain("especialista em design da marca");
     expect(result.text).toBe("Olá!");
     expect(result.usage.inputTokens).toBe(10);
   });

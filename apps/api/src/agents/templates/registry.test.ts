@@ -37,16 +37,22 @@ describe("templates registry", () => {
     ]);
   });
 
-  it("Controller template can delegate to designer and has delegateToSpecialist skill", () => {
+  it("Controller template can delegate to both specialists and carries the briefing-gatherer skills", () => {
     const controller = findTemplateBySlug("controller");
     expect(controller).toBeDefined();
     if (!controller) {
       return;
     }
     expect(controller.canDelegateTo).toEqual(["designer", "marketing-strategist"]);
-    expect(controller.defaultEnabledSkillIds).toEqual(["delegateToSpecialist"]);
+    expect(controller.defaultEnabledSkillIds.toSorted()).toEqual([
+      "delegateToSpecialist",
+      "extractSoul",
+      "readKnowledgeDoc",
+      "searchKnowledge",
+    ]);
     expect(controller.defaultSystemPrompt).toContain("{{currentContext}}");
     expect(controller.defaultSystemPrompt).toContain("delegateToSpecialist");
+    expect(controller.defaultSystemPrompt).toContain("briefing");
   });
 
   it("Marketing Strategist template can delegate to designer and lists the 4 expected skills", () => {
