@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { freshaAdapter } from "./fresha/adapter";
 import { ADAPTERS, getAdapter } from "./registry";
 import { telegramAdapter } from "./telegram/adapter";
 import { NotImplementedError } from "./types";
+import { whatsappAdapter } from "./whatsapp/adapter";
 
 describe("getAdapter", () => {
   it("returns telegramAdapter for TELEGRAM", () => {
     expect(getAdapter("TELEGRAM")).toBe(telegramAdapter);
+  });
+
+  it("returns whatsappAdapter for WHATSAPP", () => {
+    expect(getAdapter("WHATSAPP")).toBe(whatsappAdapter);
+  });
+
+  it("returns freshaAdapter for FRESHA", () => {
+    expect(getAdapter("FRESHA")).toBe(freshaAdapter);
   });
 
   it("returns an adapter for every ConnectorType enum variant", () => {

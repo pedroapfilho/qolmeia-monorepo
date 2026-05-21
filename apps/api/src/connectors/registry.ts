@@ -1,8 +1,10 @@
 import type { ConnectorType } from "@repo/db";
 
+import { freshaAdapter } from "./fresha/adapter";
 import { telegramAdapter } from "./telegram/adapter";
 import type { ConnectorAdapter } from "./types";
 import { NotImplementedError } from "./types";
+import { whatsappAdapter } from "./whatsapp/adapter";
 
 // Placeholder used until a real adapter ships for a given ConnectorType.
 // Keeping every enum value present means the registry record is total and
@@ -24,11 +26,11 @@ const buildUnimplementedAdapter = (type: ConnectorType, label: string): Connecto
 });
 
 const ADAPTERS: Readonly<Record<ConnectorType, ConnectorAdapter>> = {
-  FRESHA: buildUnimplementedAdapter("FRESHA", "Fresha"),
+  FRESHA: freshaAdapter,
   GOOGLE_MY_BUSINESS: buildUnimplementedAdapter("GOOGLE_MY_BUSINESS", "GoogleMyBusiness"),
   INSTAGRAM: buildUnimplementedAdapter("INSTAGRAM", "Instagram"),
   TELEGRAM: telegramAdapter,
-  WHATSAPP: buildUnimplementedAdapter("WHATSAPP", "WhatsApp"),
+  WHATSAPP: whatsappAdapter,
 };
 
 const getAdapter = (type: ConnectorType): ConnectorAdapter => {
