@@ -1,927 +1,544 @@
 # Qolmeia — Architecture Overview
 
-> What's shipped on `main` after the post-Phase-5h restructure (Groups 1 + 2 + 3). Replaces the pre-restructure `8371163`-era doc. Reflects: AgentConnectorBinding-driven inbound routing, the connector adapter scaffold, owner-curated reserved files, BullMQ coalescing, the AgentSkillEnablement join table, the AgentRun + ContextSnapshot pair, the ActivityLog timeline, customer-side approval gating, and the routine scheduler.
+The single review document for the post-restructure system. Covers the 3 apps, 6 packages, full data model, the unified inbound pipeline, the agent loop, approval gating, the activity log, routines, and the seams that hold it together.
 
-The visual companion (`docs/architecture/current-state-2026-05-20.md`) still tracks the pre-restructure diagram set; refresh as a follow-up PR.
-
----
-
-## 1. What Qolmeia is (one paragraph)
-
-Qolmeia is an AI workforce platform for Brazilian local businesses. The MVP ships **one channel** (a Telegram bot, `@qolmeia_mvp_v0_bot`) and **three seeded agents** working as a delegation DAG plus **one paused-by-default routine** that exercises the proactive-trigger path: a **Controller** that talks to the owner, conducts the briefing, and routes work; a **Marketing Strategist** that drafts campaigns and may ask the Designer for visuals; and a **Designer** that captures the business "soul," annotates uploaded brand assets, and generates branded images. The Controller delegates via the `delegateToSpecialist` skill. Every dispatch creates an **AgentRun** row with a frozen `contextSnapshot`, every tool call persists as an **AgentAction** (auto-approved for the owner, **DRAFTED** for customer-side requests on approval-gated skills), and every business event lands in a per-org **ActivityLog** that the future web UI will render. Execution can be **serial** (default) or **async via BullMQ** on the same Redis Chat SDK uses for state; `DISPATCH_MODE=queue` + `pnpm dev:worker` enables the queue path, where duplicate webhooks and re-issued delegations coalesce by deterministic jobIds. The repo is a pnpm + Turborepo monorepo: one app (`apps/api`, Hono on Node 24) and three packages (`@repo/db`, `@repo/config-vitest`, `@repo/typescript-config`).
+Companion visual reference: [`docs/architecture/current-state-2026-05-21.md`](./architecture/current-state-2026-05-21.md).
 
 ---
 
-## 2. The system at a glance
+## §1. What Qolmeia is
 
-```
-                                      ┌─────────────────────────┐
-                                      │   Telegram / WhatsApp / │
-                                      │   future channels       │
-                                      └────────┬────────────────┘
-                                               │ HTTPS
-                                               ▼
-                                  ┌──────────────────────────┐
-                                  │  cloudflared tunnel       │   (local dev)
-                                  │  → public HTTPS URL       │
-                                  └────────┬─────────────────┘
-                                           │ POST /connectors/:type/:connectorInstanceId/webhook
-                                           │ adapter-specific signature header
-                                           ▼
-       ┌────────────────────────────────────────────────────────────────┐
-       │  apps/api (Hono on Node, port 4000)                            │
-       │                                                                │
-       │  routes/connectors/index.ts   (single generic route)           │
-       │     · resolves ConnectorInstance + ConnectorAdapter            │
-       │     · adapter.verifySignature(headers, rawBody, config)         │
-       │     · adapter.parseInboundPayload(json, config)                 │
-       │     │     → NormalizedMessage                                  │
-       │     ▼                                                          │
-       │  inbox/pipeline.ts (NormalizedMessage + ConnectorInstance)     │
-       │     ├─ ingest.ts             dedup keyed by                    │
-       │     │                        (connectorType, externalId);      │
-       │     │                        upserts Conversation              │
-       │     ├─ owner-commands.ts     /instrucoes /ideia /rotinas       │ ───┐
-       │     │                        /ligar /desligar /correr          │    │
-       │     │                        (gated to senderRole=OWNER)       │    │
-       │     ├─ attachments.ts        image + audio fetch from          │    │
-       │     │                        NormalizedAttachment.bytes/url    │    │
-       │     ├─ agent-step.ts         buildContextSnapshot +            │    │
-       │     │                        createAgentRun + dispatch +       │    │
-       │     │                        adapter.sendOutbound              │    │
-       │     └─ json-safe.ts          strip non-JSON-safe values        │    │
-       │                                                                │    │
-       │  agents/main-dispatcher → dispatcher.enqueueAndAwait           │    │
-       │     ├─ SerialDispatcher  (DISPATCH_MODE=serial, inline)        │    │
-       │     └─ BullMQDispatcher  (DISPATCH_MODE=queue, coalesce by     │    │
-       │                          jobId = inbox:<connector>:<thread>:   │    │
-       │                          <msgId>  OR  delegate:<parentRun>:    │    │
-       │                          <child>:<subtaskHash>)                │    │
-       │                                                                │    │
-       │  agents/runtime.runAgentInstance                               │    │
-       │     · reads systemPrompt + senderRole + runId from args        │    │
-       │     · resolveEnabledSkills via AgentSkillEnablement (or        │    │
-       │       template defaults when zero rows)                        │    │
-       │     · generateText with tools                                  │    │
-       │     · recordAgentAction (per tool call, status resolved by     │    │
-       │       resolveActionStatus(senderRole, requiresApproval))       │    │
-       │     · logActivity on every action (EXECUTED / FAILED /         │    │
-       │       DRAFTED) + budget-warn 80/100                            │    │
-       │     · agents/skills/delegate-to-specialist creates child       │    │
-       │       AgentRun (parentRunId), buildContextSnapshot for child,  │    │
-       │       dispatcher.enqueueAndAwait re-enters                     │    │
-       └────────────────┬───────────────────────────────────────────────┘    │
-                        │                                                    │
-                        │   ┌────────────────────────────────────────────┐   │
-                        │   │  workers/index.ts (pnpm dev:worker)        │   │
-                        │   │   ├─ agent-runner   BullMQ Worker (4)      │   │
-                        │   │   └─ routine-scheduler  Worker + JobSched  │◀──┘
-                        │   │       · reconciles BullMQ JobSchedulers    │
-                        │   │         from Routine rows on boot + on     │
-                        │   │         /ligar/desligar                    │
-                        │   │       · executor reads Routine + builds    │
-                        │   │         prompt + createAgentRun + dispatch │
-                        │   └────────────────────────────────────────────┘
-                        ▼
-         ┌──────────────────┐  ┌──────────────┐  ┌──────────────────────┐
-         │  Postgres (5436) │  │  Redis (6382)│  │ Cloudflare R2        │
-         │  Prisma 7        │  │  Chat SDK    │  │ (S3-compatible)       │
-         │  + adapter-pg    │  │  state +     │  │ Bucket "qolmeia"      │
-         │                  │  │  BullMQ jobs │  │ keys: org_<id>/       │
-         │  Organization    │  │  + Routine   │  │       <sha256>.<ext>  │
-         │   .agentInstr.   │  │  JobScheduler│  │                       │
-         │   .businessIdea  │  │              │  │ Uploaded logos +      │
-         │  Conversation    │  │              │  │ generated images +    │
-         │  Message         │  │              │  │ KnowledgeDocs         │
-         │  WebhookEvent    │  │              │  └──────────────────────┘
-         │  BrandAsset      │  │              │
-         │  KnowledgeDoc    │  │              │
-         │  AgentTemplate   │  │              │
-         │  AgentInstance   │  │              │
-         │  Skill           │  │              │
-         │  AgentSkillEnab. │  │              │      ┌────────────────────┐
-         │  ConnectorInst.  │  │              │      │     OpenRouter     │
-         │  AgentConnBind.  │  │              │      │  (single API key)  │
-         │  AgentRun ★      │  │              │      │                    │
-         │  AgentAction     │  │              │      │  per-template      │
-         │  ActivityLog ★   │  │              │      │  model selection   │
-         │  Routine ★       │  │              │      │  Nano Banana Pro   │
-         └──────────────────┘  └──────────────┘      │   (image gen)      │
-                                                     └────────────────────┘
-                                                             ▲
-                                                             │
-                                                  runtime + lib/image-gen
+Qolmeia is an AI agency platform for Brazilian local businesses. It ships three user-facing surfaces — a **Telegram bot** for the owner (legacy + ops channel), a **backoffice web app** for operators (OWNER + STAFF roles), and a **client web app** for the business's own customers (CUSTOMER role) — all backed by a single multi-agent runtime. The runtime is a 3-template delegation DAG (Controller → Marketing Strategist → Designer), each agent running on a per-template OpenRouter model, talking to a unified inbound pipeline that normalises Telegram, WhatsApp, and in-app web chat into the same `NormalizedMessage` shape via the `ConnectorAdapter` interface. Owner-side actions auto-execute; customer-side actions on approval-gated skills land as `DRAFTED` rows in an approval queue rendered by the backoffice with a schema-driven editor. Every business event flows into an append-only `ActivityLog` timeline. Proactive work runs through paused-by-default cron `Routine`s on BullMQ JobSchedulers. Authentication is Better Auth (email+password for staff, magic-link for customers); authorization is `OrgMembership` (one row per `(userId, orgId, role)`).
+
+---
+
+## §2. The system at a glance
+
+```mermaid
+flowchart LR
+  subgraph Channels["Inbound surfaces"]
+    TG[Telegram bot]
+    WA[WhatsApp Cloud]
+    WEB[Client app composer]
+  end
+
+  subgraph Apps["Apps"]
+    API["apps/api<br/>Hono on Node 24<br/>:4000"]
+    BO["apps/backoffice<br/>Next.js 16<br/>:3000<br/>(OWNER + STAFF)"]
+    CLI["apps/client<br/>Next.js 16<br/>:3001<br/>(CUSTOMER)"]
+    WK["worker process<br/>agent-runner +<br/>routine-scheduler"]
+  end
+
+  subgraph Data["Data + AI plane"]
+    PG[(Postgres 18<br/>Prisma 7)]
+    REDIS[(Redis 7<br/>BullMQ + JobScheduler)]
+    R2[(Cloudflare R2<br/>brand assets +<br/>KnowledgeDocs)]
+    OR[OpenRouter<br/>per-agent text models +<br/>Nano Banana Pro image gen]
+  end
+
+  TG -->|POST /connectors/telegram/:id/webhook| API
+  WA -->|POST /connectors/whatsapp/:id/webhook| API
+  WEB -->|POST /api/v1/web-chat/messages| API
+  CLI -->|EventSource /api/v1/web-chat/stream| API
+  CLI -->|REST + cookie auth| API
+  BO -->|REST + cookie auth| API
+
+  API <-->|enqueue / consume| REDIS
+  REDIS -->|claim| WK
+
+  API --> PG
+  WK --> PG
+  API --> R2
+  WK --> R2
+  API --> OR
+  WK --> OR
+
+  API -.->|sendOutbound via adapter| TG
+  API -.->|sendOutbound via adapter| WA
+  API -.->|persist Message + publish SSE| WEB
+
+  classDef ext fill:#e1f5ff,stroke:#0288d1
+  classDef app fill:#fff3e0,stroke:#f57c00
+  classDef data fill:#f3e5f5,stroke:#8e24aa
+  class TG,WA,WEB ext
+  class API,BO,CLI,WK app
+  class PG,REDIS,R2,OR data
 ```
 
-ASCII reduction of the moving parts:
+Three apps share one API surface. The backoffice and client are both Next.js 16; they never duplicate Better Auth's HTTP routes — those live exclusively in the API at `/api/auth/*`. The two Next apps just validate cookies the API issued via the shared `@repo/auth` factory.
 
-- **One inbound HTTP route.** `POST /connectors/:type/:connectorInstanceId/webhook` — generic over `ConnectorType`. Telegram, WhatsApp, and future channels share the same handler, which resolves the `ConnectorAdapter` from the registry and normalizes payloads into `NormalizedMessage` before handing off to the pipeline. The Chat SDK is no longer in the inbound call path (it remains available as a workspace dependency for adapters that want to use it internally).
-- **Two worker queues.** `qolmeia-agent-run` (reactive — every inbound + every delegation) and `qolmeia-routine-run` (proactive — owner-enabled scheduled jobs). Both run inside the same `pnpm dev:worker` process.
-- **AgentRun is the unit of replayability.** Each dispatch (inbound or delegation) creates one `AgentRun` row with `contextSnapshot` + `systemPrompt` frozen at dispatch time. The runtime never re-reads the soul.
-- **ActivityLog is a side-effect of everything.** Pipeline, runs, runtime, owner commands, budget checks, routines — they all `logActivity(...)`. Writes are best-effort (errors swallowed). Pino logs remain source-of-truth for ops; ActivityLog is the durable UI feed.
-- **Approval gating has two branches.** Owner-side and CUSTOMER-side with `!requiresApprovalDefault` skills both auto-approve. CUSTOMER-side + approval-gated skills (`generateBrandImage`, `draftMarketingStrategy`) record DRAFTED rows; the four `approvals.ts` helpers (`approve` / `reject` / `edit` / `executeApproved`) are wired but unrendered.
-
-**Dispatch modes.** `DISPATCH_MODE=serial` (default) runs the agent loop inline inside the webhook handler; one process, no queue. `DISPATCH_MODE=queue` enqueues a BullMQ job; the worker process consumes it; webhook returns 200 immediately. Delegation skills enqueue child jobs through the same dispatcher. Worker concurrency is 4 (agent-runner) + 2 (routine scheduler).
+Two processes share the same code: the **API** runs the inbound pipeline inline in `DISPATCH_MODE=serial` (default); the **worker** runs the agent loop + the routine scheduler in `DISPATCH_MODE=queue`. Both processes import the same `runAgentInstance`.
 
 ---
 
-## 3. Where the code lives (skimmer's guide)
+## §3. Repo layout
 
 ### Apps
 
-- **`apps/api/`** — backend API. Hono on Node 24, bundled by tsdown. `:4000`. Entry: `src/index.ts` (also runs `syncSkills` + `syncTemplates` at boot; routine seed is explicit via `scripts/sync-routines.ts`).
-- **`apps/api/src/workers/index.ts`** — separate Node process (`pnpm dev:worker`). Mounts `agent-runner` + `routine-scheduler`.
-- **`apps/backoffice/`** — operator-facing Next.js 16 app. `:3000`. Auth pages (email + password via Better Auth) + dashboard pages for approvals, agents, activity, soul, runs, team.
-- **`apps/client/`** — customer-facing Next.js 16 app. `:3001`. Magic-link auth only. Chat + assets + activity pages. Talks to the same `/api/v1` surface as the backoffice, but the route guards split the customer routes (`/api/v1/web-chat/*`) from the staff routes (`/api/v1/{agents,approvals,activity,soul,runs,team}`).
+| App               | Framework      | Dev port | Audience         | Auth method          |
+| ----------------- | -------------- | -------- | ---------------- | -------------------- |
+| `apps/api`        | Hono / Node 24 | `:4000`  | All HTTP traffic | Better Auth (server) |
+| `apps/backoffice` | Next.js 16     | `:3000`  | OWNER + STAFF    | Email + password     |
+| `apps/client`     | Next.js 16     | `:3001`  | CUSTOMER         | Magic link           |
 
 ### Packages
 
-- **`@repo/db`** — Prisma 7 schema (`packages/db/prisma/schema.prisma`) + singleton `prisma` client. Uses `@prisma/adapter-pg`.
-- **`@repo/auth`** — Better Auth factory (`createAuth`) shared by `apps/api`, `apps/backoffice`, and `apps/client`. The API mounts the HTTP routes at `/api/auth/*`; the two Next apps just validate cookies the API issued.
-- **`@repo/transactional`** — React Email templates + Resend sender. Used by `@repo/auth` (welcome/reset/verify/magic-link emails) and by `apps/api`'s `/team/invite` endpoint (welcome email for STAFF invites).
-- **`@repo/ui`** — shadcn-style component library + Tailwind config. Consumed by both Next apps.
-- **`@repo/config-vitest`** — shared Vitest config (Node + React).
-- **`@repo/typescript-config`** — shared `tsconfig` bases.
+| Package                   | Purpose                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `@repo/auth`              | `createAuth` factory wrapping Better Auth — magic-link + email/password. Used by all 3 apps. |
+| `@repo/db`                | Prisma 7 client singleton + `schema.prisma` + integration tests.                             |
+| `@repo/transactional`     | React Email templates + Resend sender (welcome, magic-link, reset, verify).                  |
+| `@repo/ui`                | shadcn-style component library + shared Tailwind config (used by both Next apps).            |
+| `@repo/config-vitest`     | Shared Vitest config (Node + React).                                                         |
+| `@repo/typescript-config` | Shared tsconfig bases.                                                                       |
 
-### Inside `apps/api/src/`
+### `apps/api/src/`
 
-| Path                                                                                                                                  | Owns                                                                                                                                                                                                                                        | When to read                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------- |
-| `index.ts`                                                                                                                            | Hono bootstrap, middleware wiring, `syncSkills` + `syncTemplates` at boot, graceful shutdown                                                                                                                                                | Top of the call graph.                                      |
-| `routes/connectors/index.ts`                                                                                                          | `POST /connectors/:type/:connectorInstanceId/webhook` — the **only** inbound route. Resolves `ConnectorInstance`, calls `adapter.verifySignature` + `adapter.parseInboundPayload`, hands the resulting `NormalizedMessage` to the pipeline. | HTTP entry. Generic over every channel.                     |
-| `inbox/pipeline.ts`                                                                                                                   | Orchestrator on `(ConnectorInstance, NormalizedMessage)`. Owner-command short-circuit, dedup, attachment processing, dispatch, outbound via the adapter                                                                                     | Read after you know the stages.                             |
-| `inbox/ingest.ts`                                                                                                                     | WebhookEvent dedup keyed by `(connectorType, externalId)`, Conversation upsert keyed by `(orgId, connectorInstanceId, externalThreadId)`. ConnectorInstance resolution lives in the route handler — ingest just consumes it.                | First stage of every inbound.                               |
-| `inbox/attachments.ts`                                                                                                                | Image + audio fetch from `NormalizedAttachment.bytes` (preferred) or `NormalizedAttachment.url` (fallback), R2 upload via `ingestBrandAsset`, oversize tracking. Per-adapter fetcher override via `fetchAttachmentBytes` dep.               | Pre-LLM data prep.                                          |
-| `inbox/agent-step.ts`                                                                                                                 | `runAgentForInbound` — calls `buildContextSnapshot`, `createAgentRun`, `dispatcher.enqueueAndAwait`, `finalizeAgentRun`, then `postAgentResult` (which calls `adapter.sendOutbound`)                                                        | The interesting middle.                                     |
-| `inbox/owner-commands.ts`                                                                                                             | `parseOwnerCommand` + `handleOwnerCommand`. `/instrucoes`, `/ideia`, `/rotinas`, `/ligar`, `/desligar`, `/correr`. Owner-only via senderRole gate                                                                                           | Owner UX surface.                                           |
-| `inbox/json-safe.ts`                                                                                                                  | `toJsonSafe(value)` — strips functions/undefined for Prisma JSON columns                                                                                                                                                                    | Tiny utility.                                               |
-| `connectors/types.ts`                                                                                                                 | `ConnectorAdapter` interface, `NormalizedMessage`, `NormalizedAttachment`, `NotImplementedError`                                                                                                                                            | The future inbound contract.                                |
-| `connectors/registry.ts`                                                                                                              | `ADAPTERS: Record<ConnectorType, ConnectorAdapter>` + `getAdapter(type)`. Total over the enum so callers never get `undefined`                                                                                                              | Adapter dispatch.                                           |
-| `connectors/telegram/adapter.ts`                                                                                                      | Real `TelegramAdapter` — native fetch, `parseInboundPayload`, `sendOutbound` (sendMessage + sendDocument), `validateConfig`                                                                                                                 | Wired into the registry, NOT yet into the inbound pipeline. |
-| `connectors/whatsapp/adapter.ts`                                                                                                      | Stub — `parseInboundPayload` parses Meta Cloud API webhooks into `NormalizedMessage`; `sendOutbound` throws `NotImplementedError`                                                                                                           | First pass at the WhatsApp follow-up.                       |
-| `connectors/web-chat/adapter.ts`                                                                                                      | WEB_CHAT adapter — `parseInboundPayload` mints a uuid externalId (no provider-side id), `sendOutbound` persists Message rows directly + publishes on the in-process bus for SSE                                                             | The customer-facing channel.                                |
-| `connectors/fresha/adapter.ts`                                                                                                        | Typed placeholder; every method throws `NotImplementedError`                                                                                                                                                                                | Reserves the registry slot.                                 |
-| `lib/web-chat-bus.ts`                                                                                                                 | In-process EventEmitter-backed pub/sub keyed on `conversationId`. Subscribed by the SSE endpoint, published by the WEB_CHAT adapter's `sendOutbound`                                                                                        | The SSE seam (swap for Redis when API horizontally scales). |
-| `routes/v1/web-chat.ts`                                                                                                               | Customer-only REST + SSE surface — `POST /messages` dispatches through the unified pipeline, `GET /messages` + `GET /conversations` for history, `GET /stream` for live updates, `GET /assets` + `GET /assets/:id` for inline asset render  | Customer side of `/api/v1`.                                 |
-| `routes/v1/team.ts`                                                                                                                   | Staff-only REST surface — `GET /team/members` lists OrgMembership, `POST /team/invite` find-or-creates a User + OrgMembership and sends the role-appropriate email (magic-link for CUSTOMER, welcome for STAFF)                             | The invite flow.                                            |
-| `middleware/require-customer.ts`                                                                                                      | `requireCustomer` (CUSTOMER-only) + `requireAnyMember` (any of OWNER/STAFF/CUSTOMER) — built on the same `buildRoleGuard` factory as `requireStaff`                                                                                         | Role-aware gating.                                          |
-| `agents/dispatcher.ts`                                                                                                                | `AgentDispatcher` interface + `createSerialDispatcher` + `buildCoalesceKey(origin)` + `DispatchOrigin` discriminator                                                                                                                        | The seam.                                                   |
-| `agents/main-dispatcher.ts`                                                                                                           | Module singleton; picks Serial vs BullMQ off `env.DISPATCH_MODE`                                                                                                                                                                            | Six lines.                                                  |
-| `agents/bullmq-dispatcher.ts`                                                                                                         | `createBullMQDispatcher` — `queue.add('run', payload, { jobId })` coalesces identical dispatches; `waitUntilFinished(120s)`                                                                                                                 | The queue path.                                             |
-| `agents/runtime.ts`                                                                                                                   | `runAgentInstance(args)` — reads `runId` + `systemPrompt` + `senderRole` from args, runs `generateText`, persists one `AgentAction` per tool call (status via `resolveActionStatus`), emits ACTION\_\* + budget-warn ActivityLog rows       | The "heart." Does NOT load context anymore.                 |
-| `agents/runs.ts`                                                                                                                      | `createAgentRun`, `finalizeAgentRun` (status transition + cost rollup), `hashSubtask` (delegation coalesce key)                                                                                                                             | Run lifecycle. Emits AGENT*RUN*\* ActivityLog rows.         |
-| `agents/context-snapshot.ts`                                                                                                          | `buildContextSnapshot({ orgId, mission, newAssets, existingAssets, oversizeCount, ... })` — composes the JSON blob stored on `AgentRun.contextSnapshot`                                                                                     | Built at dispatch time, frozen on the row.                  |
-| `agents/actions.ts`                                                                                                                   | `recordAgentAction`, `resolveActionStatus` (Phase 5 §8 rule), `computeActionStatus` (folds in failure)                                                                                                                                      | Single writer for `AgentAction` rows.                       |
-| `agents/approvals.ts`                                                                                                                 | `approveAction`, `rejectAction`, `editAction`, `executeApprovedAction` (4 programmatic helpers — no HTTP yet)                                                                                                                               | The customer-side branch's exit door. Awaits a web UI.      |
-| `agents/cost.ts`                                                                                                                      | `computeRunCost`, `checkBudgetThresholds` (emits Pino warn + BUDGET_WARN_80/100 ActivityLog at 80%/100%)                                                                                                                                    | Soft budget gate.                                           |
-| `agents/step-aggregator.ts`                                                                                                           | `aggregateSteps`, `extractActionsFromSteps` — walks AI SDK v6 `step.content[]`                                                                                                                                                              | Provider-specific quarantined.                              |
-| `agents/agent-instance.ts`                                                                                                            | `ensureAgentInstance` (upserts an AgentInstance per (orgId, templateSlug)) + `findInboundAgentInstanceForConnector` (resolves the agent via `AgentConnectorBinding(direction: INBOUND                                                       | BOTH)`; returns `found`/`none`/`ambiguous`)                 | The hardcoded-controller lookup is gone. |
-| `agents/connector-binding-seed.ts`                                                                                                    | `ensureInboundBindingForTelegramConnector` — idempotent INBOUND binding upsert. Seeded on ConnectorInstance creation + by the one-shot backfill script                                                                                      | Boot-time data integrity.                                   |
-| `agents/skills/registry.ts`                                                                                                           | `ALL_SKILLS` typed tuple, `findSkillById`, `syncSkills` (Zod → JSON Schema). Zero `as unknown` casts                                                                                                                                        | Boot seeds the Skill table.                                 |
-| `agents/skills/types.ts`                                                                                                              | `Skill<TInput, TOutput>`, `SkillContext` (now carries `parentRunId`), `AnySkill`, `defineSkill<T>()`                                                                                                                                        | Skill contract.                                             |
-| `agents/skills/delegate-to-specialist.ts`                                                                                             | Built-in skill. `canDelegateTo` check + `ensureAgentInstance` + `buildContextSnapshot` for child + `createAgentRun(parentRunId)` + `dispatcher.enqueueAndAwait({ dispatchOrigin: { kind: "delegation", parentRunId, subtaskHash } })`       | The DAG-maker.                                              |
-| `agents/skills/{extract-soul,label-brand-asset,generate-brand-image,draft-marketing-strategy,search-knowledge,read-knowledge-doc}.ts` | The 6 domain skills. `generateBrandImage` and `draftMarketingStrategy` are flagged `requiresApprovalDefault: true`                                                                                                                          | Skill bodies.                                               |
-| `agents/templates/{controller,marketing-strategist,designer,registry,renderer,types}.ts`                                              | Three seeded templates + registry (`syncTemplates` + `validateCanDelegateTo`) + pure-function renderer                                                                                                                                      | Agent prompts + DAG topology.                               |
-| `activity/log.ts`                                                                                                                     | `logActivity` — single write-point for `ActivityLog` rows. Errors swallowed, logged via Pino                                                                                                                                                | The seam.                                                   |
-| `activity/query.ts`                                                                                                                   | `getRecentActivity({ orgId, limit })` — clamped to 500, newest-first                                                                                                                                                                        | UI-facing read.                                             |
-| `routines/types.ts`                                                                                                                   | `RoutineDefinition` (`name`, `description`, `defaultSchedule`, `defaultAgentTemplate`, `defaultConfig`, `buildPrompt(config, ctx)`)                                                                                                         | The code contract.                                          |
-| `routines/registry.ts`                                                                                                                | `ALL_ROUTINES` + `findRoutineByName` + `syncRoutines` (paused-by-default, idempotent, preserves owner customisations)                                                                                                                       | The code-defined catalog.                                   |
-| `routines/nightly-knowledge-summary.ts`                                                                                               | The seed routine — 03:00 daily, builds a digest of the last 24h of `KnowledgeDoc` rows                                                                                                                                                      | The reference shape.                                        |
-| `routines/queue.ts`                                                                                                                   | `createRoutineQueue` — separate BullMQ queue `qolmeia-routine-run` so routine drift never starves the reactive queue                                                                                                                        | Isolation.                                                  |
-| `routines/reconcile.ts`                                                                                                               | `reconcileRoutines({ prisma, queue })` — drives BullMQ JobSchedulers toward DB rows: add/remove/update                                                                                                                                      | The reconciler.                                             |
-| `routines/scheduler-control.ts`                                                                                                       | `triggerReconcile` — lazy queue + reconcile. Called from owner-commands after enable/disable                                                                                                                                                | Owner-driven reconcile path.                                |
-| `routines/executor.ts`                                                                                                                | `executeRoutine({ routineId })` — loads the row + code definition, builds prompt, dispatches via the agent runtime, updates `lastRunAt` + `lastRunStatus`. Swallows its own errors                                                          | One fire of a routine.                                      |
-| `workers/agent-runner.ts`                                                                                                             | BullMQ Worker on `qolmeia-agent-run`, concurrency 4. Re-attaches `prisma` + `dispatcher` from module singletons                                                                                                                             | Async path.                                                 |
-| `workers/routine-scheduler.ts`                                                                                                        | BullMQ Worker on `qolmeia-routine-run`, concurrency 2. On boot, reconciles JobSchedulers from `Routine` rows. Wired in `workers/index.ts` alongside `agent-runner`                                                                          | Routine path.                                               |
-| `workers/index.ts`                                                                                                                    | Single `pnpm dev:worker` entry point. Starts both workers                                                                                                                                                                                   | One process, two queues.                                    |
-| `knowledge/provider.ts`                                                                                                               | `getBusinessContext(orgId)` — renders `Organization.businessIdea` + `Organization.agentInstructions` (owner-curated, BEFORE the AI-extracted soul) + the serialized `businessProfile`. Skills cannot write the first two                    | The read seam now spans 3 reserved fields.                  |
-| `knowledge/{soul,apply,brand-asset,brand-context,knowledge-doc}.ts`                                                                   | Soul types + single-writer `applySoulUpdate` (now emits `BUSINESS_IDEA_UPDATED` via owner commands — soul writes themselves are silent) + BrandAsset single-writer + brand-context aggregation + KnowledgeDoc CRUD                          | Per-table writer seams.                                     |
-| `scripts/sync-routines.ts`                                                                                                            | `pnpm tsx apps/api/src/scripts/sync-routines.ts [<orgSlug>]` — seeds Routine rows for one org or all. Paused-by-default, never flips `enabled` on existing rows                                                                             | Explicit, run on demand.                                    |
-| `scripts/migrate-enabled-skills-to-enablements.ts`                                                                                    | One-shot: migrates legacy `AgentInstance.enabledSkillIds` Json arrays into `AgentSkillEnablement` rows. Safe to re-run                                                                                                                      | Already executed; archived for history.                     |
-| `scripts/backfill-controller-inbound-bindings.ts`                                                                                     | One-shot: backfills `AgentConnectorBinding(INBOUND)` rows for Telegram ConnectorInstances that predate binding-driven routing                                                                                                               | Already executed.                                           |
-| `lib/{env,logger,storage,image-gen,ai}.ts`                                                                                            | Zod env loader; Pino logger; R2 wrapper; `generateBrandImageBytes` (Nano Banana Pro via OpenRouter, model id from `env.IMAGE_GEN_MODEL`); `ai.ts` exports the shared OpenRouter provider + `resolveModelForAgent`                           | OpenRouter is the single AI provider.                       |
-| `middleware/{security,error-handler}.ts`                                                                                              | CORS, security headers, rate limiting, body size limit; top-level error handler + 404                                                                                                                                                       | Unchanged.                                                  |
+| Path                         | Responsibility                                                                                                                                                                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.ts`                   | Hono bootstrap, middleware, sync registries, mount routes, health + readyz, OpenAPI + llms.txt.                                                                                                                                                                                       |
+| `activity/`                  | `log.ts` single writer + `query.ts` clamped reader for the timeline. + tests                                                                                                                                                                                                          |
+| `agents/`                    | The agent runtime — runs, actions, approvals, cost, dispatcher, runtime, step-aggregator, agent-instance lookup, connector-binding seed, context snapshot. + tests                                                                                                                    |
+| `agents/skills/`             | The 7 skills + `registry.ts` (`ALL_SKILLS` + `syncSkills`) + `types.ts` (`defineSkill<T>`). + tests                                                                                                                                                                                   |
+| `agents/templates/`          | The 3 templates (controller, marketing-strategist, designer) + `registry.ts` (`syncTemplates`, acyclic validation) + `renderer.ts` (placeholder substitution). + tests                                                                                                                |
+| `connectors/`                | `types.ts` (`ConnectorAdapter` interface + `NormalizedMessage`), `registry.ts` (total over `ConnectorType`), and one folder per adapter: `telegram/`, `whatsapp/`, `web-chat/`, `fresha/`. + tests                                                                                    |
+| `inbox/`                     | The unified pipeline: `pipeline.ts` (orchestrator), `ingest.ts` (dedup + conversation upsert), `attachments.ts`, `agent-step.ts`, `owner-commands.ts`, `json-safe.ts`. + tests                                                                                                        |
+| `knowledge/`                 | `provider.ts` (read seam composing businessIdea + agentInstructions + businessProfile), `apply.ts` (soul writer), `soul.ts`, `brand-asset.ts`, `brand-context.ts`, `knowledge-doc.ts`. + tests                                                                                        |
+| `lib/`                       | `ai.ts` (OpenRouter provider + `resolveModelForAgent`), `image-gen.ts` (Nano Banana Pro), `auth.ts` (configured Better Auth instance), `web-chat-bus.ts` (in-process SSE pub/sub), `api-response.ts` (helpers), `env.ts` (Zod), `logger.ts`, `storage.ts` (R2), `openapi.ts`. + tests |
+| `middleware/`                | `require-staff.ts` (OWNER/STAFF guard + `buildRoleGuard` factory), `require-customer.ts` (CUSTOMER + any-member guards), `security.ts`, `error-handler.ts`. + tests                                                                                                                   |
+| `routes/auth.ts`             | Mounts Better Auth's handler at `/api/auth/*`.                                                                                                                                                                                                                                        |
+| `routes/connectors/index.ts` | The single generic inbound webhook: `POST /connectors/:type/:connectorInstanceId/webhook`. + tests                                                                                                                                                                                    |
+| `routes/v1/`                 | REST surface: `me`, `agents`, `approvals`, `activity`, `soul`, `runs`, `team`, `web-chat`, plus `index.ts` that mounts each under its role guard. + tests                                                                                                                             |
+| `routines/`                  | `types.ts`, `registry.ts` (`ALL_ROUTINES` + `syncRoutines`), `queue.ts`, `reconcile.ts`, `scheduler-control.ts`, `executor.ts`, `nightly-knowledge-summary.ts`. + tests                                                                                                               |
+| `scripts/`                   | One-shot ops scripts: `sync-routines`, `seed-knowledge-sample`, `seed-owner-user-and-membership`, `seed-whatsapp-connector`, `migrate-enabled-skills-to-enablements`, `backfill-controller-inbound-bindings`.                                                                         |
+| `workers/`                   | `index.ts` boots both `agent-runner.ts` (BullMQ Worker, concurrency 4) and `routine-scheduler.ts` (Worker + reconciler, concurrency 2).                                                                                                                                               |
+| `types/`                     | Local TS types not tied to a single module.                                                                                                                                                                                                                                           |
 
-**Removed by the restructure:** `routes/telegram/webhook.ts` (legacy route, deleted in PR #1), `scripts/migrate-telegram-link-to-connector.ts` (replaced by the new backfill script for bindings), the `TelegramLink` Prisma model (dropped in PR #1 — `Organization.telegramLink` relation is gone; `connectorInstanceId` is now non-nullable through the pipeline). Single inbound route remains: `POST /connectors/telegram/:connectorInstanceId/webhook`.
+### `apps/backoffice/src/`
 
----
+| Path                              | Responsibility                                                                                                                                                                                                   |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/(auth)/`                     | Login, register, recover, reset-password pages.                                                                                                                                                                  |
+| `app/(dashboard)/`                | Home, `agents` (+ `[id]`), `approvals` (+ `[id]`), `activity`, `soul`, `runs`, `team` pages.                                                                                                                     |
+| `app/layout.tsx`, `not-found.tsx` | Root layout + 404.                                                                                                                                                                                               |
+| `components/`                     | Sidebar, sign-out, activity rows, invite form, soul form, team page client, approval form + schema renderer registry. + tests                                                                                    |
+| `lib/`                            | `api-client.ts` (browser fetch), `api-server.ts` (server fetch with cookies), `api-types.ts`, `auth-client.ts`, `auth-helpers.ts` (RSC guard `requireStaff`), `auth.ts`, `form-schemas.ts`, `format.ts`. + tests |
+| `proxy.ts`                        | Next 16 middleware: cookie check + redirect to /login (preserves `?from=`).                                                                                                                                      |
+| `styles/`, `types/`               | Tailwind globals + local types.                                                                                                                                                                                  |
 
-## 4. Data model
+### `apps/client/src/`
 
-Schema lives in `packages/db/prisma/schema.prisma`. Provider: `postgresql`. Generator: `prisma-client` with `@prisma/adapter-pg`. Stars (`★`) mark models added or substantially extended in the restructure.
+| Path                                               | Responsibility                                                                                                                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/(client)/`                                    | Home (chat), `assets`, `activity` pages.                                                                                                                                     |
+| `app/auth/verify/`, `app/login/`, `app/no-access/` | Magic-link trampoline, login page, staff-detected redirect.                                                                                                                  |
+| `app/layout.tsx`, `not-found.tsx`                  | Root layout + 404.                                                                                                                                                           |
+| `components/`                                      | `chat.tsx` (TanStack Query host), `composer.tsx`, `message-list.tsx`, `message-bubble.tsx`, `sse-subscriber.tsx`, `nav.tsx`, `sign-out-button.tsx`, `providers.tsx`. + tests |
+| `lib/`                                             | Same shape as backoffice's `lib/` (api-client/server, auth, form-schemas) with `requireCustomer` RSC guard.                                                                  |
+| `proxy.ts`                                         | Same role as backoffice — redirect unauth → /login, bounce authed users away from /login + /auth/verify.                                                                     |
+| `styles/`, `types/`                                | Tailwind globals + local types.                                                                                                                                              |
 
-```
-Organization                                       (the tenant)
-  id, name, slug @unique
-  timezone, currency                              "America/Sao_Paulo", "BRL" defaults
-  businessProfile Json?                           ★ THE AI-EXTRACTED SOUL — single-writer via knowledge/apply.ts
-  agentInstructions String?  @db.Text             ★ NEW — owner-curated AGENTS.md equivalent
-  businessIdea      String?  @db.Text             ★ NEW — owner-curated IDEA.md equivalent
-  agentInstances · connectorInstances · activityLogs · routines · brandAssets · knowledgeDocs · customers · conversations
+### `packages/*/src/`
 
-Customer (orgId, phone?, email?, name?, meta?)    @@unique by (orgId, phone) / (orgId, email)
-
-Conversation
-  channel, externalId?, status, orgId, customerId?
-  connectorInstanceId String?                     (Phase 5h — now always set on new rows)
-  messages
-
-Message
-  conversationId, externalId?
-  sender (CUSTOMER | AGENT | SYSTEM)
-  content, contentType
-  metadata Json?                                  raw payload (sanitized via toJsonSafe)
-  agentRuns AgentRun[]                            ★ NEW — back-relation for triggerMessageId
-  @@unique([conversationId, externalId])
-
-WebhookEvent                                      (idempotency)
-  provider, externalId, payload Json, status
-  @@unique([provider, externalId])
-
-BrandAsset                                        (org-scoped binary assets)
-  orgId, r2Key, sha256, mimeType, size
-  metadata Json @default("{}")
-  @@unique([orgId, sha256])
-
-KnowledgeDoc                                      (markdown/JSON/text docs)
-  orgId, r2Key, title, summary, tags
-  contentType  KnowledgeDocContentType            MARKDOWN | PLAIN_TEXT | JSON
-  size
-
-──── Multi-agent core ───────────────────────────────────────────────────
-
-AgentTemplate                                     (system-defined; seeded from code)
-  slug @id, displayName, description, defaultSystemPrompt, defaultMission
-  compatibleInboundConnectorTypes  ConnectorType[]
-  compatibleOutboundConnectorTypes ConnectorType[]
-  canDelegateTo  String[]                         validated acyclic at sync-time
-  defaultBudgetCents Int
-  skills  Skill[] @relation("TemplateSkills")     M:N (the default skill set)
-
-AgentInstance                                     (per-org hired agent)
-  orgId, templateSlug, displayName, mission
-  budgetCents, status (ACTIVE | PAUSED)
-  enablements  AgentSkillEnablement[]             ★ replaces enabledSkillIds Json?
-  runs         AgentRun[]                         ★ NEW
-  routines     Routine[]                          ★ NEW
-  bindings     AgentConnectorBinding[]
-  actions      AgentAction[]
-  @@unique([orgId, templateSlug])
-
-Skill                                             (system-defined; seeded from code)
-  id @id, displayName, description, parametersJsonSchema Json
-  requiresApprovalDefault  Boolean                generateBrandImage = true, draftMarketingStrategy = true
-  requiredConnectorTypes   ConnectorType[]
-  enablements  AgentSkillEnablement[]             ★ NEW back-relation
-
-AgentSkillEnablement                              ★ NEW — join table replacing enabledSkillIds
-  id, agentInstanceId, skillId
-  enabledAt, enabledBy?, configOverride Json?
-  @@unique([agentInstanceId, skillId])
-  -- Zero rows for an instance ⇒ runtime falls back to template defaults.
-  -- One+ rows ⇒ explicit override.
-
-ConnectorInstance                                 (per-org channel/tool config)
-  orgId, type (ConnectorType), displayName
-  config Json, capabilities Json
-  senderRole  SenderRole                          OWNER | CUSTOMER
-  bindings  AgentConnectorBinding[]
-  conversations  Conversation[]
-  @@index([orgId, type])
-
-AgentConnectorBinding                             (M:N: which agents act on which channels)
-  agentInstanceId, connectorInstanceId
-  direction (INBOUND | OUTBOUND | BOTH)
-  @@unique([agentInstanceId, connectorInstanceId, direction])
-  @@index([connectorInstanceId, direction])
-  -- ★ Now ACTIVE: findInboundAgentInstanceForConnector reads this to route
-  --   inbound messages. No more hardcoded controller slug.
-
-AgentRun                                          ★ NEW — the unit of replayability
-  id, agentInstanceId
-  triggerMessageId?                               set for top-level inbound; null for delegation children + routines
-  parentRunId?                                    self-FK; null at the root
-  contextSnapshot Json                            ContextSnapshot — frozen at dispatch
-  systemPrompt    String @db.Text                 the exact prompt the model saw
-  status AgentRunStatus                           RUNNING | SUCCEEDED | FAILED
-  costCents, costInputTokens, costOutputTokens
-  startedAt, finishedAt?, errorMessage?
-  actions AgentAction[]                           1:N back-relation
-  @@index([agentInstanceId, startedAt])
-  @@index([triggerMessageId])
-  @@index([parentRunId])
-
-AgentAction                                       (per tool call)
-  agentInstanceId, skillId
-  runId?                                          ★ NEW — links to AgentRun. Nullable for backward compat.
-  triggerMessageId?, parentActionId?
-  proposedInput Json, proposedSummary
-  status AgentActionStatus                        DRAFTED | AUTO_APPROVED | APPROVED | REJECTED | EDITED |
-                                                  EXPIRED | FAILED | EXECUTED
-  decidedByUserId?, decidedAt?, executedAt?
-  resultJson Json?, errorMessage?
-  costCents, costCurrency, costInputTokens, costOutputTokens
-  @@index([agentInstanceId, status, createdAt])
-  @@index([triggerMessageId]), @@index([parentActionId]), @@index([runId])
-
-ActivityLog                                       ★ NEW — append-only timeline
-  id, orgId, type (ActivityLogType), refType (ActivityLogRefType), refId?
-  summary String @db.Text                         pt-BR one-liner rendered as-is by the UI
-  payload Json?                                   structured event data (shapes per type — see activity/log.ts)
-  actorId?                                        reserved for the future multi-user model
-  createdAt
-  @@index([orgId, createdAt])
-  @@index([type, createdAt])
-
-Routine                                           ★ NEW — paused-by-default scheduled invocations
-  id, orgId, agentInstanceId
-  name (per-org unique), description?
-  schedule  String                                cron expression
-  timezone  String                                default "America/Sao_Paulo"
-  enabled   Boolean                               ALWAYS starts false; owner flips with /ligar
-  config    Json                                  shape defined by RoutineDefinition.buildPrompt
-  lastRunAt?, lastRunStatus?, nextRunAt?
-  @@unique([orgId, name])
-  @@index([orgId, enabled])
-
-──── Enums ──────────────────────────────────────────────────────────────
-
-AgentRunStatus       RUNNING | SUCCEEDED | FAILED                                                                          ★
-AgentActionStatus    DRAFTED | AUTO_APPROVED | APPROVED | REJECTED | EDITED | EXPIRED | FAILED | EXECUTED
-AgentInstanceStatus  ACTIVE | PAUSED
-ConnectorType        TELEGRAM | WHATSAPP | FRESHA | GOOGLE_MY_BUSINESS | INSTAGRAM
-SenderRole           OWNER | CUSTOMER
-BindingDirection     INBOUND | OUTBOUND | BOTH
-ActivityLogType      MESSAGE_INBOUND | MESSAGE_OUTBOUND | AGENT_RUN_STARTED | AGENT_RUN_FINISHED |                          ★
-                     AGENT_RUN_FAILED | ACTION_EXECUTED | ACTION_FAILED | ACTION_DRAFTED |
-                     ACTION_APPROVED | ACTION_REJECTED | BUDGET_WARN_80 | BUDGET_WARN_100 |
-                     INSTRUCTIONS_UPDATED | BUSINESS_IDEA_UPDATED | OWNER_COMMAND |
-                     ROUTINE_TRIGGERED | ROUTINE_ENABLED | ROUTINE_DISABLED
-ActivityLogRefType   MESSAGE | AGENT_RUN | AGENT_ACTION | ORGANIZATION | ROUTINE | NONE                                    ★
-```
-
-### Invariants
-
-**At template-sync (boot):**
-
-- `AgentTemplate.canDelegateTo` is acyclic across the full template set (`validateCanDelegateTo`).
-- Every slug in `canDelegateTo` corresponds to a registered template.
-- `syncSkills` runs BEFORE `syncTemplates` so the M:N skill connections find their rows.
-
-**At runtime:**
-
-- `AgentSkillEnablement` row count for `(agentInstanceId)` ∈ `{0 ⇒ template default, ≥1 ⇒ explicit override}`.
-- `delegateToSpecialist` rejects when `targetTemplateSlug ∉ parentTemplate.canDelegateTo`.
-- `findInboundAgentInstanceForConnector` returns `{ found, none, ambiguous }`; the pipeline fails closed on `none`/`ambiguous`.
-- **Approval rule** (`resolveActionStatus`): `senderRole !== "CUSTOMER" || !skill.requiresApprovalDefault ⇒ AUTO_APPROVED`; otherwise `DRAFTED`.
-- `AgentRun` is the unit of replayability: `contextSnapshot` + `systemPrompt` are frozen on the row; re-running the same row reproduces the exact prompt the model saw.
-
-**At seed:**
-
-- `Routine.enabled` ALWAYS starts `false`. `syncRoutines` never flips it; only `/ligar` does.
+| Path                          | Responsibility                                                                                                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth/src/server.ts`          | `createAuth(deps)` — Better Auth factory: Prisma adapter, magic-link plugin, `sendMagicLink`/`sendResetPassword`/`sendVerificationEmail`/`sendWelcomeEmail` hooks wired to `@repo/transactional`. + tests |
+| `auth/src/client.ts`          | `createAuthClient(deps)` for the two Next apps.                                                                                                                                                           |
+| `db/prisma/schema.prisma`     | Single source of truth for the data model.                                                                                                                                                                |
+| `db/src/`                     | `prisma` client singleton + integration tests (12) hitting docker Postgres.                                                                                                                               |
+| `transactional/src/emails/`   | React Email templates: magic-link, welcome, reset-password, verify-email.                                                                                                                                 |
+| `transactional/src/client.ts` | Resend wrapper + named senders. + tests                                                                                                                                                                   |
+| `ui/src/components/`          | shadcn-style components shared by both Next apps. + tests                                                                                                                                                 |
+| `ui/src/{hooks,lib,styles}/`  | Hooks + utils + Tailwind preset.                                                                                                                                                                          |
 
 ---
 
-## 5. The agent loop
+## §4. Data model
 
-`agents/runtime.ts → runAgentInstance(args: AgentDispatchArgs): Promise<AgentRunResult>`. Same function for every agent template; the template + enabled skills determine behavior.
+Schema at [`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma). Provider: `postgresql`. Generator: `prisma-client` with `@prisma/adapter-pg`.
 
-### Key change vs pre-restructure
+### Auth + tenancy
 
-The runtime **no longer loads context**. It reads `systemPrompt`, `runId`, and `senderRole` from `AgentDispatchArgs` (already populated by the orchestrator). `buildContextSnapshot` runs at dispatch time (`inbox/agent-step` for inbound, `agents/skills/delegate-to-specialist` for delegations) and the result is frozen on `AgentRun.contextSnapshot`.
+| Model           | Purpose / key fields                                                                                                                                                                | Invariants                                                                                                                                           |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`          | Better Auth user. `email @unique`, `name`, `username?`, `displayName?`.                                                                                                             | Find-or-create on invite; one row per email.                                                                                                         |
+| `Session`       | Better Auth session. `userId`, `token @unique`, `expiresAt`, `impersonatedBy?`.                                                                                                     | Cascade on user delete.                                                                                                                              |
+| `Account`       | Better Auth credential/oauth account. `userId`, `providerId`, `password?`, `accessToken?` etc.                                                                                      | One row per provider per user.                                                                                                                       |
+| `Verification`  | Better Auth one-time verification tokens (magic links, email verify).                                                                                                               | TTL-bound.                                                                                                                                           |
+| `RateLimit`     | Better Auth DB-backed rate limit store. `key @unique`, `count`, `lastRequest BigInt`.                                                                                               | Append-then-update.                                                                                                                                  |
+| `Organization`  | The tenant. `slug @unique`, `timezone "America/Sao_Paulo"`, `currency "BRL"`, `businessProfile Json?` (the AI-extracted soul), `agentInstructions String?`, `businessIdea String?`. | `businessProfile` writable only via `knowledge/apply.ts`. `agentInstructions` + `businessIdea` writable only via owner commands or backoffice /soul. |
+| `OrgMembership` | `(userId, orgId)` unique, `role: OWNER \| STAFF \| CUSTOMER`. The authorization seam.                                                                                               | A user can belong to many orgs; one role per org.                                                                                                    |
 
-### `AgentDispatchArgs` shape
+### Conversation surface
+
+| Model          | Purpose / key fields                                                                                                | Invariants                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `Customer`     | End-user of the org's business. `(orgId, phone) @unique`, `(orgId, email) @unique`.                                 | Org-scoped.                                                                    |
+| `Conversation` | Thread per channel. `channel`, `externalId?`, `orgId`, `customerId?`, `connectorInstanceId?`.                       | New rows always set `connectorInstanceId`.                                     |
+| `Message`      | `conversationId`, `externalId?`, `sender: CUSTOMER \| AGENT \| SYSTEM`, `content`, `contentType`, `metadata Json?`. | `(conversationId, externalId)` unique for dedup.                               |
+| `WebhookEvent` | Idempotency. `(provider, externalId) @unique`, `payload`, `status`.                                                 | First write wins; duplicates short-circuit the pipeline.                       |
+| `BrandAsset`   | Org-scoped binary assets in R2. `r2Key`, `sha256`, `mimeType`, `size`, `metadata Json`.                             | `(orgId, sha256)` unique for dedup. Single writer: `knowledge/brand-asset.ts`. |
+| `KnowledgeDoc` | Org-scoped docs in R2. `title`, `summary`, `tags`, `contentType: MARKDOWN \| PLAIN_TEXT \| JSON`.                   | Single CRUD: `knowledge/knowledge-doc.ts`.                                     |
+
+### Multi-agent core
+
+| Model                   | Purpose / key fields                                                                                                                                                                                                        | Invariants                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `AgentTemplate`         | System-defined, seeded from code. `slug @id`, `defaultSystemPrompt`, `defaultMission`, `defaultModel`, `canDelegateTo String[]`, `compatibleInbound/OutboundConnectorTypes`, `defaultBudgetCents`, M:N with `Skill`.        | `canDelegateTo` validated acyclic at boot. `defaultModel` is OpenRouter id.                  |
+| `AgentInstance`         | Per-org hired agent. `(orgId, templateSlug) @unique`, `mission`, `budgetCents`, `modelOverride?`, `status: ACTIVE \| PAUSED`.                                                                                               | Lazy-created via `ensureAgentInstance`. `modelOverride` wins over template's `defaultModel`. |
+| `Skill`                 | System-defined, seeded from code. `id @id`, `parametersJsonSchema Json` (Zod → JSON Schema), `requiresApprovalDefault`, `requiredConnectorTypes`.                                                                           | `parametersJsonSchema` is what the backoffice schema-driven editor renders.                  |
+| `AgentSkillEnablement`  | Join table replacing the legacy `enabledSkillIds Json?`. `(agentInstanceId, skillId) @unique`, `configOverride Json?`.                                                                                                      | Zero rows ⇒ template defaults. ≥1 row ⇒ explicit override.                                   |
+| `ConnectorInstance`     | Per-org channel/tool config. `type`, `config Json`, `capabilities Json`, `senderRole: OWNER \| CUSTOMER`.                                                                                                                   | `senderRole` drives the approval rule. WEB_CHAT auto-provisioned per org.                    |
+| `AgentConnectorBinding` | Which agents act on which channels. `(agentInstanceId, connectorInstanceId, direction)` unique. Direction: `INBOUND \| OUTBOUND \| BOTH`.                                                                                   | `findInboundAgentInstanceForConnector` reads this — no hardcoded routing.                    |
+| `AgentRun`              | The unit of replayability. `agentInstanceId`, `triggerMessageId?`, `parentRunId?`, `contextSnapshot Json`, `systemPrompt`, `status: RUNNING \| SUCCEEDED \| FAILED`, cost rollup.                                           | Frozen at dispatch; runtime never re-reads context.                                          |
+| `AgentAction`           | Per tool call. `runId?`, `agentInstanceId`, `skillId`, `proposedInput Json`, `proposedSummary`, `status: DRAFTED \| AUTO_APPROVED \| APPROVED \| REJECTED \| EDITED \| EXPIRED \| FAILED \| EXECUTED`, `resultJson?`, cost. | Single writer: `agents/actions.ts` (runtime) + `agents/approvals.ts` (post-approval).        |
+| `ActivityLog`           | Append-only timeline. `orgId`, `type` (one of 20), `refType` (one of 6), `refId?`, `summary` (pt-BR), `payload Json?`, `actorId?`.                                                                                          | Best-effort writes via `activity/log.ts`. Immutable.                                         |
+| `Routine`               | Paused-by-default scheduled invocation. `(orgId, name) @unique`, `agentInstanceId`, `schedule` (cron), `timezone`, `enabled` (always starts false), `config Json`, `lastRunAt?`, `lastRunStatus?`, `nextRunAt?`.            | Owner flips `enabled` via `/ligar`; scheduler reconciles BullMQ.                             |
+
+### Enums (current values)
+
+```
+Channel               WEB_CHAT | TELEGRAM
+OrgRole               OWNER | STAFF | CUSTOMER
+ConversationStatus    ACTIVE | RESOLVED | ARCHIVED
+MessageSender         CUSTOMER | AGENT | SYSTEM
+ContentType           TEXT | AUDIO | IMAGE | DOCUMENT
+ConnectorType         TELEGRAM | WHATSAPP | FRESHA | GOOGLE_MY_BUSINESS | INSTAGRAM | WEB_CHAT
+SenderRole            OWNER | CUSTOMER
+BindingDirection      INBOUND | OUTBOUND | BOTH
+AgentInstanceStatus   ACTIVE | PAUSED
+AgentActionStatus     DRAFTED | AUTO_APPROVED | APPROVED | REJECTED | EDITED | EXPIRED | FAILED | EXECUTED
+AgentRunStatus        RUNNING | SUCCEEDED | FAILED
+KnowledgeDocContentType  MARKDOWN | PLAIN_TEXT | JSON
+ActivityLogType       MESSAGE_INBOUND | MESSAGE_OUTBOUND | AGENT_RUN_STARTED | AGENT_RUN_FINISHED |
+                      AGENT_RUN_FAILED | ACTION_EXECUTED | ACTION_FAILED | ACTION_DRAFTED |
+                      ACTION_APPROVED | ACTION_REJECTED | BUDGET_WARN_80 | BUDGET_WARN_100 |
+                      INSTRUCTIONS_UPDATED | BUSINESS_IDEA_UPDATED | OWNER_COMMAND |
+                      ROUTINE_TRIGGERED | ROUTINE_ENABLED | ROUTINE_DISABLED |
+                      MEMBER_INVITED | MEMBER_JOINED
+ActivityLogRefType    MESSAGE | AGENT_RUN | AGENT_ACTION | ORGANIZATION | ROUTINE | NONE
+```
+
+---
+
+## §5. The agent loop
+
+[`agents/runtime.ts → runAgentInstance(args: AgentDispatchArgs)`](../apps/api/src/agents/runtime.ts). Single function for every template; behaviour comes from the template + enabled skills.
+
+### Inputs
 
 ```ts
-{
-  agentInstance,         // the AgentInstance to run
+type AgentDispatchArgs = {
+  agentInstance,          // the row to run
   prisma,
-  dispatcher,            // self-reference so delegation can re-enter
+  dispatcher,             // self-reference so delegation can re-enter
   input: { audioBytes?, audioMime?, imageBytes[], text? },
-  newAssets,             // [{ assetId, mimeType, deduped }]
-  existingAssets,        // [{ assetId, mimeType, metadata }]
+  newAssets,              // ingested this turn
+  existingAssets,         // recent BrandAsset window (20)
   oversizeCount,
-  runId,                 // ★ AgentRun.id — the row this dispatch belongs to
-  systemPrompt,          // ★ fully rendered, duplicated from AgentRun.systemPrompt
-  senderRole,            // ★ OWNER | CUSTOMER | null — drives the approval rule
-  dispatchOrigin?,       // ★ optional — used by BullMQ to derive a coalesce jobId
+  runId,                  // AgentRun.id — frozen at dispatch
+  systemPrompt,           // already rendered, duplicates AgentRun.systemPrompt
+  senderRole,             // OWNER | CUSTOMER | null — drives the approval rule
+  dispatchOrigin?,        // used by BullMQ to derive a coalesce jobId
 }
 ```
 
-### `DispatchOrigin` discriminator (drives jobId coalescing)
+### Steps inside `runAgentInstance`
 
-```
-{ kind: "inbound", connectorInstanceId: string | null,
-                   externalThreadId: string, triggerMessageExternalId: string }
-  ⇒ jobId = `inbox:<connector|legacy>:<thread>:<msgId>`
+1. `findTemplateBySlug` — throws if unknown (the registry is canonical; boot would have caught it).
+2. `resolveEnabledSkills(prisma, agentInstance.id, template.defaultEnabledSkillIds)`. Zero `AgentSkillEnablement` rows ⇒ template defaults; ≥1 row ⇒ explicit set.
+3. Build `SkillContext` (`agentInstanceId`, `dispatcher`, `orgId`, `parentRunArgs`, `parentRunId: runId`, `prisma`).
+4. Wrap each skill in an AI SDK `tool({ description, inputSchema, execute })`.
+5. `modelId = resolveModelForAgent({ instance: { modelOverride }, template: { defaultModel } })`.
+6. `generateText({ model: openrouter.chat(modelId), stopWhen: stepCountIs(5), system: systemPrompt, messages, tools, temperature: 0.2 })`.
+7. `aggregateSteps(result.steps, ALL_SKILLS.map(s => s.id))` returns `{ generatedAssetIds, toolCallSummary }`.
+8. For each tool call: `recordAgentAction({ ..., senderRole, runId })` — status from `resolveActionStatus(senderRole, skill.requiresApprovalDefault)`. Emit one `ActivityLog` row per action (`ACTION_EXECUTED` | `ACTION_FAILED` | `ACTION_DRAFTED`).
+9. If `agentInstance.budgetCents > 0`: `checkBudgetThresholds` aggregates month-to-date cost; emits `BUDGET_WARN_80` / `BUDGET_WARN_100` at thresholds.
+10. Return `{ text, generatedAssetIds, toolCallSummary, usage }`.
 
-{ kind: "delegation", parentRunId: string,
-                      childTemplateSlug: string, subtaskHash: string }
-  ⇒ jobId = `delegate:<parentRun>:<child>:<sha256(subtask)[0..16]>`
-```
-
-Duplicate webhook deliveries and accidentally re-issued delegations collapse into one BullMQ job; `waitUntilFinished` hands the first run's result to every concurrent caller.
-
-### The 7 skills
-
-| Skill ID                 | Owner template(s)                | `requiresApprovalDefault` | Notes                                                                                                         |
-| ------------------------ | -------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `delegateToSpecialist`   | Controller, Marketing Strategist | `false`                   | Validates `canDelegateTo`, ensures child instance, builds child snapshot, creates child AgentRun, dispatches. |
-| `extractSoul`            | Controller, Designer             | `false`                   | Single-writer wrapper around `applySoulUpdate`.                                                               |
-| `labelBrandAsset`        | Designer                         | `false`                   | Updates `BrandAsset.metadata`.                                                                                |
-| `generateBrandImage`     | Designer                         | **`true`** ★              | Nano Banana Pro via OpenRouter (env.IMAGE_GEN_MODEL). CUSTOMER triggers ⇒ DRAFTED.                            |
-| `draftMarketingStrategy` | Marketing Strategist             | **`true`** ★              | Stub v0. CUSTOMER triggers ⇒ DRAFTED.                                                                         |
-| `searchKnowledge`        | Controller, Designer             | `false`                   | Reads `KnowledgeDoc`.                                                                                         |
-| `readKnowledgeDoc`       | Controller, Designer             | `false`                   | Reads `KnowledgeDoc` body from R2.                                                                            |
+The runtime **does not load context**. `buildContextSnapshot` runs at dispatch time in `inbox/agent-step.ts` (for inbound) or in the `delegateToSpecialist` skill (for child runs). The snapshot is persisted on the `AgentRun` row and passed through `systemPrompt`.
 
 ### The 3 seeded templates
 
-Each template ships with a `defaultModel` (OpenRouter id). Instances can override per-row via `AgentInstance.modelOverride`; `lib/ai.ts → resolveModelForAgent` does the lookup with `override ?? template.defaultModel`.
-
-| Template slug          | displayName          | `defaultModel`        | `canDelegateTo`                       | `defaultEnabledSkillIds`                                                                      |
+| Slug                   | displayName          | `defaultModel`        | `canDelegateTo`                       | Default enabled skills                                                                        |
 | ---------------------- | -------------------- | --------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `controller`           | Controller           | `openai/gpt-5.3-chat` | `["designer","marketing-strategist"]` | `["delegateToSpecialist","extractSoul","searchKnowledge","readKnowledgeDoc"]`                 |
-| `marketing-strategist` | Marketing Strategist | `openai/gpt-5.4-mini` | `["designer"]`                        | `["delegateToSpecialist","draftMarketingStrategy"]`                                           |
-| `designer`             | Designer             | `openai/gpt-5.4-nano` | `[]`                                  | `["extractSoul","generateBrandImage","labelBrandAsset","searchKnowledge","readKnowledgeDoc"]` |
+| `controller`           | Controller           | `openai/gpt-5.3-chat` | `["designer","marketing-strategist"]` | `delegateToSpecialist`, `extractSoul`, `searchKnowledge`, `readKnowledgeDoc`                  |
+| `marketing-strategist` | Marketing Strategist | `openai/gpt-5.4-mini` | `["designer"]`                        | `delegateToSpecialist`, `draftMarketingStrategy`                                              |
+| `designer`             | Designer             | `openai/gpt-5.4-nano` | `[]`                                  | `extractSoul`, `generateBrandImage`, `labelBrandAsset`, `searchKnowledge`, `readKnowledgeDoc` |
 
-### The runtime sequence
+### Delegation
 
-1. `findTemplateBySlug(agentInstance.templateSlug)` — throws if unknown.
-2. `resolveEnabledSkills(prisma, agentInstanceId, template.defaultEnabledSkillIds)` — zero `AgentSkillEnablement` rows ⇒ template defaults; otherwise the row set.
-3. Build `ctx: SkillContext = { agentInstanceId, dispatcher, orgId, parentRunArgs, parentRunId: runId, prisma }`.
-4. Wrap each skill in an AI SDK `tool({ description, inputSchema, execute })`.
-5. `generateText({ model: openrouter.chat(resolveModelForAgent({ instance, template })), stopWhen: stepCountIs(5), system: systemPrompt, messages, tools, temperature: 0.2 })`. The model id is per-agent (instance override ⇒ template default ⇒ schema default). **No live `getBusinessContext` call.**
-6. `aggregateSteps(result.steps, ALL_SKILLS.map(s => s.id))` returns `{ generatedAssetIds, toolCallSummary }`.
-7. For each tool call: `recordAgentAction({ ..., senderRole, runId })` — status resolved via `resolveActionStatus(senderRole, skill.requiresApprovalDefault)`. Emit one `ActivityLog` row per action (`ACTION_EXECUTED` / `ACTION_FAILED` / `ACTION_DRAFTED`).
-8. If `agentInstance.budgetCents > 0`: `checkBudgetThresholds` aggregates month-to-date cost; emits `BUDGET_WARN_80` / `BUDGET_WARN_100` Pino + ActivityLog at thresholds.
-9. Return `AgentRunResult = { text, generatedAssetIds, toolCallSummary, usage }`.
-
-### Delegation flow
-
-`delegateToSpecialist({ targetTemplateSlug, subtask })`:
-
-1. Validate `targetTemplateSlug ∈ parent.canDelegateTo` and that the target template is registered.
-2. `ensureAgentInstance({ orgId, templateSlug: targetTemplateSlug })` — lazy-create the child.
-3. `buildContextSnapshot({ ..., mission: childAgent.mission })` — fresh snapshot for the child (different mission, same asset window).
-4. `renderSystemPrompt(targetTemplate.defaultSystemPrompt, snapshot)`; append `Missão deste agente:\n<mission>` if non-empty.
-5. `createAgentRun({ agentInstanceId: child.id, contextSnapshot, parentRunId: ctx.parentRunId, systemPrompt, triggerMessageId: undefined })`.
-6. `dispatcher.enqueueAndAwait({ ...parentRunArgs, agentInstance: child, runId: childRun.id, systemPrompt, dispatchOrigin: { kind: "delegation", parentRunId, childTemplateSlug, subtaskHash: hashSubtask(subtask) }, input: { ...parentInput, text: subtask } })`.
-7. `finalizeAgentRun({ result: childResult, runId: childRun.id })` (or `{ error, runId }` on failure).
-8. Propagate `{ text, generatedAssetIds, usage }` back up. The parent's aggregator spreads `generatedAssetIds` from the delegation tool-result.
+`delegateToSpecialist` validates `targetTemplateSlug ∈ parent.canDelegateTo`, `ensureAgentInstance` lazy-creates the child, `buildContextSnapshot` builds a fresh snapshot for the child's mission, `createAgentRun` persists with `parentRunId = ctx.parentRunId`, and `dispatcher.enqueueAndAwait` re-enters with `dispatchOrigin: { kind: "delegation", parentRunId, childTemplateSlug, subtaskHash }`.
 
 ---
 
-## 6. The request lifecycle
+## §6. The skills catalog
 
-Pedro sends _"gera uma imagem promocional para minha promo de Black Friday"_ on Telegram.
+All 7 skills ship from [`apps/api/src/agents/skills/`](../apps/api/src/agents/skills/). `requiresApprovalDefault: true` means CUSTOMER-side triggers land as DRAFTED (the tool still runs; the row records it for owner review). Inputs are Zod schemas; the JSON Schema rendering lands on `Skill.parametersJsonSchema` and is what the backoffice approval editor renders.
 
-```
-[Telegram]
-   │ POST /connectors/telegram/<connectorInstanceId>/webhook
-   │ X-Telegram-Bot-Api-Secret-Token: <secret>
-   ▼
-[routes/connectors/index.ts]
-   1. resolve KNOWN_CONNECTOR_TYPES["telegram"] → "TELEGRAM"
-   2. prisma.connectorInstance.findUnique({ id: connectorInstanceId })
-   3. adapter.verifySignature({ connectorConfig, headers, rawBody })
-   4. adapter.parseInboundPayload(json, connectorConfig) → NormalizedMessage
-   5. handleInbound({ dispatcher, prisma }, { connectorInstance, normalizedMessage })
-   ▼
-[inbox/pipeline.ts]
-   1. markWebhookProcessed (dedup by (connectorType, externalId)) → early-return on duplicate.
-   2. resolveOrgAndConversation (upserts Conversation by
-        (orgId, connectorInstanceId, externalThreadId)).
-        Returns { orgId, conversationId, connectorInstanceId, senderRole }.
-   3. if senderRole === "OWNER" && parseOwnerCommand(normalizedMessage.text) !== null:
-        · persistInboundMessage + logActivity OWNER_COMMAND
-        · handleOwnerCommand → reply (no agent run)
-        · return.
-   4. persistInboundMessage(Message) + logActivity MESSAGE_INBOUND.
-   5. processIncomingAttachments (images, audio, oversize).
-   6. if empty (no text + no audio + no new assets + no oversize): post EMPTY_TEXT_REPLY.
-   7. runAgentForInbound:
-        a. brandAsset.findMany(take: 20) → existingAssets.
-        b. findInboundAgentInstanceForConnector(connectorInstanceId) → AgentInstance.
-           Queries AgentConnectorBinding where (connectorInstanceId, direction IN (INBOUND, BOTH)).
-           Returns "found" / "none" (→ EXTRACT_FAILED_REPLY) / "ambiguous" (→ same).
-           Binding row is seeded on ConnectorInstance creation (controller is the only
-           INBOUND binding in v0; more agents can take inbound by adding bindings).
-        c. buildContextSnapshot({ orgId, mission, newAssets, existingAssets, oversizeCount, getBusinessContext }).
-        d. renderSystemPrompt(controllerPrompt, snapshot) → systemPrompt.
-        e. createAgentRun({ agentInstanceId, contextSnapshot, systemPrompt, triggerMessageId,
-                            activityContext: { orgId, agentDisplayName, templateSlug } })
-             → emits AGENT_RUN_STARTED ActivityLog.
-        f. dispatcher.enqueueAndAwait({ ..., runId, systemPrompt, senderRole,
-                                       dispatchOrigin: { kind: "inbound",
-                                                         connectorInstanceId,
-                                                         externalThreadId: thread.id,
-                                                         triggerMessageExternalId: message.id } })
-             · Serial mode → runAgentInstance inline.
-             · Queue mode → jobId = "inbox:<connector>:<thread>:<msgId>"; coalesces duplicates;
-                            worker calls runAgentInstance.
-   8. [runtime] Controller runs. LLM calls delegateToSpecialist("marketing-strategist", subtask).
-        · validate "marketing-strategist" ∈ controller.canDelegateTo ✓
-        · ensureAgentInstance("marketing-strategist") (lazy)
-        · buildContextSnapshot for strategist (different mission, same asset window)
-        · createAgentRun({ parentRunId: controllerRun.id, ... }) → AGENT_RUN_STARTED
-        · dispatcher.enqueueAndAwait with dispatchOrigin: { kind: "delegation",
-                                                            parentRunId: controllerRun.id,
-                                                            childTemplateSlug: "marketing-strategist",
-                                                            subtaskHash }
-        · [runtime] Strategist runs. LLM calls delegateToSpecialist("designer", imageBrief).
-            · createAgentRun (parentRunId: strategistRun.id) → AGENT_RUN_STARTED
-            · dispatch → [runtime] Designer runs.
-                · LLM calls generateBrandImage({ prompt, aspectRatio })
-                · skill: getBrandContext → enrichPromptWithBrand → generateBrandImageBytes → ingestGeneratedAsset
-                · recordAgentAction(skillId="generateBrandImage", runId=designerRun.id,
-                                    senderRole="OWNER", success=true)
-                       → status = AUTO_APPROVED (owner-side) → ACTION_EXECUTED ActivityLog
-                · runtime returns { text, generatedAssetIds: [assetId], usage }
-            · finalizeAgentRun(designerRun) → AGENT_RUN_FINISHED
-        · finalizeAgentRun(strategistRun) → AGENT_RUN_FINISHED
-        · returns to Controller
-   9. [runtime] Controller LLM writes final pt-BR reply.
-        · recordAgentAction(skillId="delegateToSpecialist", runId=controllerRun.id) → ACTION_EXECUTED
-        · checkBudgetThresholds — Pino warn + BUDGET_WARN_* ActivityLog if ≥80/100%
-   10. finalizeAgentRun(controllerRun) → AGENT_RUN_FINISHED ActivityLog.
-   11. postAgentResult: for each generatedAssetIds id, fetch bytes from R2, then call
-       `adapter.sendOutbound({ connectorConfig, payload: { text, files }, threadId })`.
-       Image post failures fall back to a plain-text reply.
-   12. logger.info "connector message handled".
-```
-
-### Approval branch
-
-For CUSTOMER-side connectors (`senderRole === "CUSTOMER"`), step 8's `recordAgentAction(skillId="generateBrandImage")` resolves to **DRAFTED** instead of AUTO_APPROVED. The skill **still runs** (the tool call already executed); the row marks it as needing approval, and `ACTION_DRAFTED` lands in the ActivityLog. The four programmatic helpers in `agents/approvals.ts` (`approveAction`, `rejectAction`, `editAction`, `executeApprovedAction`) move the row through `APPROVED` / `EDITED` / `REJECTED` / `EXECUTED`. The UI that calls them doesn't exist yet — these are wired for the upcoming web app.
-
-### Error matrix
-
-| Failure                                              | Where                                    | Behaviour                                                                       |
-| ---------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
-| Telegram secret mismatch                             | Chat SDK adapter                         | 401 immediate; no DB write                                                      |
-| Duplicate webhook                                    | `markWebhookProcessed`                   | Early return + "duplicate" log                                                  |
-| Duplicate inbound while another is in flight (queue) | `BullMQDispatcher` (jobId coalesce)      | Second caller awaits the first's result                                         |
-| Identical subtask delegated twice (queue)            | Same                                     | Both delegations share one child run                                            |
-| Image download failure                               | `inbox/attachments`                      | Logged, skipped, other attachments continue                                     |
-| >20 MB image                                         | Same                                     | `oversizeCount++`, system prompt mentions it                                    |
-| Audio download failure                               | Same                                     | Posts DOWNLOAD_FAILED_REPLY                                                     |
-| Empty inbound                                        | `inbox/pipeline`                         | Posts EMPTY_TEXT_REPLY                                                          |
-| Unknown template                                     | `findTemplateBySlug`                     | Throws — startup `syncTemplates` should have caught it                          |
-| Delegation rejected (target ∉ canDelegateTo)         | `delegateToSpecialist`                   | Returns `{ ok: false, error }`; model sees it                                   |
-| Cycle attempt at boot                                | `validateCanDelegateTo`                  | Server refuses to start                                                         |
-| Image gen Gateway 5xx                                | `generateBrandImage`                     | Caught, returns `{ ok: false, error }`, logged                                  |
-| Inbound binding `none` / `ambiguous`                 | `findInboundAgentInstanceForConnector`   | Caller fails closed and logs (v0 expects exactly one binding)                   |
-| ActivityLog insert failure                           | `logActivity`                            | Swallowed; Pino error log. Never breaks the inbound path                        |
-| AgentRun finalize failure                            | `finalizeAgentRun` catch in `agent-step` | Separately logged; outer dispatch error still propagates                        |
-| Routine prompt-build or dispatch failure             | `routines/executor`                      | Caught; `lastRunStatus = "FAILED"`; ActivityLog ROUTINE_TRIGGERED still emitted |
+| Skill ID                 | Owner template(s)                | `requiresApprovalDefault` | Input shape (summary)                                | Purpose                                                                                                      |
+| ------------------------ | -------------------------------- | ------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `delegateToSpecialist`   | Controller, Marketing Strategist | `false`                   | `{ targetTemplateSlug, subtask }`                    | DAG hop. Validates `canDelegateTo`, builds child snapshot, creates child `AgentRun`, dispatches.             |
+| `extractSoul`            | Controller, Designer             | `false`                   | `{ patch: SoulPatch }`                               | Single-writer wrapper around `knowledge/apply.ts → applySoulUpdate`. Updates `Organization.businessProfile`. |
+| `labelBrandAsset`        | Designer                         | `false`                   | `{ assetId, labels[], colors[], style?, summary? }`  | Updates `BrandAsset.metadata`.                                                                               |
+| `generateBrandImage`     | Designer                         | **`true`**                | `{ prompt, aspectRatio: "1:1" \| "16:9" \| "9:16" }` | Nano Banana Pro (`env.IMAGE_GEN_MODEL`) via OpenRouter. Enriched with brand context. Persisted to R2.        |
+| `draftMarketingStrategy` | Marketing Strategist             | **`true`**                | `{ campaignBrief, channels[], targetAudience? }`     | Stub v0. CUSTOMER triggers ⇒ DRAFTED.                                                                        |
+| `searchKnowledge`        | Controller, Designer             | `false`                   | `{ query, limit? }`                                  | Prisma `contains` keyword search over `KnowledgeDoc`. Swap point for pgvector later.                         |
+| `readKnowledgeDoc`       | Controller, Designer             | `false`                   | `{ docId }`                                          | Reads `KnowledgeDoc` body from R2.                                                                           |
 
 ---
 
-## 7. External services (env-var map)
+## §7. The connector adapter pattern
 
-| Env var                         | Used by                                                                                 | What it does                                                                                                                 |
-| ------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | Prisma                                                                                  | Postgres connection. Local: docker-compose on `localhost:5436`. Prod: Railway.                                               |
-| `REDIS_URL`                     | Chat SDK + BullMQ                                                                       | Conversation state, BullMQ queues, JobScheduler state for routines.                                                          |
-| `TELEGRAM_BOT_TOKEN`            | `@chat-adapter/telegram`                                                                | Bot auth (inbound verify + outbound `sendMessage`/`sendDocument`).                                                           |
-| `TELEGRAM_BOT_USERNAME`         | Same                                                                                    | Mention detection.                                                                                                           |
-| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Same                                                                                    | Validates `X-Telegram-Bot-Api-Secret-Token`.                                                                                 |
-| `OPENROUTER_API_KEY`            | `lib/ai.ts` (agent runtime via `openrouter.chat()`) + `lib/image-gen.ts` (direct fetch) | Single AI key for all per-agent text models AND image generation. Replaces the pre-migration `AI_GATEWAY_API_KEY`.           |
-| `IMAGE_GEN_MODEL`               | `lib/image-gen.ts`                                                                      | OpenRouter id for the image model. Defaults to `google/gemini-3-pro-image-preview` (Nano Banana Pro). Hot-swappable via env. |
-| `WEB_APP_URL`                   | `lib/ai.ts` + `lib/image-gen.ts`                                                        | Optional. Sent as the OpenRouter `HTTP-Referer` header for dashboard attribution. Falls back to `https://qolmeia.ai`.        |
-| `R2_*` (6 vars)                 | `lib/storage.ts`                                                                        | Cloudflare R2 (S3-compatible) — brand assets + KnowledgeDocs.                                                                |
-| `DISPATCH_MODE`                 | `agents/main-dispatcher`                                                                | `serial` (default) or `queue`.                                                                                               |
-| `BULLMQ_CONCURRENCY`            | `workers/index.ts`                                                                      | Agent-runner worker concurrency (default 4).                                                                                 |
-| `BULLMQ_ROUTINE_CONCURRENCY`    | Same                                                                                    | Routine scheduler worker concurrency (default 2).                                                                            |
-| `CORS_ORIGINS`                  | Hono CORS                                                                               | Comma-separated allowed origins; defaults to `*`.                                                                            |
-
----
-
-## 8. The seams (and why they matter)
-
-Each seam isolates a layer so its implementation can change without touching callers. Single-writer / single-reader audit (run anytime):
-
-```bash
-grep -rn "businessProfile" apps/api/src       # ⇒ knowledge/apply.ts (writer) + knowledge/provider.ts (reader)
-grep -rn "agentInstructions" apps/api/src     # ⇒ knowledge/provider.ts (reader) + inbox/owner-commands.ts (writer)
-grep -rn "businessIdea" apps/api/src          # ⇒ knowledge/provider.ts (reader) + inbox/owner-commands.ts (writer)
-grep -rn "brandAsset.create" apps/api/src     # ⇒ knowledge/brand-asset.ts (both ingest functions)
-grep -rn "brandAsset.update" apps/api/src     # ⇒ agents/skills/label-brand-asset.ts
-grep -rn "agentInstance.upsert" apps/api/src  # ⇒ agents/agent-instance.ts
-grep -rn "agentAction.create" apps/api/src    # ⇒ agents/actions.ts (runtime path) + agents/approvals.ts (post-approval path)
-grep -rn "agentRun.create" apps/api/src       # ⇒ agents/runs.ts
-grep -rn "activityLog.create" apps/api/src    # ⇒ activity/log.ts
-grep -rn "routine.create" apps/api/src        # ⇒ routines/registry.ts (syncRoutines)
-grep -rn "as Skill<" apps/api/src             # ⇒ NOTHING — defineSkill killed the cast
-```
-
-| Seam                                                                      | Lives at                                                                              | What it hides                                                                      | What it enables                                                                  |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `getBusinessContext`                                                      | `knowledge/provider.ts`                                                               | Composition of `businessIdea` + `agentInstructions` + serialized `businessProfile` | Future RAG layering; new reserved-files                                          |
-| `applySoulUpdate`                                                         | `knowledge/apply.ts`                                                                  | Patch-merge transaction logic                                                      | Future audit log                                                                 |
-| `ingestBrandAsset` + `ingestGeneratedAsset`                               | `knowledge/brand-asset.ts`                                                            | SHA-256 dedup + R2 upload + Prisma row                                             | Virus scanning, thumbnails                                                       |
-| `getBrandContext` + `enrichPromptWithBrand`                               | `knowledge/brand-context.ts`                                                          | BrandAsset metadata aggregation + prompt composition                               | Future Marketing skills reuse the same brand pickup                              |
-| `ensureAgentInstance`                                                     | `agents/agent-instance.ts`                                                            | The AgentInstance upsert shape                                                     | Future invariants (cost gates, audit)                                            |
-| `findInboundAgentInstanceForConnector`                                    | `agents/agent-instance.ts`                                                            | Binding-table lookup with `none` / `ambiguous` resolution                          | Phase 6 routing: multiple agents per connector via OUTBOUND-only / BOTH bindings |
-| `runAgentInstance`                                                        | `agents/runtime.ts`                                                                   | `generateText` loop + tool wrap + action persistence + budget check                | Swap LLM provider; swap to streaming                                             |
-| `buildContextSnapshot`                                                    | `agents/context-snapshot.ts`                                                          | Snapshot composition                                                               | Replay; debug; deterministic re-runs                                             |
-| `createAgentRun` / `finalizeAgentRun`                                     | `agents/runs.ts`                                                                      | Run lifecycle + cost rollup + AGENT*RUN*\* ActivityLog                             | Future status hooks (e.g., notify-on-finish webhooks)                            |
-| `recordAgentAction` + `resolveActionStatus`                               | `agents/actions.ts`                                                                   | Approval rule application                                                          | Per-skill / per-org overrides                                                    |
-| `approveAction` / `rejectAction` / `editAction` / `executeApprovedAction` | `agents/approvals.ts`                                                                 | DRAFTED → APPROVED/EDITED/REJECTED → EXECUTED transitions                          | The web UI's exit door from the approval queue                                   |
-| `aggregateSteps`                                                          | `agents/step-aggregator.ts`                                                           | AI SDK v6 `step.content[]` walking                                                 | Provider swap                                                                    |
-| `renderSystemPrompt`                                                      | `agents/templates/renderer.ts`                                                        | Placeholder substitution                                                           | New templates with different placeholders                                        |
-| `createSerialDispatcher` / `createBullMQDispatcher`                       | `agents/dispatcher.ts` + `agents/bullmq-dispatcher.ts`                                | Sync vs async execution                                                            | `main-dispatcher` selects via `env.DISPATCH_MODE`                                |
-| `buildCoalesceKey`                                                        | `agents/dispatcher.ts`                                                                | Jobid derivation from `DispatchOrigin`                                             | Tunable dedup window (currently jobId-based, BullMQ-native)                      |
-| `defineSkill<T>`                                                          | `agents/skills/types.ts`                                                              | The Skill shape constraints                                                        | New skills are type-safe by construction                                         |
-| `findTemplateBySlug` / `findSkillById` / `findRoutineByName`              | `agents/templates/registry.ts` + `agents/skills/registry.ts` + `routines/registry.ts` | In-code registries                                                                 | DB tables seeded from these; registry is canonical                               |
-| `validateCanDelegateTo`                                                   | `agents/templates/registry.ts`                                                        | Acyclic + reference-integrity check                                                | Boot refuses to start with a broken graph                                        |
-| `logActivity`                                                             | `activity/log.ts`                                                                     | Single write-point for ActivityLog                                                 | Future fan-out: Streams bus, webhooks                                            |
-| `getRecentActivity`                                                       | `activity/query.ts`                                                                   | Clamped read with ordering                                                         | The web UI's timeline endpoint                                                   |
-| `reconcileRoutines`                                                       | `routines/reconcile.ts`                                                               | BullMQ JobScheduler ↔ Routine row reconciliation                                   | Boot + every /ligar/desligar                                                     |
-| `executeRoutine`                                                          | `routines/executor.ts`                                                                | Routine fire (load row → build prompt → dispatch → update last-run)                | The single entry point shared by the scheduler worker and the `/correr` command  |
-| `getAdapter`                                                              | `connectors/registry.ts`                                                              | Total `Record<ConnectorType, ConnectorAdapter>` lookup                             | Inbound pipeline migration off Chat SDK (see §16)                                |
-
----
-
-## 9. Phase history
-
-| Phase                          | What it shipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Why discrete                                                                                                                                                                      |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0**                          | Pruned a generic Turborepo template down to a Telegram-only API; renamed to `qolmeia`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | One mechanical commit.                                                                                                                                                            |
-| **1**                          | Foundation: Telegram webhook (Chat SDK), Prisma schema with core models, `KnowledgeProvider` seam, fixed pt-BR ack.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Pipe before AI.                                                                                                                                                                   |
-| **2 / 2.5**                    | Audio → soul via `generateObject`; single AI key. Conversational replies (LLM writes every reply); 5 sharpened soul fields.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Adds the constrained AI seam.                                                                                                                                                     |
-| **3**                          | R2 brand assets + tool calling. `generateObject` → `generateText({ tools })`. Two tools: `extractSoul`, `labelBrandAsset`. SHA-256 dedup.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Two tools made the abstraction worthwhile.                                                                                                                                        |
-| **4**                          | Third tool `generateBrandImage` via gpt-image-1. `thread.post({ files, markdown })`. AI SDK v6 step-aggregation fix.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Closes the voice → soul → image loop.                                                                                                                                             |
-| **5a**                         | Six Prisma models (`AgentTemplate`, `AgentInstance`, `Skill`, `ConnectorInstance`, `AgentConnectorBinding`, `AgentAction`) + enums. Additive `Conversation.connectorInstanceId`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Schema atomic, then code.                                                                                                                                                         |
-| **5b / 5c / 5d**               | Skills extraction; generic runtime + Designer template; dispatcher seam; Controller template + `delegateToSpecialist` + acyclic validation. Two agents, one delegation, full chain.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | One template at a time.                                                                                                                                                           |
-| **Refactor pass**              | Five deepening refactors (handler decomp into `inbox/`, `defineSkill<T>`, runtime split, brand-context extracted, `ensureAgentInstance` centralized). +25 tests, no behavior change.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Structural debt cleanup.                                                                                                                                                          |
-| **KR · Knowledge Registry**    | `KnowledgeDoc` model + `searchKnowledge` / `readKnowledgeDoc` skills.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Parallel surface for unstructured docs.                                                                                                                                           |
-| **5e**                         | Marketing Strategist template + `draftMarketingStrategy` stub. 3-level delegation DAG (Controller → MarketingStrategist → Designer).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Existing seams absorbed it.                                                                                                                                                       |
-| **5f**                         | `agents/actions.ts` + `agents/cost.ts`. Runtime persists one AgentAction per tool call (AUTO_APPROVED in v0). Per-action cost + 80/100% soft-warn.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Schema was in place since 5a.                                                                                                                                                     |
-| **5g**                         | `agents/bullmq-dispatcher.ts` + `workers/{agent-runner,index}.ts`. Selects Serial or BullMQ via `env.DISPATCH_MODE`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Dispatcher seam ⇒ single-file policy change.                                                                                                                                      |
-| **5h**                         | `POST /connectors/telegram/:connectorInstanceId/webhook` route + ConnectorInstance preference (TelegramLink fallback). Backfill migrated the existing TelegramLink row.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Activates the 5a schema.                                                                                                                                                          |
-| **Controller pivot** (566e07c) | Controller went from orchestrator-chef to **briefing-gatherer**: explicit-invocation router; default skills now include `extractSoul`, `searchKnowledge`, `readKnowledgeDoc`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Prompt-shape change; no code restructure.                                                                                                                                         |
-| **Restructure — Group 1**      | Phase 5i cleanup (deleted legacy `/telegram/webhook` route + `TelegramLink` fallback codepath); `findInboundAgentInstanceForConnector` reads `AgentConnectorBinding(direction)` — no more hardcoded `templateSlug: "controller"`; binding seed on ConnectorInstance creation + backfill script; `connectors/<type>/adapter.ts` scaffold (`ConnectorAdapter` interface, real Telegram adapter, WhatsApp Meta-Cloud parser stub, Fresha typed placeholder).                                                                                                                                                                                                                                                                                                                  | Schema was ready; route and routing logic finally caught up. Adapter scaffold reserves the seam without touching the inbound pipeline yet.                                        |
-| **Restructure — Group 2**      | `Organization.agentInstructions` + `Organization.businessIdea` reserved files (owner-only, rendered by `KnowledgeProvider` BEFORE the AI-extracted soul; `/instrucoes` and `/ideia` Telegram commands); BullMQ dispatcher coalescing via deterministic `jobId` (inbound + delegation); `AgentSkillEnablement` join table replaces `AgentInstance.enabledSkillIds: Json?` array (one-shot migration script).                                                                                                                                                                                                                                                                                                                                                                | Foundation for owner control over agent context + cheap dedup without app-side locks + structured per-skill metadata.                                                             |
-| **Restructure — Group 3**      | `AgentRun` model (parent of `AgentAction`); `buildContextSnapshot` at dispatch time (runtime stops loading context); `createAgentRun` / `finalizeAgentRun` lifecycle. `ActivityLog` unified timeline (15 event types, 5 ref types); write-points in pipeline, runs, runtime, cost, owner-commands, routine executor. Customer-side approval rule ACTIVATED: `resolveActionStatus` flips `generateBrandImage` + `draftMarketingStrategy` to DRAFTED for CUSTOMER; `agents/approvals.ts` provides 4 programmatic helpers. `Routine` model + BullMQ JobScheduler-based scheduler (`routines/*` + `workers/routine-scheduler.ts` + seed `nightly-knowledge-summary` + `/rotinas`, `/ligar`, `/desligar`, `/correr` commands; explicit seeding via `scripts/sync-routines.ts`). | Three independent runtime additions that complete the spec's behaviour surface: replayable runs, an owner-facing timeline, customer-safe approvals, and proactive scheduled work. |
-
----
-
-## 10. Roadmap
-
-| Next                                                               | Adds                                                                                                                                                                                                                                                                                                                      | Where the seam already supports it                                                                                                                                                               |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **v0 web UI**                                                      | Owner dashboard, **approval queue UI** (filters `AgentAction.status = DRAFTED` and calls the 4 `approvals.ts` helpers; the schema target is now concrete), onboarding wizard, KnowledgeDoc upload form, **ActivityLog timeline view** (consumes `getRecentActivity`), EQUIPE per-agent detail.                            | Schema is ready. `approvals.ts` and `activity/query.ts` are wired; only the HTTP + React surface is missing.                                                                                     |
-| **Customer-facing connectors**                                     | Real WhatsApp / Fresha / Google My Business adapters with `senderRole = CUSTOMER`. **The approval rule is already active** — flipping a ConnectorInstance.senderRole to CUSTOMER instantly routes `generateBrandImage` and `draftMarketingStrategy` calls to DRAFTED. Needs: ConnectorInstance + binding + inbound route. | `ConnectorAdapter` is implemented for Telegram, WhatsApp parses Meta Cloud webhooks. `findInboundAgentInstanceForConnector` already binding-routes. `resolveActionStatus` already gates DRAFTED. |
-| **WhatsApp follow-up**                                             | `routes/connectors/whatsapp.ts` route + `WhatsAppAdapter.sendOutbound` implementation + provisioning a real `ConnectorInstance(type: WHATSAPP)` for the org.                                                                                                                                                              | Adapter parses inbound; registry slot exists; pipeline needs to call `getAdapter(type).parseInboundPayload` instead of Chat SDK directly.                                                        |
-| **More routines**                                                  | Currently 1 seeded (`nightly-knowledge-summary`). Add: weekly content calendar, monthly cost-review digest, reactivation outreach to dormant customers.                                                                                                                                                                   | `RoutineDefinition` is the only shape needed; add a file under `routines/`, register in `ALL_ROUTINES`, re-run `sync-routines.ts`.                                                               |
-| **pgvector for `searchKnowledge`**                                 | Replace the Prisma `contains` keyword search with semantic retrieval.                                                                                                                                                                                                                                                     | Skill's input/output shape is stable (`{ query, limit } → { matches }`). Add a vector column to `KnowledgeDoc`, populate on `createKnowledgeDoc`, similarity search in the skill.                |
-| **Inbound through ConnectorAdapter**                               | Stop routing inbound through Chat SDK; call `getAdapter(type).parseInboundPayload(raw, connectorConfig)` from the route handler; let the pipeline drive `NormalizedMessage`.                                                                                                                                              | Adapter interface + Telegram implementation exist. Pipeline already takes `senderRole + connectorInstanceId`. The only missing piece is the route handler swap.                                  |
-| **`triggerMessageId` + `parentActionId` threading on AgentAction** | Pre-existing schema fields not yet written by the runtime path. Backfill from `AgentRun.triggerMessageId` and the delegation chain.                                                                                                                                                                                       | All upstream values are in scope inside `runtime.ts`; threading 2 more strings to `recordAgentAction` is mechanical.                                                                             |
-
----
-
-## 11. Log line decoder
-
-`connector message handled` is the success line in `inbox/pipeline.ts`. Same shape as before, plus the new `runId` and `channel` (display label):
-
-```json
-{
-  "level": 30,
-  "time": 1779249880917,
-  "env": "development",
-  "chatId": "telegram:2037927176",
-  "messageId": "2037927176:839200000",
-  "newAssetIds": [],
-  "generatedAssetIds": ["cmpdjfrpq0002i..."],
-  "oversizeCount": 0,
-  "toolCallSummary": {
-    "delegateToSpecialist": 1,
-    "extractSoul": 0,
-    "generateBrandImage": 0,
-    "labelBrandAsset": 0
-  },
-  "replyLength": 168,
-  "tokensIn": 1252,
-  "tokensOut": 44,
-  "msg": "connector message handled"
-}
-```
-
-Note: when the Controller delegates to a specialist, its `toolCallSummary.generateBrandImage` is 0 — the image-gen happened inside the Designer's run. `generatedAssetIds` gets populated via the aggregator's spread from the delegation tool-result's `output.generatedAssetIds`.
-
-Failure lines: `audio.download_failed`, `image.download_failed`, `image.ingest_failed`, `delegateToSpecialist.unauthorized`, `delegateToSpecialist.unknown_template`, `delegateToSpecialist.failed`, `generateBrandImage.failed`, `generated_image.post_failed`, `handler.failed`, `handler.reply_failed`, `agentRun.finalize.failed`, `bullmq-dispatcher.job_failed`, `routines.execute.unknown_definition`, `routines.scheduler-control.reconcile_failed`, `activityLog.write.failed`.
-
-### ActivityLog rows — the durable counterpart to Pino
-
-Pino logs are the source of truth for ops (Loki/Datadog). `ActivityLog` is the **business-facing** stream: pt-BR summaries that the web UI renders. Sample rows for the Black Friday walk-through above:
-
-| `type`               | `refType`      | `refId`           | `summary`                                        | `payload` (abridged)                                                                                |
-| -------------------- | -------------- | ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `MESSAGE_INBOUND`    | `MESSAGE`      | `msg_<id>`        | "Mensagem recebida via Telegram"                 | `{ contentType: "TEXT", attachmentCount: 0, externalMessageId }`                                    |
-| `AGENT_RUN_STARTED`  | `AGENT_RUN`    | `run_ctrl`        | "Agente Controller iniciou"                      | `{ agentInstanceId, templateSlug: "controller", parentRunId: null, triggerMessageId, mission: "" }` |
-| `AGENT_RUN_STARTED`  | `AGENT_RUN`    | `run_strat`       | "Agente Marketing Strategist iniciou"            | `{ parentRunId: "run_ctrl", ... }`                                                                  |
-| `AGENT_RUN_STARTED`  | `AGENT_RUN`    | `run_designer`    | "Agente Designer iniciou"                        | `{ parentRunId: "run_strat", ... }`                                                                 |
-| `ACTION_EXECUTED`    | `AGENT_ACTION` | `act_genimg`      | "Skill Generate Brand Image executada"           | `{ skillId: "generateBrandImage", costCents: 22, runId: "run_designer" }`                           |
-| `AGENT_RUN_FINISHED` | `AGENT_RUN`    | `run_designer`    | "Agente Designer concluiu em 4280ms"             | `{ costCents, costInputTokens, costOutputTokens, durationMs }`                                      |
-| `ACTION_EXECUTED`    | `AGENT_ACTION` | `act_deleg_dsg`   | "Skill Delegate to Specialist executada"         | `{ skillId: "delegateToSpecialist", runId: "run_strat" }`                                           |
-| `AGENT_RUN_FINISHED` | `AGENT_RUN`    | `run_strat`       | "Agente Marketing Strategist concluiu em 5910ms" | ...                                                                                                 |
-| `ACTION_EXECUTED`    | `AGENT_ACTION` | `act_deleg_strat` | "Skill Delegate to Specialist executada"         | `{ skillId: "delegateToSpecialist", runId: "run_ctrl" }`                                            |
-| `AGENT_RUN_FINISHED` | `AGENT_RUN`    | `run_ctrl`        | "Agente Controller concluiu em 7240ms"           | ...                                                                                                 |
-
-CUSTOMER-side variant (same trigger, `senderRole = CUSTOMER`): `ACTION_EXECUTED` for `generateBrandImage` becomes `ACTION_DRAFTED` with summary `"Skill Generate Brand Image aguardando aprovação"`. Owner-command variant: `OWNER_COMMAND` → ROUTINE_ENABLED, INSTRUCTIONS_UPDATED, etc.
-
----
-
-## 12. Where the spec/plan history lives
-
-```
-docs/superpowers/specs/  ← what to build (decisions, schema, prompts, error modes)
-docs/superpowers/plans/  ← how to build it (per-task with full code + commit checklists)
-```
-
-Filenames: `YYYY-MM-DD-<phase>-<topic>-{design,implementation}.md`. Multi-agent overall spec: `docs/superpowers/specs/2026-05-20-qolmeia-multi-agent-architecture-design.md`. Restructure motivation: `docs/research/2026-05-20-paperclip-and-multica.md`.
-
----
-
-## 13. Testing & quality bar
-
-- **275 tests** (266 api + 9 db) after the restructure (was 140+4 at pre-restructure HEAD `8371163`). **70+ new test files** across the three groups, covering: the connector adapter set, AgentSkillEnablement-driven skill resolution, AgentRun lifecycle, ContextSnapshot construction, ActivityLog writes (per write-point), approval helpers, routines (registry/executor/reconcile/scheduler-control/nightly-knowledge-summary), owner-commands (every subcommand + senderRole gating), BullMQ coalescing, and the senderRole-aware action status resolver.
-- Mocked at seams (AI SDK, R2 SDK, Prisma); no live calls in CI.
-- Integration tests in `packages/db/src/__tests__/` against the local docker Postgres (now 9, including Phase 5a + the new Group-2/3 models).
-- Lint: oxlint. 0/0.
-- Format: oxfmt.
-- Type-check: `tsc --noEmit` across all packages via Turbo. Strict mode.
-- Dead-code check: `pnpm fallow:dead` exits 0.
-
-Run everything:
-
-```bash
-pnpm install
-pnpm build && pnpm lint && pnpm typecheck && pnpm test && pnpm fallow:dead
-```
-
----
-
-## 14. Local dev
-
-```bash
-docker compose up -d                    # Postgres :5436 + Redis :6382
-pnpm dev --filter=api                   # tsdown watch + auto-restart
-# Optional second terminal — only needed when DISPATCH_MODE=queue OR you want
-# routine schedulers running locally:
-pnpm dev --filter=api dev:worker        # agent-runner + routine-scheduler
-cloudflared tunnel --url http://localhost:4000
-
-set -a; source apps/api/.env; set +a
-TUNNEL="https://<paste-from-cloudflared>"
-# Replace <connectorInstanceId> with the row for your Telegram chat (visible
-# in the connector_instance table after first run).
-curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
-  -d "url=${TUNNEL}/connectors/telegram/<connectorInstanceId>/webhook" \
-  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET_TOKEN}"
-
-# Optional one-time seed of paused-by-default routines:
-pnpm tsx apps/api/src/scripts/sync-routines.ts            # all orgs
-pnpm tsx apps/api/src/scripts/sync-routines.ts <orgSlug>  # one org
-```
-
-`syncSkills` + `syncTemplates` run at boot. First message triggers the lazy-create chain (`AgentInstance` for Controller via handler; for Designer / Marketing Strategist via delegation). Routine rows must be seeded explicitly. The routine scheduler reconciles on worker boot and on every `/ligar` / `/desligar`.
-
----
-
-## 15. One-line summary for the next engineer
-
-> Telegram webhook hits `POST /connectors/telegram/:connectorInstanceId/webhook` → Chat SDK → `inbox/pipeline` (owner-command short-circuit; otherwise dedup → ConnectorInstance lookup with senderRole → persist + ActivityLog → attachments → `agent-step` builds the ContextSnapshot, creates an AgentRun, dispatches through `main-dispatcher` which is Serial inline OR BullMQ with deterministic jobId coalescing) → `runtime.runAgentInstance` reads its systemPrompt + runId + senderRole from args, resolves enabled skills via `AgentSkillEnablement` (or template defaults), runs `generateText`, persists one AgentAction per tool call (status from `resolveActionStatus(senderRole, requiresApproval)` — owner auto-approves, CUSTOMER on approval-gated skills lands DRAFTED), emits one ActivityLog per action plus budget warnings → Controller delegates to specialists via `delegateToSpecialist` (which builds the child snapshot, creates a child AgentRun linked via `parentRunId`, and re-enters the dispatcher with a delegation coalesce key) → results bubble up through the step-aggregator → Controller writes the final pt-BR reply → handler posts text + any generated images back to Telegram. In parallel, a routine-scheduler worker reads `Routine` rows (paused-by-default, owner-flipped via `/ligar`), upserts BullMQ JobSchedulers, and the routine executor fires on cron through the same AgentRun lifecycle. `agents/approvals.ts` exposes `approve / reject / edit / executeApproved` as programmatic exits from the approval queue — the web UI hasn't shipped yet. 275 tests; never silent-fails; single AI key (OpenRouter — per-agent text models, Nano Banana Pro for image gen); Prisma + Postgres for data, R2 for binaries, Redis for Chat SDK state, BullMQ jobs, and JobScheduler state. No more legacy route, no more hardcoded controller routing, no more `Json?` skill arrays, no more runtime-side context loading.
-
----
-
-## 16. Connector adapter pattern
-
-`ConnectorAdapter` is the canonical interface for every inbound channel. The Chat SDK is no longer in the inbound call path — adapters use native `fetch` against the provider's HTTP API. The workspace still ships `@chat`, `@chat-adapter/telegram`, and `@chat-adapter/state-redis` so future adapters can opt into it internally if they want session state or routing helpers.
-
-### The interface
-
-`apps/api/src/connectors/types.ts`:
+[`apps/api/src/connectors/types.ts`](../apps/api/src/connectors/types.ts) defines the canonical inbound contract. Every channel — Telegram, WhatsApp, in-app web chat — implements this interface; the pipeline never sees provider payloads.
 
 ```ts
 type ConnectorAdapter = {
   capabilities: { inbound: boolean; outbound: boolean };
-  parseInboundPayload: (raw: unknown, connectorConfig: unknown) => Promise<NormalizedMessage>;
-  sendOutbound: (args: SendOutboundArgs) => Promise<{ externalMessageId: string }>;
   type: ConnectorType;
-  validateConfig: (config: unknown) => ConfigValidationResult;
-  // Optional inbound webhook hooks.
-  verifyChallenge?: (args: VerifyChallengeArgs) => Promise<VerifyChallengeResult>;
-  verifySignature?: (args: VerifySignatureArgs) => Promise<boolean>;
+  validateConfig: (config: unknown) => { valid: true } | { errors: string[]; valid: false };
+  parseInboundPayload: (raw: unknown, connectorConfig: unknown) => Promise<NormalizedMessage>;
+  sendOutbound: (args: {
+    connectorConfig;
+    payload: { text?; files? };
+    threadId;
+  }) => Promise<{ externalMessageId }>;
+  verifySignature?: (args: {
+    connectorConfig;
+    headers: Headers;
+    rawBody: string;
+  }) => Promise<boolean>;
+  verifyChallenge?: (args: {
+    connectorConfig;
+    query: URLSearchParams;
+  }) => Promise<{ valid; challenge? }>;
 };
 
 type NormalizedMessage = {
   attachments: ReadonlyArray<NormalizedAttachment>;
   authorDisplayName: string | null;
-  externalId: string; // provider-native message id (dedup)
+  externalId: string; // provider-native message id — drives dedup
   externalThreadId: string; // provider-native thread/chat id
-  rawTimestamp: number; // ms (adapters normalize from seconds)
+  rawTimestamp: number; // ms (adapters normalise from seconds)
   text: string | null;
 };
-
-type NormalizedAttachment = {
-  bytes?: Uint8Array; // preferred when the provider includes bytes inline
-  kind: "audio" | "document" | "image";
-  mimeType?: string;
-  sizeBytes: number;
-  url?: string; // fallback for providers that ship URLs
-};
 ```
 
-### Current state
+### Registry state
 
-| ConnectorType        | Adapter file                           | Inbound                                                                                                       | Outbound                                                             | Wired into pipeline? |
-| -------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------- |
-| `TELEGRAM`           | `connectors/telegram/adapter.ts`       | full (text/photo/voice/doc)                                                                                   | full (sendMessage + sendDocument via native fetch)                   | YES                  |
-| `WHATSAPP`           | `connectors/whatsapp/adapter.ts`       | parses Meta Cloud API webhooks                                                                                | text-only via Meta Cloud API; files = TODO                           | YES                  |
-| `WEB_CHAT`           | `connectors/web-chat/adapter.ts`       | accepts shape `{conversationId, text, attachments}` from `POST /api/v1/web-chat/messages` (no remote webhook) | persists Message rows directly + publishes on `web-chat-bus` for SSE | YES                  |
-| `FRESHA`             | `connectors/fresha/adapter.ts`         | `NotImplementedError`                                                                                         | `NotImplementedError`                                                | NO                   |
-| `GOOGLE_MY_BUSINESS` | `connectors/registry.ts` (placeholder) | `NotImplementedError`                                                                                         | `NotImplementedError`                                                | NO                   |
-| `INSTAGRAM`          | `connectors/registry.ts` (placeholder) | `NotImplementedError`                                                                                         | `NotImplementedError`                                                | NO                   |
+[`apps/api/src/connectors/registry.ts`](../apps/api/src/connectors/registry.ts) is **total** over `ConnectorType` — `getAdapter(type)` always returns an adapter. Placeholders throw `NotImplementedError`.
 
-The registry is **total over `ConnectorType`** — `getAdapter(type)` always returns an adapter. Placeholders throw `NotImplementedError` with a deterministic message; `validateConfig` reports invalid upfront.
+| ConnectorType        | Adapter file                     | Inbound                                                                                                    | Outbound                                                                | Live? |
+| -------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----- |
+| `TELEGRAM`           | `connectors/telegram/adapter.ts` | Full — text + photo + voice + document; `verifySignature` checks Telegram secret.                          | Full — `sendMessage` + `sendDocument` via native `fetch`.               | Yes   |
+| `WHATSAPP`           | `connectors/whatsapp/adapter.ts` | Parses Meta Cloud API webhooks; `verifyChallenge` + `verifySignature` (HMAC).                              | Text only via Graph API; file outbound is stub.                         | Yes   |
+| `WEB_CHAT`           | `connectors/web-chat/adapter.ts` | No provider — adapter accepts `{conversationId, text, attachments}` from `POST /api/v1/web-chat/messages`. | Persists `Message` rows directly + publishes on `web-chat-bus` for SSE. | Yes   |
+| `FRESHA`             | `connectors/fresha/adapter.ts`   | `NotImplementedError`                                                                                      | `NotImplementedError`                                                   | No    |
+| `GOOGLE_MY_BUSINESS` | placeholder in `registry.ts`     | `NotImplementedError`                                                                                      | `NotImplementedError`                                                   | No    |
+| `INSTAGRAM`          | placeholder in `registry.ts`     | `NotImplementedError`                                                                                      | `NotImplementedError`                                                   | No    |
 
-### Live route status
+### The generic route
 
-- **Generic inbound**: `routes/connectors/index.ts` serves `POST /connectors/:type/:connectorInstanceId/webhook` and `GET /connectors/:type/:connectorInstanceId/webhook`. The handler resolves the `ConnectorInstance`, calls `adapter.verifySignature` (when defined), then `adapter.parseInboundPayload`. Unparseable updates (delivery receipts, status events) return 200 so providers don't retry. Successful parses are handed to `handleInbound({ connectorInstance, normalizedMessage })`.
-- **Telegram**: `telegramAdapter.verifySignature` checks `X-Telegram-Bot-Api-Secret-Token` against `connectorConfig.secretToken`. Outbound uses native `fetch` against `sendMessage` / `sendDocument`. No Chat SDK involvement on the live path.
-- **WhatsApp**: `whatsappAdapter.verifyChallenge` performs Meta's `hub.verify_token` handshake. `verifySignature` checks `X-Hub-Signature-256` (HMAC-SHA256 with `appSecret`); lenient when `appSecret` is absent. `sendOutbound` posts text messages via `graph.facebook.com/v18.0/<phoneNumberId>/messages`. File outbound is TODO (Meta's two-step `/media` upload).
-- Seed: `apps/api/src/scripts/seed-whatsapp-connector.ts` creates the `ConnectorInstance(WHATSAPP, senderRole=CUSTOMER)` and prints the webhook URL + verify token for the operator to paste into Meta's dashboard. It does **not** auto-create an `AgentConnectorBinding` — CUSTOMER channels are approval-gated.
+[`apps/api/src/routes/connectors/index.ts`](../apps/api/src/routes/connectors/index.ts) serves `GET /connectors/:type/:connectorInstanceId/webhook` (verification handshake) and `POST /connectors/:type/:connectorInstanceId/webhook` (inbound payloads). The handler:
+
+1. Maps the lowercase URL slug to `ConnectorType` via `KNOWN_CONNECTOR_TYPES`.
+2. Resolves `ConnectorInstance` (404s if missing or wrong type).
+3. Calls `adapter.verifySignature` (401s on failure).
+4. Parses the JSON body and calls `adapter.parseInboundPayload`. Parse failure ⇒ 200 OK (delivery receipts, status updates).
+5. Hands the resulting `NormalizedMessage` + `ConnectorInstance` to `handleInbound`.
+
+### Adding a new connector
+
+1. Add the enum value to `ConnectorType` in `schema.prisma` + `pnpm db:push`.
+2. Create `apps/api/src/connectors/<name>/adapter.ts` implementing `ConnectorAdapter`.
+3. Register it in `ADAPTERS` in `connectors/registry.ts`.
+4. Add the lowercase slug to `KNOWN_CONNECTOR_TYPES` in `routes/connectors/index.ts`.
+5. Provision a `ConnectorInstance` row (per-org config + senderRole) + a seeded `AgentConnectorBinding` so the pipeline can route inbound.
 
 ---
 
-## 17. Reserved files — `agentInstructions` + `businessIdea`
+## §8. The inbound request lifecycle
 
-Borrowed wholesale from Paperclip's plugin-llm-wiki pattern (see `docs/research/2026-05-20-paperclip-and-multica.md` §2.4). The owner needs free-form fields that no agent or skill can ever overwrite — onboarding context that lives ABOVE the AI-extracted soul.
+Customer types in the client app composer. End-to-end through the WEB_CHAT path (the most illustrative — it exercises SSE).
 
-### Schema (`Organization`)
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Customer
+  participant UI as apps/client Chat
+  participant API as routes/v1/web-chat
+  participant ADP as web-chat adapter
+  participant PIPE as inbox/pipeline
+  participant ING as inbox/ingest
+  participant STEP as inbox/agent-step
+  participant DISP as main-dispatcher
+  participant RUN as runtime.runAgentInstance
+  participant CTRL as Controller agent
+  participant DES as Designer agent
+  participant BUS as web-chat-bus
+  participant SSE as SSE stream
+  participant DB as Postgres
+  participant R2
 
-```prisma
-agentInstructions String?  @db.Text   // AGENTS.md equivalent — how the AI workforce should behave
-businessIdea      String?  @db.Text   // IDEA.md equivalent — owner's direction for the business
-businessProfile   Json?              // AI-extracted soul (unchanged) — written by extractSoul
+  Customer->>UI: types message + submit
+  UI->>UI: optimistic insert (local-<ts>)
+  UI->>API: POST /api/v1/web-chat/messages<br/>{conversationId, text}
+  API->>API: requireCustomer guard (cookie)
+  API->>ADP: parseInboundPayload(raw)
+  ADP-->>API: NormalizedMessage<br/>(externalId = uuid())
+
+  API->>PIPE: handleInbound({connectorInstance, normalizedMessage})
+
+  PIPE->>ING: markWebhookProcessed
+  ING->>DB: insert WebhookEvent (unique on provider+externalId)
+  PIPE->>ING: resolveOrgAndConversation
+  ING-->>PIPE: {orgId, conversationId, senderRole: CUSTOMER}
+
+  PIPE->>DB: persistInboundMessage(Message)
+  PIPE->>DB: logActivity MESSAGE_INBOUND
+
+  PIPE->>STEP: runAgentForInbound
+  STEP->>DB: findInboundAgentInstanceForConnector<br/>(reads AgentConnectorBinding)
+  STEP->>STEP: buildContextSnapshot<br/>(getBusinessContext + assets + mission)
+  STEP->>STEP: renderSystemPrompt
+  STEP->>DB: createAgentRun → AGENT_RUN_STARTED
+  STEP->>DISP: enqueueAndAwait({runId, systemPrompt, senderRole: CUSTOMER, ...})
+
+  DISP->>RUN: runAgentInstance(Controller)
+  RUN->>RUN: generateText with tools
+  CTRL->>CTRL: tool-call delegateToSpecialist(designer, "...")
+  RUN->>DISP: dispatcher.enqueueAndAwait (delegation child)
+  DISP->>RUN: runAgentInstance(Designer)
+  DES->>DES: tool-call generateBrandImage
+  DES->>R2: upload PNG bytes
+  DES->>DB: insert BrandAsset
+  RUN->>DB: recordAgentAction(generateBrandImage)<br/>resolveActionStatus(CUSTOMER, true) → DRAFTED
+  RUN->>DB: logActivity ACTION_DRAFTED
+  RUN-->>DISP: AgentRunResult
+
+  DISP-->>STEP: AgentRunResult (Controller)
+  STEP->>DB: finalizeAgentRun → AGENT_RUN_FINISHED
+
+  PIPE->>ADP: sendOutbound({payload: {text}, threadId: conversationId})
+  ADP->>DB: insert Message (sender: AGENT)
+  ADP->>BUS: publish({type: "message", message})
+  BUS-->>SSE: subscribers receive event
+  SSE-->>UI: EventSource onmessage
+  UI->>UI: replace local-<ts> with server row<br/>(dedup by id)
+  UI-->>Customer: agent reply rendered
+
+  PIPE->>DB: logActivity MESSAGE_OUTBOUND
 ```
 
-### Read path
+The Telegram + WhatsApp path is identical except the route is `/connectors/:type/:id/webhook` (signature-verified by the adapter, not cookie-guarded), and `sendOutbound` hits the provider's HTTP API instead of `web-chat-bus`.
 
-`knowledge/provider.ts → getBusinessContext(orgId)` renders sections in this order:
+### Approval branch
 
-````
-## Ideia do negócio (definida pelo dono)
-<businessIdea>
-
-## Instruções para a equipe de IA (definidas pelo dono)
-<agentInstructions>
-
-# Business Context
-```json
-<businessProfile>
-````
-
-```
-
-Owner-curated content comes **first** so the model anchors on it before the AI-extracted summary.
-
-### Write path
-
-| Field               | Owner UX (today)                              | Future UX                | Skills can write? |
-| ------------------- | --------------------------------------------- | ------------------------ | ----------------- |
-| `agentInstructions` | `/instrucoes` (read) / `/instrucoes <text>` (set) | Web settings page        | **No**            |
-| `businessIdea`      | `/ideia` (read) / `/ideia <text>` (set)       | Web settings page        | **No**            |
-| `businessProfile`   | `extractSoul` skill (AI-curated)              | Web inspector + edit     | Yes (via `applySoulUpdate`) |
-
-The owner-command handler gates by `senderRole === "OWNER"` — `inbox/pipeline.ts` short-circuits the agent runtime when an owner sends a recognised slash command. Customer-side connectors can't reach these write paths because `parseOwnerCommand` only runs in the OWNER branch.
-
-### Emitted ActivityLog rows
-
-- `INSTRUCTIONS_UPDATED` (refType: ORGANIZATION) on every `/instrucoes <text>` write.
-- `BUSINESS_IDEA_UPDATED` (refType: ORGANIZATION) on every `/ideia <text>` write.
-- `OWNER_COMMAND` (refType: MESSAGE) on every owner-command receipt — including the read-only `/instrucoes` / `/ideia` lookups.
+When `senderRole === "CUSTOMER"` and the skill has `requiresApprovalDefault: true`, step 8 of the runtime persists `AgentAction.status = DRAFTED` instead of `AUTO_APPROVED`. The tool **still executes** (the image lands in R2; the strategy is generated); the DRAFTED row records the proposed input + result for owner review. The approval editor in the backoffice (`/approvals/[id]`) renders the row, lets the operator edit/approve/reject, and calls the programmatic helpers in `agents/approvals.ts`.
 
 ---
 
-## 18. Approval flow
+## §9. Authentication + authorization
 
-Phase 5 §8 lays out the rule; Group 3.3 activated it.
+### Better Auth
 
-### The rule (`agents/actions.ts → resolveActionStatus`)
+Single source: [`packages/auth/src/server.ts → createAuth({prisma, …})`](../packages/auth/src/server.ts). Plugins: magic-link, username, admin (impersonation). Email + password for STAFF; magic link for CUSTOMER. All HTTP routes live exclusively on the API at `/api/auth/*` (mounted in `apps/api/src/routes/auth.ts`); the two Next apps just validate cookies the API issued.
+
+### OrgMembership = the authorization seam
 
 ```
+User --(1:N)--> OrgMembership --(N:1)--> Organization
+                  role: OWNER | STAFF | CUSTOMER
+```
 
+A user can belong to many orgs and holds one role per org. Routes don't read `User.role` (no such field) — they read `OrgMembership.role` via the role guards.
+
+### The three role guards
+
+| Middleware           | Lives at                         | Accepts                  | Used by                                                   |
+| -------------------- | -------------------------------- | ------------------------ | --------------------------------------------------------- |
+| `requireStaff()`     | `middleware/require-staff.ts`    | OWNER + STAFF            | `/api/v1/{agents, approvals, activity, soul, runs, team}` |
+| `requireCustomer()`  | `middleware/require-customer.ts` | CUSTOMER                 | `/api/v1/web-chat/*`                                      |
+| `requireAnyMember()` | `middleware/require-customer.ts` | OWNER + STAFF + CUSTOMER | `/api/v1/me`                                              |
+
+All three are built on the same `buildRoleGuard(roles, deps)` factory. The matched membership's `orgId` + `role` land on the Hono context (`c.get("orgId")`, `c.get("role")`).
+
+### App-level guards
+
+- **Backoffice** (`apps/backoffice/src/lib/auth-helpers.ts`): `requireStaff()` RSC guard hits `/api/v1/me` and redirects CUSTOMER sessions to `/no-access`.
+- **Client** (`apps/client/src/lib/auth-helpers.ts`): `requireCustomer()` mirrors the above for STAFF.
+- **Both** use a Next 16 `proxy.ts` middleware to redirect unauthenticated visitors to `/login` (preserving `?from=`).
+
+---
+
+## §10. The 3 apps
+
+### `apps/api` — Hono on Node 24, `:4000`
+
+Entry: [`src/index.ts`](../apps/api/src/index.ts). On boot: `syncSkills` + `syncTemplates` run before the server starts; cyclic `canDelegateTo` aborts boot. Health: `/healthz` (liveness, no DB), `/readyz` (DB ping). Docs: `/openapi.json`, `/llms.txt`. Auth: `/api/auth/*` (Better Auth handler). REST: `/api/v1/*` (see route mount below). Webhooks: `/connectors/:type/:id/webhook`. The worker entry [`src/workers/index.ts`](../apps/api/src/workers/index.ts) is a separate Node process that mounts both `agent-runner` (BullMQ Worker, concurrency 4) and `routine-scheduler` (Worker + reconciler, concurrency 2).
+
+#### `/api/v1` mount topology
+
+```
+/api/v1/
+├── me              requireAnyMember  (OWNER + STAFF + CUSTOMER)
+├── agents          requireStaff      (OWNER + STAFF)
+├── approvals       requireStaff      (GET list, GET :id, POST :id/approve|reject|edit)
+├── activity        requireStaff      (GET — clamped list)
+├── soul            requireStaff      (GET, PATCH for businessIdea/agentInstructions)
+├── runs            requireStaff      (GET list, GET :id)
+├── team            requireStaff      (GET members, POST invite — gated to OWNER inside the handler)
+└── web-chat        requireCustomer   (POST messages, GET messages, GET conversations, GET stream SSE, GET assets, GET assets/:id)
+```
+
+### `apps/backoffice` — Next.js 16, `:3000`
+
+Operator UI. Auth: email + password. Pages:
+
+| Route                                                | Purpose                                                                                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `/login`, `/register`, `/recover`, `/reset-password` | Better Auth flows via `authClient`.                                                                                   |
+| `/`                                                  | Dashboard home with org overview.                                                                                     |
+| `/agents`, `/agents/[id]`                            | List of `AgentInstance`s + per-agent detail (mission, enabled skills, recent runs, budget).                           |
+| `/approvals`, `/approvals/[id]`                      | DRAFTED queue + schema-driven editor (reads `Skill.parametersJsonSchema`, renders inputs, posts approve/edit/reject). |
+| `/activity`                                          | Org timeline from `ActivityLog`.                                                                                      |
+| `/soul`                                              | Read + edit `Organization.businessIdea` + `agentInstructions`.                                                        |
+| `/runs`                                              | Recent `AgentRun`s with cost + status.                                                                                |
+| `/team`                                              | Members list + invite form (OWNER only).                                                                              |
+
+The approval editor uses a renderer registry (`components/approval/skill-renderers/`) so per-skill augmentations can plug in. Today the registry is empty — the generic schema renderer handles every skill.
+
+### `apps/client` — Next.js 16, `:3001`
+
+Customer UI. Auth: magic-link only. Pages:
+
+| Route          | Purpose                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `/login`       | Magic-link request form (POSTs to Better Auth via `authClient.signIn.magicLink`).                                |
+| `/auth/verify` | Trampoline after magic-link click. Bounces to `/` on success, surfaces `?error=` on failure.                     |
+| `/no-access`   | Shown when a staff session lands on the client app.                                                              |
+| `/`            | Chat home — RSC fetches latest `Conversation` + last 50 `Message`s; client `<Chat>` mounts TanStack Query + SSE. |
+| `/assets`      | Read-only gallery of `BrandAsset` rows (from `GET /api/v1/web-chat/assets`).                                     |
+| `/activity`    | Customer-visible slice of `ActivityLog` (the API filters to an allowlist so operator-only events never leak).    |
+
+Real-time updates flow through [`components/sse-subscriber.tsx`](../apps/client/src/components/sse-subscriber.tsx) — an `EventSource` on `/api/v1/web-chat/stream` with `withCredentials: true`. Optimistic writes in the composer insert a `local-<ts>` row; the SSE `message` event replaces it with the server row (dedup by id). `IMAGE` messages render via `<img src={`${API_URL}/api/v1/web-chat/assets/${assetId}`} />` — the API streams R2 bytes with `Cache-Control: private, max-age=300`.
+
+---
+
+## §11. The approval flow
+
+### The rule
+
+[`agents/actions.ts → resolveActionStatus`](../apps/api/src/agents/actions.ts):
+
+```
 ownerSide = senderRole !== "CUSTOMER"
 status = (ownerSide || !skill.requiresApprovalDefault) ? AUTO_APPROVED : DRAFTED
+```
 
-````
+Internal triggers (`senderRole === null`) are always owner-side. CUSTOMER-side runs auto-approve **only** when the skill opts out of approval.
 
-Pedro and internal triggers (`senderRole === null`) are always owner-side. CUSTOMER-side runs auto-approve **only** when the skill opts out of approval (`requiresApprovalDefault: false`).
-
-### Current state
+### Current matrix
 
 | Skill                    | `requiresApprovalDefault` | Owner-side outcome | CUSTOMER-side outcome |
 | ------------------------ | ------------------------- | ------------------ | --------------------- |
@@ -930,165 +547,298 @@ Pedro and internal triggers (`senderRole === null`) are always owner-side. CUSTO
 | `labelBrandAsset`        | `false`                   | AUTO_APPROVED      | AUTO_APPROVED         |
 | `searchKnowledge`        | `false`                   | AUTO_APPROVED      | AUTO_APPROVED         |
 | `readKnowledgeDoc`       | `false`                   | AUTO_APPROVED      | AUTO_APPROVED         |
-| `generateBrandImage`     | **`true`** ★              | AUTO_APPROVED      | **DRAFTED** ★         |
-| `draftMarketingStrategy` | **`true`** ★              | AUTO_APPROVED      | **DRAFTED** ★         |
+| `generateBrandImage`     | **`true`**                | AUTO_APPROVED      | **DRAFTED**           |
+| `draftMarketingStrategy` | **`true`**                | AUTO_APPROVED      | **DRAFTED**           |
 
-Important: the tool call **executes** regardless. The DRAFTED status records the proposed input + result for owner review; it doesn't prevent the underlying side-effect (the image lands in R2, the strategy gets generated). The web UI's job is to surface DRAFTED rows; the owner approves (publish), edits (republish with tweaks), or rejects (mark and move on).
+The tool call **executes** regardless. The DRAFTED status records the proposed input + result for owner review; it does not prevent the underlying side-effect.
 
-### Programmatic helpers (`agents/approvals.ts`)
+### The backoffice editor
+
+`/approvals/[id]` renders the row using a schema-driven form. The form reads `Skill.parametersJsonSchema`, generates inputs per field, prefills with `AgentAction.proposedInput`, and POSTs to `/api/v1/approvals/:id/{approve|reject|edit}`. A renderer registry at `components/approval/skill-renderers/` lets future skills register richer inputs (live previews, multi-step wizards). Today the registry is empty; the generic form covers every shipped skill.
+
+### Programmatic helpers
+
+[`agents/approvals.ts`](../apps/api/src/agents/approvals.ts):
 
 ```ts
-approveAction({ actionId, decidedByUserId })
-  → status: DRAFTED → APPROVED + decidedAt + ActivityLog ACTION_APPROVED
+approveAction({ actionId, decidedByUserId })   // DRAFTED → APPROVED + ACTION_APPROVED log
+rejectAction({ actionId, decidedByUserId, reason? }) // DRAFTED → REJECTED + ACTION_REJECTED log
+editAction({ actionId, decidedByUserId, newInput }) // DRAFTED → EDITED + ACTION_APPROVED (edited=true)
+executeApprovedAction({ actionId })            // APPROVED | EDITED → calls skill.execute → EXECUTED
+```
 
-rejectAction({ actionId, decidedByUserId, reason? })
-  → status: DRAFTED → REJECTED + errorMessage=reason + ActivityLog ACTION_REJECTED
-
-editAction({ actionId, decidedByUserId, newInput })
-  → status: DRAFTED → EDITED + proposedInput=newInput + ActivityLog ACTION_APPROVED (edited=true)
-
-executeApprovedAction({ actionId })
-  → APPROVED|EDITED → calls skill.execute(proposedInput, ctx) → EXECUTED + ActivityLog ACTION_EXECUTED
-  → on throw → FAILED + ActivityLog ACTION_FAILED
-````
-
-The `SkillContext` injected by `executeApprovedAction` leaves `dispatcher` + `parentRunArgs` as undefined stubs — no current approval-gated skill reaches for them. The first skill that does will need a real dispatcher path; that's the trigger to add a queued execution path for post-approval runs.
-
-### What's missing
-
-- **No HTTP endpoints.** The helpers are pure functions awaiting a route handler.
-- **No UI.** The dashboard renders nothing today.
-- **No notifications.** When a DRAFTED row lands, the owner has no out-of-band signal. A future routine (or webhook fan-out from `logActivity`) can push a Telegram message.
+The `SkillContext` injected by `executeApprovedAction` leaves `dispatcher` + `parentRunArgs` as undefined stubs — no current approval-gated skill reaches for them. First skill that does will need a real dispatcher path (queued post-approval runs).
 
 ---
 
-## 19. Routines
+## §12. The activity log
 
-Group 3.4 added a Paperclip-style proactive-trigger surface alongside the reactive (inbound) one. Routines are **paused-by-default** scheduled invocations of an AgentInstance; the owner opts in via `/ligar`.
+Append-only, per-org timeline. Single writer: [`activity/log.ts → logActivity`](../apps/api/src/activity/log.ts) — best-effort (errors swallowed; Pino keeps a record). Single reader: [`activity/query.ts → getRecentActivity({ orgId, limit })`](../apps/api/src/activity/query.ts) — clamped to 500.
 
-### `RoutineDefinition` shape (`routines/types.ts`)
+### The 20 event types
+
+| Type                    | refType      | Emitted from                                     | Summary (pt-BR sample)                            |
+| ----------------------- | ------------ | ------------------------------------------------ | ------------------------------------------------- |
+| `MESSAGE_INBOUND`       | MESSAGE      | `inbox/pipeline.ts`                              | "Mensagem recebida via Telegram"                  |
+| `MESSAGE_OUTBOUND`      | AGENT_RUN    | `inbox/pipeline.ts`                              | "Resposta enviada ao dono via Telegram"           |
+| `AGENT_RUN_STARTED`     | AGENT_RUN    | `agents/runs.ts → createAgentRun`                | "Agente Controller iniciou"                       |
+| `AGENT_RUN_FINISHED`    | AGENT_RUN    | `agents/runs.ts → finalizeAgentRun`              | "Agente Controller concluiu em 4280ms"            |
+| `AGENT_RUN_FAILED`      | AGENT_RUN    | `agents/runs.ts → finalizeAgentRun` (error path) | "Agente Controller falhou"                        |
+| `ACTION_EXECUTED`       | AGENT_ACTION | `agents/runtime.ts`                              | "Skill Generate Brand Image executada"            |
+| `ACTION_FAILED`         | AGENT_ACTION | `agents/runtime.ts`                              | "Skill Generate Brand Image falhou"               |
+| `ACTION_DRAFTED`        | AGENT_ACTION | `agents/runtime.ts` (CUSTOMER + approval-gated)  | "Skill Generate Brand Image aguardando aprovação" |
+| `ACTION_APPROVED`       | AGENT_ACTION | `agents/approvals.ts`                            | "Ação aprovada pelo dono"                         |
+| `ACTION_REJECTED`       | AGENT_ACTION | `agents/approvals.ts`                            | "Ação rejeitada pelo dono"                        |
+| `BUDGET_WARN_80`        | AGENT_ACTION | `agents/cost.ts → checkBudgetThresholds`         | "Orçamento atingiu 80%"                           |
+| `BUDGET_WARN_100`       | AGENT_ACTION | `agents/cost.ts → checkBudgetThresholds`         | "Orçamento estourou"                              |
+| `INSTRUCTIONS_UPDATED`  | ORGANIZATION | `inbox/owner-commands.ts`                        | "Instruções da equipe atualizadas"                |
+| `BUSINESS_IDEA_UPDATED` | ORGANIZATION | `inbox/owner-commands.ts`                        | "Ideia do negócio atualizada"                     |
+| `OWNER_COMMAND`         | MESSAGE      | `inbox/pipeline.ts` (owner-command branch)       | "Comando do dono recebido: /ideia"                |
+| `ROUTINE_TRIGGERED`     | ROUTINE      | `routines/executor.ts`                           | "Rotina nightly-knowledge-summary executou"       |
+| `ROUTINE_ENABLED`       | ROUTINE      | `inbox/owner-commands.ts → /ligar`               | "Rotina ativada"                                  |
+| `ROUTINE_DISABLED`      | ROUTINE      | `inbox/owner-commands.ts → /desligar`            | "Rotina desativada"                               |
+| `MEMBER_INVITED`        | ORGANIZATION | `routes/v1/team.ts`                              | "Membro convidado: …"                             |
+| `MEMBER_JOINED`         | ORGANIZATION | (reserved — wired when a user accepts an invite) | "Membro aceitou o convite"                        |
+
+### The 6 refType values
+
+`MESSAGE`, `AGENT_RUN`, `AGENT_ACTION`, `ORGANIZATION`, `ROUTINE`, `NONE`.
+
+---
+
+## §13. Routines
+
+Paused-by-default cron `Routine`s on BullMQ JobSchedulers. The owner opts in via `/ligar <name>` in Telegram. The DB row owns `schedule` + `enabled` + `config` (owner-mutable); the code definition owns `buildPrompt` + `defaultAgentTemplate` (immutable across deploys).
+
+### `RoutineDefinition` shape
 
 ```ts
 type RoutineDefinition = {
-  buildPrompt: (config: RoutineConfig, ctx: { orgId; prisma }) => Promise<string>;
+  name: string; // unique per org; the key for /ligar /desligar /correr
+  description: string; // refreshed on every sync
+  defaultSchedule: string; // cron expression in the org's timezone
   defaultAgentTemplate: string; // templateSlug — the agent this routine invokes
   defaultConfig: RoutineConfig; // initial shape for Routine.config
-  defaultSchedule: string; // cron expression in the org's timezone
-  description: string; // human label (refreshed on every sync)
-  name: string; // unique per org; the key the owner uses in /ligar /desligar /correr
+  buildPrompt: (config, ctx) => Promise<string>;
 };
 ```
 
-The DB `Routine` row owns `schedule`, `enabled`, and `config` (mutable by the owner); the code definition owns `buildPrompt` and `defaultAgentTemplate` (immutable across deploys).
+### The seed routine: `nightly-knowledge-summary`
 
-### The seed routine
+| Field                  | Value                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `name`                 | `nightly-knowledge-summary`                                                                                |
+| `defaultSchedule`      | `0 3 * * *` (03:00 daily in `America/Sao_Paulo`)                                                           |
+| `defaultAgentTemplate` | `controller`                                                                                               |
+| `defaultConfig`        | `{ maxDocs: 5 }`                                                                                           |
+| `buildPrompt`          | Queries last 24h of `KnowledgeDoc` rows, formats a pt-BR digest. Empty-doc case yields a neutral check-in. |
 
-`routines/nightly-knowledge-summary.ts`:
+### Owner commands
 
-| Field                  | Value                                                                                                                 |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `name`                 | `nightly-knowledge-summary`                                                                                           |
-| `defaultSchedule`      | `0 3 * * *` (03:00 daily in `America/Sao_Paulo`)                                                                      |
-| `defaultAgentTemplate` | `controller`                                                                                                          |
-| `defaultConfig`        | `{ maxDocs: 5 }`                                                                                                      |
-| `buildPrompt`          | Queries the last 24h of `KnowledgeDoc` rows, formats a pt-BR digest prompt. Empty-doc case yields a neutral check-in. |
-| `description`          | "Toda noite às 3h, resume os documentos adicionados ao conhecimento nas últimas 24h e envia um digest para o dono."   |
+| Command            | Behaviour                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `/rotinas`         | List all routines with `schedule`, `enabled`, `lastRunStatus`.                                      |
+| `/ligar <name>`    | `enabled = true` → emit `ROUTINE_ENABLED` → `triggerReconcile` (scheduler also reconciles on boot). |
+| `/desligar <name>` | `enabled = false` → emit `ROUTINE_DISABLED` → `triggerReconcile`.                                   |
+| `/correr <name>`   | One-off bypass of cron. Runs `executeRoutine` directly.                                             |
 
-### The scheduler worker
-
-`workers/routine-scheduler.ts` runs alongside `agent-runner` inside `pnpm dev:worker`:
-
-1. Boot: `createRoutineQueue(connection)` → BullMQ queue `qolmeia-routine-run` + Worker (concurrency 2).
-2. `reconcileRoutines({ prisma, queue })` is called on boot AND on every `/ligar` / `/desligar` (via `routines/scheduler-control.triggerReconcile`).
-3. Reconciler diffs `Routine` rows (where `enabled=true`) against existing BullMQ JobSchedulers (filtered to `key.startsWith("routine:")`). Adds missing schedulers, removes orphans, updates drift in `(schedule, timezone)`.
-4. On fire, the worker calls `executeRoutine({ routineId })`:
-   - Loads the row + the code `RoutineDefinition`.
-   - Emits `ROUTINE_TRIGGERED` ActivityLog.
-   - Builds the prompt + creates an `AgentRun` (with `triggerMessageId: null`).
-   - Dispatches through `main-dispatcher` (Serial or BullMQ — same path as inbound).
-   - Updates `lastRunAt` + `lastRunStatus`.
-   - **Swallows its own errors** — a flaky routine doesn't compound through BullMQ retries; the owner sees `lastRunStatus = "FAILED"` and the ActivityLog row.
-
-### Owner commands (`inbox/owner-commands.ts`)
-
-| Command            | Behaviour                                                                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/rotinas`         | List all routines for the org with `schedule`, `enabled` state, and `lastRun` status.                                                            |
-| `/ligar <name>`    | Set `enabled = true` → log `ROUTINE_ENABLED` → `triggerReconcile` (best-effort; scheduler also reconciles on boot).                              |
-| `/desligar <name>` | Set `enabled = false` → log `ROUTINE_DISABLED` → `triggerReconcile`.                                                                             |
-| `/correr <name>`   | One-off invocation that bypasses cron. Temporarily flips `enabled` if needed (the executor re-checks the flag), runs `executeRoutine`, restores. |
-
-### Adding a new routine
+### Adding a routine
 
 1. Create `apps/api/src/routines/<name>.ts` exporting a `RoutineDefinition`.
-2. Add it to `ALL_ROUTINES` in `routines/registry.ts`.
-3. Run `pnpm tsx apps/api/src/scripts/sync-routines.ts` to upsert rows (paused) for every existing org.
-4. Restart the worker (the scheduler reconciles on boot; for an existing process, the next `/ligar` triggers reconcile).
+2. Add to `ALL_ROUTINES` in `routines/registry.ts`.
+3. Run `pnpm tsx apps/api/src/scripts/sync-routines.ts` to upsert rows (paused) for every org.
+4. The scheduler reconciles on worker boot; for a running process, the next `/ligar` triggers reconcile.
 
-The DB row is the source of truth for runtime; the code is the source of truth for behaviour. Owner customisations (`schedule`, `config`) survive deploys because `syncRoutines` only refreshes `description` on existing rows.
+### Worker isolation
 
----
-
-## 20. Client app (apps/client)
-
-The customer-facing surface that sits beside `apps/backoffice`. Both are Next.js 16 apps; both validate cookies the API issued via `@repo/auth`'s `createAuth`. They never duplicate Better Auth's HTTP routes — those live exclusively in the API at `/api/auth/*`.
-
-### Auth
-
-- Magic-link only. `/login` POSTs to `authClient.signIn.magicLink({email, callbackURL: "/auth/verify"})` which triggers Better Auth's magic-link plugin (configured in `@repo/auth/server.ts`).
-- The email click goes to the API's `/api/auth/magic-link/verify` endpoint, which sets the session cookie + redirects back to `/auth/verify`. The client app's verify page is a trampoline — bounce to `/` on success, surface `?error=...` on failure.
-- `proxy.ts` redirects unauthenticated visitors to `/login` (preserves `?from=`) and bounces authenticated users away from `/login` and `/auth/verify`.
-- `lib/auth-helpers.ts:requireCustomer` is the RSC guard. Hits `/api/v1/me`; staff sessions land on `/no-access` so they can't rummage in the customer surface.
-
-### Chat UI
-
-- `app/(client)/page.tsx` is a server component that fetches the most recent Conversation + last 50 messages via `apiGetServer`, hydrating `Chat` (a client component).
-- `Chat` owns the TanStack Query cache for messages, mounts `SseSubscriber` (an EventSource on `/api/v1/web-chat/stream`), and renders `MessageList` + `Composer`.
-- Optimistic write: composer submit inserts a temporary `local-<ts>` row into the query cache, then the SSE `message` event replaces it with the server row (dedup by id).
-- IMAGE messages with `metadata.assetId` render via `<img src={`${API_URL}/api/v1/web-chat/assets/${assetId}`} />` — the API streams bytes from R2 with `Cache-Control: private, max-age=300`.
-
-### Other pages
-
-- `/assets` — gallery of `BrandAsset` rows for the org, served via `GET /api/v1/web-chat/assets`. Read-only.
-- `/activity` — customer-visible slice of `ActivityLog`, served via `GET /api/v1/web-chat/activity`. The API filters to a small allowlist of event types so operator-only events (INSTRUCTIONS_UPDATED, OWNER_COMMAND, etc.) never reach the customer surface.
-
-### `/api/v1` mount topology
-
-```
-/api/v1/
-├── me              requireAnyMember  (OWNER + STAFF + CUSTOMER)
-├── agents          requireStaff      (OWNER + STAFF)
-├── approvals       requireStaff
-├── activity        requireStaff
-├── soul            requireStaff
-├── runs            requireStaff
-├── team            requireStaff      (POST /invite gated to OWNER inside the handler)
-└── web-chat        requireCustomer   (CUSTOMER only — apps/client surface)
-```
-
-Splitting the guards at the route group means one API surface serves both Next apps without leaking the operator REST to customers (or vice versa).
+`routines/queue.ts` creates a separate BullMQ queue `qolmeia-routine-run` (not the reactive `qolmeia-agent-run`) so a flaky routine never starves inbound. `executor.ts` swallows its own errors; the owner sees `lastRunStatus = "FAILED"` in `/rotinas`.
 
 ---
 
-## 21. Invite flow
+## §14. The seams
 
-Owner-driven onboarding for both apps.
+Single-writer / single-reader audit (run anytime against the live tree):
 
-### Path
+```bash
+grep -rn "businessProfile" apps/api/src       # ⇒ knowledge/apply.ts (writer) + knowledge/provider.ts (reader)
+grep -rn "agentInstructions" apps/api/src     # ⇒ knowledge/provider.ts (reader) + inbox/owner-commands.ts + routes/v1/soul.ts (writers)
+grep -rn "businessIdea" apps/api/src          # ⇒ knowledge/provider.ts (reader) + inbox/owner-commands.ts + routes/v1/soul.ts (writers)
+grep -rn "brandAsset.create" apps/api/src     # ⇒ knowledge/brand-asset.ts (both ingest functions)
+grep -rn "brandAsset.update" apps/api/src     # ⇒ agents/skills/label-brand-asset.ts
+grep -rn "agentInstance.upsert" apps/api/src  # ⇒ agents/agent-instance.ts
+grep -rn "agentAction.create" apps/api/src    # ⇒ agents/actions.ts + agents/approvals.ts
+grep -rn "agentRun.create" apps/api/src       # ⇒ agents/runs.ts
+grep -rn "activityLog.create" apps/api/src    # ⇒ activity/log.ts
+grep -rn "routine.create" apps/api/src        # ⇒ routines/registry.ts (syncRoutines)
+grep -rn "as Skill<" apps/api/src             # ⇒ NOTHING — defineSkill killed the cast
+```
 
-1. Owner signs into the backoffice → opens `/team` → clicks "Convidar".
-2. `InviteForm` POSTs `{email, name, role}` to `POST /api/v1/team/invite` (`require-staff` + handler-level OWNER check).
-3. API find-or-creates a `User` row (email is unique). Upserts an `OrgMembership` for `(orgId, userId)` with the requested role.
-4. Email side-effect, role-dependent:
-   - `CUSTOMER` → `auth.api.signInMagicLink({body: {callbackURL: env.CLIENT_APP_URL + "/auth/verify", email}})`. Better Auth's magic-link plugin generates a token + invokes the `sendMagicLink` hook in `@repo/auth/server.ts`, which calls `sendMagicLinkEmail` from `@repo/transactional`.
-   - `STAFF` → `sendWelcomeEmail` from `@repo/transactional` with a link to `/login` on the backoffice.
-5. ActivityLog `MEMBER_INVITED` row is written so the timeline reflects the invite.
+| Seam                                                                      | Lives at                                                | What it hides                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `@repo/auth.createAuth`                                                   | `packages/auth/src/server.ts`                           | Better Auth configuration shared by all 3 apps.                              |
+| `@repo/transactional` senders                                             | `packages/transactional/src/client.ts`                  | Resend wrapper + React Email rendering.                                      |
+| `lib/ai.resolveModelForAgent`                                             | `apps/api/src/lib/ai.ts`                                | Per-instance + per-template OpenRouter model selection.                      |
+| `connectors.getAdapter`                                                   | `apps/api/src/connectors/registry.ts`                   | Total `Record<ConnectorType, ConnectorAdapter>` lookup.                      |
+| `web-chat-bus.subscribe / publish`                                        | `apps/api/src/lib/web-chat-bus.ts`                      | In-process EventEmitter pub/sub for SSE (swap to Redis when API scales out). |
+| `inbox/pipeline.handleInbound`                                            | `apps/api/src/inbox/pipeline.ts`                        | The one-and-only inbound orchestrator. All channels enter here.              |
+| `getBusinessContext`                                                      | `apps/api/src/knowledge/provider.ts`                    | Composes businessIdea + agentInstructions + businessProfile.                 |
+| `applySoulUpdate`                                                         | `apps/api/src/knowledge/apply.ts`                       | Single-writer patch-merge for the soul.                                      |
+| `ingestBrandAsset` + `ingestGeneratedAsset`                               | `apps/api/src/knowledge/brand-asset.ts`                 | SHA-256 dedup + R2 upload + Prisma row.                                      |
+| `ensureAgentInstance`                                                     | `apps/api/src/agents/agent-instance.ts`                 | The AgentInstance upsert shape.                                              |
+| `findInboundAgentInstanceForConnector`                                    | `apps/api/src/agents/agent-instance.ts`                 | Binding-table lookup with `none` / `ambiguous` resolution.                   |
+| `runAgentInstance`                                                        | `apps/api/src/agents/runtime.ts`                        | The agent loop.                                                              |
+| `buildContextSnapshot`                                                    | `apps/api/src/agents/context-snapshot.ts`               | Snapshot composition at dispatch time.                                       |
+| `createAgentRun` / `finalizeAgentRun`                                     | `apps/api/src/agents/runs.ts`                           | Run lifecycle + cost rollup + AGENT*RUN*\* ActivityLog.                      |
+| `recordAgentAction` + `resolveActionStatus`                               | `apps/api/src/agents/actions.ts`                        | Approval rule.                                                               |
+| `approveAction` / `rejectAction` / `editAction` / `executeApprovedAction` | `apps/api/src/agents/approvals.ts`                      | DRAFTED → APPROVED/EDITED/REJECTED → EXECUTED transitions.                   |
+| `createSerialDispatcher` / `createBullMQDispatcher`                       | `apps/api/src/agents/{dispatcher,bullmq-dispatcher}.ts` | Sync vs async execution.                                                     |
+| `defineSkill<T>`                                                          | `apps/api/src/agents/skills/types.ts`                   | Skill shape constraints.                                                     |
+| `logActivity`                                                             | `apps/api/src/activity/log.ts`                          | Single write-point for the timeline.                                         |
+| `reconcileRoutines`                                                       | `apps/api/src/routines/reconcile.ts`                    | BullMQ JobScheduler ↔ Routine row reconciliation.                            |
+| `executeRoutine`                                                          | `apps/api/src/routines/executor.ts`                     | One fire of a routine — shared by the scheduler worker and `/correr`.        |
+| `buildV1Routes(deps)`                                                     | `apps/api/src/routes/v1/index.ts`                       | REST endpoint factory with injectable guards + routes (tested via stubs).    |
+| `buildRoleGuard(roles, deps)`                                             | `apps/api/src/middleware/require-staff.ts`              | All three role guards share one implementation.                              |
 
-### Why magic-link for customers and password for staff
+---
 
-- Customers visit infrequently. Magic-link removes the "forgot password" cycle and avoids us storing any customer-side credential.
-- Staff operates daily and benefits from session continuity that password auth gives via Better Auth's session cookie. The welcome email points them at `/login` where they create a password via the normal sign-up flow.
+## §15. External services (env-var map)
 
-### Idempotency
+### Required
 
-`POST /team/invite` is safe to retry. Existing users get their membership row upserted (role refreshed); fresh emails create both rows. The Better Auth magic-link endpoint always issues a new token, so resending the email is also safe.
+| Env var                         | Used by                          | What it does                                                                   |
+| ------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
+| `DATABASE_URL`                  | Prisma                           | Postgres connection. Local: docker-compose on `localhost:5436`. Prod: Railway. |
+| `REDIS_URL`                     | BullMQ + JobScheduler            | Queue + scheduler state.                                                       |
+| `BETTER_AUTH_SECRET`            | Better Auth                      | Cookie/token signing. Min 32 chars. Same value across all 3 apps.              |
+| `OPENROUTER_API_KEY`            | `lib/ai.ts` + `lib/image-gen.ts` | Single AI key for per-agent text models AND image generation.                  |
+| `TELEGRAM_BOT_TOKEN`            | Telegram adapter                 | Bot auth (inbound verify + outbound `sendMessage`/`sendDocument`).             |
+| `TELEGRAM_BOT_USERNAME`         | Telegram adapter                 | Mention detection.                                                             |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Telegram adapter                 | Validates `X-Telegram-Bot-Api-Secret-Token` header.                            |
+| `R2_ACCOUNT_ID`                 | `lib/storage.ts`                 | Cloudflare R2 account.                                                         |
+| `R2_BUCKET`                     | `lib/storage.ts`                 | Bucket name (e.g. `qolmeia`).                                                  |
+| `R2_ENDPOINT`                   | `lib/storage.ts`                 | S3-compatible endpoint URL.                                                    |
+| `R2_REGION`                     | `lib/storage.ts`                 | Usually `auto`.                                                                |
+| `R2_ACCESS_KEY_ID`              | `lib/storage.ts`                 | R2 access key.                                                                 |
+| `R2_SECRET_ACCESS_KEY`          | `lib/storage.ts`                 | R2 secret.                                                                     |
+
+### Optional
+
+| Env var                      | Used by                          | What it does                                                                                                      |
+| ---------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `RESEND_API_KEY`             | `@repo/transactional`            | When absent, email senders become no-ops (dev/CI runs without an external mail provider).                         |
+| `IMAGE_GEN_MODEL`            | `lib/image-gen.ts`               | OpenRouter id for the image model. Default: `google/gemini-3-pro-image-preview` (Nano Banana Pro). Hot-swappable. |
+| `WEB_APP_URL`                | `lib/ai.ts` + `lib/image-gen.ts` | OpenRouter `HTTP-Referer` header for dashboard attribution. Falls back to `https://qolmeia.ai`.                   |
+| `AUTH_FROM_EMAIL`            | `@repo/auth`                     | Sender address for transactional email. Default: `noreply@qolmeia.ai`.                                            |
+| `AUTH_ALLOWED_HOSTS`         | `@repo/auth`                     | Comma-separated extra hosts for Better Auth's dynamic baseURL.                                                    |
+| `TRUSTED_ORIGINS`            | `@repo/auth`                     | Comma-separated extra origins for Better Auth's trustedOrigins.                                                   |
+| `CORS_ORIGINS`               | Hono CORS                        | Comma-separated allowed origins; defaults to `*`. `*` disables credentialed CORS.                                 |
+| `DISPATCH_MODE`              | `agents/main-dispatcher`         | `serial` (default) or `queue`.                                                                                    |
+| `BULLMQ_CONCURRENCY`         | `workers/index.ts`               | Agent-runner concurrency (default 4).                                                                             |
+| `BULLMQ_ROUTINE_CONCURRENCY` | `workers/index.ts`               | Routine scheduler concurrency (default 2).                                                                        |
+| `NODE_ENV` / `PORT` / `HOST` | API                              | Standard.                                                                                                         |
+
+---
+
+## §16. Local dev
+
+```bash
+# 1. Bring up Postgres + Redis (host ports kept off the common defaults to avoid clashes
+#    with other projects on the same machine).
+docker compose up -d         # Postgres :5436, Redis :6382
+
+# 2. Generate Prisma client + push schema.
+pnpm db:generate
+pnpm db:push
+
+# 3. Start the three apps in three terminals.
+pnpm dev --filter=api          # tsdown watch on :4000
+pnpm dev --filter=backoffice   # Next.js dev on :3000
+pnpm dev --filter=client       # Next.js dev on :3001
+
+# Optional 4th terminal — only needed for DISPATCH_MODE=queue OR for routines.
+pnpm dev --filter=api dev:worker
+
+# Telegram: expose :4000 with a tunnel and register the webhook.
+cloudflared tunnel --url http://localhost:4000
+set -a; source apps/api/.env; set +a
+TUNNEL="https://<paste-from-cloudflared>"
+# Replace <connectorInstanceId> with the row for your Telegram chat.
+curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -d "url=${TUNNEL}/connectors/telegram/<connectorInstanceId>/webhook" \
+  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET_TOKEN}"
+
+# Optional seeds.
+pnpm tsx apps/api/src/scripts/sync-routines.ts                  # all orgs (paused)
+pnpm tsx apps/api/src/scripts/seed-owner-user-and-membership.ts # bootstrap a STAFF/OWNER user
+pnpm tsx apps/api/src/scripts/seed-whatsapp-connector.ts        # provision a WHATSAPP ConnectorInstance
+```
+
+Ports used: API `:4000`, backoffice `:3000`, client `:3001`, Postgres `:5436`, Redis `:6382`.
+
+`syncSkills` + `syncTemplates` run automatically at API boot. First inbound message triggers the lazy-create chain for `AgentInstance`s. Routines must be seeded explicitly (paused-by-default).
+
+---
+
+## §17. Testing + quality bar
+
+- **557 tests** total: api 447 + backoffice 33 + client 19 + auth 30 + ui 10 + transactional 6 + db 12.
+- Lint: oxlint, 0 errors / 0 warnings.
+- Format: oxfmt — `pnpm format:check` passes in CI.
+- Type-check: `tsc --noEmit` across all packages via Turbo. Strict mode.
+- Dead-code: `pnpm fallow:dead` exits 0.
+
+### Mock strategy at the seams
+
+- **AI SDK + OpenRouter**: mocked at `lib/ai.ts` exports.
+- **Image gen**: `lib/image-gen.ts` is mocked at the call site in skill tests.
+- **R2**: `lib/storage.ts` is mocked; integration tests in `packages/db` run against the local docker Postgres.
+- **Prisma**: unit tests inject `Pick<PrismaClient, ...>` deps; integration tests at `packages/db/src/__tests__/`.
+- **Better Auth**: `requireStaff` / `requireCustomer` accept an `AuthLike` dep so tests stub session resolution.
+- **Resend**: `@repo/transactional` exports named senders that no-op when `RESEND_API_KEY` is unset.
+- **`web-chat-bus`**: tests build a fresh bus via `buildBus()`.
+
+Run everything: `pnpm install && pnpm build && pnpm lint && pnpm typecheck && pnpm test && pnpm fallow:dead`.
+
+---
+
+## §18. Deployment notes
+
+- **API + worker**: Railway (single Node process for the API, second Node process for the worker). Both connect to Railway Postgres + Railway Redis.
+- **Backoffice + client**: Vercel (Next.js 16). Both apps point `NEXT_PUBLIC_API_URL` at the Railway API host. CORS_ORIGINS on the API must include both Vercel deploy URLs (preview + production).
+- **R2**: Cloudflare. Bucket `qolmeia`, region `auto`.
+- **OpenRouter**: API key in Railway env. `WEB_APP_URL` set to the production backoffice URL for dashboard attribution.
+- **Better Auth**: `BETTER_AUTH_SECRET` must be identical across all 3 apps and persistent across deploys (rotating invalidates every session). All 3 apps point at the same Postgres database — Better Auth's session table is the source of truth.
+- **Telegram + WhatsApp**: webhooks must be re-registered with the production API URL after the first deploy. WhatsApp's verify-token handshake happens on `GET /connectors/whatsapp/:id/webhook`.
+
+---
+
+## §19. Roadmap
+
+What's deferred today:
+
+| Item                                                          | Status                                                                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| File upload from the client composer                          | Server route accepts attachments; the UI composer does not surface a file picker yet.                                                      |
+| Per-user activity attribution                                 | `ActivityLog.actorId` exists but is null for system-initiated events. Wiring requires resolving the acting user across every write site.   |
+| WhatsApp inbound for multi-part payloads (images, audio)      | Adapter parses Meta Cloud text-only events. Image/audio download path needs the `/media` two-step.                                         |
+| WhatsApp outbound for files                                   | `sendOutbound` is text-only via Graph API; file path needs the two-step `/media` upload.                                                   |
+| Skill-aware augmentations in the approval editor              | Renderer registry exists at `components/approval/skill-renderers/` and is empty today. Generic schema renderer covers every shipped skill. |
+| Live previews for `generateBrandImage` in the approval editor | Deferred per user — would show the actual generated PNG inline before approve.                                                             |
+| pgvector for `searchKnowledge`                                | Current implementation: Prisma `contains` keyword search. Skill input/output is stable; swap is local.                                     |
+| Real Fresha / Google My Business / Instagram adapters         | All three are typed placeholders with `NotImplementedError` bodies; the registry slots are reserved.                                       |
+| `triggerMessageId` + `parentActionId` on `AgentAction`        | Pre-existing schema fields; runtime writes `runId` today. Threading the other two is mechanical.                                           |
+| `MEMBER_JOINED` ActivityLog emission                          | Type is in the enum + the activity allowlist; no write-point yet (fires when an invitee first signs in).                                   |
+
+What's done (since previous incremental docs were last updated):
+
+- **Inbound through `ConnectorAdapter`**: all channels now route through `getAdapter(type).parseInboundPayload` — no more Chat SDK in the inbound path.
+- **WEB_CHAT live**: customers can chat through `apps/client`; SSE streams replies; assets render inline.
+- **Backoffice approval editor**: schema-driven form with edit/approve/reject wired end-to-end.
+- **Invite flow**: backoffice `/team` → POST `/api/v1/team/invite` → magic-link email to customer.
+- **3 apps, 6 packages, 557 tests** — see §17.
+
+---
+
+## §20. One-line summary
+
+The owner messages Telegram (or a customer types in `apps/client`'s composer) → `POST /connectors/:type/:connectorInstanceId/webhook` (or `POST /api/v1/web-chat/messages`) → the adapter's `verifySignature` + `parseInboundPayload` normalise the payload → `inbox/pipeline.handleInbound` runs the unified flow (dedup → conversation upsert → role resolution → optional owner-command short-circuit → persist + ActivityLog → attachments → `agent-step` builds the `ContextSnapshot`, creates an `AgentRun`, dispatches through `main-dispatcher`) → `runtime.runAgentInstance` reads its `systemPrompt + runId + senderRole` from args, resolves enabled skills via `AgentSkillEnablement` (or template defaults), runs `generateText` with the per-agent OpenRouter model, persists one `AgentAction` per tool call (status from `resolveActionStatus(senderRole, requiresApproval)` — owner auto-approves, CUSTOMER on approval-gated skills lands DRAFTED), and emits one `ActivityLog` per action → Controller delegates to Strategist + Designer via `delegateToSpecialist` (each child is its own `AgentRun` linked via `parentRunId`) → results bubble back through the step-aggregator → Controller writes the final pt-BR reply → the adapter's `sendOutbound` posts to the channel (Telegram/WhatsApp via native fetch; WEB_CHAT persists `Message` rows + publishes on `web-chat-bus` for the client's `EventSource` to render). The backoffice (`OWNER + STAFF`) renders the approval queue with a schema-driven editor, the activity timeline, the soul editor, the runs list, and the team page; the client app (`CUSTOMER`) is magic-link only and shows chat + assets + activity. Cookies + `OrgMembership.role` gate everything via three guards (`requireStaff`, `requireCustomer`, `requireAnyMember`). A second Node process runs the BullMQ worker + the routine scheduler. 557 tests, lint 0/0, typecheck clean.
