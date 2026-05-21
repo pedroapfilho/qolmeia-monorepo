@@ -6,15 +6,22 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "env": [
         "AI_GATEWAY_API_KEY",
+        "API_URL",
+        "AUTH_ALLOWED_HOSTS",
+        "BETTER_AUTH_SECRET",
         "CORS_ORIGINS",
         "DATABASE_URL",
+        "NEXT_PUBLIC_API_URL",
         "REDIS_URL",
+        "RESEND_API_KEY",
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_BOT_USERNAME",
         "TELEGRAM_WEBHOOK_SECRET_TOKEN",
+        "TRUSTED_ORIGINS",
+        "WEB_APP_URL",
         "R2_ACCOUNT_ID",
         "R2_BUCKET",
         "R2_ENDPOINT",
@@ -29,6 +36,8 @@
     "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true },
     "start": { "dependsOn": ["^build"], "cache": false },
     "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
+    "test:watch": { "dependsOn": ["^build"], "cache": false, "persistent": true },
+    "test:coverage": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
     "clean": { "cache": false },
     "db:generate": { "cache": false, "env": ["DATABASE_URL"] },
     "db:push": { "cache": false, "env": ["DATABASE_URL"] }
