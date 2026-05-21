@@ -1,7 +1,8 @@
 import type { PrismaClient } from "@repo/db";
-import { gateway, generateText, stepCountIs, tool } from "ai";
+import { generateText, stepCountIs, tool } from "ai";
 
 import { logActivity } from "../activity/log";
+import { openrouter, resolveModelForAgent } from "../lib/ai";
 import { logger } from "../lib/logger";
 
 import { recordAgentAction } from "./actions";
@@ -88,9 +89,17 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     ]),
   );
 
+  // Per-agent model selection: instance.modelOverride wins; otherwise we use
+  // the template's defaultModel. Same control plane drives Controller (chat
+  // flagship), Strategist (balanced), Designer (cheapest fast) without any
+  // call-site branching here.
+  const modelId = resolveModelForAgent({
+    instance: { modelOverride: agentInstance.modelOverride },
+    template: { defaultModel: template.defaultModel },
+  });
   const result = await generateText({
     messages: [{ content: buildUserContent(input), role: "user" }],
-    model: gateway("google/gemini-2.5-flash"),
+    model: openrouter.chat(modelId),
     stopWhen: stepCountIs(5),
     system: systemPrompt,
     temperature: 0.2,

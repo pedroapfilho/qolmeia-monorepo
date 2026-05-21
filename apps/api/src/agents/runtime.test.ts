@@ -1,10 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("ai", () => ({
-  gateway: vi.fn(() => ({})),
   generateText: vi.fn(),
   stepCountIs: vi.fn((n: number) => ({ steps: n })),
   tool: vi.fn((t: unknown) => t),
+}));
+
+// vi.hoisted lifts the factory output above the vi.mock() hoist so the inner
+// mock factory can reference these without the "Cannot access before init"
+// error. Returns a sentinel object tagged with the model id so tests can
+// assert resolveModelForAgent fed the right OpenRouter slug into openrouter.chat().
+const { chatMock } = vi.hoisted(() => ({
+  chatMock: vi.fn((modelId: string) => ({ modelId })),
+}));
+vi.mock("../lib/ai", () => ({
+  openrouter: { chat: chatMock },
+  resolveModelForAgent: ({
+    instance,
+    template,
+  }: {
+    instance: { modelOverride: string | null };
+    template: { defaultModel: string };
+  }) => instance.modelOverride ?? template.defaultModel,
 }));
 
 import { generateText } from "ai";
@@ -48,6 +65,7 @@ describe("runAgentInstance", () => {
       budgetCents: 0,
       id: "ai_1",
       mission: "",
+      modelOverride: null,
       orgId: "org_1",
       templateSlug: "designer",
     } as never;
@@ -67,6 +85,7 @@ describe("runAgentInstance", () => {
 
     expect(mockedGenerateText).toHaveBeenCalledOnce();
     const args = mockedGenerateText.mock.calls[0]![0] as {
+      model: { modelId: string };
       system: string;
       tools: Record<string, unknown>;
     };
@@ -80,8 +99,46 @@ describe("runAgentInstance", () => {
     // Runtime does NOT re-render — it must pass through exactly what
     // the dispatcher handed it.
     expect(args.system).toBe("PROMPT-FROZEN-AT-DISPATCH");
+    // Designer template default ⇒ openai/gpt-5.4-nano. No modelOverride.
+    expect(args.model.modelId).toBe("openai/gpt-5.4-nano");
+    expect(chatMock).toHaveBeenCalledWith("openai/gpt-5.4-nano");
     expect(result.text).toBe("Olá!");
     expect(result.usage.inputTokens).toBe(10);
+  });
+
+  it("honours AgentInstance.modelOverride when set (instance overrides template default)", async () => {
+    chatMock.mockClear();
+    mockedGenerateText.mockResolvedValue({
+      text: ".",
+      toolCalls: [],
+      toolResults: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    } as never);
+
+    const prisma = makePrisma() as never;
+    const agentInstance = {
+      budgetCents: 0,
+      id: "ai_override",
+      mission: "",
+      modelOverride: "anthropic/claude-3.5-sonnet",
+      orgId: "org_1",
+      templateSlug: "designer",
+    } as never;
+
+    await runAgentInstance({
+      agentInstance,
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
+      existingAssets: [],
+      input: { imageBytes: [], text: "x" },
+      newAssets: [],
+      oversizeCount: 0,
+      prisma,
+      runId: "run_override",
+      senderRole: "OWNER",
+      systemPrompt: "p",
+    });
+
+    expect(chatMock).toHaveBeenCalledWith("anthropic/claude-3.5-sonnet");
   });
 
   it("respects AgentSkillEnablement rows when present (overrides template defaults)", async () => {
@@ -98,6 +155,7 @@ describe("runAgentInstance", () => {
       budgetCents: 0,
       id: "ai_2",
       mission: "",
+      modelOverride: null,
       orgId: "org_1",
       templateSlug: "designer",
     } as never;
@@ -125,6 +183,7 @@ describe("runAgentInstance", () => {
       budgetCents: 0,
       id: "ai_3",
       mission: "",
+      modelOverride: null,
       orgId: "org_1",
       templateSlug: "ghost-template",
     } as never;
@@ -171,6 +230,7 @@ describe("runAgentInstance", () => {
       budgetCents: 0,
       id: "ai_4",
       mission: "",
+      modelOverride: null,
       orgId: "org_1",
       templateSlug: "designer",
     } as never;
@@ -223,6 +283,7 @@ describe("runAgentInstance", () => {
       budgetCents: 0,
       id: "ai_ctl",
       mission: "",
+      modelOverride: null,
       orgId: "org_1",
       templateSlug: "designer",
     } as never;
@@ -274,6 +335,7 @@ describe("runAgentInstance", () => {
       budgetCents: 0,
       id: "ai_run",
       mission: "",
+      modelOverride: null,
       orgId: "org_1",
       templateSlug: "designer",
     } as never;
@@ -328,6 +390,7 @@ describe("runAgentInstance", () => {
       displayName: "Designer",
       id: "ai_emit",
       mission: "",
+      modelOverride: null,
       orgId: "org_emit",
       templateSlug: "designer",
     } as never;
@@ -391,6 +454,7 @@ describe("runAgentInstance", () => {
       displayName: "Designer",
       id: "ai_fail",
       mission: "",
+      modelOverride: null,
       orgId: "org_fail",
       templateSlug: "designer",
     } as never;

@@ -56,6 +56,9 @@ const controllerTemplate: AgentTemplateDefinition = {
     "searchKnowledge",
   ],
   defaultMission: "",
+  // Conversational quality matters most for the owner-facing briefing agent,
+  // so pick the chat-tuned flagship.
+  defaultModel: "openai/gpt-5.3-chat",
   defaultSystemPrompt: CONTROLLER_SYSTEM_PROMPT,
   description:
     "Coletor de briefing: conduz a entrevista de onboarding do negócio e roteia pedidos explícitos do dono para especialistas. Captura os 5 campos soul, consulta o conhecimento da empresa quando necessário.",

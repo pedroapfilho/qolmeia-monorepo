@@ -75,7 +75,16 @@ describe("templates registry", () => {
     expect(controller?.canDelegateTo.toSorted()).toEqual(["designer", "marketing-strategist"]);
   });
 
-  it("syncTemplates upserts each template with skill connections", async () => {
+  it("each template declares an OpenRouter defaultModel id", () => {
+    const controller = findTemplateBySlug("controller");
+    const designer = findTemplateBySlug("designer");
+    const strategist = findTemplateBySlug("marketing-strategist");
+    expect(controller?.defaultModel).toBe("openai/gpt-5.3-chat");
+    expect(strategist?.defaultModel).toBe("openai/gpt-5.4-mini");
+    expect(designer?.defaultModel).toBe("openai/gpt-5.4-nano");
+  });
+
+  it("syncTemplates upserts each template with skill connections + defaultModel", async () => {
     const upsert = vi.fn().mockResolvedValue({});
     const fakePrisma = { agentTemplate: { upsert } } as never;
 
@@ -87,8 +96,12 @@ describe("templates registry", () => {
     );
     expect(designerCall).toBeDefined();
     const arg = (designerCall as Array<unknown>)[0] as {
-      create: { skills: { connect: Array<{ id: string }> }; slug: string };
-      update: { skills: { set: Array<{ id: string }> } };
+      create: {
+        defaultModel: string;
+        skills: { connect: Array<{ id: string }> };
+        slug: string;
+      };
+      update: { defaultModel: string; skills: { set: Array<{ id: string }> } };
     };
     expect(arg.create.skills.connect.map((c) => c.id).toSorted()).toEqual([
       "extractSoul",
@@ -104,6 +117,8 @@ describe("templates registry", () => {
       "readKnowledgeDoc",
       "searchKnowledge",
     ]);
+    expect(arg.create.defaultModel).toBe("openai/gpt-5.4-nano");
+    expect(arg.update.defaultModel).toBe("openai/gpt-5.4-nano");
   });
 });
 
@@ -114,6 +129,7 @@ const mkTemplate = (slug: string, edges: Array<string>) => ({
   defaultBudgetCents: 0,
   defaultEnabledSkillIds: [],
   defaultMission: "",
+  defaultModel: "openai/gpt-5.4-mini",
   defaultSystemPrompt: "",
   description: "",
   displayName: "",
