@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
+import { logActivity } from "../activity/log";
 import type { AgentDispatcher } from "../agents/dispatcher";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import type { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
@@ -24,6 +25,7 @@ type PipelineDeps = {
   prisma: Pick<
     PrismaClient,
     | "$transaction"
+    | "activityLog"
     | "agentAction"
     | "agentInstance"
     | "agentRun"
@@ -66,11 +68,20 @@ const handleInboundMessage = async (
     if (senderRole === "OWNER") {
       const ownerCommand = parseOwnerCommand(message.text ?? null);
       if (ownerCommand !== null) {
-        await persistInboundMessage({
+        const persisted = await persistInboundMessage({
           contentType: "TEXT",
           conversationId,
           message,
           prisma: deps.prisma,
+        });
+        await logActivity({
+          orgId,
+          payload: { commandKind: ownerCommand.kind, contentType: "TEXT" },
+          prisma: deps.prisma,
+          refId: persisted.id,
+          refType: "MESSAGE",
+          summary: `Comando do dono recebido: /${ownerCommand.kind}`,
+          type: "OWNER_COMMAND",
         });
         const reply = await handleOwnerCommand({
           command: ownerCommand,
@@ -112,6 +123,20 @@ const handleInboundMessage = async (
       prisma: deps.prisma,
     });
 
+    await logActivity({
+      orgId,
+      payload: {
+        attachmentCount: attachments.length,
+        contentType,
+        externalMessageId: message.id,
+      },
+      prisma: deps.prisma,
+      refId: persistedMessage.id,
+      refType: "MESSAGE",
+      summary: "Mensagem recebida via Telegram",
+      type: "MESSAGE_INBOUND",
+    });
+
     const processed = await processIncomingAttachments({
       chatId: thread.id,
       deps: { ingestBrandAsset: deps.ingestBrandAsset, prisma: deps.prisma },
@@ -145,7 +170,7 @@ const handleInboundMessage = async (
       }
     }
 
-    const result = await runAgentForInbound({
+    const outcome = await runAgentForInbound({
       attachments: { ...processed, audioBytes },
       connectorInstanceId,
       deps: {
@@ -160,6 +185,7 @@ const handleInboundMessage = async (
       orgId,
       triggerMessageId: persistedMessage.id,
     });
+    const result = outcome.result;
 
     await postAgentResult({
       deps: {
@@ -171,6 +197,25 @@ const handleInboundMessage = async (
       },
       result,
       thread,
+    });
+
+    // Outbound messages from the agent don't currently land in the Message
+    // table (thread.post writes straight to Telegram via Chat SDK), so the
+    // ActivityLog row refs the AgentRun instead. Persisting outbound Message
+    // rows is a separate concern tracked outside this task.
+    await logActivity({
+      orgId,
+      payload: {
+        generatedAssetCount: result.generatedAssetIds.length,
+        replyLength: result.text.length,
+        tokensIn: result.usage.inputTokens,
+        tokensOut: result.usage.outputTokens,
+      },
+      prisma: deps.prisma,
+      refId: outcome.runId,
+      refType: "AGENT_RUN",
+      summary: "Resposta enviada ao dono via Telegram",
+      type: "MESSAGE_OUTBOUND",
     });
 
     logger.info(

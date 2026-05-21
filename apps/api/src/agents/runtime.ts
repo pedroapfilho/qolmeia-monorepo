@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@repo/db";
 import { gateway, generateText, stepCountIs, tool } from "ai";
 
+import { logActivity } from "../activity/log";
 import { logger } from "../lib/logger";
 
 import { recordAgentAction } from "./actions";
@@ -115,14 +116,14 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
 
   try {
     await Promise.all(
-      extracted.map((ex) => {
+      extracted.map(async (ex) => {
         const cost = computeRunCost({
           externalSkillCalls:
             ex.success && ex.skillId === "generateBrandImage" ? ["generateBrandImage"] : [],
           inputTokens: tokensPerAction.inputTokens,
           outputTokens: tokensPerAction.outputTokens,
         });
-        return recordAgentAction({
+        const action = await recordAgentAction({
           agentInstanceId: agentInstance.id,
           costCents: cost.costCents,
           costInputTokens: tokensPerAction.inputTokens,
@@ -135,12 +136,40 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
           runId,
           skillId: ex.skillId,
         });
+
+        const skill = findSkillById(ex.skillId);
+        const skillName = skill?.displayName ?? ex.skillId;
+        const payload = ex.success
+          ? {
+              agentInstanceId: agentInstance.id,
+              costCents: cost.costCents,
+              output: (ex.output as object | null) ?? null,
+              runId,
+              skillId: ex.skillId,
+            }
+          : {
+              agentInstanceId: agentInstance.id,
+              errorMessage: ex.errorMessage ?? null,
+              runId,
+              skillId: ex.skillId,
+            };
+        await logActivity({
+          orgId: agentInstance.orgId,
+          payload,
+          prisma,
+          refId: action.id,
+          refType: "AGENT_ACTION",
+          summary: ex.success ? `Skill ${skillName} executada` : `Skill ${skillName} falhou`,
+          type: ex.success ? "ACTION_EXECUTED" : "ACTION_FAILED",
+        });
+        return action;
       }),
     );
 
     // Soft-warn if budget threshold crossed.
     if (agentInstance.budgetCents > 0) {
       await checkBudgetThresholds({
+        agentDisplayName: agentInstance.displayName,
         agentInstanceId: agentInstance.id,
         budgetCents: agentInstance.budgetCents,
         orgId: agentInstance.orgId,

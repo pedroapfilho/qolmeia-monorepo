@@ -20,6 +20,7 @@ const makePrisma = () => {
   const org = { id: "org_1" };
   const conversation = { id: "conv_1" };
   return {
+    activityLog: { create: vi.fn().mockResolvedValue({ id: "al_test" }) },
     agentInstance: {
       upsert: vi.fn().mockResolvedValue({
         displayName: "Controller",
@@ -30,8 +31,18 @@ const makePrisma = () => {
       }),
     },
     agentRun: {
-      create: vi.fn().mockResolvedValue({ id: "run_test" }),
-      update: vi.fn().mockResolvedValue({ id: "run_test" }),
+      create: vi.fn().mockResolvedValue({
+        agentInstanceId: "ai_test",
+        costCents: 0,
+        id: "run_test",
+        startedAt: new Date(),
+      }),
+      update: vi.fn().mockResolvedValue({
+        agentInstanceId: "ai_test",
+        costCents: 0,
+        id: "run_test",
+        startedAt: new Date(),
+      }),
     },
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -505,5 +516,99 @@ describe("handleInboundMessage", () => {
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).toHaveBeenCalledOnce();
+  });
+
+  it("emits MESSAGE_INBOUND, AGENT_RUN_STARTED, AGENT_RUN_FINISHED, MESSAGE_OUTBOUND ActivityLog rows in order", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual([
+      "MESSAGE_INBOUND",
+      "AGENT_RUN_STARTED",
+      "AGENT_RUN_FINISHED",
+      "MESSAGE_OUTBOUND",
+    ]);
+  });
+
+  it("emits AGENT_RUN_FAILED ActivityLog when the dispatcher throws", async () => {
+    const prisma = makePrisma();
+    const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
+    const deps = makeDeps({ dispatcher, prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toContain("MESSAGE_INBOUND");
+    expect(types).toContain("AGENT_RUN_STARTED");
+    expect(types).toContain("AGENT_RUN_FAILED");
+    // MESSAGE_OUTBOUND should NOT fire when the run failed.
+    expect(types).not.toContain("MESSAGE_OUTBOUND");
+  });
+
+  it("emits OWNER_COMMAND + INSTRUCTIONS_UPDATED ActivityLog rows for /instrucoes <text>", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(
+      deps,
+      thread,
+      makeMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
+    );
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual(["OWNER_COMMAND", "INSTRUCTIONS_UPDATED"]);
+  });
+
+  it("emits OWNER_COMMAND + BUSINESS_IDEA_UPDATED ActivityLog rows for /ideia <text>", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia Salão premium em SP." }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual(["OWNER_COMMAND", "BUSINESS_IDEA_UPDATED"]);
+  });
+
+  it("emits OWNER_COMMAND but no UPDATED row when reading bare /ideia", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia" }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual(["OWNER_COMMAND"]);
   });
 });

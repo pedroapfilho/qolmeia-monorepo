@@ -16,7 +16,7 @@ import type { IncomingMessage, IncomingThread } from "./ingest";
 
 type AgentStepPrisma = Pick<
   PrismaClient,
-  "agentAction" | "agentInstance" | "agentRun" | "brandAsset" | "organization"
+  "activityLog" | "agentAction" | "agentInstance" | "agentRun" | "brandAsset" | "organization"
 >;
 
 type AgentStepDeps = {
@@ -35,6 +35,12 @@ const extFromMime = (mimeType: string): string => {
     return "jpg";
   }
   return "bin";
+};
+
+type InboundRunOutcome = {
+  agentInstanceId: string;
+  result: AgentRunResult;
+  runId: string;
 };
 
 const runAgentForInbound = async ({
@@ -57,7 +63,7 @@ const runAgentForInbound = async ({
   // The persisted Message.id, set by the inbox pipeline. Null when the
   // message wasn't persisted (defensive — current pipeline always persists).
   triggerMessageId: string | null;
-}): Promise<AgentRunResult> => {
+}): Promise<InboundRunOutcome> => {
   const getBusinessContext = deps.getBusinessContext ?? getBusinessContextDefault;
 
   const existingRows = await deps.prisma.brandAsset.findMany({
@@ -107,7 +113,14 @@ const runAgentForInbound = async ({
       ? `${baseSystem}\n\nMissão deste agente:\n${contextSnapshot.mission}`
       : baseSystem;
 
+  const activityContext = {
+    agentDisplayName: agentInstance.displayName,
+    orgId,
+    templateSlug: agentInstance.templateSlug,
+  };
+
   const run = await createAgentRun({
+    activityContext,
     agentInstanceId: agentInstance.id,
     contextSnapshot,
     prisma: deps.prisma,
@@ -141,11 +154,16 @@ const runAgentForInbound = async ({
       systemPrompt,
     });
 
-    await finalizeAgentRun({ prisma: deps.prisma, result, runId: run.id });
-    return result;
+    await finalizeAgentRun({ activityContext, prisma: deps.prisma, result, runId: run.id });
+    return { agentInstanceId: agentInstance.id, result, runId: run.id };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    await finalizeAgentRun({ error: err, prisma: deps.prisma, runId: run.id }).catch(
+    await finalizeAgentRun({
+      activityContext,
+      error: err,
+      prisma: deps.prisma,
+      runId: run.id,
+    }).catch(
       // The outer `error` is the dispatch failure we re-throw below; this
       // inner callback fires only if the finalize-as-FAILED write itself
       // also fails, so we log both separately.
@@ -200,4 +218,4 @@ const postAgentResult = async ({
 };
 
 export { postAgentResult, runAgentForInbound };
-export type { AgentStepDeps };
+export type { AgentStepDeps, InboundRunOutcome };

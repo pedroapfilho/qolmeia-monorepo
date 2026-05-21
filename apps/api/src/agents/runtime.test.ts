@@ -19,13 +19,15 @@ const mockedGenerateText = vi.mocked(generateText as unknown as ReturnType<typeo
 const makePrisma = (
   enablements: ReadonlyArray<{ skillId: string }> = [],
 ): {
+  activityLog: { create: ReturnType<typeof vi.fn> };
   agentAction: { aggregate: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
   agentSkillEnablement: { findMany: ReturnType<typeof vi.fn> };
   brandAsset: { findMany: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
 } => ({
+  activityLog: { create: vi.fn().mockResolvedValue({ id: "al_1" }) },
   agentAction: {
     aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
-    create: vi.fn(),
+    create: vi.fn().mockResolvedValue({ id: "act_default" }),
   },
   agentSkillEnablement: { findMany: vi.fn().mockResolvedValue(enablements) },
   brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
@@ -254,6 +256,7 @@ describe("runAgentInstance", () => {
 
     const create = vi.fn().mockResolvedValue({ id: "act_1" });
     const prisma = {
+      activityLog: { create: vi.fn().mockResolvedValue({ id: "al_1" }) },
       agentAction: {
         aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
         create,
@@ -285,6 +288,123 @@ describe("runAgentInstance", () => {
     expect(create).toHaveBeenCalledOnce();
     const arg = create.mock.calls[0]![0] as { data: { runId: string | null } };
     expect(arg.data.runId).toBe("run_persist");
+  });
+
+  it("emits an ACTION_EXECUTED ActivityLog row alongside each successful AgentAction", async () => {
+    mockedGenerateText.mockResolvedValue({
+      steps: [
+        {
+          content: [
+            { input: { foo: 1 }, toolName: "extractSoul", type: "tool-call" },
+            { output: { ok: true }, toolName: "extractSoul", type: "tool-result" },
+          ],
+        },
+      ],
+      text: ".",
+      toolCalls: [],
+      toolResults: [],
+      usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 },
+    } as never);
+
+    const activityCreate = vi.fn().mockResolvedValue({ id: "al_action" });
+    const prisma = {
+      activityLog: { create: activityCreate },
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn().mockResolvedValue({ id: "act_emit" }),
+      },
+      agentSkillEnablement: { findMany: vi.fn().mockResolvedValue([]) },
+      brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+    } as never;
+
+    const agentInstance = {
+      budgetCents: 0,
+      displayName: "Designer",
+      id: "ai_emit",
+      mission: "",
+      orgId: "org_emit",
+      templateSlug: "designer",
+    } as never;
+
+    await runAgentInstance({
+      agentInstance,
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
+      existingAssets: [],
+      input: { imageBytes: [], text: "x" },
+      newAssets: [],
+      oversizeCount: 0,
+      prisma,
+      runId: "run_emit",
+      systemPrompt: "p",
+    });
+
+    expect(activityCreate).toHaveBeenCalledOnce();
+    const arg = activityCreate.mock.calls[0]![0] as {
+      data: { orgId: string; refId: string; summary: string; type: string };
+    };
+    expect(arg.data.type).toBe("ACTION_EXECUTED");
+    expect(arg.data.refId).toBe("act_emit");
+    expect(arg.data.orgId).toBe("org_emit");
+    expect(arg.data.summary).toContain("Extract Soul");
+  });
+
+  it("emits an ACTION_FAILED ActivityLog row when the tool-result is not ok", async () => {
+    mockedGenerateText.mockResolvedValue({
+      steps: [
+        {
+          content: [
+            { input: {}, toolName: "generateBrandImage", type: "tool-call" },
+            {
+              output: { error: "boom", ok: false },
+              toolName: "generateBrandImage",
+              type: "tool-result",
+            },
+          ],
+        },
+      ],
+      text: ".",
+      toolCalls: [],
+      toolResults: [],
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    } as never);
+
+    const activityCreate = vi.fn().mockResolvedValue({ id: "al_fail" });
+    const prisma = {
+      activityLog: { create: activityCreate },
+      agentAction: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { costCents: 0 } }),
+        create: vi.fn().mockResolvedValue({ id: "act_fail" }),
+      },
+      agentSkillEnablement: { findMany: vi.fn().mockResolvedValue([]) },
+      brandAsset: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+    } as never;
+
+    const agentInstance = {
+      budgetCents: 0,
+      displayName: "Designer",
+      id: "ai_fail",
+      mission: "",
+      orgId: "org_fail",
+      templateSlug: "designer",
+    } as never;
+
+    await runAgentInstance({
+      agentInstance,
+      dispatcher: { enqueueAndAwait: vi.fn() } as never,
+      existingAssets: [],
+      input: { imageBytes: [], text: "x" },
+      newAssets: [],
+      oversizeCount: 0,
+      prisma,
+      runId: "run_fail",
+      systemPrompt: "p",
+    });
+
+    const arg = activityCreate.mock.calls[0]![0] as {
+      data: { payload: { errorMessage: string }; type: string };
+    };
+    expect(arg.data.type).toBe("ACTION_FAILED");
+    expect(arg.data.payload.errorMessage).toBe("boom");
   });
 });
 
