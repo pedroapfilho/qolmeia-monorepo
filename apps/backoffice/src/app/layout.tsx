@@ -5,6 +5,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { Providers } from "@/components/providers";
+
 const inter = Inter({
   display: "swap",
   subsets: ["latin"],
@@ -80,7 +82,7 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
         >
           Pular para o conteúdo
         </a>
-        {children}
+        <Providers>{children}</Providers>
         <Toaster />
       </body>
     </html>
