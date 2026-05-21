@@ -25,7 +25,6 @@ const makePrisma = () => {
     orgId: "org_1",
     templateSlug: "controller",
   };
-  const org = { connectorInstances: [{ id: "ci_new" }], id: "org_1" };
   const conversation = { id: "conv_1" };
   return {
     agentConnectorBinding: {
@@ -35,7 +34,7 @@ const makePrisma = () => {
         {
           agentInstance,
           agentInstanceId: agentInstance.id,
-          connectorInstanceId: "ci_new",
+          connectorInstanceId: "ci_default",
           direction: "INBOUND",
           id: "binding_test",
         },
@@ -48,14 +47,22 @@ const makePrisma = () => {
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
     },
-    connectorInstance: { findFirst: vi.fn().mockResolvedValue(null) },
+    // Default: a ConnectorInstance exists for the chat, with an inbound
+    // binding already in place. Tests that need the bare/backfill/unknown
+    // paths override this explicitly.
+    connectorInstance: {
+      findFirst: vi.fn().mockResolvedValue({
+        bindings: [{ id: "binding_test" }],
+        id: "ci_default",
+        orgId: "org_1",
+      }),
+    },
     conversation: {
       create: vi.fn().mockResolvedValue(conversation),
-      findFirst: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(conversation),
     },
     message: { create: vi.fn().mockResolvedValue({ id: "m_1" }) },
-    organization: { create: vi.fn().mockResolvedValue(org) },
-    telegramLink: { findUnique: vi.fn().mockResolvedValue(null) },
+    organization: { create: vi.fn() },
     webhookEvent: {
       create: vi.fn().mockResolvedValue({ id: "wh_1" }),
       findUnique: vi.fn().mockResolvedValue(null),
@@ -98,7 +105,7 @@ const makeDeps = (
 };
 
 describe("handleInboundMessage", () => {
-  it("creates org+conversation+message and posts the agent's text on text input", async () => {
+  it("resolves the org from ConnectorInstance.config.chatId and posts the agent's text", async () => {
     const deps = makeDeps();
     const thread = makeThread();
 
@@ -276,39 +283,27 @@ describe("handleInboundMessage", () => {
     );
   });
 
-  it("uses ConnectorInstance.config.chatId lookup when available, bypassing TelegramLink", async () => {
+  it("apologises and skips the dispatcher when no ConnectorInstance matches the chatId", async () => {
     const prisma = makePrisma();
-    // ConnectorInstance match found — TelegramLink should never be consulted.
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [{ id: "binding_ci_1" }],
-      id: "ci_1",
-      orgId: "org_ci",
-    });
-    // Conversation already exists for the connector.
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_ci" });
+    ).connectorInstance.findFirst.mockResolvedValue(null);
 
     const deps = makeDeps({ prisma });
     const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá via connector" }));
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
 
     expect(
-      (prisma as never as { telegramLink: { findUnique: ReturnType<typeof vi.fn> } }).telegramLink
-        .findUnique,
-    ).not.toHaveBeenCalled();
-    expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
-    ).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith("Anotei!");
+    ).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith(
+      "Tive um problema processando sua mensagem, pode tentar de novo?",
+    );
   });
 
   it("routes inbound via AgentConnectorBinding lookup (not a hardcoded controller slug)", async () => {
     const prisma = makePrisma();
-    // ConnectorInstance match found — should drive the binding query.
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
     ).connectorInstance.findFirst.mockResolvedValue({
@@ -354,34 +349,6 @@ describe("handleInboundMessage", () => {
     const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
       .calls[0]![0] as { agentInstance: { id: string } };
     expect(call.agentInstance.id).toBe("ai_bound");
-  });
-
-  it("seeds the Controller INBOUND binding on first contact (lazy ConnectorInstance creation)", async () => {
-    const prisma = makePrisma();
-    // No existing ConnectorInstance and no TelegramLink — first contact path.
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue(null);
-    (
-      prisma as never as { telegramLink: { findUnique: ReturnType<typeof vi.fn> } }
-    ).telegramLink.findUnique.mockResolvedValue(null);
-
-    const deps = makeDeps({ prisma });
-    const thread = makeThread();
-
-    await handleInboundMessage(deps, thread, makeMessage({ text: "primeira mensagem" }));
-
-    const bindingUpsert = (
-      prisma as never as { agentConnectorBinding: { upsert: ReturnType<typeof vi.fn> } }
-    ).agentConnectorBinding.upsert;
-    expect(bindingUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({
-          connectorInstanceId: "ci_new",
-          direction: "INBOUND",
-        }),
-      }),
-    );
   });
 
   it("backfills the INBOUND binding when an existing ConnectorInstance lacks one", async () => {

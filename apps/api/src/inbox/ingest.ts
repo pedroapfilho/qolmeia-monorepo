@@ -12,7 +12,6 @@ type IngestPrisma = Pick<
   | "conversation"
   | "message"
   | "organization"
-  | "telegramLink"
   | "webhookEvent"
 >;
 
@@ -27,8 +26,6 @@ type IncomingMessage = {
   id: string;
   text?: string;
 };
-
-const slugify = (chatId: string): string => `org-tg-${chatId}`.toLowerCase();
 
 const markWebhookProcessed = async ({
   message,
@@ -59,10 +56,11 @@ const resolveOrgAndConversation = async ({
 }: {
   prisma: IngestPrisma;
   telegramChatId: string;
-}): Promise<{ connectorInstanceId: string | null; conversationId: string; orgId: string }> => {
-  // 1. Prefer ConnectorInstance lookup (Phase 5h+). Co-select an inbound
-  //    binding presence flag so we only run the one-shot backfill on rows
-  //    that predate binding-driven routing (avoids 2 upserts per message).
+}): Promise<{ connectorInstanceId: string; conversationId: string; orgId: string }> => {
+  // Post-Phase-5i: every inbound message must come from a known onboarded
+  // org. The chat -> org mapping lives on ConnectorInstance(TELEGRAM)
+  // with config.chatId. Unknown chats are rejected so we don't silently
+  // create rogue orgs from arbitrary Telegram traffic.
   const connector = await prisma.connectorInstance.findFirst({
     select: {
       bindings: {
@@ -79,101 +77,40 @@ const resolveOrgAndConversation = async ({
     },
   });
 
-  if (connector) {
-    const conversation =
-      (await prisma.conversation.findFirst({
-        select: { id: true },
-        where: { channel: "TELEGRAM", connectorInstanceId: connector.id, orgId: connector.orgId },
-      })) ??
-      (await prisma.conversation.create({
-        data: {
-          channel: "TELEGRAM",
-          connectorInstanceId: connector.id,
-          externalId: telegramChatId,
-          orgId: connector.orgId,
-        },
-        select: { id: true },
-      }));
-
-    // Idempotent backfill: existing ConnectorInstance rows that predate
-    // binding-driven routing need the Controller INBOUND binding too. Skip
-    // when bindings already exist to avoid steady-state upsert overhead.
-    if (connector.bindings.length === 0) {
-      await ensureInboundBindingForTelegramConnector({
-        connectorInstanceId: connector.id,
-        orgId: connector.orgId,
-        prisma,
-      });
-    }
-
-    return {
-      connectorInstanceId: connector.id,
-      conversationId: conversation.id,
-      orgId: connector.orgId,
-    };
+  if (!connector) {
+    throw new Error(`No ConnectorInstance(TELEGRAM) found for chatId ${telegramChatId}`);
   }
 
-  // 2. Fallback: legacy TelegramLink lookup. New rows will also dual-write a
-  //    ConnectorInstance so subsequent inbound messages take the path above.
-  let link = await prisma.telegramLink.findUnique({
-    select: { orgId: true },
-    where: { telegramChatId },
-  });
-  let newConnectorInstanceId: string | null = null;
-
-  if (!link) {
-    // First contact for this chat. Create org + telegramLink + connectorInstance
-    // + conversation atomically.
-    const org = await prisma.organization.create({
-      data: {
-        connectorInstances: {
-          create: {
-            capabilities: { inbound: true, outbound: true },
-            config: { chatId: telegramChatId },
-            displayName: `Telegram — ${telegramChatId}`,
-            senderRole: "OWNER",
-            type: "TELEGRAM",
-          },
-        },
-        conversations: { create: { channel: "TELEGRAM", externalId: telegramChatId } },
-        name: `Negócio ${telegramChatId}`,
-        slug: slugify(telegramChatId),
-        telegramLink: { create: { telegramChatId } },
-      },
-      select: {
-        connectorInstances: { select: { id: true } },
-        id: true,
-      },
-    });
-    link = { orgId: org.id };
-    newConnectorInstanceId = org.connectorInstances[0]?.id ?? null;
-  }
-
-  // 3. Find or create a Conversation for the legacy path.
   const conversation =
     (await prisma.conversation.findFirst({
       select: { id: true },
-      where: { channel: "TELEGRAM", orgId: link.orgId },
+      where: { channel: "TELEGRAM", connectorInstanceId: connector.id, orgId: connector.orgId },
     })) ??
     (await prisma.conversation.create({
-      data: { channel: "TELEGRAM", externalId: telegramChatId, orgId: link.orgId },
+      data: {
+        channel: "TELEGRAM",
+        connectorInstanceId: connector.id,
+        externalId: telegramChatId,
+        orgId: connector.orgId,
+      },
       select: { id: true },
     }));
 
-  // First-contact path: seed the Controller INBOUND binding for the new
-  // ConnectorInstance so the next inbound message can route via binding.
-  if (newConnectorInstanceId) {
+  // Idempotent backfill: existing ConnectorInstance rows that predate
+  // binding-driven routing need the Controller INBOUND binding too. Skip
+  // when bindings already exist to avoid steady-state upsert overhead.
+  if (connector.bindings.length === 0) {
     await ensureInboundBindingForTelegramConnector({
-      connectorInstanceId: newConnectorInstanceId,
-      orgId: link.orgId,
+      connectorInstanceId: connector.id,
+      orgId: connector.orgId,
       prisma,
     });
   }
 
   return {
-    connectorInstanceId: newConnectorInstanceId,
+    connectorInstanceId: connector.id,
     conversationId: conversation.id,
-    orgId: link.orgId,
+    orgId: connector.orgId,
   };
 };
 

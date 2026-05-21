@@ -30,7 +30,6 @@ type PipelineDeps = {
     | "conversation"
     | "message"
     | "organization"
-    | "telegramLink"
     | "webhookEvent"
   >;
 };

@@ -1,9 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
-import {
-  ensureAgentInstance,
-  findInboundAgentInstanceForConnector,
-} from "../agents/agent-instance";
+import { findInboundAgentInstanceForConnector } from "../agents/agent-instance";
 import type { AgentDispatcher, AgentRunResult } from "../agents/dispatcher";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
@@ -38,19 +35,10 @@ const resolveInboundAgentInstance = async ({
   orgId,
   prisma,
 }: {
-  connectorInstanceId: string | null;
+  connectorInstanceId: string;
   orgId: string;
   prisma: AgentStepPrisma;
 }) => {
-  // Legacy fallback: pre-Phase-5h orgs may have a TelegramLink without a
-  // ConnectorInstance. Route to the Controller directly so existing chats
-  // keep working until the backfill script runs.
-  // TODO(phase-5i): remove once TelegramLink is dropped and connectorInstanceId is non-nullable in resolveOrgAndConversation
-  if (!connectorInstanceId) {
-    logger.warn({ orgId }, "agent-step.routing.missing_connector_instance");
-    return ensureAgentInstance({ orgId, prisma, templateSlug: "controller" });
-  }
-
   const lookup = await findInboundAgentInstanceForConnector({ connectorInstanceId, prisma });
   if (lookup.kind === "found") {
     return lookup.agentInstance;
@@ -80,7 +68,7 @@ const runAgentForInbound = async ({
   orgId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
-  connectorInstanceId: string | null;
+  connectorInstanceId: string;
   deps: AgentStepDeps;
   message: IncomingMessage;
   orgId: string;
