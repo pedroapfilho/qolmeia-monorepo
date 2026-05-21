@@ -814,12 +814,18 @@ type NormalizedMessage = {
 | ConnectorType        | Adapter file                           | Inbound                        | Outbound                                           | Wired into inbound pipeline?     |
 | -------------------- | -------------------------------------- | ------------------------------ | -------------------------------------------------- | -------------------------------- |
 | `TELEGRAM`           | `connectors/telegram/adapter.ts`       | full                           | full (sendMessage + sendDocument via native fetch) | NO — Chat SDK still owns inbound |
-| `WHATSAPP`           | `connectors/whatsapp/adapter.ts`       | parses Meta Cloud API webhooks | `NotImplementedError`                              | NO                               |
+| `WHATSAPP`           | `connectors/whatsapp/adapter.ts`       | parses Meta Cloud API webhooks | `NotImplementedError`                              | NO — route parses + logs only    |
 | `FRESHA`             | `connectors/fresha/adapter.ts`         | `NotImplementedError`          | `NotImplementedError`                              | NO                               |
 | `GOOGLE_MY_BUSINESS` | `connectors/registry.ts` (placeholder) | `NotImplementedError`          | `NotImplementedError`                              | NO                               |
 | `INSTAGRAM`          | `connectors/registry.ts` (placeholder) | `NotImplementedError`          | `NotImplementedError`                              | NO                               |
 
 The registry is **total over `ConnectorType`** — `getAdapter(type)` always returns an adapter. Placeholders throw `NotImplementedError` with a deterministic message; `validateConfig` reports invalid upfront.
+
+### Live route status (Task 3.4)
+
+- **Telegram**: Chat SDK still owns inbound — see `telegram/bot.ts` + `routes/connectors/telegram.ts`. Unchanged.
+- **WhatsApp**: `routes/connectors/whatsapp.ts` is live. The GET handler performs Meta's `hub.verify_token` handshake against `ConnectorInstance.config.verifyToken`. The POST handler optionally verifies `X-Hub-Signature-256` against `config.appSecret` (lenient when absent — operators can register the webhook before pasting the secret) and runs the payload through `getAdapter("WHATSAPP").parseInboundPayload`. The resulting `NormalizedMessage` is **logged** via Pino but **NOT yet dispatched** to the agent pipeline — that's Phase 6+ work to unify inbound through `ConnectorAdapter`. The route handler carries an inline `TODO(phase-6+)` marker at the dispatch point.
+- Seed: `apps/api/src/scripts/seed-whatsapp-connector.ts` creates the `ConnectorInstance(WHATSAPP, senderRole=CUSTOMER, capabilities={inbound:true,outbound:false})` and prints the webhook URL + verify token for the operator to paste into Meta's dashboard. It does **not** auto-create an `AgentConnectorBinding` — CUSTOMER channels are approval-gated.
 
 ### Migration path (Phase 6+)
 
