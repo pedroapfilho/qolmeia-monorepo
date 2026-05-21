@@ -180,6 +180,38 @@ describe("Phase 5a schema", () => {
     expect(remainingConnector).toBeNull();
   });
 
+  it("round-trips Organization.agentInstructions + businessIdea as nullable strings", async () => {
+    // Defaults are null on create.
+    const blank = await prisma.organization.create({
+      data: { name: "blank owner-curated", slug: tag("org-curated-blank") },
+      select: { agentInstructions: true, businessIdea: true },
+    });
+    expect(blank.agentInstructions).toBeNull();
+    expect(blank.businessIdea).toBeNull();
+
+    // Populated values round-trip.
+    const populated = await prisma.organization.create({
+      data: {
+        agentInstructions: "Sempre responda em pt-BR. Nunca use emojis.",
+        businessIdea: "Salão de beleza premium em SP focado em coloração.",
+        name: "populated owner-curated",
+        slug: tag("org-curated-populated"),
+      },
+      select: { agentInstructions: true, businessIdea: true },
+    });
+    expect(populated.agentInstructions).toBe("Sempre responda em pt-BR. Nunca use emojis.");
+    expect(populated.businessIdea).toBe("Salão de beleza premium em SP focado em coloração.");
+
+    // Clearing back to null is supported.
+    const cleared = await prisma.organization.update({
+      data: { agentInstructions: null, businessIdea: null },
+      select: { agentInstructions: true, businessIdea: true },
+      where: { slug: tag("org-curated-populated") },
+    });
+    expect(cleared.agentInstructions).toBeNull();
+    expect(cleared.businessIdea).toBeNull();
+  });
+
   it("preserves enabledSkillIds null/[] distinction", async () => {
     const template = await prisma.agentTemplate.create({
       data: {

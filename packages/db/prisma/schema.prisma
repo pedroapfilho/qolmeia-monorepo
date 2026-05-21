@@ -192,6 +192,12 @@ model Organization {
   currency        String   @default("BRL")
   // The "soul" — accessed ONLY via KnowledgeProvider.getBusinessContext().
   businessProfile Json?
+  // Owner-curated free-form instructions read by every agent. Owner-only;
+  // never written by skills (Paperclip plugin-llm-wiki AGENTS.md equivalent).
+  agentInstructions String? @db.Text
+  // Owner-curated business direction. Read by every agent; complements (does
+  // not replace) the AI-managed businessProfile (Paperclip IDEA.md equivalent).
+  businessIdea      String? @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
