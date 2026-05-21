@@ -55,10 +55,15 @@ const resolveOrgAndConversation = async ({
 }: {
   prisma: IngestPrisma;
   telegramChatId: string;
-}): Promise<{ connectorInstanceId: string | null; conversationId: string; orgId: string }> => {
+}): Promise<{
+  connectorInstanceId: string | null;
+  conversationId: string;
+  orgId: string;
+  senderRole: "CUSTOMER" | "OWNER" | null;
+}> => {
   // 1. Prefer ConnectorInstance lookup (Phase 5h+).
   const connector = await prisma.connectorInstance.findFirst({
-    select: { id: true, orgId: true },
+    select: { id: true, orgId: true, senderRole: true },
     where: {
       config: { equals: { chatId: telegramChatId } },
       type: "TELEGRAM",
@@ -85,6 +90,7 @@ const resolveOrgAndConversation = async ({
       connectorInstanceId: connector.id,
       conversationId: conversation.id,
       orgId: connector.orgId,
+      senderRole: connector.senderRole,
     };
   }
 
@@ -130,7 +136,15 @@ const resolveOrgAndConversation = async ({
       select: { id: true },
     }));
 
-  return { connectorInstanceId: null, conversationId: conversation.id, orgId: link.orgId };
+  // Legacy fallback path: new orgs auto-create an OWNER-side connector above,
+  // and existing TelegramLink-only rows belong to Pedro's owner chats too, so
+  // senderRole defaults to OWNER here.
+  return {
+    connectorInstanceId: null,
+    conversationId: conversation.id,
+    orgId: link.orgId,
+    senderRole: "OWNER",
+  };
 };
 
 const persistInboundMessage = async ({

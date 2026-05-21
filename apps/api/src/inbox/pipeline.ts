@@ -10,6 +10,7 @@ import { postAgentResult, runAgentForInbound } from "./agent-step";
 import { processIncomingAttachments } from "./attachments";
 import { markWebhookProcessed, persistInboundMessage, resolveOrgAndConversation } from "./ingest";
 import type { IncomingMessage, IncomingThread } from "./ingest";
+import { handleOwnerCommand, parseOwnerCommand } from "./owner-commands";
 
 const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
 const EMPTY_TEXT_REPLY = "Recebi sua mensagem, mas não entendi. Pode tentar de novo?";
@@ -50,10 +51,43 @@ const handleInboundMessage = async (
       connectorInstanceId: _connectorInstanceId,
       conversationId,
       orgId,
+      senderRole,
     } = await resolveOrgAndConversation({
       prisma: deps.prisma,
       telegramChatId: thread.id,
     });
+
+    // Owner-only slash commands (e.g. /instrucoes, /ideia) short-circuit the
+    // agent runtime. Gated by senderRole so CUSTOMER-side connectors (Phase
+    // 5h+) can't write to the operator-curated fields.
+    if (senderRole === "OWNER") {
+      const ownerCommand = parseOwnerCommand(message.text ?? null);
+      if (ownerCommand !== null) {
+        await persistInboundMessage({
+          contentType: "TEXT",
+          conversationId,
+          message,
+          prisma: deps.prisma,
+        });
+        const reply = await handleOwnerCommand({
+          command: ownerCommand,
+          orgId,
+          prisma: deps.prisma,
+        });
+        await thread.post(reply);
+        logger.info(
+          {
+            chatId: thread.id,
+            commandKind: ownerCommand.kind,
+            messageId: message.id,
+            messageType: "owner-command",
+            orgId,
+          },
+          "telegram owner command handled",
+        );
+        return;
+      }
+    }
 
     const attachments = message.attachments ?? [];
     const hasAudio = attachments.some((a) => (a.mimeType ?? "").startsWith("audio"));

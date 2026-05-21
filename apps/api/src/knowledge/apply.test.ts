@@ -89,7 +89,9 @@ describe("applySoulUpdate", () => {
 
     const updateCalls = (
       prisma as unknown as {
-        organization: { update: { mock: { calls: Array<Array<{ data: Record<string, unknown> }>> } } };
+        organization: {
+          update: { mock: { calls: Array<Array<{ data: Record<string, unknown> }>> } };
+        };
       }
     ).organization.update.mock.calls;
 

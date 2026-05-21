@@ -39,7 +39,11 @@ const makePrisma = () => {
       findFirst: vi.fn().mockResolvedValue(null),
     },
     message: { create: vi.fn().mockResolvedValue({ id: "m_1" }) },
-    organization: { create: vi.fn().mockResolvedValue(org) },
+    organization: {
+      create: vi.fn().mockResolvedValue(org),
+      findUnique: vi.fn().mockResolvedValue({ agentInstructions: null, businessIdea: null }),
+      update: vi.fn().mockResolvedValue({}),
+    },
     telegramLink: { findUnique: vi.fn().mockResolvedValue(null) },
     webhookEvent: {
       create: vi.fn().mockResolvedValue({ id: "wh_1" }),
@@ -266,7 +270,11 @@ describe("handleInboundMessage", () => {
     // ConnectorInstance match found — TelegramLink should never be consulted.
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_1", orgId: "org_ci" });
+    ).connectorInstance.findFirst.mockResolvedValue({
+      id: "ci_1",
+      orgId: "org_ci",
+      senderRole: "OWNER",
+    });
     // Conversation already exists for the connector.
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -332,5 +340,93 @@ describe("handleInboundMessage", () => {
       ],
       markdown: "Pronto, gerei a imagem!",
     });
+  });
+
+  it("handles /instrucoes <text> by updating the org and posting the confirmation (no dispatch)", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(
+      deps,
+      thread,
+      makeMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
+    );
+
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).toHaveBeenCalledWith({
+      data: { agentInstructions: "Sempre responda em pt-BR." },
+      where: { id: "org_1" },
+    });
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith("Instruções atualizadas.");
+  });
+
+  it("handles bare /ideia by reading the current value (no dispatch)", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { organization: { findUnique: ReturnType<typeof vi.fn> } }
+    ).organization.findUnique.mockResolvedValue({ businessIdea: "Salão em SP." });
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia" }));
+
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith("Salão em SP.");
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("does NOT trigger owner-command handling on regular text", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "oi, sou um salão" }));
+
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
+    expect(thread.post).toHaveBeenCalledWith("Anotei!");
+  });
+
+  it("ignores owner commands when senderRole is CUSTOMER (dispatches to agent instead)", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({
+      id: "ci_cust",
+      orgId: "org_cust",
+      senderRole: "CUSTOMER",
+    });
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_cust" });
+
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/instrucoes nope" }));
+
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
   });
 });
