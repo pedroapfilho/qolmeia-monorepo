@@ -98,12 +98,12 @@ Qolmeia is an AI workforce platform for Brazilian local businesses. The MVP ship
          │  AgentInstance   │  │              │
          │  Skill           │  │              │
          │  AgentSkillEnab. │  │              │      ┌────────────────────┐
-         │  ConnectorInst.  │  │              │      │ Vercel AI Gateway  │
+         │  ConnectorInst.  │  │              │      │     OpenRouter     │
          │  AgentConnBind.  │  │              │      │  (single API key)  │
          │  AgentRun ★      │  │              │      │                    │
-         │  AgentAction     │  │              │      │ google/gemini-2.5  │
-         │  ActivityLog ★   │  │              │      │   -flash (agents)  │
-         │  Routine ★       │  │              │      │ openai/gpt-image-1 │
+         │  AgentAction     │  │              │      │  per-template      │
+         │  ActivityLog ★   │  │              │      │  model selection   │
+         │  Routine ★       │  │              │      │  Nano Banana Pro   │
          └──────────────────┘  └──────────────┘      │   (image gen)      │
                                                      └────────────────────┘
                                                              ▲
@@ -188,7 +188,7 @@ ASCII reduction of the moving parts:
 | `scripts/sync-routines.ts`                                                                                                            | `pnpm tsx apps/api/src/scripts/sync-routines.ts [<orgSlug>]` — seeds Routine rows for one org or all. Paused-by-default, never flips `enabled` on existing rows                                                                       | Explicit, run on demand.                                                                                       |
 | `scripts/migrate-enabled-skills-to-enablements.ts`                                                                                    | One-shot: migrates legacy `AgentInstance.enabledSkillIds` Json arrays into `AgentSkillEnablement` rows. Safe to re-run                                                                                                                | Already executed; archived for history.                                                                        |
 | `scripts/backfill-controller-inbound-bindings.ts`                                                                                     | One-shot: backfills `AgentConnectorBinding(INBOUND)` rows for Telegram ConnectorInstances that predate binding-driven routing                                                                                                         | Already executed.                                                                                              |
-| `lib/{env,logger,storage,image-gen}.ts`                                                                                               | Zod env loader; Pino logger; R2 wrapper; `generateBrandImageBytes` (gpt-image-1 via Gateway)                                                                                                                                          | Unchanged by the restructure.                                                                                  |
+| `lib/{env,logger,storage,image-gen,ai}.ts`                                                                                            | Zod env loader; Pino logger; R2 wrapper; `generateBrandImageBytes` (Nano Banana Pro via OpenRouter, model id from `env.IMAGE_GEN_MODEL`); `ai.ts` exports the shared OpenRouter provider + `resolveModelForAgent`                       | OpenRouter is the single AI provider.                                                                          |
 | `middleware/{security,error-handler}.ts`                                                                                              | CORS, security headers, rate limiting, body size limit; top-level error handler + 404                                                                                                                                                 | Unchanged.                                                                                                     |
 
 **Removed by the restructure:** `routes/telegram/webhook.ts` (legacy route, deleted in PR #1), `scripts/migrate-telegram-link-to-connector.ts` (replaced by the new backfill script for bindings), the `TelegramLink` Prisma model (dropped in PR #1 — `Organization.telegramLink` relation is gone; `connectorInstanceId` is now non-nullable through the pipeline). Single inbound route remains: `POST /connectors/telegram/:connectorInstanceId/webhook`.
@@ -418,18 +418,20 @@ Duplicate webhook deliveries and accidentally re-issued delegations collapse int
 | `delegateToSpecialist`   | Controller, Marketing Strategist | `false`                   | Validates `canDelegateTo`, ensures child instance, builds child snapshot, creates child AgentRun, dispatches. |
 | `extractSoul`            | Controller, Designer             | `false`                   | Single-writer wrapper around `applySoulUpdate`.                                                               |
 | `labelBrandAsset`        | Designer                         | `false`                   | Updates `BrandAsset.metadata`.                                                                                |
-| `generateBrandImage`     | Designer                         | **`true`** ★              | gpt-image-1 via Gateway. CUSTOMER triggers ⇒ DRAFTED.                                                         |
+| `generateBrandImage`     | Designer                         | **`true`** ★              | Nano Banana Pro via OpenRouter (env.IMAGE_GEN_MODEL). CUSTOMER triggers ⇒ DRAFTED.                            |
 | `draftMarketingStrategy` | Marketing Strategist             | **`true`** ★              | Stub v0. CUSTOMER triggers ⇒ DRAFTED.                                                                         |
 | `searchKnowledge`        | Controller, Designer             | `false`                   | Reads `KnowledgeDoc`.                                                                                         |
 | `readKnowledgeDoc`       | Controller, Designer             | `false`                   | Reads `KnowledgeDoc` body from R2.                                                                            |
 
 ### The 3 seeded templates
 
-| Template slug          | displayName          | `canDelegateTo`                       | `defaultEnabledSkillIds`                                                                      |
-| ---------------------- | -------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `controller`           | Controller           | `["designer","marketing-strategist"]` | `["delegateToSpecialist","extractSoul","searchKnowledge","readKnowledgeDoc"]`                 |
-| `marketing-strategist` | Marketing Strategist | `["designer"]`                        | `["delegateToSpecialist","draftMarketingStrategy"]`                                           |
-| `designer`             | Designer             | `[]`                                  | `["extractSoul","generateBrandImage","labelBrandAsset","searchKnowledge","readKnowledgeDoc"]` |
+Each template ships with a `defaultModel` (OpenRouter id). Instances can override per-row via `AgentInstance.modelOverride`; `lib/ai.ts → resolveModelForAgent` does the lookup with `override ?? template.defaultModel`.
+
+| Template slug          | displayName          | `defaultModel`         | `canDelegateTo`                       | `defaultEnabledSkillIds`                                                                      |
+| ---------------------- | -------------------- | ---------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `controller`           | Controller           | `openai/gpt-5.3-chat`  | `["designer","marketing-strategist"]` | `["delegateToSpecialist","extractSoul","searchKnowledge","readKnowledgeDoc"]`                 |
+| `marketing-strategist` | Marketing Strategist | `openai/gpt-5.4-mini`  | `["designer"]`                        | `["delegateToSpecialist","draftMarketingStrategy"]`                                           |
+| `designer`             | Designer             | `openai/gpt-5.4-nano`  | `[]`                                  | `["extractSoul","generateBrandImage","labelBrandAsset","searchKnowledge","readKnowledgeDoc"]` |
 
 ### The runtime sequence
 
@@ -437,7 +439,7 @@ Duplicate webhook deliveries and accidentally re-issued delegations collapse int
 2. `resolveEnabledSkills(prisma, agentInstanceId, template.defaultEnabledSkillIds)` — zero `AgentSkillEnablement` rows ⇒ template defaults; otherwise the row set.
 3. Build `ctx: SkillContext = { agentInstanceId, dispatcher, orgId, parentRunArgs, parentRunId: runId, prisma }`.
 4. Wrap each skill in an AI SDK `tool({ description, inputSchema, execute })`.
-5. `generateText({ model: gateway("google/gemini-2.5-flash"), stopWhen: stepCountIs(5), system: systemPrompt, messages, tools, temperature: 0.2 })`. **No live `getBusinessContext` call.**
+5. `generateText({ model: openrouter.chat(resolveModelForAgent({ instance, template })), stopWhen: stepCountIs(5), system: systemPrompt, messages, tools, temperature: 0.2 })`. The model id is per-agent (instance override ⇒ template default ⇒ schema default). **No live `getBusinessContext` call.**
 6. `aggregateSteps(result.steps, ALL_SKILLS.map(s => s.id))` returns `{ generatedAssetIds, toolCallSummary }`.
 7. For each tool call: `recordAgentAction({ ..., senderRole, runId })` — status resolved via `resolveActionStatus(senderRole, skill.requiresApprovalDefault)`. Emit one `ActivityLog` row per action (`ACTION_EXECUTED` / `ACTION_FAILED` / `ACTION_DRAFTED`).
 8. If `agentInstance.budgetCents > 0`: `checkBudgetThresholds` aggregates month-to-date cost; emits `BUDGET_WARN_80` / `BUDGET_WARN_100` Pino + ActivityLog at thresholds.
@@ -565,21 +567,21 @@ For CUSTOMER-side connectors (`senderRole === "CUSTOMER"`), step 8's `recordAgen
 
 ## 7. External services (env-var map)
 
-Unchanged by the restructure.
-
-| Env var                         | Used by                                                                    | What it does                                                                   |
-| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `DATABASE_URL`                  | Prisma                                                                     | Postgres connection. Local: docker-compose on `localhost:5436`. Prod: Railway. |
-| `REDIS_URL`                     | Chat SDK + BullMQ                                                          | Conversation state, BullMQ queues, JobScheduler state for routines.            |
-| `TELEGRAM_BOT_TOKEN`            | `@chat-adapter/telegram`                                                   | Bot auth (inbound verify + outbound `sendMessage`/`sendDocument`).             |
-| `TELEGRAM_BOT_USERNAME`         | Same                                                                       | Mention detection.                                                             |
-| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Same                                                                       | Validates `X-Telegram-Bot-Api-Secret-Token`.                                   |
-| `AI_GATEWAY_API_KEY`            | `agents/runtime` (via AI SDK `gateway()`) + `lib/image-gen` (direct fetch) | Single AI key. Routes Gemini + gpt-image-1 through Vercel AI Gateway.          |
-| `R2_*` (6 vars)                 | `lib/storage.ts`                                                           | Cloudflare R2 (S3-compatible) — brand assets + KnowledgeDocs.                  |
-| `DISPATCH_MODE`                 | `agents/main-dispatcher`                                                   | `serial` (default) or `queue`.                                                 |
-| `BULLMQ_CONCURRENCY`            | `workers/index.ts`                                                         | Agent-runner worker concurrency (default 4).                                   |
-| `BULLMQ_ROUTINE_CONCURRENCY`    | Same                                                                       | Routine scheduler worker concurrency (default 2).                              |
-| `CORS_ORIGINS`                  | Hono CORS                                                                  | Comma-separated allowed origins; defaults to `*`.                              |
+| Env var                         | Used by                                                                       | What it does                                                                                                                |
+| ------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Prisma                                                                        | Postgres connection. Local: docker-compose on `localhost:5436`. Prod: Railway.                                              |
+| `REDIS_URL`                     | Chat SDK + BullMQ                                                             | Conversation state, BullMQ queues, JobScheduler state for routines.                                                         |
+| `TELEGRAM_BOT_TOKEN`            | `@chat-adapter/telegram`                                                      | Bot auth (inbound verify + outbound `sendMessage`/`sendDocument`).                                                          |
+| `TELEGRAM_BOT_USERNAME`         | Same                                                                          | Mention detection.                                                                                                          |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Same                                                                          | Validates `X-Telegram-Bot-Api-Secret-Token`.                                                                                |
+| `OPENROUTER_API_KEY`            | `lib/ai.ts` (agent runtime via `openrouter.chat()`) + `lib/image-gen.ts` (direct fetch) | Single AI key for all per-agent text models AND image generation. Replaces the pre-migration `AI_GATEWAY_API_KEY`. |
+| `IMAGE_GEN_MODEL`               | `lib/image-gen.ts`                                                            | OpenRouter id for the image model. Defaults to `google/gemini-3-pro-image-preview` (Nano Banana Pro). Hot-swappable via env. |
+| `WEB_APP_URL`                   | `lib/ai.ts` + `lib/image-gen.ts`                                              | Optional. Sent as the OpenRouter `HTTP-Referer` header for dashboard attribution. Falls back to `https://qolmeia.ai`.       |
+| `R2_*` (6 vars)                 | `lib/storage.ts`                                                              | Cloudflare R2 (S3-compatible) — brand assets + KnowledgeDocs.                                                               |
+| `DISPATCH_MODE`                 | `agents/main-dispatcher`                                                      | `serial` (default) or `queue`.                                                                                              |
+| `BULLMQ_CONCURRENCY`            | `workers/index.ts`                                                            | Agent-runner worker concurrency (default 4).                                                                                |
+| `BULLMQ_ROUTINE_CONCURRENCY`    | Same                                                                          | Routine scheduler worker concurrency (default 2).                                                                           |
+| `CORS_ORIGINS`                  | Hono CORS                                                                     | Comma-separated allowed origins; defaults to `*`.                                                                           |
 
 ---
 
@@ -778,7 +780,7 @@ pnpm tsx apps/api/src/scripts/sync-routines.ts <orgSlug>  # one org
 
 ## 15. One-line summary for the next engineer
 
-> Telegram webhook hits `POST /connectors/telegram/:connectorInstanceId/webhook` → Chat SDK → `inbox/pipeline` (owner-command short-circuit; otherwise dedup → ConnectorInstance lookup with senderRole → persist + ActivityLog → attachments → `agent-step` builds the ContextSnapshot, creates an AgentRun, dispatches through `main-dispatcher` which is Serial inline OR BullMQ with deterministic jobId coalescing) → `runtime.runAgentInstance` reads its systemPrompt + runId + senderRole from args, resolves enabled skills via `AgentSkillEnablement` (or template defaults), runs `generateText`, persists one AgentAction per tool call (status from `resolveActionStatus(senderRole, requiresApproval)` — owner auto-approves, CUSTOMER on approval-gated skills lands DRAFTED), emits one ActivityLog per action plus budget warnings → Controller delegates to specialists via `delegateToSpecialist` (which builds the child snapshot, creates a child AgentRun linked via `parentRunId`, and re-enters the dispatcher with a delegation coalesce key) → results bubble up through the step-aggregator → Controller writes the final pt-BR reply → handler posts text + any generated images back to Telegram. In parallel, a routine-scheduler worker reads `Routine` rows (paused-by-default, owner-flipped via `/ligar`), upserts BullMQ JobSchedulers, and the routine executor fires on cron through the same AgentRun lifecycle. `agents/approvals.ts` exposes `approve / reject / edit / executeApproved` as programmatic exits from the approval queue — the web UI hasn't shipped yet. 275 tests; never silent-fails; single AI key; Prisma + Postgres for data, R2 for binaries, Redis for Chat SDK state, BullMQ jobs, and JobScheduler state. No more legacy route, no more hardcoded controller routing, no more `Json?` skill arrays, no more runtime-side context loading.
+> Telegram webhook hits `POST /connectors/telegram/:connectorInstanceId/webhook` → Chat SDK → `inbox/pipeline` (owner-command short-circuit; otherwise dedup → ConnectorInstance lookup with senderRole → persist + ActivityLog → attachments → `agent-step` builds the ContextSnapshot, creates an AgentRun, dispatches through `main-dispatcher` which is Serial inline OR BullMQ with deterministic jobId coalescing) → `runtime.runAgentInstance` reads its systemPrompt + runId + senderRole from args, resolves enabled skills via `AgentSkillEnablement` (or template defaults), runs `generateText`, persists one AgentAction per tool call (status from `resolveActionStatus(senderRole, requiresApproval)` — owner auto-approves, CUSTOMER on approval-gated skills lands DRAFTED), emits one ActivityLog per action plus budget warnings → Controller delegates to specialists via `delegateToSpecialist` (which builds the child snapshot, creates a child AgentRun linked via `parentRunId`, and re-enters the dispatcher with a delegation coalesce key) → results bubble up through the step-aggregator → Controller writes the final pt-BR reply → handler posts text + any generated images back to Telegram. In parallel, a routine-scheduler worker reads `Routine` rows (paused-by-default, owner-flipped via `/ligar`), upserts BullMQ JobSchedulers, and the routine executor fires on cron through the same AgentRun lifecycle. `agents/approvals.ts` exposes `approve / reject / edit / executeApproved` as programmatic exits from the approval queue — the web UI hasn't shipped yet. 275 tests; never silent-fails; single AI key (OpenRouter — per-agent text models, Nano Banana Pro for image gen); Prisma + Postgres for data, R2 for binaries, Redis for Chat SDK state, BullMQ jobs, and JobScheduler state. No more legacy route, no more hardcoded controller routing, no more `Json?` skill arrays, no more runtime-side context loading.
 
 ---
 
