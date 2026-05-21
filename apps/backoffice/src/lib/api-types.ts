@@ -47,6 +47,23 @@ type ApprovalRow = {
   skillId: string;
 };
 
+type ApprovalDetail = {
+  agentInstance: { displayName: string; id: string; templateSlug: string };
+  agentInstanceId: string;
+  createdAt: string;
+  id: string;
+  proposedInput: unknown;
+  proposedSummary: string;
+  skill: {
+    description: string;
+    displayName: string;
+    id: string;
+    parametersJsonSchema: unknown;
+  };
+  skillId: string;
+  status: string;
+};
+
 type ActivityLogType =
   | "MESSAGE_INBOUND"
   | "MESSAGE_OUTBOUND"
@@ -117,6 +134,7 @@ export type {
   AgentDetail,
   AgentRunSummary,
   AgentSummary,
+  ApprovalDetail,
   ApprovalRow,
   Paginated,
   RunRow,

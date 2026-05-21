@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@repo/ui/components/card";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ApprovalActions } from "@/components/approval-actions";
 import { apiGetServer } from "@/lib/api-server";
@@ -41,10 +42,16 @@ const ApprovalsPage = async () => {
                         <time dateTime={row.createdAt}>{formatRelative(row.createdAt)}</time>
                       </p>
                     </div>
-                    <ApprovalActions actionId={row.id} />
+                    <div className="flex items-center gap-2">
+                      <Link
+                        className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted"
+                        href={`/approvals/${row.id}`}
+                      >
+                        Revisar
+                      </Link>
+                      <ApprovalActions actionId={row.id} />
+                    </div>
                   </div>
-                  {/* TODO: Approval input editor — render skill-specific input UI
-                      and wire POST /api/v1/approvals/:id/edit. */}
                 </CardContent>
               </Card>
             </li>

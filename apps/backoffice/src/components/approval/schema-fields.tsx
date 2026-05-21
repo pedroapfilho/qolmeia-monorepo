@@ -6,12 +6,7 @@ import { Input } from "@repo/ui/components/input";
 import { Plus, Trash2 } from "lucide-react";
 import { type ComponentType, useId, useState } from "react";
 
-import {
-  type FieldRendererProps,
-  isMultilineString,
-  labelFor,
-  resolveType,
-} from "./schema-types";
+import { type FieldRendererProps, isMultilineString, labelFor, resolveType } from "./schema-types";
 
 // Object/Array renderers need to recurse — they receive the dispatcher via
 // the `Renderer` prop so this file can stay free of forward references.
