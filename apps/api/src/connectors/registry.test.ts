@@ -4,6 +4,7 @@ import { freshaAdapter } from "./fresha/adapter";
 import { ADAPTERS, getAdapter } from "./registry";
 import { telegramAdapter } from "./telegram/adapter";
 import { NotImplementedError } from "./types";
+import { webChatAdapter } from "./web-chat/adapter";
 import { whatsappAdapter } from "./whatsapp/adapter";
 
 describe("getAdapter", () => {
@@ -19,12 +20,17 @@ describe("getAdapter", () => {
     expect(getAdapter("FRESHA")).toBe(freshaAdapter);
   });
 
+  it("returns webChatAdapter for WEB_CHAT", () => {
+    expect(getAdapter("WEB_CHAT")).toBe(webChatAdapter);
+  });
+
   it("returns an adapter for every ConnectorType enum variant", () => {
     const expectedVariants = [
       "FRESHA",
       "GOOGLE_MY_BUSINESS",
       "INSTAGRAM",
       "TELEGRAM",
+      "WEB_CHAT",
       "WHATSAPP",
     ] as const;
     for (const variant of expectedVariants) {
