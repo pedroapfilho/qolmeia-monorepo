@@ -16,13 +16,15 @@ describe("createSerialDispatcher", () => {
 
     const args = {
       agentInstance: { id: "ai_1" },
-      currentContext: "",
       dispatcher: { enqueueAndAwait: vi.fn() } as never,
       existingAssets: [],
       input: { imageBytes: [], text: "hi" },
       newAssets: [],
       oversizeCount: 0,
       prisma: {},
+      runId: "run_1",
+      senderRole: "OWNER",
+      systemPrompt: "system",
     } as unknown as AgentDispatchArgs;
 
     const result = await dispatcher.enqueueAndAwait(args);

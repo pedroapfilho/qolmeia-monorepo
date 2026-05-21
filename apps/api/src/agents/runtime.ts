@@ -1,5 +1,7 @@
+import type { PrismaClient } from "@repo/db";
 import { gateway, generateText, stepCountIs, tool } from "ai";
 
+import { logActivity } from "../activity/log";
 import { logger } from "../lib/logger";
 
 import { recordAgentAction } from "./actions";
@@ -10,7 +12,6 @@ import type { AnySkill, SkillContext } from "./skills/types";
 import { aggregateSteps, extractActionsFromSteps } from "./step-aggregator";
 import type { StepShape } from "./step-aggregator";
 import { findTemplateBySlug } from "./templates/registry";
-import { renderSystemPrompt } from "./templates/renderer";
 
 const buildUserContent = (input: AgentDispatchArgs["input"]) => {
   const parts: Array<
@@ -31,16 +32,19 @@ const buildUserContent = (input: AgentDispatchArgs["input"]) => {
   return parts;
 };
 
-const resolveEnabledSkills = (
-  enabledSkillIds: unknown,
+const resolveEnabledSkills = async (
+  prisma: Pick<PrismaClient, "agentSkillEnablement">,
+  agentInstanceId: string,
   templateDefaultSkillIds: ReadonlyArray<string>,
-): ReadonlyArray<AnySkill> => {
-  // enabledSkillIds is Json? on AgentInstance: null = use template defaults,
-  // [] = explicit empty (no skills), [...] = explicit override.
+): Promise<ReadonlyArray<AnySkill>> => {
+  // Zero AgentSkillEnablement rows ⇒ fall back to the template defaults.
+  // One or more rows ⇒ explicit override (Group 2.3 design).
+  const enablements = await prisma.agentSkillEnablement.findMany({
+    select: { skillId: true },
+    where: { agentInstanceId },
+  });
   const ids: ReadonlyArray<string> =
-    enabledSkillIds === null || enabledSkillIds === undefined
-      ? templateDefaultSkillIds
-      : (enabledSkillIds as ReadonlyArray<string>);
+    enablements.length === 0 ? templateDefaultSkillIds : enablements.map((e) => e.skillId);
   const resolved: Array<AnySkill> = [];
   for (const id of ids) {
     const skill = findSkillById(id);
@@ -52,16 +56,16 @@ const resolveEnabledSkills = (
 };
 
 const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult> => {
-  const { agentInstance, currentContext, existingAssets, input, newAssets, oversizeCount, prisma } =
-    args;
+  const { agentInstance, input, prisma, runId, senderRole, systemPrompt } = args;
 
   const template = findTemplateBySlug(agentInstance.templateSlug);
   if (!template) {
     throw new Error(`Unknown agent template: ${agentInstance.templateSlug}`);
   }
 
-  const skills = resolveEnabledSkills(
-    agentInstance.enabledSkillIds,
+  const skills = await resolveEnabledSkills(
+    prisma,
+    agentInstance.id,
     template.defaultEnabledSkillIds,
   );
 
@@ -70,6 +74,7 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     dispatcher: args.dispatcher,
     orgId: agentInstance.orgId,
     parentRunArgs: args,
+    parentRunId: runId,
     prisma,
   };
   const tools = Object.fromEntries(
@@ -83,22 +88,11 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     ]),
   );
 
-  const baseSystem = renderSystemPrompt(template.defaultSystemPrompt, {
-    currentContext,
-    existingAssets,
-    newAssets,
-    oversizeCount,
-  });
-  const system =
-    agentInstance.mission.length > 0
-      ? `${baseSystem}\n\nMissão deste agente:\n${agentInstance.mission}`
-      : baseSystem;
-
   const result = await generateText({
     messages: [{ content: buildUserContent(input), role: "user" }],
     model: gateway("google/gemini-2.5-flash"),
     stopWhen: stepCountIs(5),
-    system,
+    system: systemPrompt,
     temperature: 0.2,
     tools,
   });
@@ -122,14 +116,14 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
 
   try {
     await Promise.all(
-      extracted.map((ex) => {
+      extracted.map(async (ex) => {
         const cost = computeRunCost({
           externalSkillCalls:
             ex.success && ex.skillId === "generateBrandImage" ? ["generateBrandImage"] : [],
           inputTokens: tokensPerAction.inputTokens,
           outputTokens: tokensPerAction.outputTokens,
         });
-        return recordAgentAction({
+        const action = await recordAgentAction({
           agentInstanceId: agentInstance.id,
           costCents: cost.costCents,
           costInputTokens: tokensPerAction.inputTokens,
@@ -139,14 +133,73 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
           proposedInput: (ex.input as object) ?? {},
           proposedSummary: `${ex.skillId} ${ex.success ? "executed" : "failed"}`,
           resultJson: (ex.output as object | null) ?? null,
+          runId,
+          senderRole,
           skillId: ex.skillId,
         });
+
+        const skill = findSkillById(ex.skillId);
+        const skillName = skill?.displayName ?? ex.skillId;
+        // Three outcomes: failure → ACTION_FAILED; success that auto-executed
+        // → ACTION_EXECUTED; success that is parked awaiting approval (the
+        // CUSTOMER + requiresApprovalDefault branch) → ACTION_DRAFTED. The
+        // DRAFTED path still records the tool call's output as proposed
+        // input so the owner can review it.
+        if (!ex.success) {
+          await logActivity({
+            orgId: agentInstance.orgId,
+            payload: {
+              agentInstanceId: agentInstance.id,
+              errorMessage: ex.errorMessage ?? null,
+              runId,
+              skillId: ex.skillId,
+            },
+            prisma,
+            refId: action.id,
+            refType: "AGENT_ACTION",
+            summary: `Skill ${skillName} falhou`,
+            type: "ACTION_FAILED",
+          });
+        } else if (action.status === "DRAFTED") {
+          await logActivity({
+            orgId: agentInstance.orgId,
+            payload: {
+              agentInstanceId: agentInstance.id,
+              proposedInput: (ex.input as object) ?? {},
+              runId,
+              skillId: ex.skillId,
+            },
+            prisma,
+            refId: action.id,
+            refType: "AGENT_ACTION",
+            summary: `Skill ${skillName} aguardando aprovação`,
+            type: "ACTION_DRAFTED",
+          });
+        } else {
+          await logActivity({
+            orgId: agentInstance.orgId,
+            payload: {
+              agentInstanceId: agentInstance.id,
+              costCents: cost.costCents,
+              output: (ex.output as object | null) ?? null,
+              runId,
+              skillId: ex.skillId,
+            },
+            prisma,
+            refId: action.id,
+            refType: "AGENT_ACTION",
+            summary: `Skill ${skillName} executada`,
+            type: "ACTION_EXECUTED",
+          });
+        }
+        return action;
       }),
     );
 
     // Soft-warn if budget threshold crossed.
     if (agentInstance.budgetCents > 0) {
       await checkBudgetThresholds({
+        agentDisplayName: agentInstance.displayName,
         agentInstanceId: agentInstance.id,
         budgetCents: agentInstance.budgetCents,
         orgId: agentInstance.orgId,
@@ -168,4 +221,4 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
   };
 };
 
-export { runAgentInstance };
+export { resolveEnabledSkills, runAgentInstance };

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
+import { logActivity } from "../activity/log";
 import type { AgentDispatcher } from "../agents/dispatcher";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import type { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
@@ -10,6 +11,7 @@ import { postAgentResult, runAgentForInbound } from "./agent-step";
 import { processIncomingAttachments } from "./attachments";
 import { markWebhookProcessed, persistInboundMessage, resolveOrgAndConversation } from "./ingest";
 import type { IncomingMessage, IncomingThread } from "./ingest";
+import { handleOwnerCommand, parseOwnerCommand } from "./owner-commands";
 
 const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
 const EMPTY_TEXT_REPLY = "Recebi sua mensagem, mas não entendi. Pode tentar de novo?";
@@ -23,13 +25,18 @@ type PipelineDeps = {
   prisma: Pick<
     PrismaClient,
     | "$transaction"
+    | "activityLog"
+    | "agentAction"
     | "agentConnectorBinding"
     | "agentInstance"
+    | "agentRun"
     | "brandAsset"
     | "connectorInstance"
     | "conversation"
+    | "knowledgeDoc"
     | "message"
     | "organization"
+    | "routine"
     | "webhookEvent"
   >;
 };
@@ -45,10 +52,52 @@ const handleInboundMessage = async (
       return;
     }
 
-    const { connectorInstanceId, conversationId, orgId } = await resolveOrgAndConversation({
-      prisma: deps.prisma,
-      telegramChatId: thread.id,
-    });
+    const { connectorInstanceId, conversationId, orgId, senderRole } =
+      await resolveOrgAndConversation({
+        prisma: deps.prisma,
+        telegramChatId: thread.id,
+      });
+
+    // Owner-only slash commands (e.g. /instrucoes, /ideia) short-circuit the
+    // agent runtime. Gated by senderRole so CUSTOMER-side connectors (Phase
+    // 5h+) can't write to the operator-curated fields.
+    if (senderRole === "OWNER") {
+      const ownerCommand = parseOwnerCommand(message.text ?? null);
+      if (ownerCommand !== null) {
+        const persisted = await persistInboundMessage({
+          contentType: "TEXT",
+          conversationId,
+          message,
+          prisma: deps.prisma,
+        });
+        await logActivity({
+          orgId,
+          payload: { commandKind: ownerCommand.kind, contentType: "TEXT" },
+          prisma: deps.prisma,
+          refId: persisted.id,
+          refType: "MESSAGE",
+          summary: `Comando do dono recebido: /${ownerCommand.kind}`,
+          type: "OWNER_COMMAND",
+        });
+        const reply = await handleOwnerCommand({
+          command: ownerCommand,
+          orgId,
+          prisma: deps.prisma,
+        });
+        await thread.post(reply);
+        logger.info(
+          {
+            chatId: thread.id,
+            commandKind: ownerCommand.kind,
+            messageId: message.id,
+            messageType: "owner-command",
+            orgId,
+          },
+          "telegram owner command handled",
+        );
+        return;
+      }
+    }
 
     const attachments = message.attachments ?? [];
     const hasAudio = attachments.some((a) => (a.mimeType ?? "").startsWith("audio"));
@@ -63,7 +112,26 @@ const handleInboundMessage = async (
       contentType = "TEXT";
     }
 
-    await persistInboundMessage({ contentType, conversationId, message, prisma: deps.prisma });
+    const persistedMessage = await persistInboundMessage({
+      contentType,
+      conversationId,
+      message,
+      prisma: deps.prisma,
+    });
+
+    await logActivity({
+      orgId,
+      payload: {
+        attachmentCount: attachments.length,
+        contentType,
+        externalMessageId: message.id,
+      },
+      prisma: deps.prisma,
+      refId: persistedMessage.id,
+      refType: "MESSAGE",
+      summary: "Mensagem recebida via Telegram",
+      type: "MESSAGE_INBOUND",
+    });
 
     const processed = await processIncomingAttachments({
       chatId: thread.id,
@@ -98,7 +166,7 @@ const handleInboundMessage = async (
       }
     }
 
-    const result = await runAgentForInbound({
+    const outcome = await runAgentForInbound({
       attachments: { ...processed, audioBytes },
       connectorInstanceId,
       deps: {
@@ -108,9 +176,13 @@ const handleInboundMessage = async (
         ingestBrandAsset: deps.ingestBrandAsset,
         prisma: deps.prisma,
       },
+      externalThreadId: thread.id,
       message,
       orgId,
+      senderRole,
+      triggerMessageId: persistedMessage.id,
     });
+    const result = outcome.result;
 
     await postAgentResult({
       deps: {
@@ -122,6 +194,25 @@ const handleInboundMessage = async (
       },
       result,
       thread,
+    });
+
+    // Outbound messages from the agent don't currently land in the Message
+    // table (thread.post writes straight to Telegram via Chat SDK), so the
+    // ActivityLog row refs the AgentRun instead. Persisting outbound Message
+    // rows is a separate concern tracked outside this task.
+    await logActivity({
+      orgId,
+      payload: {
+        generatedAssetCount: result.generatedAssetIds.length,
+        replyLength: result.text.length,
+        tokensIn: result.usage.inputTokens,
+        tokensOut: result.usage.outputTokens,
+      },
+      prisma: deps.prisma,
+      refId: outcome.runId,
+      refType: "AGENT_RUN",
+      summary: "Resposta enviada ao dono via Telegram",
+      type: "MESSAGE_OUTBOUND",
     });
 
     logger.info(

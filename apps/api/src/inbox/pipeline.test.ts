@@ -27,6 +27,7 @@ const makePrisma = () => {
   };
   const conversation = { id: "conv_1" };
   return {
+    activityLog: { create: vi.fn().mockResolvedValue({ id: "al_test" }) },
     agentConnectorBinding: {
       // Default to one binding (Controller) so routing succeeds for tests
       // that exercise the binding-driven inbound path.
@@ -44,17 +45,33 @@ const makePrisma = () => {
     agentInstance: {
       upsert: vi.fn().mockResolvedValue(agentInstance),
     },
+    agentRun: {
+      create: vi.fn().mockResolvedValue({
+        agentInstanceId: "ai_test",
+        costCents: 0,
+        id: "run_test",
+        startedAt: new Date(),
+      }),
+      update: vi.fn().mockResolvedValue({
+        agentInstanceId: "ai_test",
+        costCents: 0,
+        id: "run_test",
+        startedAt: new Date(),
+      }),
+    },
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
     },
     // Default: a ConnectorInstance exists for the chat, with an inbound
-    // binding already in place. Tests that need the bare/backfill/unknown
+    // binding already in place. senderRole defaults to OWNER (legacy
+    // single-chat case). Tests that need the backfill/unknown/customer
     // paths override this explicitly.
     connectorInstance: {
       findFirst: vi.fn().mockResolvedValue({
         bindings: [{ id: "binding_test" }],
         id: "ci_default",
         orgId: "org_1",
+        senderRole: "OWNER",
       }),
     },
     conversation: {
@@ -62,7 +79,11 @@ const makePrisma = () => {
       findFirst: vi.fn().mockResolvedValue(conversation),
     },
     message: { create: vi.fn().mockResolvedValue({ id: "m_1" }) },
-    organization: { create: vi.fn() },
+    organization: {
+      create: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({ agentInstructions: null, businessIdea: null }),
+      update: vi.fn().mockResolvedValue({}),
+    },
     webhookEvent: {
       create: vi.fn().mockResolvedValue({ id: "wh_1" }),
       findUnique: vi.fn().mockResolvedValue(null),
@@ -115,6 +136,80 @@ describe("handleInboundMessage", () => {
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledWith("Anotei!");
+  });
+
+  it("creates an AgentRun with the rendered systemPrompt + contextSnapshot before dispatch and finalizes after", async () => {
+    const prisma = makePrisma();
+    // Capture the persisted Message id so we can assert it lands on the run.
+    (prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create = vi
+      .fn()
+      .mockResolvedValue({ id: "m_persisted_1" });
+
+    const deps = makeDeps({
+      getBusinessContext: vi.fn().mockResolvedValue("BUSINESS-CTX-MD"),
+      prisma,
+    });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "sou um salão" }));
+
+    const create = (prisma as never as { agentRun: { create: ReturnType<typeof vi.fn> } }).agentRun
+      .create;
+    const update = (prisma as never as { agentRun: { update: ReturnType<typeof vi.fn> } }).agentRun
+      .update;
+
+    expect(create).toHaveBeenCalledOnce();
+    const createArgs = create.mock.calls[0]![0] as {
+      data: {
+        agentInstanceId: string;
+        contextSnapshot: { businessContext: string };
+        parentRunId: string | null;
+        systemPrompt: string;
+        triggerMessageId: string | null;
+      };
+    };
+    expect(createArgs.data.agentInstanceId).toBe("ai_test");
+    expect(createArgs.data.triggerMessageId).toBe("m_persisted_1");
+    expect(createArgs.data.parentRunId).toBeNull();
+    expect(createArgs.data.contextSnapshot.businessContext).toBe("BUSINESS-CTX-MD");
+    expect(createArgs.data.systemPrompt).toContain("BUSINESS-CTX-MD");
+
+    // Dispatch happens AFTER the run row is created, then the run is
+    // finalized as SUCCEEDED.
+    const dispatcher = deps.dispatcher as ReturnType<typeof makeDispatcher>;
+    expect(dispatcher.enqueueAndAwait).toHaveBeenCalledOnce();
+    const dispatchArg = dispatcher.enqueueAndAwait.mock.calls[0]![0] as {
+      runId: string;
+      systemPrompt: string;
+    };
+    expect(dispatchArg.runId).toBe("run_test");
+    expect(dispatchArg.systemPrompt).toBe(createArgs.data.systemPrompt);
+
+    expect(update).toHaveBeenCalledOnce();
+    const updateArgs = update.mock.calls[0]![0] as {
+      data: { status: string };
+      where: { id: string };
+    };
+    expect(updateArgs.where.id).toBe("run_test");
+    expect(updateArgs.data.status).toBe("SUCCEEDED");
+  });
+
+  it("finalizes the AgentRun as FAILED when the dispatcher throws", async () => {
+    const prisma = makePrisma();
+    const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
+    const deps = makeDeps({ dispatcher, prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const update = (prisma as never as { agentRun: { update: ReturnType<typeof vi.fn> } }).agentRun
+      .update;
+    expect(update).toHaveBeenCalledOnce();
+    const updateArgs = update.mock.calls[0]![0] as {
+      data: { errorMessage: string | null; status: string };
+    };
+    expect(updateArgs.data.status).toBe("FAILED");
+    expect(updateArgs.data.errorMessage).toBe("agent failed");
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {
@@ -310,6 +405,7 @@ describe("handleInboundMessage", () => {
       bindings: [{ id: "binding_existing" }],
       id: "ci_existing",
       orgId: "org_ci",
+      senderRole: "OWNER",
     });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -359,6 +455,7 @@ describe("handleInboundMessage", () => {
       bindings: [],
       id: "ci_legacy",
       orgId: "org_legacy",
+      senderRole: "OWNER",
     });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -390,6 +487,7 @@ describe("handleInboundMessage", () => {
       bindings: [{ id: "binding_existing" }],
       id: "ci_bound",
       orgId: "org_bound",
+      senderRole: "OWNER",
     });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -421,6 +519,7 @@ describe("handleInboundMessage", () => {
       bindings: [],
       id: "ci_orphan",
       orgId: "org_orphan",
+      senderRole: "OWNER",
     });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -452,6 +551,7 @@ describe("handleInboundMessage", () => {
       bindings: [{ id: "binding_dup" }],
       id: "ci_dup",
       orgId: "org_dup",
+      senderRole: "OWNER",
     });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -533,5 +633,223 @@ describe("handleInboundMessage", () => {
       ],
       markdown: "Pronto, gerei a imagem!",
     });
+  });
+
+  it("handles /instrucoes <text> by updating the org and posting the confirmation (no dispatch)", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(
+      deps,
+      thread,
+      makeMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
+    );
+
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).toHaveBeenCalledWith({
+      data: { agentInstructions: "Sempre responda em pt-BR." },
+      where: { id: "org_1" },
+    });
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith("Instruções atualizadas.");
+  });
+
+  it("handles bare /ideia by reading the current value (no dispatch)", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { organization: { findUnique: ReturnType<typeof vi.fn> } }
+    ).organization.findUnique.mockResolvedValue({ businessIdea: "Salão em SP." });
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia" }));
+
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).not.toHaveBeenCalled();
+    expect(thread.post).toHaveBeenCalledWith("Salão em SP.");
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("does NOT trigger owner-command handling on regular text", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "oi, sou um salão" }));
+
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
+    expect(thread.post).toHaveBeenCalledWith("Anotei!");
+  });
+
+  it("ignores owner commands when senderRole is CUSTOMER (dispatches to agent instead)", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [{ id: "binding_cust" }],
+      id: "ci_cust",
+      orgId: "org_cust",
+      senderRole: "CUSTOMER",
+    });
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_cust" });
+
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/instrucoes nope" }));
+
+    expect(
+      (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
+        .update,
+    ).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
+  });
+
+  it("emits MESSAGE_INBOUND, AGENT_RUN_STARTED, AGENT_RUN_FINISHED, MESSAGE_OUTBOUND ActivityLog rows in order", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual([
+      "MESSAGE_INBOUND",
+      "AGENT_RUN_STARTED",
+      "AGENT_RUN_FINISHED",
+      "MESSAGE_OUTBOUND",
+    ]);
+  });
+
+  it("emits AGENT_RUN_FAILED ActivityLog when the dispatcher throws", async () => {
+    const prisma = makePrisma();
+    const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
+    const deps = makeDeps({ dispatcher, prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toContain("MESSAGE_INBOUND");
+    expect(types).toContain("AGENT_RUN_STARTED");
+    expect(types).toContain("AGENT_RUN_FAILED");
+    // MESSAGE_OUTBOUND should NOT fire when the run failed.
+    expect(types).not.toContain("MESSAGE_OUTBOUND");
+  });
+
+  it("emits OWNER_COMMAND + INSTRUCTIONS_UPDATED ActivityLog rows for /instrucoes <text>", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(
+      deps,
+      thread,
+      makeMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
+    );
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual(["OWNER_COMMAND", "INSTRUCTIONS_UPDATED"]);
+  });
+
+  it("emits OWNER_COMMAND + BUSINESS_IDEA_UPDATED ActivityLog rows for /ideia <text>", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia Salão premium em SP." }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual(["OWNER_COMMAND", "BUSINESS_IDEA_UPDATED"]);
+  });
+
+  it("threads senderRole=OWNER from the default ConnectorInstance into AgentDispatchArgs", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as { senderRole: "CUSTOMER" | "OWNER" | null };
+    expect(call.senderRole).toBe("OWNER");
+  });
+
+  it("threads senderRole=CUSTOMER when the resolving ConnectorInstance is customer-side", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [{ id: "binding_cust" }],
+      id: "ci_cust",
+      orgId: "org_cust",
+      senderRole: "CUSTOMER",
+    });
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_cust" });
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "oi" }));
+
+    const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
+      .calls[0]![0] as { senderRole: "CUSTOMER" | "OWNER" | null };
+    expect(call.senderRole).toBe("CUSTOMER");
+  });
+
+  it("emits OWNER_COMMAND but no UPDATED row when reading bare /ideia", async () => {
+    const prisma = makePrisma();
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia" }));
+
+    const activityCreate = (
+      prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
+    ).activityLog.create;
+    const types = activityCreate.mock.calls.map(
+      (c) => (c[0] as { data: { type: string } }).data.type,
+    );
+    expect(types).toEqual(["OWNER_COMMAND"]);
   });
 });

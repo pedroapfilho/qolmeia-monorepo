@@ -6,7 +6,8 @@ describe("draftMarketingStrategySkill", () => {
   it("has the expected metadata", () => {
     expect(draftMarketingStrategySkill.id).toBe("draftMarketingStrategy");
     expect(draftMarketingStrategySkill.displayName).toBe("Draft Marketing Strategy");
-    expect(draftMarketingStrategySkill.requiresApprovalDefault).toBe(false);
+    // Gated for CUSTOMER-side runs (Task 3.5 — §8 approval rule).
+    expect(draftMarketingStrategySkill.requiresApprovalDefault).toBe(true);
   });
 
   it("validates input via Zod (goal required, others optional)", () => {
@@ -24,6 +25,7 @@ describe("draftMarketingStrategySkill", () => {
         dispatcher: { enqueueAndAwait: vi.fn() } as never,
         orgId: "org_1",
         parentRunArgs: {} as never,
+        parentRunId: "run_test",
         prisma: {} as never,
       },
     );

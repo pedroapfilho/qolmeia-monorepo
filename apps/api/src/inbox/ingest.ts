@@ -56,7 +56,12 @@ const resolveOrgAndConversation = async ({
 }: {
   prisma: IngestPrisma;
   telegramChatId: string;
-}): Promise<{ connectorInstanceId: string; conversationId: string; orgId: string }> => {
+}): Promise<{
+  connectorInstanceId: string;
+  conversationId: string;
+  orgId: string;
+  senderRole: "CUSTOMER" | "OWNER" | null;
+}> => {
   // Post-Phase-5i: every inbound message must come from a known onboarded
   // org. The chat -> org mapping lives on ConnectorInstance(TELEGRAM)
   // with config.chatId. Unknown chats are rejected so we don't silently
@@ -70,6 +75,7 @@ const resolveOrgAndConversation = async ({
       },
       id: true,
       orgId: true,
+      senderRole: true,
     },
     where: {
       config: { equals: { chatId: telegramChatId } },
@@ -111,6 +117,7 @@ const resolveOrgAndConversation = async ({
     connectorInstanceId: connector.id,
     conversationId: conversation.id,
     orgId: connector.orgId,
+    senderRole: connector.senderRole,
   };
 };
 
@@ -124,8 +131,8 @@ const persistInboundMessage = async ({
   conversationId: string;
   message: IncomingMessage;
   prisma: IngestPrisma;
-}): Promise<void> => {
-  await prisma.message.create({
+}): Promise<{ id: string }> => {
+  const row = await prisma.message.create({
     data: {
       content: message.text ?? "",
       contentType,
@@ -134,7 +141,9 @@ const persistInboundMessage = async ({
       metadata: toJsonSafe({ attachments: message.attachments ?? [] }) as object,
       sender: "CUSTOMER",
     },
+    select: { id: true },
   });
+  return { id: row.id };
 };
 
 type PostableFile = {

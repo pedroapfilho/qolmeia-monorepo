@@ -23,7 +23,19 @@ describe("Phase 5a schema", () => {
 
   afterAll(async () => {
     // Best-effort cleanup of anything we inserted under our prefix.
+    await prisma.activityLog.deleteMany({
+      where: { org: { slug: { startsWith: PREFIX } } },
+    });
+    await prisma.routine.deleteMany({
+      where: { org: { slug: { startsWith: PREFIX } } },
+    });
+    await prisma.agentSkillEnablement.deleteMany({
+      where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
+    });
     await prisma.agentAction.deleteMany({
+      where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
+    });
+    await prisma.agentRun.deleteMany({
       where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
     });
     await prisma.agentConnectorBinding.deleteMany({
@@ -180,7 +192,124 @@ describe("Phase 5a schema", () => {
     expect(remainingConnector).toBeNull();
   });
 
-  it("preserves enabledSkillIds null/[] distinction", async () => {
+  it("round-trips Organization.agentInstructions + businessIdea as nullable strings", async () => {
+    // Defaults are null on create.
+    const blank = await prisma.organization.create({
+      data: { name: "blank owner-curated", slug: tag("org-curated-blank") },
+      select: { agentInstructions: true, businessIdea: true },
+    });
+    expect(blank.agentInstructions).toBeNull();
+    expect(blank.businessIdea).toBeNull();
+
+    // Populated values round-trip.
+    const populated = await prisma.organization.create({
+      data: {
+        agentInstructions: "Sempre responda em pt-BR. Nunca use emojis.",
+        businessIdea: "Salão de beleza premium em SP focado em coloração.",
+        name: "populated owner-curated",
+        slug: tag("org-curated-populated"),
+      },
+      select: { agentInstructions: true, businessIdea: true },
+    });
+    expect(populated.agentInstructions).toBe("Sempre responda em pt-BR. Nunca use emojis.");
+    expect(populated.businessIdea).toBe("Salão de beleza premium em SP focado em coloração.");
+
+    // Clearing back to null is supported.
+    const cleared = await prisma.organization.update({
+      data: { agentInstructions: null, businessIdea: null },
+      select: { agentInstructions: true, businessIdea: true },
+      where: { slug: tag("org-curated-populated") },
+    });
+    expect(cleared.agentInstructions).toBeNull();
+    expect(cleared.businessIdea).toBeNull();
+  });
+
+  it("round-trips AgentSkillEnablement rows and enforces (agentInstanceId, skillId) uniqueness", async () => {
+    const skillA = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "EnA",
+        id: tag("skill-en-a"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const skillB = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "EnB",
+        id: tag("skill-en-b"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T-Enablement",
+        slug: tag("tpl-enablement"),
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-enablement") },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        displayName: "agent-en",
+        mission: "",
+        orgId: org.id,
+        templateSlug: template.slug,
+      },
+    });
+
+    const rowA = await prisma.agentSkillEnablement.create({
+      data: {
+        agentInstanceId: agent.id,
+        configOverride: { topK: 5 },
+        enabledBy: "user_test",
+        skillId: skillA.id,
+      },
+    });
+    const rowB = await prisma.agentSkillEnablement.create({
+      data: { agentInstanceId: agent.id, skillId: skillB.id },
+    });
+
+    expect(rowA.configOverride).toEqual({ topK: 5 });
+    expect(rowA.enabledBy).toBe("user_test");
+    expect(rowB.configOverride).toBeNull();
+    expect(rowB.enabledBy).toBeNull();
+    expect(rowA.enabledAt).toBeInstanceOf(Date);
+
+    // (agentInstanceId, skillId) unique.
+    await expect(
+      prisma.agentSkillEnablement.create({
+        data: { agentInstanceId: agent.id, skillId: skillA.id },
+      }),
+    ).rejects.toThrow();
+
+    // Eager-load via the AgentInstance relation.
+    const reloaded = await prisma.agentInstance.findUnique({
+      include: { enablements: { orderBy: { skillId: "asc" }, select: { skillId: true } } },
+      where: { id: agent.id },
+    });
+    expect(reloaded?.enablements.map((e) => e.skillId).toSorted()).toEqual(
+      [skillA.id, skillB.id].toSorted(),
+    );
+
+    // Cascade delete: removing the AgentInstance wipes its enablement rows.
+    await prisma.agentInstance.delete({ where: { id: agent.id } });
+    const remaining = await prisma.agentSkillEnablement.findMany({
+      where: { agentInstanceId: agent.id },
+    });
+    expect(remaining).toEqual([]);
+  });
+
+  it("uses zero AgentSkillEnablement rows to mean 'use template defaults'", async () => {
     const template = await prisma.agentTemplate.create({
       data: {
         canDelegateTo: [],
@@ -193,24 +322,279 @@ describe("Phase 5a schema", () => {
         slug: tag("tpl-3"),
       },
     });
-    // Two orgs because (orgId, templateSlug) is unique on AgentInstance.
-    const orgA = await prisma.organization.create({ data: { name: "n", slug: tag("org-a") } });
-    const orgB = await prisma.organization.create({ data: { name: "n", slug: tag("org-b") } });
-
-    const usingDefaults = await prisma.agentInstance.create({
-      data: { displayName: "a", mission: "", orgId: orgA.id, templateSlug: template.slug },
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-defaults") },
     });
-    expect(usingDefaults.enabledSkillIds).toBeNull();
+    const usingDefaults = await prisma.agentInstance.create({
+      data: { displayName: "a", mission: "", orgId: org.id, templateSlug: template.slug },
+    });
+    const enablements = await prisma.agentSkillEnablement.findMany({
+      where: { agentInstanceId: usingDefaults.id },
+    });
+    expect(enablements).toEqual([]);
+  });
 
-    const explicitlyEmpty = await prisma.agentInstance.create({
+  it("round-trips AgentRun with contextSnapshot JSON, parent-child links, and FK to Message", async () => {
+    const template = await prisma.agentTemplate.create({
       data: {
-        displayName: "b",
-        enabledSkillIds: [],
-        mission: "",
-        orgId: orgB.id,
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T-Run",
+        slug: tag("tpl-run"),
+      },
+    });
+    const skill = await prisma.skill.create({
+      data: {
+        description: "d",
+        displayName: "S-Run",
+        id: tag("skill-run"),
+        parametersJsonSchema: {},
+        requiredConnectorTypes: [],
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-run") },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        displayName: "a-run",
+        mission: "test",
+        orgId: org.id,
         templateSlug: template.slug,
       },
     });
-    expect(explicitlyEmpty.enabledSkillIds).toEqual([]);
+    const conversation = await prisma.conversation.create({
+      data: { channel: "TELEGRAM", orgId: org.id },
+    });
+    const message = await prisma.message.create({
+      data: {
+        content: "ola",
+        conversationId: conversation.id,
+        sender: "CUSTOMER",
+      },
+    });
+
+    const parentRun = await prisma.agentRun.create({
+      data: {
+        agentInstanceId: agent.id,
+        contextSnapshot: { businessContext: "ctx", mission: "test" },
+        systemPrompt: "you are the controller",
+        triggerMessageId: message.id,
+      },
+    });
+    expect(parentRun.status).toBe("RUNNING");
+    expect(parentRun.parentRunId).toBeNull();
+    expect(parentRun.contextSnapshot).toEqual({
+      businessContext: "ctx",
+      mission: "test",
+    });
+    expect(parentRun.finishedAt).toBeNull();
+    expect(parentRun.costCents).toBe(0);
+
+    const childRun = await prisma.agentRun.create({
+      data: {
+        agentInstanceId: agent.id,
+        contextSnapshot: { businessContext: "ctx", mission: "designer subtask" },
+        parentRunId: parentRun.id,
+        systemPrompt: "you are the designer",
+      },
+    });
+    expect(childRun.parentRunId).toBe(parentRun.id);
+    expect(childRun.triggerMessageId).toBeNull();
+
+    // AgentAction.runId wires actions back to their parent run.
+    const action = await prisma.agentAction.create({
+      data: {
+        agentInstanceId: agent.id,
+        proposedInput: { foo: "bar" },
+        proposedSummary: "did the thing",
+        runId: childRun.id,
+        skillId: skill.id,
+      },
+    });
+    expect(action.runId).toBe(childRun.id);
+
+    // Finalize the parent run.
+    const finished = await prisma.agentRun.update({
+      data: {
+        costCents: 12,
+        costInputTokens: 100,
+        costOutputTokens: 50,
+        finishedAt: new Date(),
+        status: "SUCCEEDED",
+      },
+      where: { id: parentRun.id },
+    });
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.finishedAt).toBeInstanceOf(Date);
+    expect(finished.costCents).toBe(12);
+
+    // Eager-load child runs + actions via the relation.
+    const reloaded = await prisma.agentRun.findUnique({
+      include: { actions: true, childRuns: true },
+      where: { id: parentRun.id },
+    });
+    expect(reloaded?.childRuns.map((r) => r.id)).toEqual([childRun.id]);
+
+    // Cascade: deleting the parent AgentRun via the agent cascades to
+    // children and actions through the agentInstance FK.
+    await prisma.agentAction.deleteMany({ where: { agentInstanceId: agent.id } });
+    await prisma.agentRun.deleteMany({ where: { agentInstanceId: agent.id } });
+    const remaining = await prisma.agentRun.findMany({
+      where: { agentInstanceId: agent.id },
+    });
+    expect(remaining).toEqual([]);
+  });
+
+  it("round-trips ActivityLog rows for each event type and cascades on org delete", async () => {
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-activity") },
+    });
+
+    // Insert one row per event type so the test doubles as a smoke check for
+    // the enum surface.
+    const types = [
+      "MESSAGE_INBOUND",
+      "MESSAGE_OUTBOUND",
+      "AGENT_RUN_STARTED",
+      "AGENT_RUN_FINISHED",
+      "AGENT_RUN_FAILED",
+      "ACTION_EXECUTED",
+      "ACTION_FAILED",
+      "ACTION_DRAFTED",
+      "ACTION_APPROVED",
+      "ACTION_REJECTED",
+      "BUDGET_WARN_80",
+      "BUDGET_WARN_100",
+      "INSTRUCTIONS_UPDATED",
+      "BUSINESS_IDEA_UPDATED",
+      "OWNER_COMMAND",
+      "ROUTINE_TRIGGERED",
+      "ROUTINE_ENABLED",
+      "ROUTINE_DISABLED",
+    ] as const;
+
+    // Insert serially via Promise chain to avoid no-await-in-loop without
+    // losing the deterministic createdAt ordering.
+    await types.reduce<Promise<unknown>>(
+      (chain, type) =>
+        chain.then(() =>
+          prisma.activityLog.create({
+            data: {
+              orgId: org.id,
+              payload: { sample: true, type },
+              refId: "ref_sample",
+              refType: "ORGANIZATION",
+              summary: `evento ${type}`,
+              type,
+            },
+          }),
+        ),
+      Promise.resolve(),
+    );
+
+    const rows = await prisma.activityLog.findMany({
+      orderBy: { createdAt: "asc" },
+      where: { orgId: org.id },
+    });
+    expect(rows).toHaveLength(types.length);
+    expect(rows[0]!.refType).toBe("ORGANIZATION");
+    expect(rows[0]!.payload).toEqual({ sample: true, type: rows[0]!.type });
+    expect(rows[0]!.actorId).toBeNull();
+
+    // Cascade: removing the org wipes its activity rows.
+    await prisma.organization.delete({ where: { id: org.id } });
+    const remaining = await prisma.activityLog.findMany({ where: { orgId: org.id } });
+    expect(remaining).toEqual([]);
+  });
+
+  it("round-trips Routine rows: paused by default, unique-per-org, cascades on org delete", async () => {
+    const template = await prisma.agentTemplate.create({
+      data: {
+        canDelegateTo: [],
+        compatibleInboundConnectorTypes: [],
+        compatibleOutboundConnectorTypes: [],
+        defaultMission: "m",
+        defaultSystemPrompt: "p",
+        description: "d",
+        displayName: "T-Routine",
+        slug: tag("tpl-routine"),
+      },
+    });
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-routine") },
+    });
+    const agent = await prisma.agentInstance.create({
+      data: {
+        displayName: "a-routine",
+        mission: "",
+        orgId: org.id,
+        templateSlug: template.slug,
+      },
+    });
+
+    const routine = await prisma.routine.create({
+      data: {
+        agentInstanceId: agent.id,
+        config: { maxDocs: 5 },
+        description: "Resumo noturno do conhecimento",
+        name: "nightly-knowledge-summary",
+        orgId: org.id,
+        schedule: "0 3 * * *",
+      },
+    });
+    expect(routine.enabled).toBe(false);
+    expect(routine.timezone).toBe("America/Sao_Paulo");
+    expect(routine.config).toEqual({ maxDocs: 5 });
+    expect(routine.lastRunAt).toBeNull();
+    expect(routine.lastRunStatus).toBeNull();
+    expect(routine.nextRunAt).toBeNull();
+
+    // (orgId, name) unique.
+    await expect(
+      prisma.routine.create({
+        data: {
+          agentInstanceId: agent.id,
+          name: "nightly-knowledge-summary",
+          orgId: org.id,
+          schedule: "0 4 * * *",
+        },
+      }),
+    ).rejects.toThrow();
+
+    // Flip enabled + record a successful run.
+    const enabled = await prisma.routine.update({
+      data: {
+        enabled: true,
+        lastRunAt: new Date(),
+        lastRunStatus: "SUCCEEDED",
+        nextRunAt: new Date(Date.now() + 86_400_000),
+      },
+      where: { id: routine.id },
+    });
+    expect(enabled.enabled).toBe(true);
+    expect(enabled.lastRunStatus).toBe("SUCCEEDED");
+    expect(enabled.lastRunAt).toBeInstanceOf(Date);
+    expect(enabled.nextRunAt).toBeInstanceOf(Date);
+
+    // ROUTINE refType is wired up.
+    await prisma.activityLog.create({
+      data: {
+        orgId: org.id,
+        refId: routine.id,
+        refType: "ROUTINE",
+        summary: "Rotina ligada pelo dono",
+        type: "ROUTINE_ENABLED",
+      },
+    });
+
+    // Cascade: removing the org wipes Routine + ActivityLog.
+    await prisma.organization.delete({ where: { id: org.id } });
+    const remainingRoutine = await prisma.routine.findUnique({ where: { id: routine.id } });
+    expect(remainingRoutine).toBeNull();
   });
 });
