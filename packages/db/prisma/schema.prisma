@@ -78,6 +78,38 @@ enum KnowledgeDocContentType {
   JSON
 }
 
+// Unified, append-only timeline of business-level events for an org.
+// Read by the future web UI to render the full sequence (DM → run start →
+// tool calls → run finish → reply). Each row is one discrete event.
+// Multica-style — see docs/research/2026-05-20-paperclip-and-multica.md §5.3.
+enum ActivityLogType {
+  MESSAGE_INBOUND
+  MESSAGE_OUTBOUND
+  AGENT_RUN_STARTED
+  AGENT_RUN_FINISHED
+  AGENT_RUN_FAILED
+  ACTION_EXECUTED
+  ACTION_FAILED
+  ACTION_DRAFTED
+  ACTION_APPROVED
+  ACTION_REJECTED
+  BUDGET_WARN_80
+  BUDGET_WARN_100
+  INSTRUCTIONS_UPDATED
+  BUSINESS_IDEA_UPDATED
+  OWNER_COMMAND
+}
+
+// Identifies which entity the refId points at. NONE for free-floating events
+// (rare; mostly reserved for future system-level entries).
+enum ActivityLogRefType {
+  MESSAGE
+  AGENT_RUN
+  AGENT_ACTION
+  ORGANIZATION
+  NONE
+}
+
 model AgentTemplate {
   slug                             String          @id
   displayName                      String
@@ -285,6 +317,7 @@ model Organization {
   connectorInstances ConnectorInstance[]
   agentInstances     AgentInstance[]
   knowledgeDocs      KnowledgeDoc[]
+  activityLogs       ActivityLog[]
 
   @@index([slug])
 }
@@ -394,4 +427,33 @@ model KnowledgeDoc {
 
   @@index([orgId, createdAt])
   @@index([orgId])
+}
+
+// Append-only, per-org timeline of business-level events. Writes are funnelled
+// through activity/log.ts so the call sites stay thin and future fan-out (a
+// Streams bus, webhooks) only needs to plug into one place. Never updated;
+// rows are immutable history.
+model ActivityLog {
+  id        String             @id @default(cuid())
+  orgId     String
+  type      ActivityLogType
+  refType   ActivityLogRefType
+  // Foreign id of the entity this event refers to. Not a typed FK — we want
+  // a single column that can point at Message, AgentRun, AgentAction, etc.
+  // and survive cascade deletes of those rows (the history persists even if
+  // the underlying entity is later removed).
+  refId     String?
+  // Human-readable one-liner in pt-BR. Rendered as-is by the UI.
+  summary   String             @db.Text
+  // Structured event data. Varies per type — see activity/log.ts for the
+  // shapes each call site emits.
+  payload   Json?
+  // User id for human-initiated events. Reserved for the future multi-user
+  // model; today everything is system-initiated.
+  actorId   String?
+  org       Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([type, createdAt])
 }

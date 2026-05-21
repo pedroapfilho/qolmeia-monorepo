@@ -23,6 +23,9 @@ describe("Phase 5a schema", () => {
 
   afterAll(async () => {
     // Best-effort cleanup of anything we inserted under our prefix.
+    await prisma.activityLog.deleteMany({
+      where: { org: { slug: { startsWith: PREFIX } } },
+    });
     await prisma.agentSkillEnablement.deleteMany({
       where: { agentInstance: { org: { slug: { startsWith: PREFIX } } } },
     });
@@ -441,6 +444,65 @@ describe("Phase 5a schema", () => {
     const remaining = await prisma.agentRun.findMany({
       where: { agentInstanceId: agent.id },
     });
+    expect(remaining).toEqual([]);
+  });
+
+  it("round-trips ActivityLog rows for each event type and cascades on org delete", async () => {
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-activity") },
+    });
+
+    // Insert one row per event type so the test doubles as a smoke check for
+    // the enum surface.
+    const types = [
+      "MESSAGE_INBOUND",
+      "MESSAGE_OUTBOUND",
+      "AGENT_RUN_STARTED",
+      "AGENT_RUN_FINISHED",
+      "AGENT_RUN_FAILED",
+      "ACTION_EXECUTED",
+      "ACTION_FAILED",
+      "ACTION_DRAFTED",
+      "ACTION_APPROVED",
+      "ACTION_REJECTED",
+      "BUDGET_WARN_80",
+      "BUDGET_WARN_100",
+      "INSTRUCTIONS_UPDATED",
+      "BUSINESS_IDEA_UPDATED",
+      "OWNER_COMMAND",
+    ] as const;
+
+    // Insert serially via Promise chain to avoid no-await-in-loop without
+    // losing the deterministic createdAt ordering.
+    await types.reduce<Promise<unknown>>(
+      (chain, type) =>
+        chain.then(() =>
+          prisma.activityLog.create({
+            data: {
+              orgId: org.id,
+              payload: { sample: true, type },
+              refId: "ref_sample",
+              refType: "ORGANIZATION",
+              summary: `evento ${type}`,
+              type,
+            },
+          }),
+        ),
+      Promise.resolve(),
+    );
+
+    const rows = await prisma.activityLog.findMany({
+      orderBy: { createdAt: "asc" },
+      where: { orgId: org.id },
+    });
+    expect(rows).toHaveLength(types.length);
+    expect(rows[0]!.refType).toBe("ORGANIZATION");
+    expect(rows[0]!.payload).toEqual({ sample: true, type: rows[0]!.type });
+    expect(rows[0]!.actorId).toBeNull();
+
+    // Cascade: removing the org wipes its activity rows.
+    await prisma.organization.delete({ where: { id: org.id } });
+    const remaining = await prisma.activityLog.findMany({ where: { orgId: org.id } });
     expect(remaining).toEqual([]);
   });
 });
