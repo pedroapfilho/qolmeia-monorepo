@@ -70,7 +70,10 @@ const syncRoutines = async ({
       await prisma.routine.create({
         data: {
           agentInstanceId: agentInstance.id,
-          config: definition.defaultConfig,
+          // Cast through `object`: Prisma's InputJsonValue is structurally
+          // narrower than RoutineConfig (Record<string, unknown>), but every
+          // routine definition's defaultConfig is hand-authored JSON-safe.
+          config: definition.defaultConfig as object,
           description: definition.description,
           enabled: false,
           name: definition.name,
