@@ -21,6 +21,7 @@ import {
   standardRateLimit,
 } from "./middleware/security";
 import { connectorsTelegramRoutes } from "./routes/connectors/telegram";
+import { connectorsWhatsAppRoutes } from "./routes/connectors/whatsapp";
 
 const app = createOpenAPIApp();
 
@@ -58,6 +59,7 @@ app.use("*", async (c, next) => {
 app.use("/api/*", standardRateLimit);
 app.use("/api/v1/*", apiRateLimit);
 app.route("/connectors", connectorsTelegramRoutes);
+app.route("/connectors", connectorsWhatsAppRoutes);
 
 const healthRoute = createRoute({
   description: "Liveness probe — does not touch the database.",
