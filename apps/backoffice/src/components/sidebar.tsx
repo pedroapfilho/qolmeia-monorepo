@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@repo/ui/lib/utils";
-import { Activity, BookOpen, Home, Inbox, Play, Users } from "lucide-react";
+import { Activity, BookOpen, Home, Inbox, Play, UserCog, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -21,6 +21,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/agents", icon: <Users aria-hidden />, label: "Agentes" },
   { href: "/soul", icon: <BookOpen aria-hidden />, label: "Soul" },
   { href: "/runs", icon: <Play aria-hidden />, label: "Execuções" },
+  { href: "/team", icon: <UserCog aria-hidden />, label: "Equipe" },
 ];
 
 // Treat the home link as exact; every other link uses prefix-match so detail

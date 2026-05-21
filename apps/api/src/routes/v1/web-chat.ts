@@ -23,6 +23,7 @@ import type { CustomerContextVars } from "@/middleware/require-customer";
 
 type WebChatPrisma = Pick<
   PrismaClient,
+  | "activityLog"
   | "agentConnectorBinding"
   | "agentInstance"
   | "brandAsset"
@@ -434,6 +435,52 @@ const buildWebChatRoutes = (
     return c.body(bodyView, 200, {
       "Cache-Control": "private, max-age=300",
       "Content-Type": row.mimeType,
+    });
+  });
+
+  // GET /web-chat/activity — customer-facing slice of the org's activity
+  // log. We surface only the events a customer should see: their own
+  // messages, the agent's outbound replies, and agent run outcomes.
+  // Operator-only events (INSTRUCTIONS_UPDATED, OWNER_COMMAND, etc.) stay
+  // off this endpoint by design.
+  app.get("/activity", async (c) => {
+    const orgId = c.get("orgId");
+    const { cursorDate, limit } = parsePagination({
+      cursor: c.req.query("cursor"),
+      defaultLimit: 50,
+      limit: c.req.query("limit"),
+      maxLimit: 200,
+    });
+
+    const customerVisibleTypes = [
+      "MESSAGE_INBOUND",
+      "MESSAGE_OUTBOUND",
+      "AGENT_RUN_STARTED",
+      "AGENT_RUN_FINISHED",
+      "AGENT_RUN_FAILED",
+      "ACTION_EXECUTED",
+      "ACTION_APPROVED",
+    ] as const;
+
+    const rows = await prisma.activityLog.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      where: {
+        orgId,
+        type: { in: [...customerVisibleTypes] },
+        ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
+      },
+    });
+
+    const response = buildListResponse(rows, limit);
+    return c.json({
+      items: response.items.map((row) => ({
+        createdAt: row.createdAt.toISOString(),
+        id: row.id,
+        summary: row.summary,
+        type: row.type,
+      })),
+      nextCursor: response.nextCursor,
     });
   });
 

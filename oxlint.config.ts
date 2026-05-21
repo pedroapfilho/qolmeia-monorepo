@@ -41,6 +41,8 @@ export default defineConfig({
         "apps/client/src/components/sse-subscriber.tsx",
         "apps/client/src/app/auth/verify/page.tsx",
         "apps/client/src/app/(client)/page.tsx",
+        "apps/client/src/app/(client)/assets/page.tsx",
+        "apps/client/src/app/(client)/activity/page.tsx",
         "packages/auth/src/server.ts",
       ],
       rules: {

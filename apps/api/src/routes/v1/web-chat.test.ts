@@ -54,6 +54,16 @@ const buildPrismaMock = () => {
     connectorInstance,
     conversation,
     prisma: {
+      activityLog: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            createdAt: new Date("2026-01-02T12:00:00.000Z"),
+            id: "log_1",
+            summary: "Mensagem recebida via Chat",
+            type: "MESSAGE_INBOUND",
+          },
+        ]),
+      },
       agentConnectorBinding: {
         upsert: vi.fn().mockResolvedValue({ id: "binding_1" }),
       },
@@ -302,6 +312,39 @@ describe("GET /web-chat/assets", () => {
     const body = (await res.json()) as { items: ReadonlyArray<{ id: string }> };
     expect(body.items).toHaveLength(1);
     expect(body.items[0]!.id).toBe("ba_1");
+  });
+});
+
+describe("GET /web-chat/activity", () => {
+  it("returns the customer-visible slice of the org's activity log", async () => {
+    const { prisma } = buildPrismaMock();
+    const routes = buildWebChatRoutes({ prisma: prisma as never });
+    const app = buildAppWithGuard({ orgId: "org_a", role: "CUSTOMER", session }, routes);
+
+    const res = await app.fetch(new Request("http://localhost/activity"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      items: ReadonlyArray<{ id: string; type: string }>;
+    };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]!.type).toBe("MESSAGE_INBOUND");
+    expect(prisma.activityLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ orgId: "org_a" }) }),
+    );
+  });
+
+  it("never surfaces operator-only event types in the where filter", async () => {
+    const { prisma } = buildPrismaMock();
+    const routes = buildWebChatRoutes({ prisma: prisma as never });
+    const app = buildAppWithGuard({ orgId: "org_a", role: "CUSTOMER", session }, routes);
+
+    await app.fetch(new Request("http://localhost/activity"));
+    const callArgs = prisma.activityLog.findMany.mock.calls[0]![0] as {
+      where: { type: { in: ReadonlyArray<string> } };
+    };
+    const allowedTypes = new Set(callArgs.where.type.in);
+    expect(allowedTypes.has("INSTRUCTIONS_UPDATED")).toBe(false);
+    expect(allowedTypes.has("OWNER_COMMAND")).toBe(false);
   });
 });
 

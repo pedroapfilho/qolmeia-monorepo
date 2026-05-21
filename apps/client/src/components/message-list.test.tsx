@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/ui/lib/utils", () => ({
   cn: (...args: ReadonlyArray<unknown>) => args.filter(Boolean).join(" "),
