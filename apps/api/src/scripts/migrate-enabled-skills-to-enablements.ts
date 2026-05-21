@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { prisma } from "@repo/db";
+import { Prisma, prisma } from "@repo/db";
 
 // One-shot migration: for each existing AgentInstance with a non-null
 // enabledSkillIds Json array, create one AgentSkillEnablement row per skill
@@ -16,7 +16,9 @@ import { prisma } from "@repo/db";
 //   - enabledSkillIds === [...] → one row per id.
 //
 // Run AFTER the schema with AgentSkillEnablement is deployed but BEFORE
-// the follow-up commit that drops AgentInstance.enabledSkillIds.
+// the follow-up commit drops the AgentInstance.enabledSkillIds column.
+// Reads the legacy column via $queryRaw so this script keeps compiling
+// after the column is gone (the query will simply return zero rows).
 //
 // Usage: tsx apps/api/src/scripts/migrate-enabled-skills-to-enablements.ts
 
@@ -24,9 +26,14 @@ const isStringArray = (value: unknown): value is ReadonlyArray<string> =>
   Array.isArray(value) && value.every((v) => typeof v === "string");
 
 const main = async (): Promise<void> => {
-  const instances = await prisma.agentInstance.findMany({
-    select: { enabledSkillIds: true, id: true },
-  });
+  // Raw read because enabledSkillIds is intentionally absent from the
+  // generated Prisma client after Group 2.3 drops the column. If the column
+  // doesn't exist (post-drop), Postgres will throw and the script will exit
+  // — by design, since the migration is one-shot and only meaningful while
+  // the column is still around.
+  const instances = await prisma.$queryRaw<Array<{ enabledSkillIds: unknown; id: string }>>(
+    Prisma.sql`SELECT id, "enabledSkillIds" FROM "AgentInstance"`,
+  );
 
   console.log(`Found ${instances.length} AgentInstance row(s).`);
 

@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@repo/db";
 import { gateway, generateText, stepCountIs, tool } from "ai";
 
 import { logger } from "../lib/logger";
@@ -31,16 +32,19 @@ const buildUserContent = (input: AgentDispatchArgs["input"]) => {
   return parts;
 };
 
-const resolveEnabledSkills = (
-  enabledSkillIds: unknown,
+const resolveEnabledSkills = async (
+  prisma: Pick<PrismaClient, "agentSkillEnablement">,
+  agentInstanceId: string,
   templateDefaultSkillIds: ReadonlyArray<string>,
-): ReadonlyArray<AnySkill> => {
-  // enabledSkillIds is Json? on AgentInstance: null = use template defaults,
-  // [] = explicit empty (no skills), [...] = explicit override.
+): Promise<ReadonlyArray<AnySkill>> => {
+  // Zero AgentSkillEnablement rows ⇒ fall back to the template defaults.
+  // One or more rows ⇒ explicit override (Group 2.3 design).
+  const enablements = await prisma.agentSkillEnablement.findMany({
+    select: { skillId: true },
+    where: { agentInstanceId },
+  });
   const ids: ReadonlyArray<string> =
-    enabledSkillIds === null || enabledSkillIds === undefined
-      ? templateDefaultSkillIds
-      : (enabledSkillIds as ReadonlyArray<string>);
+    enablements.length === 0 ? templateDefaultSkillIds : enablements.map((e) => e.skillId);
   const resolved: Array<AnySkill> = [];
   for (const id of ids) {
     const skill = findSkillById(id);
@@ -60,8 +64,9 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     throw new Error(`Unknown agent template: ${agentInstance.templateSlug}`);
   }
 
-  const skills = resolveEnabledSkills(
-    agentInstance.enabledSkillIds,
+  const skills = await resolveEnabledSkills(
+    prisma,
+    agentInstance.id,
     template.defaultEnabledSkillIds,
   );
 
@@ -168,4 +173,4 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
   };
 };
 
-export { runAgentInstance };
+export { resolveEnabledSkills, runAgentInstance };

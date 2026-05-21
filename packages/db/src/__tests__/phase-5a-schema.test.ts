@@ -300,7 +300,7 @@ describe("Phase 5a schema", () => {
     expect(remaining).toEqual([]);
   });
 
-  it("preserves enabledSkillIds null/[] distinction", async () => {
+  it("uses zero AgentSkillEnablement rows to mean 'use template defaults'", async () => {
     const template = await prisma.agentTemplate.create({
       data: {
         canDelegateTo: [],
@@ -313,24 +313,15 @@ describe("Phase 5a schema", () => {
         slug: tag("tpl-3"),
       },
     });
-    // Two orgs because (orgId, templateSlug) is unique on AgentInstance.
-    const orgA = await prisma.organization.create({ data: { name: "n", slug: tag("org-a") } });
-    const orgB = await prisma.organization.create({ data: { name: "n", slug: tag("org-b") } });
-
+    const org = await prisma.organization.create({
+      data: { name: "n", slug: tag("org-defaults") },
+    });
     const usingDefaults = await prisma.agentInstance.create({
-      data: { displayName: "a", mission: "", orgId: orgA.id, templateSlug: template.slug },
+      data: { displayName: "a", mission: "", orgId: org.id, templateSlug: template.slug },
     });
-    expect(usingDefaults.enabledSkillIds).toBeNull();
-
-    const explicitlyEmpty = await prisma.agentInstance.create({
-      data: {
-        displayName: "b",
-        enabledSkillIds: [],
-        mission: "",
-        orgId: orgB.id,
-        templateSlug: template.slug,
-      },
+    const enablements = await prisma.agentSkillEnablement.findMany({
+      where: { agentInstanceId: usingDefaults.id },
     });
-    expect(explicitlyEmpty.enabledSkillIds).toEqual([]);
+    expect(enablements).toEqual([]);
   });
 });

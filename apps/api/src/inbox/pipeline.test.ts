@@ -23,7 +23,6 @@ const makePrisma = () => {
     agentInstance: {
       upsert: vi.fn().mockResolvedValue({
         displayName: "Controller",
-        enabledSkillIds: null,
         id: "ai_test",
         mission: "",
         orgId: "org_1",
