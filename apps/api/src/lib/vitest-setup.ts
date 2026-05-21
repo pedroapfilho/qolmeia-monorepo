@@ -2,9 +2,9 @@ import { vi } from "vitest";
 
 // Stub required env vars before any module that imports env.ts is loaded.
 // This prevents the fail-fast throw in env.ts during unit tests.
-vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
 vi.stubEnv("BETTER_AUTH_SECRET", "test-secret-minimum-32-characters-long");
 vi.stubEnv("DATABASE_URL", "postgresql://u:p@localhost:5432/db");
+vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key");
 vi.stubEnv("R2_ACCESS_KEY_ID", "test-r2-key");
 vi.stubEnv("R2_ACCOUNT_ID", "test-account");
 vi.stubEnv("R2_BUCKET", "test-bucket");

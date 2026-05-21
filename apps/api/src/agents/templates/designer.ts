@@ -43,6 +43,9 @@ const designerTemplate: AgentTemplateDefinition = {
     "searchKnowledge",
   ],
   defaultMission: "",
+  // Mostly tool dispatch — pick the cheapest fast model. The heavy lifting
+  // happens inside generateBrandImage's own model (Nano Banana Pro).
+  defaultModel: "openai/gpt-5.4-nano",
   defaultSystemPrompt: DESIGNER_SYSTEM_PROMPT,
   description:
     "Especialista de design da marca: invocado via delegação do Controller para tarefas de identidade visual, anotação de assets enviados, e geração de imagens promocionais.",

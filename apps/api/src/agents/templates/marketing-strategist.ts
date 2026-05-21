@@ -37,6 +37,9 @@ const marketingStrategistTemplate: AgentTemplateDefinition = {
     "searchKnowledge",
   ],
   defaultMission: "",
+  // Balanced reasoning + tool use — the strategist composes a plan AND
+  // delegates to the designer, so we want decent reasoning at low cost.
+  defaultModel: "openai/gpt-5.4-mini",
   defaultSystemPrompt: MARKETING_STRATEGIST_SYSTEM_PROMPT,
   description:
     "Estrategista de marketing: rascunha campanhas, mistura canais, e delega visuais para o designer. Especialista intermediário no DAG de delegação.",

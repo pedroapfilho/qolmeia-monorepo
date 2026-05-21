@@ -9,7 +9,7 @@ import { env } from "../lib/env";
 
 // Ensure env validation has run and these vars are present before the SDK
 // reads them from process.env at adapter construction time.
-void env.AI_GATEWAY_API_KEY;
+void env.OPENROUTER_API_KEY;
 void env.REDIS_URL;
 void env.TELEGRAM_BOT_TOKEN;
 void env.TELEGRAM_WEBHOOK_SECRET_TOKEN;

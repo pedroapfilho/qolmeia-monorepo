@@ -62,6 +62,7 @@ const syncTemplates = async (prisma: Pick<PrismaClient, "agentTemplate">): Promi
         compatibleOutboundConnectorTypes: [...template.compatibleOutboundConnectorTypes],
         defaultBudgetCents: template.defaultBudgetCents,
         defaultMission: template.defaultMission,
+        defaultModel: template.defaultModel,
         defaultSystemPrompt: template.defaultSystemPrompt,
         description: template.description,
         displayName: template.displayName,
