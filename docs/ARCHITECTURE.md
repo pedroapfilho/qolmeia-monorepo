@@ -129,13 +129,18 @@ ASCII reduction of the moving parts:
 
 ### Apps
 
-- **`apps/api/`** — the only application. Hono on Node 24, bundled by tsdown. `:4000`. Entry: `src/index.ts` (also runs `syncSkills` + `syncTemplates` at boot; routine seed is explicit via `scripts/sync-routines.ts`).
+- **`apps/api/`** — backend API. Hono on Node 24, bundled by tsdown. `:4000`. Entry: `src/index.ts` (also runs `syncSkills` + `syncTemplates` at boot; routine seed is explicit via `scripts/sync-routines.ts`).
 - **`apps/api/src/workers/index.ts`** — separate Node process (`pnpm dev:worker`). Mounts `agent-runner` + `routine-scheduler`.
+- **`apps/backoffice/`** — operator-facing Next.js 16 app. `:3000`. Auth pages (email + password via Better Auth) + dashboard pages for approvals, agents, activity, soul, runs, team.
+- **`apps/client/`** — customer-facing Next.js 16 app. `:3001`. Magic-link auth only. Chat + assets + activity pages. Talks to the same `/api/v1` surface as the backoffice, but the route guards split the customer routes (`/api/v1/web-chat/*`) from the staff routes (`/api/v1/{agents,approvals,activity,soul,runs,team}`).
 
 ### Packages
 
 - **`@repo/db`** — Prisma 7 schema (`packages/db/prisma/schema.prisma`) + singleton `prisma` client. Uses `@prisma/adapter-pg`.
-- **`@repo/config-vitest`** — shared Vitest config.
+- **`@repo/auth`** — Better Auth factory (`createAuth`) shared by `apps/api`, `apps/backoffice`, and `apps/client`. The API mounts the HTTP routes at `/api/auth/*`; the two Next apps just validate cookies the API issued.
+- **`@repo/transactional`** — React Email templates + Resend sender. Used by `@repo/auth` (welcome/reset/verify/magic-link emails) and by `apps/api`'s `/team/invite` endpoint (welcome email for STAFF invites).
+- **`@repo/ui`** — shadcn-style component library + Tailwind config. Consumed by both Next apps.
+- **`@repo/config-vitest`** — shared Vitest config (Node + React).
 - **`@repo/typescript-config`** — shared `tsconfig` bases.
 
 ### Inside `apps/api/src/`
@@ -154,7 +159,12 @@ ASCII reduction of the moving parts:
 | `connectors/registry.ts`                                                                                                              | `ADAPTERS: Record<ConnectorType, ConnectorAdapter>` + `getAdapter(type)`. Total over the enum so callers never get `undefined`                                                                                                              | Adapter dispatch.                                           |
 | `connectors/telegram/adapter.ts`                                                                                                      | Real `TelegramAdapter` — native fetch, `parseInboundPayload`, `sendOutbound` (sendMessage + sendDocument), `validateConfig`                                                                                                                 | Wired into the registry, NOT yet into the inbound pipeline. |
 | `connectors/whatsapp/adapter.ts`                                                                                                      | Stub — `parseInboundPayload` parses Meta Cloud API webhooks into `NormalizedMessage`; `sendOutbound` throws `NotImplementedError`                                                                                                           | First pass at the WhatsApp follow-up.                       |
+| `connectors/web-chat/adapter.ts`                                                                                                      | WEB_CHAT adapter — `parseInboundPayload` mints a uuid externalId (no provider-side id), `sendOutbound` persists Message rows directly + publishes on the in-process bus for SSE                                                              | The customer-facing channel.                                |
 | `connectors/fresha/adapter.ts`                                                                                                        | Typed placeholder; every method throws `NotImplementedError`                                                                                                                                                                                | Reserves the registry slot.                                 |
+| `lib/web-chat-bus.ts`                                                                                                                 | In-process EventEmitter-backed pub/sub keyed on `conversationId`. Subscribed by the SSE endpoint, published by the WEB_CHAT adapter's `sendOutbound`                                                                                       | The SSE seam (swap for Redis when API horizontally scales). |
+| `routes/v1/web-chat.ts`                                                                                                               | Customer-only REST + SSE surface — `POST /messages` dispatches through the unified pipeline, `GET /messages` + `GET /conversations` for history, `GET /stream` for live updates, `GET /assets` + `GET /assets/:id` for inline asset render | Customer side of `/api/v1`.                                 |
+| `routes/v1/team.ts`                                                                                                                   | Staff-only REST surface — `GET /team/members` lists OrgMembership, `POST /team/invite` find-or-creates a User + OrgMembership and sends the role-appropriate email (magic-link for CUSTOMER, welcome for STAFF)                              | The invite flow.                                            |
+| `middleware/require-customer.ts`                                                                                                      | `requireCustomer` (CUSTOMER-only) + `requireAnyMember` (any of OWNER/STAFF/CUSTOMER) — built on the same `buildRoleGuard` factory as `requireStaff`                                                                                          | Role-aware gating.                                          |
 | `agents/dispatcher.ts`                                                                                                                | `AgentDispatcher` interface + `createSerialDispatcher` + `buildCoalesceKey(origin)` + `DispatchOrigin` discriminator                                                                                                                        | The seam.                                                   |
 | `agents/main-dispatcher.ts`                                                                                                           | Module singleton; picks Serial vs BullMQ off `env.DISPATCH_MODE`                                                                                                                                                                            | Six lines.                                                  |
 | `agents/bullmq-dispatcher.ts`                                                                                                         | `createBullMQDispatcher` — `queue.add('run', payload, { jobId })` coalesces identical dispatches; `waitUntilFinished(120s)`                                                                                                                 | The queue path.                                             |
@@ -826,14 +836,14 @@ type NormalizedAttachment = {
 
 ### Current state
 
-| ConnectorType        | Adapter file                           | Inbound                        | Outbound                                           | Wired into pipeline? |
-| -------------------- | -------------------------------------- | ------------------------------ | -------------------------------------------------- | -------------------- |
-| `TELEGRAM`           | `connectors/telegram/adapter.ts`       | full (text/photo/voice/doc)    | full (sendMessage + sendDocument via native fetch) | YES                  |
-| `WHATSAPP`           | `connectors/whatsapp/adapter.ts`       | parses Meta Cloud API webhooks | text-only via Meta Cloud API; files = TODO         | YES                  |
-| `FRESHA`             | `connectors/fresha/adapter.ts`         | `NotImplementedError`          | `NotImplementedError`                              | NO                   |
-| `GOOGLE_MY_BUSINESS` | `connectors/registry.ts` (placeholder) | `NotImplementedError`          | `NotImplementedError`                              | NO                   |
-| `INSTAGRAM`          | `connectors/registry.ts` (placeholder) | `NotImplementedError`          | `NotImplementedError`                              | NO                   |
-| `WEB_CHAT`           | `connectors/registry.ts` (placeholder) | `NotImplementedError`          | `NotImplementedError`                              | NO                   |
+| ConnectorType        | Adapter file                           | Inbound                                                  | Outbound                                                            | Wired into pipeline? |
+| -------------------- | -------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------- | -------------------- |
+| `TELEGRAM`           | `connectors/telegram/adapter.ts`       | full (text/photo/voice/doc)                              | full (sendMessage + sendDocument via native fetch)                  | YES                  |
+| `WHATSAPP`           | `connectors/whatsapp/adapter.ts`       | parses Meta Cloud API webhooks                           | text-only via Meta Cloud API; files = TODO                          | YES                  |
+| `WEB_CHAT`           | `connectors/web-chat/adapter.ts`       | accepts shape `{conversationId, text, attachments}` from `POST /api/v1/web-chat/messages` (no remote webhook) | persists Message rows directly + publishes on `web-chat-bus` for SSE | YES                  |
+| `FRESHA`             | `connectors/fresha/adapter.ts`         | `NotImplementedError`                                    | `NotImplementedError`                                               | NO                   |
+| `GOOGLE_MY_BUSINESS` | `connectors/registry.ts` (placeholder) | `NotImplementedError`                                    | `NotImplementedError`                                               | NO                   |
+| `INSTAGRAM`          | `connectors/registry.ts` (placeholder) | `NotImplementedError`                                    | `NotImplementedError`                                               | NO                   |
 
 The registry is **total over `ConnectorType`** — `getAdapter(type)` always returns an adapter. Placeholders throw `NotImplementedError` with a deterministic message; `validateConfig` reports invalid upfront.
 
@@ -1016,3 +1026,69 @@ The DB `Routine` row owns `schedule`, `enabled`, and `config` (mutable by the ow
 4. Restart the worker (the scheduler reconciles on boot; for an existing process, the next `/ligar` triggers reconcile).
 
 The DB row is the source of truth for runtime; the code is the source of truth for behaviour. Owner customisations (`schedule`, `config`) survive deploys because `syncRoutines` only refreshes `description` on existing rows.
+
+---
+
+## 20. Client app (apps/client)
+
+The customer-facing surface that sits beside `apps/backoffice`. Both are Next.js 16 apps; both validate cookies the API issued via `@repo/auth`'s `createAuth`. They never duplicate Better Auth's HTTP routes — those live exclusively in the API at `/api/auth/*`.
+
+### Auth
+
+- Magic-link only. `/login` POSTs to `authClient.signIn.magicLink({email, callbackURL: "/auth/verify"})` which triggers Better Auth's magic-link plugin (configured in `@repo/auth/server.ts`).
+- The email click goes to the API's `/api/auth/magic-link/verify` endpoint, which sets the session cookie + redirects back to `/auth/verify`. The client app's verify page is a trampoline — bounce to `/` on success, surface `?error=...` on failure.
+- `proxy.ts` redirects unauthenticated visitors to `/login` (preserves `?from=`) and bounces authenticated users away from `/login` and `/auth/verify`.
+- `lib/auth-helpers.ts:requireCustomer` is the RSC guard. Hits `/api/v1/me`; staff sessions land on `/no-access` so they can't rummage in the customer surface.
+
+### Chat UI
+
+- `app/(client)/page.tsx` is a server component that fetches the most recent Conversation + last 50 messages via `apiGetServer`, hydrating `Chat` (a client component).
+- `Chat` owns the TanStack Query cache for messages, mounts `SseSubscriber` (an EventSource on `/api/v1/web-chat/stream`), and renders `MessageList` + `Composer`.
+- Optimistic write: composer submit inserts a temporary `local-<ts>` row into the query cache, then the SSE `message` event replaces it with the server row (dedup by id).
+- IMAGE messages with `metadata.assetId` render via `<img src={`${API_URL}/api/v1/web-chat/assets/${assetId}`} />` — the API streams bytes from R2 with `Cache-Control: private, max-age=300`.
+
+### Other pages
+
+- `/assets` — gallery of `BrandAsset` rows for the org, served via `GET /api/v1/web-chat/assets`. Read-only.
+- `/activity` — customer-visible slice of `ActivityLog`, served via `GET /api/v1/web-chat/activity`. The API filters to a small allowlist of event types so operator-only events (INSTRUCTIONS_UPDATED, OWNER_COMMAND, etc.) never reach the customer surface.
+
+### `/api/v1` mount topology
+
+```
+/api/v1/
+├── me              requireAnyMember  (OWNER + STAFF + CUSTOMER)
+├── agents          requireStaff      (OWNER + STAFF)
+├── approvals       requireStaff
+├── activity        requireStaff
+├── soul            requireStaff
+├── runs            requireStaff
+├── team            requireStaff      (POST /invite gated to OWNER inside the handler)
+└── web-chat        requireCustomer   (CUSTOMER only — apps/client surface)
+```
+
+Splitting the guards at the route group means one API surface serves both Next apps without leaking the operator REST to customers (or vice versa).
+
+---
+
+## 21. Invite flow
+
+Owner-driven onboarding for both apps.
+
+### Path
+
+1. Owner signs into the backoffice → opens `/team` → clicks "Convidar".
+2. `InviteForm` POSTs `{email, name, role}` to `POST /api/v1/team/invite` (`require-staff` + handler-level OWNER check).
+3. API find-or-creates a `User` row (email is unique). Upserts an `OrgMembership` for `(orgId, userId)` with the requested role.
+4. Email side-effect, role-dependent:
+   - `CUSTOMER` → `auth.api.signInMagicLink({body: {callbackURL: env.CLIENT_APP_URL + "/auth/verify", email}})`. Better Auth's magic-link plugin generates a token + invokes the `sendMagicLink` hook in `@repo/auth/server.ts`, which calls `sendMagicLinkEmail` from `@repo/transactional`.
+   - `STAFF` → `sendWelcomeEmail` from `@repo/transactional` with a link to `/login` on the backoffice.
+5. ActivityLog `MEMBER_INVITED` row is written so the timeline reflects the invite.
+
+### Why magic-link for customers and password for staff
+
+- Customers visit infrequently. Magic-link removes the "forgot password" cycle and avoids us storing any customer-side credential.
+- Staff operates daily and benefits from session continuity that password auth gives via Better Auth's session cookie. The welcome email points them at `/login` where they create a password via the normal sign-up flow.
+
+### Idempotency
+
+`POST /team/invite` is safe to retry. Existing users get their membership row upserted (role refreshed); fresh emails create both rows. The Better Auth magic-link endpoint always issues a new token, so resending the email is also safe.
