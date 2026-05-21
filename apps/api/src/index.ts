@@ -21,8 +21,7 @@ import {
   standardRateLimit,
 } from "./middleware/security";
 import { authRoutes } from "./routes/auth";
-import { connectorsTelegramRoutes } from "./routes/connectors/telegram";
-import { connectorsWhatsAppRoutes } from "./routes/connectors/whatsapp";
+import { connectorRoutes } from "./routes/connectors";
 import { buildV1Routes } from "./routes/v1";
 
 const app = createOpenAPIApp();
@@ -79,8 +78,7 @@ app.route("/api", authRoutes);
 // configured inside buildV1Routes() so the guard is mounted exactly once
 // at the route group level (not via a separate `app.use(..., requireStaff)`).
 app.route("/api/v1", buildV1Routes());
-app.route("/connectors", connectorsTelegramRoutes);
-app.route("/connectors", connectorsWhatsAppRoutes);
+app.route("/connectors", connectorRoutes);
 
 const healthRoute = createRoute({
   description: "Liveness probe — does not touch the database.",
