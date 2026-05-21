@@ -1,5 +1,7 @@
 import type { PrismaClient } from "@repo/db";
 
+import { logActivity } from "../activity/log";
+
 type OwnerCommand =
   | { kind: "get-idea" }
   | { kind: "get-instructions" }
@@ -48,7 +50,7 @@ const parseOwnerCommand = (text: string | null | undefined): OwnerCommand | null
   return null;
 };
 
-type OwnerCommandPrisma = Pick<PrismaClient, "organization">;
+type OwnerCommandPrisma = Pick<PrismaClient, "activityLog" | "organization">;
 
 const handleOwnerCommand = async ({
   command,
@@ -72,6 +74,15 @@ const handleOwnerCommand = async ({
       data: { agentInstructions: command.value },
       where: { id: orgId },
     });
+    await logActivity({
+      orgId,
+      payload: { length: command.value.length },
+      prisma,
+      refId: orgId,
+      refType: "ORGANIZATION",
+      summary: "Dono atualizou as instruções dos agentes",
+      type: "INSTRUCTIONS_UPDATED",
+    });
     return UPDATED_INSTRUCTIONS_REPLY;
   }
   if (command.kind === "get-idea") {
@@ -86,6 +97,15 @@ const handleOwnerCommand = async ({
   await prisma.organization.update({
     data: { businessIdea: command.value },
     where: { id: orgId },
+  });
+  await logActivity({
+    orgId,
+    payload: { length: command.value.length },
+    prisma,
+    refId: orgId,
+    refType: "ORGANIZATION",
+    summary: "Dono atualizou a ideia do negócio",
+    type: "BUSINESS_IDEA_UPDATED",
   });
   return UPDATED_IDEA_REPLY;
 };

@@ -74,8 +74,10 @@ const makePrisma = (existing: {
       return Promise.resolve(null);
     });
   const update = vi.fn().mockResolvedValue({});
+  const activityCreate = vi.fn().mockResolvedValue({ id: "al_1" });
   return {
-    mocks: { findUnique, update },
+    activityLog: { create: activityCreate },
+    mocks: { activityCreate, findUnique, update },
     organization: { findUnique, update },
   };
 };
@@ -147,5 +149,50 @@ describe("handleOwnerCommand", () => {
       data: { businessIdea: "Salão em SP." },
       where: { id: "org_1" },
     });
+  });
+
+  it("set-instructions emits an INSTRUCTIONS_UPDATED ActivityLog row", async () => {
+    const prisma = makePrisma({});
+    await handleOwnerCommand({
+      command: { kind: "set-instructions", value: "Sempre responda em pt-BR." },
+      orgId: "org_1",
+      prisma: prisma as never,
+    });
+    expect(prisma.mocks.activityCreate).toHaveBeenCalledOnce();
+    const arg = prisma.mocks.activityCreate.mock.calls[0]![0] as {
+      data: { orgId: string; refType: string; type: string };
+    };
+    expect(arg.data.type).toBe("INSTRUCTIONS_UPDATED");
+    expect(arg.data.refType).toBe("ORGANIZATION");
+    expect(arg.data.orgId).toBe("org_1");
+  });
+
+  it("set-idea emits a BUSINESS_IDEA_UPDATED ActivityLog row", async () => {
+    const prisma = makePrisma({});
+    await handleOwnerCommand({
+      command: { kind: "set-idea", value: "Salão em SP." },
+      orgId: "org_1",
+      prisma: prisma as never,
+    });
+    const arg = prisma.mocks.activityCreate.mock.calls[0]![0] as {
+      data: { refType: string; type: string };
+    };
+    expect(arg.data.type).toBe("BUSINESS_IDEA_UPDATED");
+    expect(arg.data.refType).toBe("ORGANIZATION");
+  });
+
+  it("get-* commands do NOT emit ActivityLog (read-only)", async () => {
+    const prisma = makePrisma({ agentInstructions: "x", businessIdea: "y" });
+    await handleOwnerCommand({
+      command: { kind: "get-instructions" },
+      orgId: "org_1",
+      prisma: prisma as never,
+    });
+    await handleOwnerCommand({
+      command: { kind: "get-idea" },
+      orgId: "org_1",
+      prisma: prisma as never,
+    });
+    expect(prisma.mocks.activityCreate).not.toHaveBeenCalled();
   });
 });

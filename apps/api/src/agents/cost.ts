@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 
+import { logActivity } from "../activity/log";
 import { logger } from "../lib/logger";
 
 // Pricing constants. Phase 5g may move these to env vars; for now they're
@@ -45,11 +46,17 @@ type ThresholdResult = {
 //
 // v0: budget is treated as soft — never blocks execution. The log line is
 // the only consumer.
+const formatReais = (cents: number): string => (cents / 100).toFixed(2).replace(".", ",");
+
 const checkBudgetThresholds = async (args: {
+  // Used to build the human-readable ActivityLog summary. Optional so older
+  // callers (and tests) don't have to thread it; defaults to the generic
+  // "agente" word.
+  agentDisplayName?: string;
   agentInstanceId: string;
   budgetCents: number;
   orgId: string;
-  prisma: Pick<PrismaClient, "agentAction">;
+  prisma: Pick<PrismaClient, "activityLog" | "agentAction">;
 }): Promise<ThresholdResult> => {
   if (args.budgetCents <= 0) {
     return { emitted: null, monthToDateCents: 0, pct: 0 };
@@ -70,6 +77,8 @@ const checkBudgetThresholds = async (args: {
   // eslint-disable-next-line no-underscore-dangle -- Prisma aggregate API requires _sum
   const monthToDateCents = agg._sum.costCents ?? 0;
   const pct = (monthToDateCents / args.budgetCents) * 100;
+  const displayName = args.agentDisplayName ?? "agente";
+  const reais = formatReais(monthToDateCents);
 
   let emitted: ThresholdResult["emitted"] = null;
   if (pct >= 100) {
@@ -84,6 +93,20 @@ const checkBudgetThresholds = async (args: {
       },
       "agentInstance.budget.exceeded",
     );
+    await logActivity({
+      orgId: args.orgId,
+      payload: {
+        agentInstanceId: args.agentInstanceId,
+        budgetCents: args.budgetCents,
+        monthlyCostCents: monthToDateCents,
+        pct: Math.round(pct),
+      },
+      prisma: args.prisma,
+      refId: args.orgId,
+      refType: "ORGANIZATION",
+      summary: `Orçamento mensal do agente ${displayName} em 100% (R$ ${reais})`,
+      type: "BUDGET_WARN_100",
+    });
   } else if (pct >= 80) {
     emitted = "WARN_80";
     logger.warn(
@@ -96,6 +119,20 @@ const checkBudgetThresholds = async (args: {
       },
       "agentInstance.budget.threshold",
     );
+    await logActivity({
+      orgId: args.orgId,
+      payload: {
+        agentInstanceId: args.agentInstanceId,
+        budgetCents: args.budgetCents,
+        monthlyCostCents: monthToDateCents,
+        pct: Math.round(pct),
+      },
+      prisma: args.prisma,
+      refId: args.orgId,
+      refType: "ORGANIZATION",
+      summary: `Orçamento mensal do agente ${displayName} em 80% (R$ ${reais})`,
+      type: "BUDGET_WARN_80",
+    });
   }
 
   return { emitted, monthToDateCents, pct };
