@@ -1,4 +1,4 @@
-import type { PrismaClient, SenderRole } from "@repo/db";
+import type { ConnectorInstance, PrismaClient, SenderRole } from "@repo/db";
 
 import { findInboundAgentInstanceForConnector } from "../agents/agent-instance";
 import { buildContextSnapshot } from "../agents/context-snapshot";
@@ -6,13 +6,14 @@ import type { AgentDispatcher, AgentRunResult } from "../agents/dispatcher";
 import { createAgentRun, finalizeAgentRun } from "../agents/runs";
 import { findTemplateBySlug } from "../agents/templates/registry";
 import { renderSystemPrompt } from "../agents/templates/renderer";
+import { getAdapter } from "../connectors/registry";
+import type { NormalizedMessage, OutboundFile } from "../connectors/types";
 import type { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { getBusinessContext as getBusinessContextDefault } from "../knowledge/provider";
 import { logger } from "../lib/logger";
 import { fetchAsset as fetchAssetDefault } from "../lib/storage";
 
 import type { ProcessedAttachments } from "./attachments";
-import type { IncomingMessage, IncomingThread } from "./ingest";
 
 type AgentStepPrisma = Pick<
   PrismaClient,
@@ -81,19 +82,17 @@ const resolveInboundAgentInstance = async ({
 
 const runAgentForInbound = async ({
   attachments,
-  connectorInstanceId,
+  connectorInstance,
   deps,
-  externalThreadId,
-  message,
+  normalizedMessage,
   orgId,
   senderRole,
   triggerMessageId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
-  connectorInstanceId: string;
+  connectorInstance: Pick<ConnectorInstance, "id" | "orgId" | "type">;
   deps: AgentStepDeps;
-  externalThreadId: string;
-  message: IncomingMessage;
+  normalizedMessage: NormalizedMessage;
   orgId: string;
   // senderRole snapshot from the resolving ConnectorInstance. Threaded into
   // AgentDispatchArgs so recordAgentAction can apply the §8 approval rule
@@ -118,7 +117,7 @@ const runAgentForInbound = async ({
   }));
 
   const agentInstance = await resolveInboundAgentInstance({
-    connectorInstanceId,
+    connectorInstanceId: connectorInstance.id,
     orgId,
     prisma: deps.prisma,
   });
@@ -167,17 +166,17 @@ const runAgentForInbound = async ({
     triggerMessageId,
   });
 
-  const text = (message.text ?? "").trim();
+  const text = (normalizedMessage.text ?? "").trim();
 
   try {
     const result = await deps.dispatcher.enqueueAndAwait({
       agentInstance,
       dispatcher: deps.dispatcher,
       dispatchOrigin: {
-        connectorInstanceId,
-        externalThreadId,
+        connectorInstanceId: connectorInstance.id,
+        externalThreadId: normalizedMessage.externalThreadId,
         kind: "inbound",
-        triggerMessageExternalId: message.id,
+        triggerMessageExternalId: normalizedMessage.externalId,
       },
       existingAssets,
       input: {
@@ -216,45 +215,95 @@ const runAgentForInbound = async ({
 };
 
 const postAgentResult = async ({
+  connectorInstance,
   deps,
+  normalizedMessage,
   result,
-  thread,
 }: {
+  connectorInstance: Pick<ConnectorInstance, "config" | "id" | "type">;
   deps: AgentStepDeps;
+  normalizedMessage: NormalizedMessage;
   result: AgentRunResult;
-  thread: IncomingThread;
 }): Promise<void> => {
   const doFetch = deps.fetchAsset ?? fetchAssetDefault;
+  const adapter = getAdapter(connectorInstance.type);
+  const threadId = normalizedMessage.externalThreadId;
 
-  const postImages = result.generatedAssetIds.map(async (assetId, i, arr) => {
-    const isLast = i === arr.length - 1;
-    try {
+  if (result.generatedAssetIds.length === 0) {
+    await adapter.sendOutbound({
+      connectorConfig: connectorInstance.config,
+      payload: { text: result.text },
+      threadId,
+    });
+    return;
+  }
+
+  // Fetch all generated asset bytes from R2 in parallel, then send as a
+  // single outbound (text + files). When fetch fails the adapter still
+  // receives whatever bytes we have; if every file fetch fails we fall
+  // back to a plain-text reply so the user isn't left hanging.
+  const fetched = await Promise.allSettled(
+    result.generatedAssetIds.map(async (assetId) => {
       const row = await deps.prisma.brandAsset.findUnique({
         select: { mimeType: true, r2Key: true },
         where: { id: assetId },
       });
       if (!row) {
-        return;
+        return null;
       }
       const bytes = await doFetch(row.r2Key);
-      const filename = `qolmeia-${assetId}.${extFromMime(row.mimeType)}`;
-      await thread.post({
-        files: [{ data: Buffer.from(bytes), filename, mimeType: row.mimeType }],
-        markdown: isLast ? result.text : "",
-      });
-    } catch (error) {
-      logger.error({ assetId, chatId: thread.id, error }, "generated_image.post_failed");
-      if (isLast) {
-        try {
-          await thread.post(result.text);
-        } catch {
-          /* already logged above */
-        }
-      }
-    }
-  });
+      const file: OutboundFile = {
+        bytes,
+        filename: `qolmeia-${assetId}.${extFromMime(row.mimeType)}`,
+        mimeType: row.mimeType,
+      };
+      return file;
+    }),
+  );
 
-  await (postImages.length > 0 ? Promise.allSettled(postImages) : thread.post(result.text));
+  const files: Array<OutboundFile> = [];
+  for (const [i, settled] of fetched.entries()) {
+    if (settled.status === "fulfilled" && settled.value) {
+      files.push(settled.value);
+    } else if (settled.status === "rejected") {
+      logger.error(
+        { assetId: result.generatedAssetIds[i], chatId: threadId, error: settled.reason },
+        "generated_image.post_failed",
+      );
+    }
+  }
+
+  if (files.length === 0) {
+    await adapter
+      .sendOutbound({
+        connectorConfig: connectorInstance.config,
+        payload: { text: result.text },
+        threadId,
+      })
+      .catch((error: unknown) => {
+        logger.error({ chatId: threadId, error }, "handler.reply_failed");
+      });
+    return;
+  }
+
+  try {
+    await adapter.sendOutbound({
+      connectorConfig: connectorInstance.config,
+      payload: { files, text: result.text },
+      threadId,
+    });
+  } catch (error) {
+    logger.error({ chatId: threadId, error }, "generated_image.post_failed");
+    await adapter
+      .sendOutbound({
+        connectorConfig: connectorInstance.config,
+        payload: { text: result.text },
+        threadId,
+      })
+      .catch((postError: unknown) => {
+        logger.error({ chatId: threadId, error: postError }, "handler.reply_failed");
+      });
+  }
 };
 
 export { postAgentResult, runAgentForInbound };

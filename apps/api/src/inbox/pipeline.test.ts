@@ -1,18 +1,33 @@
-import { describe, expect, it, vi } from "vitest";
+import type { ConnectorInstance } from "@repo/db";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { handleInboundMessage, type PipelineDeps } from "./pipeline";
+import type * as ConnectorsRegistry from "../connectors/registry";
+import type { NormalizedAttachment, NormalizedMessage } from "../connectors/types";
 
-const makeThread = () => ({ id: "tg_chat_42", post: vi.fn().mockResolvedValue(undefined) });
+import { handleInbound, type PipelineDeps } from "./pipeline";
 
-const makeMessage = (
-  over: Partial<{
-    attachments: Array<{ fetchData?: () => Promise<Uint8Array>; mimeType?: string; name?: string }>;
-    id: string;
-    text: string;
-  }> = {},
-) => ({
+const TELEGRAM_CONFIG = { botToken: "BOT:TOKEN", chatId: "tg_chat_42", secretToken: "secret" };
+
+const buildConnectorInstance = (over: Partial<ConnectorInstance> = {}): ConnectorInstance =>
+  ({
+    capabilities: { inbound: true, outbound: true } as never,
+    config: TELEGRAM_CONFIG as never,
+    createdAt: new Date(),
+    displayName: "Telegram",
+    id: "ci_default",
+    orgId: "org_1",
+    senderRole: "OWNER",
+    type: "TELEGRAM",
+    updatedAt: new Date(),
+    ...over,
+  }) as ConnectorInstance;
+
+const buildNormalizedMessage = (over: Partial<NormalizedMessage> = {}): NormalizedMessage => ({
   attachments: over.attachments ?? [],
-  id: over.id ?? "msg_1",
+  authorDisplayName: over.authorDisplayName ?? null,
+  externalId: over.externalId ?? "msg_1",
+  externalThreadId: over.externalThreadId ?? "tg_chat_42",
+  rawTimestamp: over.rawTimestamp ?? Date.now(),
   text: over.text ?? "olá",
 });
 
@@ -29,6 +44,7 @@ const makePrisma = () => {
   return {
     activityLog: { create: vi.fn().mockResolvedValue({ id: "al_test" }) },
     agentConnectorBinding: {
+      findFirst: vi.fn().mockResolvedValue({ id: "binding_test" }),
       // Default to one binding (Controller) so routing succeeds for tests
       // that exercise the binding-driven inbound path.
       findMany: vi.fn().mockResolvedValue([
@@ -62,18 +78,6 @@ const makePrisma = () => {
     brandAsset: {
       findMany: vi.fn().mockResolvedValue([]),
     },
-    // Default: a ConnectorInstance exists for the chat, with an inbound
-    // binding already in place. senderRole defaults to OWNER (legacy
-    // single-chat case). Tests that need the backfill/unknown/customer
-    // paths override this explicitly.
-    connectorInstance: {
-      findFirst: vi.fn().mockResolvedValue({
-        bindings: [{ id: "binding_test" }],
-        id: "ci_default",
-        orgId: "org_1",
-        senderRole: "OWNER",
-      }),
-    },
     conversation: {
       create: vi.fn().mockResolvedValue(conversation),
       findFirst: vi.fn().mockResolvedValue(conversation),
@@ -100,10 +104,29 @@ const makeDispatcher = (
   }),
 ) => ({ enqueueAndAwait });
 
+// Mocks the adapter registry indirectly: agent-step + pipeline call
+// `getAdapter(type).sendOutbound(...)`. Vitest module-level mock below intercepts.
+const sendOutboundMock = vi.fn().mockResolvedValue({ externalMessageId: "tg_out_1" });
+
+vi.mock("../connectors/registry", async () => {
+  const actual = await vi.importActual<typeof ConnectorsRegistry>("../connectors/registry");
+  return {
+    ...actual,
+    getAdapter: () => ({
+      capabilities: { inbound: true, outbound: true },
+      parseInboundPayload: vi.fn(),
+      sendOutbound: sendOutboundMock,
+      type: "TELEGRAM" as const,
+      validateConfig: vi.fn().mockReturnValue({ valid: true }),
+    }),
+  };
+});
+
 const makeDeps = (
   over: Partial<{
     dispatcher: ReturnType<typeof makeDispatcher>;
     fetchAsset: ReturnType<typeof vi.fn>;
+    fetchAttachmentBytes: ReturnType<typeof vi.fn>;
     getBusinessContext: ReturnType<typeof vi.fn>;
     ingestBrandAsset: ReturnType<typeof vi.fn>;
     prisma: ReturnType<typeof makePrisma>;
@@ -113,6 +136,8 @@ const makeDeps = (
   return {
     dispatcher: (over.dispatcher ?? makeDispatcher()) as unknown as PipelineDeps["dispatcher"],
     fetchAsset: over.fetchAsset as unknown as PipelineDeps["fetchAsset"],
+    fetchAttachmentBytes:
+      over.fetchAttachmentBytes as unknown as PipelineDeps["fetchAttachmentBytes"],
     getBusinessContext: (over.getBusinessContext ??
       vi.fn().mockResolvedValue("")) as unknown as PipelineDeps["getBusinessContext"],
     ingestBrandAsset: (over.ingestBrandAsset ??
@@ -125,22 +150,32 @@ const makeDeps = (
   };
 };
 
-describe("handleInboundMessage", () => {
-  it("resolves the org from ConnectorInstance.config.chatId and posts the agent's text", async () => {
-    const deps = makeDeps();
-    const thread = makeThread();
+describe("handleInbound", () => {
+  beforeEach(() => {
+    sendOutboundMock.mockClear();
+  });
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "sou um salão" }));
+  it("dispatches via the adapter and replies with the agent's text", async () => {
+    const deps = makeDeps();
+
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "sou um salão" }),
+    });
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith("Anotei!");
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { text: "Anotei!" },
+        threadId: "tg_chat_42",
+      }),
+    );
   });
 
   it("creates an AgentRun with the rendered systemPrompt + contextSnapshot before dispatch and finalizes after", async () => {
     const prisma = makePrisma();
-    // Capture the persisted Message id so we can assert it lands on the run.
     (prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create = vi
       .fn()
       .mockResolvedValue({ id: "m_persisted_1" });
@@ -149,9 +184,11 @@ describe("handleInboundMessage", () => {
       getBusinessContext: vi.fn().mockResolvedValue("BUSINESS-CTX-MD"),
       prisma,
     });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "sou um salão" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "sou um salão" }),
+    });
 
     const create = (prisma as never as { agentRun: { create: ReturnType<typeof vi.fn> } }).agentRun
       .create;
@@ -174,8 +211,6 @@ describe("handleInboundMessage", () => {
     expect(createArgs.data.contextSnapshot.businessContext).toBe("BUSINESS-CTX-MD");
     expect(createArgs.data.systemPrompt).toContain("BUSINESS-CTX-MD");
 
-    // Dispatch happens AFTER the run row is created, then the run is
-    // finalized as SUCCEEDED.
     const dispatcher = deps.dispatcher as ReturnType<typeof makeDispatcher>;
     expect(dispatcher.enqueueAndAwait).toHaveBeenCalledOnce();
     const dispatchArg = dispatcher.enqueueAndAwait.mock.calls[0]![0] as {
@@ -198,9 +233,11 @@ describe("handleInboundMessage", () => {
     const prisma = makePrisma();
     const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
     const deps = makeDeps({ dispatcher, prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     const update = (prisma as never as { agentRun: { update: ReturnType<typeof vi.fn> } }).agentRun
       .update;
@@ -218,32 +255,38 @@ describe("handleInboundMessage", () => {
       prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }
     ).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage());
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage(),
+    });
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).not.toHaveBeenCalled();
-    expect(thread.post).not.toHaveBeenCalled();
+    expect(sendOutboundMock).not.toHaveBeenCalled();
   });
 
   it("downloads audio attachments and forwards bytes to the dispatcher", async () => {
     const bytes = new Uint8Array([7, 7, 7]);
-    const fetchData = vi.fn().mockResolvedValue(bytes);
-    const deps = makeDeps();
-    const thread = makeThread();
+    const fetchAttachmentBytes = vi.fn().mockResolvedValue(bytes);
+    const deps = makeDeps({ fetchAttachmentBytes });
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({
-        attachments: [{ fetchData, mimeType: "audio/ogg", name: "voice.ogg" }],
+    const audioAttachment: NormalizedAttachment = {
+      kind: "audio",
+      mimeType: "audio/ogg",
+      sizeBytes: 1000,
+    };
+
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({
+        attachments: [audioAttachment],
         text: "",
       }),
-    );
+    });
 
-    expect(fetchData).toHaveBeenCalledOnce();
+    expect(fetchAttachmentBytes).toHaveBeenCalled();
     const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
       .calls[0]![0] as { input: { audioBytes?: Uint8Array; audioMime?: string } };
     expect(call.input.audioBytes).toBe(bytes);
@@ -252,21 +295,25 @@ describe("handleInboundMessage", () => {
 
   it("ingests image attachments and passes new assets + image bytes to the dispatcher", async () => {
     const imageBytes = new Uint8Array([1, 2, 3]);
-    const fetchData = vi.fn().mockResolvedValue(imageBytes);
+    const fetchAttachmentBytes = vi.fn().mockResolvedValue(imageBytes);
     const ingestBrandAsset = vi.fn().mockResolvedValue({ assetId: "asset_logo", deduped: false });
-    const deps = makeDeps({ ingestBrandAsset });
-    const thread = makeThread();
+    const deps = makeDeps({ fetchAttachmentBytes, ingestBrandAsset });
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({
-        attachments: [{ fetchData, mimeType: "image/png", name: "logo.png" }],
+    const imageAttachment: NormalizedAttachment = {
+      kind: "image",
+      mimeType: "image/png",
+      sizeBytes: 3,
+    };
+
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({
+        attachments: [imageAttachment],
         text: "minha logo",
       }),
-    );
+    });
 
-    expect(fetchData).toHaveBeenCalledOnce();
+    expect(fetchAttachmentBytes).toHaveBeenCalled();
     expect(ingestBrandAsset).toHaveBeenCalledWith(
       expect.objectContaining({ bytes: imageBytes, mimeType: "image/png", orgId: "org_1" }),
     );
@@ -285,21 +332,19 @@ describe("handleInboundMessage", () => {
 
   it("on dedup hit does NOT include bytes in input.imageBytes but does flag in newAssets", async () => {
     const bytes = new Uint8Array([5]);
-    const fetchData = vi.fn().mockResolvedValue(bytes);
+    const fetchAttachmentBytes = vi.fn().mockResolvedValue(bytes);
     const ingestBrandAsset = vi
       .fn()
       .mockResolvedValue({ assetId: "asset_existing", deduped: true });
-    const deps = makeDeps({ ingestBrandAsset });
-    const thread = makeThread();
+    const deps = makeDeps({ fetchAttachmentBytes, ingestBrandAsset });
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({
-        attachments: [{ fetchData, mimeType: "image/jpeg" }],
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({
+        attachments: [{ kind: "image", mimeType: "image/jpeg", sizeBytes: 1 }],
         text: "",
       }),
-    );
+    });
 
     const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
       .calls[0]![0] as {
@@ -312,19 +357,17 @@ describe("handleInboundMessage", () => {
 
   it("skips images larger than 20MB and reports oversizeCount", async () => {
     const bigBytes = new Uint8Array(21_000_000);
-    const fetchData = vi.fn().mockResolvedValue(bigBytes);
+    const fetchAttachmentBytes = vi.fn().mockResolvedValue(bigBytes);
     const ingestBrandAsset = vi.fn();
-    const deps = makeDeps({ ingestBrandAsset });
-    const thread = makeThread();
+    const deps = makeDeps({ fetchAttachmentBytes, ingestBrandAsset });
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({
-        attachments: [{ fetchData, mimeType: "image/jpeg" }],
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({
+        attachments: [{ kind: "image", mimeType: "image/jpeg", sizeBytes: 21_000_000 }],
         text: "logo gigante",
       }),
-    );
+    });
 
     expect(ingestBrandAsset).not.toHaveBeenCalled();
     const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
@@ -335,89 +378,67 @@ describe("handleInboundMessage", () => {
   it("replies with the empty-text static when message is whitespace + no attachments", async () => {
     const dispatcher = makeDispatcher();
     const deps = makeDeps({ dispatcher, ingestBrandAsset: vi.fn() });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "   " }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "   " }),
+    });
 
     expect(dispatcher.enqueueAndAwait).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith(
-      "Recebi sua mensagem, mas não entendi. Pode tentar de novo?",
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { text: "Recebi sua mensagem, mas não entendi. Pode tentar de novo?" },
+      }),
     );
   });
 
   it("apologises when audio download fails", async () => {
-    const deps = makeDeps();
-    const thread = makeThread();
+    const fetchAttachmentBytes = vi.fn().mockRejectedValue(new Error("boom"));
+    const deps = makeDeps({ fetchAttachmentBytes });
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({
-        attachments: [
-          { fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" },
-        ],
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({
+        attachments: [{ kind: "audio", mimeType: "audio/ogg", sizeBytes: 1000 }],
         text: "",
       }),
-    );
+    });
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith("Não consegui baixar seu áudio, pode reenviar?");
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { text: "Não consegui baixar seu áudio, pode reenviar?" },
+      }),
+    );
   });
 
   it("apologises when dispatcher throws (top-level catch)", async () => {
     const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
     const deps = makeDeps({ dispatcher });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
-    expect(thread.post).toHaveBeenCalledWith(
-      "Tive um problema processando sua mensagem, pode tentar de novo?",
-    );
-  });
-
-  it("apologises and skips the dispatcher when no ConnectorInstance matches the chatId", async () => {
-    const prisma = makePrisma();
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue(null);
-
-    const deps = makeDeps({ prisma });
-    const thread = makeThread();
-
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
-
-    expect(
-      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
-    ).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith(
-      "Tive um problema processando sua mensagem, pode tentar de novo?",
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { text: "Tive um problema processando sua mensagem, pode tentar de novo?" },
+      }),
     );
   });
 
   it("routes inbound via AgentConnectorBinding lookup (not a hardcoded controller slug)", async () => {
     const prisma = makePrisma();
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [{ id: "binding_existing" }],
-      id: "ci_existing",
-      orgId: "org_ci",
-      senderRole: "OWNER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_ci" });
-
     // The binding lookup returns the Controller agent for this connector.
     const boundAgent = {
       displayName: "Custom Controller",
       enabledSkillIds: null,
       id: "ai_bound",
       mission: "",
-      orgId: "org_ci",
+      orgId: "org_1",
       templateSlug: "controller",
     };
     const bindingFindMany = vi.fn().mockResolvedValue([
@@ -434,9 +455,11 @@ describe("handleInboundMessage", () => {
     ).agentConnectorBinding.findMany = bindingFindMany;
 
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ id: "ci_existing" }),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     expect(bindingFindMany).toHaveBeenCalledWith({
       include: { agentInstance: true },
@@ -447,24 +470,18 @@ describe("handleInboundMessage", () => {
     expect(call.agentInstance.id).toBe("ai_bound");
   });
 
-  it("backfills the INBOUND binding when an existing ConnectorInstance lacks one", async () => {
+  it("backfills the INBOUND binding when an existing Telegram ConnectorInstance lacks one", async () => {
     const prisma = makePrisma();
     (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [],
-      id: "ci_legacy",
-      orgId: "org_legacy",
-      senderRole: "OWNER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_legacy" });
+      prisma as never as { agentConnectorBinding: { findFirst: ReturnType<typeof vi.fn> } }
+    ).agentConnectorBinding.findFirst.mockResolvedValue(null);
 
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "msg" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ id: "ci_legacy", orgId: "org_legacy" }),
+      normalizedMessage: buildNormalizedMessage({ text: "msg" }),
+    });
 
     const bindingUpsert = (
       prisma as never as { agentConnectorBinding: { upsert: ReturnType<typeof vi.fn> } }
@@ -481,22 +498,13 @@ describe("handleInboundMessage", () => {
 
   it("skips the INBOUND binding backfill when the ConnectorInstance already has bindings", async () => {
     const prisma = makePrisma();
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [{ id: "binding_existing" }],
-      id: "ci_bound",
-      orgId: "org_bound",
-      senderRole: "OWNER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_bound" });
 
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "msg" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ id: "ci_bound", orgId: "org_bound" }),
+      normalizedMessage: buildNormalizedMessage({ text: "msg" }),
+    });
 
     const bindingUpsert = (
       prisma as never as { agentConnectorBinding: { upsert: ReturnType<typeof vi.fn> } }
@@ -514,48 +522,28 @@ describe("handleInboundMessage", () => {
   it("posts the failure reply when the inbound binding lookup returns zero rows", async () => {
     const prisma = makePrisma();
     (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [],
-      id: "ci_orphan",
-      orgId: "org_orphan",
-      senderRole: "OWNER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_orphan" });
-    // Backfill upsert succeeds, but findMany returns empty (simulating a
-    // race or misconfiguration where the upsert path is bypassed).
-    (
       prisma as never as { agentConnectorBinding: { findMany: ReturnType<typeof vi.fn> } }
     ).agentConnectorBinding.findMany.mockResolvedValue([]);
 
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ id: "ci_orphan", orgId: "org_orphan" }),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith(
-      "Tive um problema processando sua mensagem, pode tentar de novo?",
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { text: "Tive um problema processando sua mensagem, pode tentar de novo?" },
+      }),
     );
   });
 
   it("posts the failure reply when multiple INBOUND bindings exist for the same connector", async () => {
     const prisma = makePrisma();
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [{ id: "binding_dup" }],
-      id: "ci_dup",
-      orgId: "org_dup",
-      senderRole: "OWNER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_dup" });
     (
       prisma as never as { agentConnectorBinding: { findMany: ReturnType<typeof vi.fn> } }
     ).agentConnectorBinding.findMany.mockResolvedValue([
@@ -576,19 +564,23 @@ describe("handleInboundMessage", () => {
     ]);
 
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ id: "ci_dup", orgId: "org_dup" }),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith(
-      "Tive um problema processando sua mensagem, pode tentar de novo?",
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { text: "Tive um problema processando sua mensagem, pode tentar de novo?" },
+      }),
     );
   });
 
-  it("posts generated image via thread.post({ files, markdown }) when dispatcher returns generatedAssetIds", async () => {
+  it("posts generated image via adapter.sendOutbound({ files, text }) when dispatcher returns generatedAssetIds", async () => {
     const generatedBytes = new Uint8Array([99, 98, 97]);
     const fetchAssetMock = vi.fn().mockResolvedValue(generatedBytes);
 
@@ -617,34 +609,38 @@ describe("handleInboundMessage", () => {
       prisma: prisma as never,
     };
 
-    const thread = makeThread();
-
-    await handleInboundMessage(deps, thread, makeMessage({ text: "gera uma imagem" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "gera uma imagem" }),
+    });
 
     expect(fetchAssetMock).toHaveBeenCalledWith("org_1/gen.png");
-    expect(thread.post).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith({
-      files: [
-        {
-          data: Buffer.from(generatedBytes),
-          filename: "qolmeia-asset_gen_1.png",
-          mimeType: "image/png",
+    expect(sendOutboundMock).toHaveBeenCalledOnce();
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          files: [
+            {
+              bytes: generatedBytes,
+              filename: "qolmeia-asset_gen_1.png",
+              mimeType: "image/png",
+            },
+          ],
+          text: "Pronto, gerei a imagem!",
         },
-      ],
-      markdown: "Pronto, gerei a imagem!",
-    });
+        threadId: "tg_chat_42",
+      }),
+    );
   });
 
   it("handles /instrucoes <text> by updating the org and posting the confirmation (no dispatch)", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
-    );
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
+    });
 
     expect(
       (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
@@ -656,7 +652,9 @@ describe("handleInboundMessage", () => {
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith("Instruções atualizadas.");
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { text: "Instruções atualizadas." } }),
+    );
   });
 
   it("handles bare /ideia by reading the current value (no dispatch)", async () => {
@@ -665,14 +663,18 @@ describe("handleInboundMessage", () => {
       prisma as never as { organization: { findUnique: ReturnType<typeof vi.fn> } }
     ).organization.findUnique.mockResolvedValue({ businessIdea: "Salão em SP." });
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "/ideia" }),
+    });
 
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).not.toHaveBeenCalled();
-    expect(thread.post).toHaveBeenCalledWith("Salão em SP.");
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { text: "Salão em SP." } }),
+    );
     expect(
       (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
         .update,
@@ -682,9 +684,11 @@ describe("handleInboundMessage", () => {
   it("does NOT trigger owner-command handling on regular text", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "oi, sou um salão" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "oi, sou um salão" }),
+    });
 
     expect(
       (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
@@ -693,27 +697,19 @@ describe("handleInboundMessage", () => {
     expect(
       (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
     ).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith("Anotei!");
+    expect(sendOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { text: "Anotei!" } }),
+    );
   });
 
   it("ignores owner commands when senderRole is CUSTOMER (dispatches to agent instead)", async () => {
     const prisma = makePrisma();
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [{ id: "binding_cust" }],
-      id: "ci_cust",
-      orgId: "org_cust",
-      senderRole: "CUSTOMER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_cust" });
-
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "/instrucoes nope" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ senderRole: "CUSTOMER" }),
+      normalizedMessage: buildNormalizedMessage({ text: "/instrucoes nope" }),
+    });
 
     expect(
       (prisma as never as { organization: { update: ReturnType<typeof vi.fn> } }).organization
@@ -727,9 +723,11 @@ describe("handleInboundMessage", () => {
   it("emits MESSAGE_INBOUND, AGENT_RUN_STARTED, AGENT_RUN_FINISHED, MESSAGE_OUTBOUND ActivityLog rows in order", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     const activityCreate = (
       prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
@@ -749,9 +747,11 @@ describe("handleInboundMessage", () => {
     const prisma = makePrisma();
     const dispatcher = makeDispatcher(vi.fn().mockRejectedValue(new Error("agent failed")));
     const deps = makeDeps({ dispatcher, prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     const activityCreate = (
       prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
@@ -762,20 +762,17 @@ describe("handleInboundMessage", () => {
     expect(types).toContain("MESSAGE_INBOUND");
     expect(types).toContain("AGENT_RUN_STARTED");
     expect(types).toContain("AGENT_RUN_FAILED");
-    // MESSAGE_OUTBOUND should NOT fire when the run failed.
     expect(types).not.toContain("MESSAGE_OUTBOUND");
   });
 
   it("emits OWNER_COMMAND + INSTRUCTIONS_UPDATED ActivityLog rows for /instrucoes <text>", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(
-      deps,
-      thread,
-      makeMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
-    );
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "/instrucoes Sempre responda em pt-BR." }),
+    });
 
     const activityCreate = (
       prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
@@ -789,9 +786,11 @@ describe("handleInboundMessage", () => {
   it("emits OWNER_COMMAND + BUSINESS_IDEA_UPDATED ActivityLog rows for /ideia <text>", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia Salão premium em SP." }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "/ideia Salão premium em SP." }),
+    });
 
     const activityCreate = (
       prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }
@@ -805,9 +804,11 @@ describe("handleInboundMessage", () => {
   it("threads senderRole=OWNER from the default ConnectorInstance into AgentDispatchArgs", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "olá" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "olá" }),
+    });
 
     const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
       .calls[0]![0] as { senderRole: "CUSTOMER" | "OWNER" | null };
@@ -816,21 +817,12 @@ describe("handleInboundMessage", () => {
 
   it("threads senderRole=CUSTOMER when the resolving ConnectorInstance is customer-side", async () => {
     const prisma = makePrisma();
-    (
-      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({
-      bindings: [{ id: "binding_cust" }],
-      id: "ci_cust",
-      orgId: "org_cust",
-      senderRole: "CUSTOMER",
-    });
-    (
-      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
-    ).conversation.findFirst.mockResolvedValue({ id: "conv_cust" });
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "oi" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance({ senderRole: "CUSTOMER" }),
+      normalizedMessage: buildNormalizedMessage({ text: "oi" }),
+    });
 
     const call = (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait.mock
       .calls[0]![0] as { senderRole: "CUSTOMER" | "OWNER" | null };
@@ -840,9 +832,11 @@ describe("handleInboundMessage", () => {
   it("emits OWNER_COMMAND but no UPDATED row when reading bare /ideia", async () => {
     const prisma = makePrisma();
     const deps = makeDeps({ prisma });
-    const thread = makeThread();
 
-    await handleInboundMessage(deps, thread, makeMessage({ text: "/ideia" }));
+    await handleInbound(deps, {
+      connectorInstance: buildConnectorInstance(),
+      normalizedMessage: buildNormalizedMessage({ text: "/ideia" }),
+    });
 
     const activityCreate = (
       prisma as never as { activityLog: { create: ReturnType<typeof vi.fn> } }

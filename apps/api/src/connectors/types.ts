@@ -46,12 +46,30 @@ type SendOutboundArgs = {
   threadId: string;
 };
 
+type VerifySignatureArgs = {
+  connectorConfig: unknown;
+  headers: Headers;
+  rawBody: string;
+};
+
+type VerifyChallengeArgs = {
+  connectorConfig: unknown;
+  query: URLSearchParams;
+};
+
+type VerifyChallengeResult = { challenge?: string; valid: boolean };
+
 type ConnectorAdapter = {
   capabilities: ConnectorCapabilities;
   parseInboundPayload: (raw: unknown, connectorConfig: unknown) => Promise<NormalizedMessage>;
   sendOutbound: (args: SendOutboundArgs) => Promise<{ externalMessageId: string }>;
   type: ConnectorType;
   validateConfig: (config: unknown) => ConfigValidationResult;
+  // Optional inbound webhook hooks. When absent, the generic route handler
+  // skips signature verification (open) and replies 200 OK without echoing a
+  // challenge (for channels that don't need a verification handshake).
+  verifyChallenge?: (args: VerifyChallengeArgs) => Promise<VerifyChallengeResult>;
+  verifySignature?: (args: VerifySignatureArgs) => Promise<boolean>;
 };
 
 class NotImplementedError extends Error {
@@ -70,5 +88,8 @@ export type {
   OutboundFile,
   OutboundPayload,
   SendOutboundArgs,
+  VerifyChallengeArgs,
+  VerifyChallengeResult,
+  VerifySignatureArgs,
 };
 export { NotImplementedError };

@@ -1,15 +1,17 @@
 import type { PrismaClient } from "@repo/db";
 
+import type { NormalizedAttachment, NormalizedMessage } from "../connectors/types";
 import { ingestBrandAsset as ingestBrandAssetDefault } from "../knowledge/brand-asset";
 import { logger } from "../lib/logger";
-
-import type { IncomingAttachment, IncomingMessage } from "./ingest";
 
 const MAX_IMAGE_BYTES = 20_000_000;
 
 type AttachmentsPrisma = Pick<PrismaClient, "brandAsset">;
 
+type AttachmentBytesFetcher = (attachment: NormalizedAttachment) => Promise<Uint8Array | null>;
+
 type AttachmentsDeps = {
+  fetchAttachmentBytes?: AttachmentBytesFetcher;
   ingestBrandAsset?: typeof ingestBrandAssetDefault;
   prisma: AttachmentsPrisma;
 };
@@ -23,11 +25,29 @@ type ProcessedAttachments = {
   oversizeCount: number;
 };
 
-const findAudioAttachment = (attachments: ReadonlyArray<IncomingAttachment>) =>
-  attachments.find((a) => (a.mimeType ?? "").startsWith("audio"));
+// Default fetcher used when the normalized attachment ships only a URL. Per-
+// adapter overrides (e.g., a Telegram getFile dance) flow through the
+// `fetchAttachmentBytes` dep.
+const defaultFetchAttachmentBytes: AttachmentBytesFetcher = async (attachment) => {
+  if (attachment.bytes) {
+    return attachment.bytes;
+  }
+  if (!attachment.url) {
+    return null;
+  }
+  const response = await fetch(attachment.url);
+  if (!response.ok) {
+    throw new Error(`attachment fetch failed: HTTP ${response.status}`);
+  }
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+};
 
-const findImageAttachments = (attachments: ReadonlyArray<IncomingAttachment>) =>
-  attachments.filter((a) => (a.mimeType ?? "").startsWith("image"));
+const isAudio = (attachment: NormalizedAttachment): boolean =>
+  attachment.kind === "audio" || (attachment.mimeType ?? "").startsWith("audio");
+
+const isImage = (attachment: NormalizedAttachment): boolean =>
+  attachment.kind === "image" || (attachment.mimeType ?? "").startsWith("image");
 
 type ImageResult =
   | { assetId: string; bytes: Uint8Array; deduped: boolean; kind: "ok"; mimeType: string }
@@ -35,34 +55,39 @@ type ImageResult =
   | { kind: "skip" };
 
 const processImage = async ({
-  chatId,
+  attachment,
   deps,
-  img,
-  messageId,
+  externalThreadId,
+  fetchAttachmentBytes,
+  messageExternalId,
   orgId,
 }: {
-  chatId: string;
+  attachment: NormalizedAttachment;
   deps: AttachmentsDeps;
-  img: IncomingAttachment;
-  messageId: string;
+  externalThreadId: string;
+  fetchAttachmentBytes: AttachmentBytesFetcher;
+  messageExternalId: string;
   orgId: string;
 }): Promise<ImageResult> => {
   const ingestBrandAsset = deps.ingestBrandAsset ?? ingestBrandAssetDefault;
 
-  if (!img.fetchData) {
+  let bytes: Uint8Array | null;
+  try {
+    bytes = await fetchAttachmentBytes(attachment);
+  } catch (error) {
+    logger.error(
+      { chatId: externalThreadId, error, messageId: messageExternalId },
+      "image.download_failed",
+    );
     return { kind: "skip" };
   }
-  let bytes: Uint8Array;
-  try {
-    bytes = await img.fetchData();
-  } catch (error) {
-    logger.error({ chatId, error, messageId }, "image.download_failed");
+  if (!bytes) {
     return { kind: "skip" };
   }
   if (bytes.byteLength > MAX_IMAGE_BYTES) {
     return { kind: "oversize" };
   }
-  const mimeType = img.mimeType ?? "application/octet-stream";
+  const mimeType = attachment.mimeType ?? "application/octet-stream";
   try {
     const { assetId, deduped } = await ingestBrandAsset({
       bytes,
@@ -72,29 +97,40 @@ const processImage = async ({
     });
     return { assetId, bytes, deduped, kind: "ok", mimeType };
   } catch (error) {
-    logger.error({ chatId, error, messageId }, "image.ingest_failed");
+    logger.error(
+      { chatId: externalThreadId, error, messageId: messageExternalId },
+      "image.ingest_failed",
+    );
     return { kind: "skip" };
   }
 };
 
 const processIncomingAttachments = async ({
-  chatId,
   deps,
-  message,
+  normalizedMessage,
   orgId,
 }: {
-  chatId: string;
   deps: AttachmentsDeps;
-  message: IncomingMessage;
+  normalizedMessage: NormalizedMessage;
   orgId: string;
 }): Promise<ProcessedAttachments> => {
-  const attachments = message.attachments ?? [];
-  const audio = findAudioAttachment(attachments);
+  const fetchAttachmentBytes = deps.fetchAttachmentBytes ?? defaultFetchAttachmentBytes;
+  const attachments = normalizedMessage.attachments;
+  const audio = attachments.find(isAudio);
   const hasAudio = audio !== undefined;
-  const images = findImageAttachments(attachments);
+  const images = attachments.filter(isImage);
 
   const imageResults = await Promise.allSettled(
-    images.map((img) => processImage({ chatId, deps, img, messageId: message.id, orgId })),
+    images.map((attachment) =>
+      processImage({
+        attachment,
+        deps,
+        externalThreadId: normalizedMessage.externalThreadId,
+        fetchAttachmentBytes,
+        messageExternalId: normalizedMessage.externalId,
+        orgId,
+      }),
+    ),
   );
 
   const newAssets: Array<{ assetId: string; deduped: boolean; mimeType: string }> = [];
@@ -125,5 +161,20 @@ const processIncomingAttachments = async ({
   };
 };
 
-export { MAX_IMAGE_BYTES, processIncomingAttachments };
-export type { AttachmentsDeps, ProcessedAttachments };
+const fetchAudioBytes = ({
+  deps,
+  normalizedMessage,
+}: {
+  deps: AttachmentsDeps;
+  normalizedMessage: NormalizedMessage;
+}): Promise<Uint8Array | null> => {
+  const audio = normalizedMessage.attachments.find(isAudio);
+  if (!audio) {
+    return Promise.resolve(null);
+  }
+  const fetchAttachmentBytes = deps.fetchAttachmentBytes ?? defaultFetchAttachmentBytes;
+  return fetchAttachmentBytes(audio);
+};
+
+export { fetchAudioBytes, MAX_IMAGE_BYTES, processIncomingAttachments };
+export type { AttachmentBytesFetcher, AttachmentsDeps, ProcessedAttachments };
