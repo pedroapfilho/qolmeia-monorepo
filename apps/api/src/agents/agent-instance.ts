@@ -29,4 +29,40 @@ const ensureAgentInstance = (args: {
   });
 };
 
-export { ensureAgentInstance };
+type InboundAgentLookupResult =
+  | { agentInstance: AgentInstance; kind: "found" }
+  | { candidateTemplateSlugs: ReadonlyArray<string>; kind: "ambiguous" }
+  | { kind: "none" };
+
+// Resolves the AgentInstance that should handle inbound messages for a
+// ConnectorInstance via AgentConnectorBinding (Phase 5 §7). Replaces the
+// hard-coded "controller" lookup. v0 expects exactly one binding per
+// ConnectorInstance in direction INBOUND/BOTH; zero or multiple bindings
+// surface as `none` / `ambiguous` so the caller can fail closed and log.
+const findInboundAgentInstanceForConnector = async (args: {
+  connectorInstanceId: string;
+  prisma: Pick<PrismaClient, "agentConnectorBinding">;
+}): Promise<InboundAgentLookupResult> => {
+  const bindings = await args.prisma.agentConnectorBinding.findMany({
+    include: { agentInstance: true },
+    where: {
+      connectorInstanceId: args.connectorInstanceId,
+      direction: { in: ["INBOUND", "BOTH"] },
+    },
+  });
+
+  const [first, ...rest] = bindings;
+  if (!first) {
+    return { kind: "none" };
+  }
+  if (rest.length > 0) {
+    return {
+      candidateTemplateSlugs: bindings.map((b) => b.agentInstance.templateSlug),
+      kind: "ambiguous",
+    };
+  }
+  return { agentInstance: first.agentInstance, kind: "found" };
+};
+
+export { ensureAgentInstance, findInboundAgentInstanceForConnector };
+export type { InboundAgentLookupResult };

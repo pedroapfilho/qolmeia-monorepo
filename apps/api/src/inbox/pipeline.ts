@@ -46,12 +46,7 @@ const handleInboundMessage = async (
       return;
     }
 
-    const {
-      // TODO: thread into AgentDispatchArgs for senderRole-aware approval
-      connectorInstanceId: _connectorInstanceId,
-      conversationId,
-      orgId,
-    } = await resolveOrgAndConversation({
+    const { connectorInstanceId, conversationId, orgId } = await resolveOrgAndConversation({
       prisma: deps.prisma,
       telegramChatId: thread.id,
     });
@@ -106,6 +101,7 @@ const handleInboundMessage = async (
 
     const result = await runAgentForInbound({
       attachments: { ...processed, audioBytes },
+      connectorInstanceId,
       deps: {
         dispatcher: deps.dispatcher,
         fetchAsset: deps.fetchAsset,
