@@ -34,6 +34,10 @@ export default defineConfig({
         "apps/backoffice/src/proxy.ts",
         "apps/backoffice/src/lib/auth-helpers.ts",
         "apps/backoffice/src/components/sign-out-button.tsx",
+        "apps/client/src/proxy.ts",
+        "apps/client/src/lib/auth-helpers.ts",
+        "apps/client/src/components/sign-out-button.tsx",
+        "apps/client/src/app/auth/verify/page.tsx",
         "packages/auth/src/server.ts",
       ],
       rules: {
