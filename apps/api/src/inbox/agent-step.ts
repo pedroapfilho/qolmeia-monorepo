@@ -45,6 +45,7 @@ const resolveInboundAgentInstance = async ({
   // Legacy fallback: pre-Phase-5h orgs may have a TelegramLink without a
   // ConnectorInstance. Route to the Controller directly so existing chats
   // keep working until the backfill script runs.
+  // TODO(phase-5i): remove once TelegramLink is dropped and connectorInstanceId is non-nullable in resolveOrgAndConversation
   if (!connectorInstanceId) {
     logger.warn({ orgId }, "agent-step.routing.missing_connector_instance");
     return ensureAgentInstance({ orgId, prisma, templateSlug: "controller" });

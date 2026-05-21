@@ -281,7 +281,11 @@ describe("handleInboundMessage", () => {
     // ConnectorInstance match found — TelegramLink should never be consulted.
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_1", orgId: "org_ci" });
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [{ id: "binding_ci_1" }],
+      id: "ci_1",
+      orgId: "org_ci",
+    });
     // Conversation already exists for the connector.
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
@@ -307,7 +311,11 @@ describe("handleInboundMessage", () => {
     // ConnectorInstance match found — should drive the binding query.
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_existing", orgId: "org_ci" });
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [{ id: "binding_existing" }],
+      id: "ci_existing",
+      orgId: "org_ci",
+    });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
     ).conversation.findFirst.mockResolvedValue({ id: "conv_ci" });
@@ -380,7 +388,11 @@ describe("handleInboundMessage", () => {
     const prisma = makePrisma();
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_legacy", orgId: "org_legacy" });
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [],
+      id: "ci_legacy",
+      orgId: "org_legacy",
+    });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
     ).conversation.findFirst.mockResolvedValue({ id: "conv_legacy" });
@@ -403,11 +415,46 @@ describe("handleInboundMessage", () => {
     );
   });
 
+  it("skips the INBOUND binding backfill when the ConnectorInstance already has bindings", async () => {
+    const prisma = makePrisma();
+    (
+      prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [{ id: "binding_existing" }],
+      id: "ci_bound",
+      orgId: "org_bound",
+    });
+    (
+      prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
+    ).conversation.findFirst.mockResolvedValue({ id: "conv_bound" });
+
+    const deps = makeDeps({ prisma });
+    const thread = makeThread();
+
+    await handleInboundMessage(deps, thread, makeMessage({ text: "msg" }));
+
+    const bindingUpsert = (
+      prisma as never as { agentConnectorBinding: { upsert: ReturnType<typeof vi.fn> } }
+    ).agentConnectorBinding.upsert;
+    const agentInstanceUpsert = (
+      prisma as never as { agentInstance: { upsert: ReturnType<typeof vi.fn> } }
+    ).agentInstance.upsert;
+    expect(bindingUpsert).not.toHaveBeenCalled();
+    expect(agentInstanceUpsert).not.toHaveBeenCalled();
+    expect(
+      (deps.dispatcher as ReturnType<typeof makeDispatcher>).enqueueAndAwait,
+    ).toHaveBeenCalledOnce();
+  });
+
   it("posts the failure reply when the inbound binding lookup returns zero rows", async () => {
     const prisma = makePrisma();
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_orphan", orgId: "org_orphan" });
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [],
+      id: "ci_orphan",
+      orgId: "org_orphan",
+    });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
     ).conversation.findFirst.mockResolvedValue({ id: "conv_orphan" });
@@ -434,7 +481,11 @@ describe("handleInboundMessage", () => {
     const prisma = makePrisma();
     (
       prisma as never as { connectorInstance: { findFirst: ReturnType<typeof vi.fn> } }
-    ).connectorInstance.findFirst.mockResolvedValue({ id: "ci_dup", orgId: "org_dup" });
+    ).connectorInstance.findFirst.mockResolvedValue({
+      bindings: [{ id: "binding_dup" }],
+      id: "ci_dup",
+      orgId: "org_dup",
+    });
     (
       prisma as never as { conversation: { findFirst: ReturnType<typeof vi.fn> } }
     ).conversation.findFirst.mockResolvedValue({ id: "conv_dup" });

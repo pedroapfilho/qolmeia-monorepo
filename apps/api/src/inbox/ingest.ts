@@ -60,9 +60,19 @@ const resolveOrgAndConversation = async ({
   prisma: IngestPrisma;
   telegramChatId: string;
 }): Promise<{ connectorInstanceId: string | null; conversationId: string; orgId: string }> => {
-  // 1. Prefer ConnectorInstance lookup (Phase 5h+).
+  // 1. Prefer ConnectorInstance lookup (Phase 5h+). Co-select an inbound
+  //    binding presence flag so we only run the one-shot backfill on rows
+  //    that predate binding-driven routing (avoids 2 upserts per message).
   const connector = await prisma.connectorInstance.findFirst({
-    select: { id: true, orgId: true },
+    select: {
+      bindings: {
+        select: { id: true },
+        take: 1,
+        where: { direction: { in: ["INBOUND", "BOTH"] } },
+      },
+      id: true,
+      orgId: true,
+    },
     where: {
       config: { equals: { chatId: telegramChatId } },
       type: "TELEGRAM",
@@ -86,12 +96,15 @@ const resolveOrgAndConversation = async ({
       }));
 
     // Idempotent backfill: existing ConnectorInstance rows that predate
-    // binding-driven routing need the Controller INBOUND binding too.
-    await ensureInboundBindingForTelegramConnector({
-      connectorInstanceId: connector.id,
-      orgId: connector.orgId,
-      prisma,
-    });
+    // binding-driven routing need the Controller INBOUND binding too. Skip
+    // when bindings already exist to avoid steady-state upsert overhead.
+    if (connector.bindings.length === 0) {
+      await ensureInboundBindingForTelegramConnector({
+        connectorInstanceId: connector.id,
+        orgId: connector.orgId,
+        prisma,
+      });
+    }
 
     return {
       connectorInstanceId: connector.id,
