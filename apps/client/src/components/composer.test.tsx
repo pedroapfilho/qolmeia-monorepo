@@ -50,11 +50,7 @@ describe("Composer", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(apiSend).toHaveBeenCalledOnce());
-    expect(apiSend.mock.calls[0]).toMatchObject([
-      "POST",
-      "/web-chat/messages",
-      { text: "oi" },
-    ]);
+    expect(apiSend.mock.calls[0]).toMatchObject(["POST", "/web-chat/messages", { text: "oi" }]);
     await waitFor(() => expect(onSent).toHaveBeenCalledOnce());
     expect(onSent.mock.calls[0]![0]).toMatchObject({ conversationId: "conv_new" });
   });

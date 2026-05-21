@@ -146,10 +146,7 @@ const buildPrisma = () => {
   };
 };
 
-const buildV1WithMocks = (
-  guard: MiddlewareHandler,
-  prisma: ReturnType<typeof buildPrisma>,
-): Hono =>
+const buildV1WithMocks = (guard: MiddlewareHandler, prisma: ReturnType<typeof buildPrisma>): Hono =>
   buildV1Routes({
     // Same guard wired into every surface — the cross-org test exercises
     // staff routes; the explicit memberGuard + customerGuard mounts get

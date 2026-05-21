@@ -74,7 +74,9 @@ const TeamPageClient = ({ members }: TeamPageClientProps) => {
               {members.map((member) => (
                 <li className="flex items-center justify-between gap-3 px-6 py-4" key={member.id}>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{member.user.name}</p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {member.user.name}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
                   </div>
                   <span

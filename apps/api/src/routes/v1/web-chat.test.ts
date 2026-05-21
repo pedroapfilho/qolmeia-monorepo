@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "@/middleware/require-staff";
 import type { CustomerContextVars } from "@/middleware/require-customer";
+import type { AuthSession } from "@/middleware/require-staff";
 
 import { buildWebChatRoutes } from "./web-chat";
 
@@ -68,7 +68,9 @@ const buildPrismaMock = () => {
         upsert: vi.fn().mockResolvedValue({ id: "binding_1" }),
       },
       agentInstance: {
-        upsert: vi.fn().mockResolvedValue({ id: "ag_1", orgId: "org_a", templateSlug: "controller" }),
+        upsert: vi
+          .fn()
+          .mockResolvedValue({ id: "ag_1", orgId: "org_a", templateSlug: "controller" }),
       },
       brandAsset: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -80,15 +82,13 @@ const buildPrismaMock = () => {
       },
       conversation: {
         create: vi.fn().mockResolvedValue(conversation),
-        findFirst: vi.fn(
-          ({ where }: { where: { id?: string; orgId: string } }) => {
-            const idMatches = !where.id || where.id === conversation.id;
-            if (idMatches && where.orgId === conversation.orgId) {
-              return Promise.resolve(conversation);
-            }
-            return Promise.resolve(null);
-          },
-        ),
+        findFirst: vi.fn(({ where }: { where: { id?: string; orgId: string } }) => {
+          const idMatches = !where.id || where.id === conversation.id;
+          if (idMatches && where.orgId === conversation.orgId) {
+            return Promise.resolve(conversation);
+          }
+          return Promise.resolve(null);
+        }),
         findMany: vi.fn().mockResolvedValue([
           {
             ...conversation,

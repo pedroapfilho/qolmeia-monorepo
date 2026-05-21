@@ -22,10 +22,7 @@ const buildBusMock = () => ({
 describe("webChatAdapter.parseInboundPayload", () => {
   it("parses a text message and mints an externalId", async () => {
     const adapter = buildAdapter({ uuid: () => "uuid-xyz" });
-    const result = await adapter.parseInboundPayload(
-      { conversationId: "conv_1", text: "olá" },
-      {},
-    );
+    const result = await adapter.parseInboundPayload({ conversationId: "conv_1", text: "olá" }, {});
 
     expect(result.text).toBe("olá");
     expect(result.externalThreadId).toBe("conv_1");

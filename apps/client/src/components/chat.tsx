@@ -7,12 +7,7 @@ import { Composer } from "@/components/composer";
 import { MessageList } from "@/components/message-list";
 import { SseSubscriber } from "@/components/sse-subscriber";
 import { apiGet } from "@/lib/api-client";
-import type {
-  ListResponse,
-  PostMessageResponse,
-  SseEvent,
-  WebChatMessage,
-} from "@/lib/api-types";
+import type { ListResponse, PostMessageResponse, SseEvent, WebChatMessage } from "@/lib/api-types";
 
 type ChatProps = {
   initialConversationId: string | null;
@@ -55,9 +50,7 @@ const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
         : undefined,
     queryFn: () => {
       const cid = conversationId ?? "";
-      return apiGet<ListResponse<WebChatMessage>>(
-        `/web-chat/messages?conversationId=${cid}`,
-      );
+      return apiGet<ListResponse<WebChatMessage>>(`/web-chat/messages?conversationId=${cid}`);
     },
     queryKey: messagesQueryKey(conversationId),
   });

@@ -142,7 +142,11 @@ const buildAdapter = (deps: WebChatAdapterDeps = {}): ConnectorAdapter => {
           content: file.filename,
           contentType: "IMAGE",
           conversationId: threadId,
-          metadata: { filename: file.filename, mimeType: file.mimeType, sizeBytes: file.bytes.length },
+          metadata: {
+            filename: file.filename,
+            mimeType: file.mimeType,
+            sizeBytes: file.bytes.length,
+          },
           sender: "AGENT",
         },
         select: { content: true, createdAt: true, id: true, metadata: true },

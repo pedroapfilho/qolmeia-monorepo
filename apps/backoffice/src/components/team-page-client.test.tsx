@@ -24,7 +24,9 @@ vi.mock("@/components/invite-form", () => ({
 
 const { TeamPageClient } = await import("./team-page-client");
 
-const buildMember = (overrides: Partial<{ id: string; role: "OWNER" | "STAFF" | "CUSTOMER" }> = {}) => ({
+const buildMember = (
+  overrides: Partial<{ id: string; role: "OWNER" | "STAFF" | "CUSTOMER" }> = {},
+) => ({
   createdAt: "2026-01-01T00:00:00.000Z",
   id: overrides.id ?? "mem_1",
   role: overrides.role ?? ("OWNER" as const),

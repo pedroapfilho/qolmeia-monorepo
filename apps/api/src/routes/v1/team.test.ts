@@ -10,10 +10,7 @@ const session: AuthSession = {
   user: { email: "owner@example.com", id: "owner_1", name: "Owner" },
 };
 
-const buildAppWithGuard = (
-  vars: StaffContextVars,
-  routes: ReturnType<typeof buildTeamRoutes>,
-) => {
+const buildAppWithGuard = (vars: StaffContextVars, routes: ReturnType<typeof buildTeamRoutes>) => {
   const app = new Hono<{ Variables: StaffContextVars }>();
   app.use("*", async (c, next) => {
     c.set("session", vars.session);

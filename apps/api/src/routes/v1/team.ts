@@ -5,18 +5,16 @@ import { Hono } from "hono";
 import { z, ZodError } from "zod";
 
 import { logActivity as defaultLogActivity } from "@/activity/log";
+import { badRequest, forbidden, validationError } from "@/lib/api-response";
 import { auth as defaultAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { badRequest, forbidden, validationError } from "@/lib/api-response";
 import type { StaffContextVars } from "@/middleware/require-staff";
 
 type TeamPrisma = Pick<PrismaClient, "activityLog" | "orgMembership" | "user">;
 
 type AuthApiLike = {
   api: {
-    signInMagicLink: (args: {
-      body: { callbackURL?: string; email: string };
-    }) => Promise<unknown>;
+    signInMagicLink: (args: { body: { callbackURL?: string; email: string } }) => Promise<unknown>;
   };
 };
 
@@ -43,8 +41,7 @@ const buildTeamRoutes = (deps: TeamRouteDeps = {}): Hono<{ Variables: StaffConte
   const sendWelcome = deps.sendWelcome ?? defaultSendWelcome;
   const resendApiKey = deps.resendApiKey ?? env.RESEND_API_KEY;
   const fromEmail = deps.fromEmail ?? env.AUTH_FROM_EMAIL ?? "noreply@qolmeia.ai";
-  const clientAppUrl =
-    deps.clientAppUrl ?? process.env.CLIENT_APP_URL ?? "http://localhost:3001";
+  const clientAppUrl = deps.clientAppUrl ?? process.env.CLIENT_APP_URL ?? "http://localhost:3001";
   const backofficeUrl = process.env.WEB_APP_URL ?? "http://localhost:3000";
 
   const app = new Hono<{ Variables: StaffContextVars }>();
