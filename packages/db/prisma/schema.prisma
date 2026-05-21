@@ -129,6 +129,11 @@ model AgentTemplate {
   description                      String          @db.Text
   defaultSystemPrompt              String          @db.Text
   defaultMission                   String          @db.Text
+  // OpenRouter model id used by this template's instances when the instance
+  // doesn't override it (see AgentInstance.modelOverride). Format:
+  // "<provider>/<model>" — e.g. "openai/gpt-5.4-mini". Default value matches
+  // the cheapest balanced reasoning model so unmigrated rows behave sanely.
+  defaultModel                     String          @default("openai/gpt-5.4-mini")
   compatibleInboundConnectorTypes  ConnectorType[]
   compatibleOutboundConnectorTypes ConnectorType[]
   canDelegateTo                    String[]
@@ -179,6 +184,11 @@ model AgentInstance {
   // Enabled skills are tracked in AgentSkillEnablement (Phase 5a, Group 2.3).
   // Zero rows ⇒ runtime falls back to the template's defaultEnabledSkillIds.
   budgetCents     Int                     @default(0)
+  // Per-instance override of the template's defaultModel. Nullable — null
+  // means "use the template default" (see lib/ai.ts → resolveModelForAgent).
+  // Lets ops swap an org onto a cheaper / smarter OpenRouter model without
+  // touching the template definition.
+  modelOverride   String?
   status          AgentInstanceStatus     @default(ACTIVE)
   org             Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
   template        AgentTemplate           @relation(fields: [templateSlug], references: [slug])
