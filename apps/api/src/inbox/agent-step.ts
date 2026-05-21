@@ -32,12 +32,18 @@ const extFromMime = (mimeType: string): string => {
 
 const runAgentForInbound = async ({
   attachments,
+  connectorInstanceId,
   deps,
+  externalThreadId,
   message,
   orgId,
 }: {
   attachments: ProcessedAttachments & { audioBytes?: Uint8Array };
+  // null when the conversation pre-dates Phase 5h (TelegramLink fallback).
+  // Coalescing still works on (legacy, threadId, messageId).
+  connectorInstanceId: string | null;
   deps: AgentStepDeps;
+  externalThreadId: string;
   message: IncomingMessage;
   orgId: string;
 }): Promise<AgentRunResult> => {
@@ -69,6 +75,12 @@ const runAgentForInbound = async ({
     agentInstance,
     currentContext,
     dispatcher: deps.dispatcher,
+    dispatchOrigin: {
+      connectorInstanceId,
+      externalThreadId,
+      kind: "inbound",
+      triggerMessageExternalId: message.id,
+    },
     existingAssets,
     input: {
       audioBytes: attachments.audioBytes,

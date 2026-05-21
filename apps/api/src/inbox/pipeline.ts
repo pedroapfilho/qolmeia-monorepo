@@ -47,8 +47,9 @@ const handleInboundMessage = async (
     }
 
     const {
-      // TODO: thread into AgentDispatchArgs for senderRole-aware approval
-      connectorInstanceId: _connectorInstanceId,
+      // TODO: thread into AgentDispatchArgs for senderRole-aware approval.
+      // Already used by the dispatcher to build the inbound coalesce key.
+      connectorInstanceId,
       conversationId,
       orgId,
       senderRole,
@@ -139,6 +140,7 @@ const handleInboundMessage = async (
 
     const result = await runAgentForInbound({
       attachments: { ...processed, audioBytes },
+      connectorInstanceId,
       deps: {
         dispatcher: deps.dispatcher,
         fetchAsset: deps.fetchAsset,
@@ -146,6 +148,7 @@ const handleInboundMessage = async (
         ingestBrandAsset: deps.ingestBrandAsset,
         prisma: deps.prisma,
       },
+      externalThreadId: thread.id,
       message,
       orgId,
     });

@@ -55,6 +55,19 @@ const delegateToSpecialistSkill = defineSkill<
       const childResult = await ctx.dispatcher.enqueueAndAwait({
         ...ctx.parentRunArgs,
         agentInstance: childAgent,
+        // Override the parent's inbound dispatchOrigin so the child gets a
+        // delegation coalesce key. Without this, two distinct delegations
+        // issued from the same parent run would collide on the inbox jobId
+        // and BullMQ would return the first child's result for both.
+        // TODO(Group 3.1): once AgentRun lands, replace
+        // `${parentAgentInstanceId}:${Date.now()}` with the parent's runId so
+        // identical subtasks from the same run dedup against each other.
+        dispatchOrigin: {
+          childTemplateSlug: targetTemplateSlug,
+          kind: "delegation",
+          parentAgentInstanceId: ctx.agentInstanceId,
+          subtaskHash: `${Date.now()}`,
+        },
         input: {
           ...ctx.parentRunArgs.input,
           text: subtask,

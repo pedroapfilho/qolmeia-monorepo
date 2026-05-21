@@ -4,7 +4,13 @@ import { type JobsOptions, Queue, QueueEvents } from "bullmq";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
-import type { AgentDispatchArgs, AgentDispatcher, AgentRunResult } from "./dispatcher";
+import { buildCoalesceKey } from "./dispatcher";
+import type {
+  AgentDispatchArgs,
+  AgentDispatcher,
+  AgentRunResult,
+  DispatchOrigin,
+} from "./dispatcher";
 
 // The serializable subset of AgentDispatchArgs that we put on the queue.
 // `prisma` and `dispatcher` are reconstructed by the worker from the
@@ -57,9 +63,19 @@ const createBullMQDispatcher = (): {
         newAssets: args.newAssets,
         oversizeCount: args.oversizeCount,
       };
+      // Coalesce by jobId: BullMQ short-circuits when a job with the same ID
+      // is already queued/active/completed and `queue.add` returns the
+      // existing job. `waitUntilFinished` on the existing job hands the
+      // first run's result to every concurrent caller — exactly what we
+      // want when a Telegram webhook is redelivered or the owner sends two
+      // messages in <100ms. Callers without a `dispatchOrigin` keep
+      // BullMQ's default behaviour (every enqueue is unique).
+      const origin: DispatchOrigin | undefined = args.dispatchOrigin;
+      const jobId = origin ? buildCoalesceKey(origin) : undefined;
       const jobOpts: JobsOptions = {
         attempts: 3,
         backoff: { delay: 1000, type: "exponential" },
+        ...(jobId ? { jobId } : {}),
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 100 },
       };
