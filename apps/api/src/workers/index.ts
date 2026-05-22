@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
