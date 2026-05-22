@@ -10,7 +10,7 @@ import type { PostMessageResponse } from "@/lib/api-types";
 
 type ComposerProps = {
   conversationId: string | null;
-  onSent: (response: PostMessageResponse, sentText: string) => void;
+  onSent: (response: PostMessageResponse, sentText: string, sentAt: string) => void;
 };
 
 // Single-line auto-grow textarea + send button. Enter submits;
@@ -26,12 +26,13 @@ const Composer = ({ conversationId, onSent }: ComposerProps) => {
       return;
     }
     setPending(true);
+    const sentAt = new Date().toISOString();
     try {
       const response = await apiSend<PostMessageResponse>("POST", "/web-chat/messages", {
         ...(conversationId ? { conversationId } : {}),
         text: trimmed,
       });
-      onSent(response, trimmed);
+      onSent(response, trimmed, sentAt);
       setText("");
     } catch (error) {
       console.error("[composer] send failed", { error });

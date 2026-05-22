@@ -364,10 +364,9 @@ const buildWebChatRoutes = (
       // before the first real event arrives.
       await stream.writeSSE({ data: JSON.stringify({ conversationId }), event: "ready" });
 
-      // Keep-alive frames keep proxies from closing the stream.
-      const heartbeat = setInterval(() => {
-        void safeWrite({ data: "ping" });
-      }, 25_000);
+      // Keep-alive as a "ping" event — the client has no ping listener, so
+      // EventSource drops it (no onmessage, no JSON.parse).
+      const heartbeat = setInterval(() => void safeWrite({ data: "", event: "ping" }), 25_000);
 
       const teardown = () => {
         unsubscribe();
