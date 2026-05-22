@@ -4,5 +4,15 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "qolmeia-agents",
+      // PLACEHOLDER — replace with the id printed by `wrangler d1 create qolmeia-agents`.
+      // Local dev and vitest-pool-workers ignore this value; remote deploy needs the real id.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
 }
