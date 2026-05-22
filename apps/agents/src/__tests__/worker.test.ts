@@ -9,9 +9,7 @@ describe("worker routing", () => {
   });
 
   it("rejects an unauthenticated agent connection with 401", async () => {
-    const response = await SELF.fetch(
-      "https://agents.test/agents/correspondent/p1-demo-company",
-    );
+    const response = await SELF.fetch("https://agents.test/agents/correspondent/p1-demo-company");
     expect(response.status).toBe(401);
   });
 

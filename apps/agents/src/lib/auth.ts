@@ -14,10 +14,7 @@ type ValidatedSession = { userId: string };
 // forwards it to the auth service's get-session as a cookie. Request cookies are
 // also forwarded, so a future shared-domain deployment works without the param.
 // Proper validation, caching, and role/membership resolution are P2 (spec §9).
-const validateSession = async (
-  request: Request,
-  env: Env,
-): Promise<ValidatedSession | null> => {
+const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
   const cookie = tokenParam
     ? `${env.SESSION_COOKIE_NAME}=${tokenParam}`

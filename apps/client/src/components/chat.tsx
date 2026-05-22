@@ -85,9 +85,7 @@ const Chat = ({ agentsUrl, sessionToken }: ChatProps) => {
                 <MessageContent>
                   {message.parts.map((part, index) =>
                     part.type === "text" ? (
-                      <MessageResponse key={`${message.id}-${index}`}>
-                        {part.text}
-                      </MessageResponse>
+                      <MessageResponse key={`${message.id}-${index}`}>{part.text}</MessageResponse>
                     ) : null,
                   )}
                 </MessageContent>

@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "durable_objects": {
-    "bindings": [{ "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" }]
+    "bindings": [{ "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CorrespondentAgent"] }],
   "vars": {
@@ -19,7 +19,7 @@
     // Better Auth session-cookie name — used to forward the P1 token to the auth service.
     "SESSION_COOKIE_NAME": "better-auth.session_token",
     // Comma-separated client origins allowed to call the Worker.
-    "CLIENT_ORIGINS": "http://localhost:3001"
+    "CLIENT_ORIGINS": "http://localhost:3001",
   },
   "d1_databases": [
     {
@@ -28,7 +28,7 @@
       // PLACEHOLDER — replace with the id printed by `wrangler d1 create qolmeia-agents`.
       // Local dev and vitest-pool-workers ignore this value; remote deploy needs the real id.
       "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
-  ]
+      "migrations_dir": "migrations",
+    },
+  ],
 }
