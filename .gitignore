@@ -22,6 +22,11 @@ dist/
 # turbo
 .turbo
 
+# cloudflare wrangler
+.wrangler
+.dev.vars
+worker-configuration.d.ts
+
 # vercel
 .vercel
 
