@@ -1,0 +1,3 @@
+# Copy to .dev.vars (git-ignored) for local `wrangler dev`.
+# Tests stub the model, so .dev.vars is only needed for manual chat testing.
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
