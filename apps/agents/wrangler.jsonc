@@ -5,6 +5,10 @@
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CorrespondentAgent"] }],
   "vars": {
     // PLACEHOLDER — replace with your Cloudflare account id (see `wrangler whoami`).
     "AI_GATEWAY_ACCOUNT_ID": "PLACEHOLDER-cloudflare-account-id",

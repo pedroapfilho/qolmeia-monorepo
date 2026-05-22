@@ -157,10 +157,12 @@ type InsertMessageInput = {
   attachments?: string | null;
 };
 
+// `INSERT OR IGNORE` keeps persistence idempotent on the message id — a
+// re-delivered chat turn never duplicates a row.
 const insertMessage = async (db: D1Database, input: InsertMessageInput): Promise<void> => {
   await db
     .prepare(
-      `INSERT INTO message
+      `INSERT OR IGNORE INTO message
          (id, company_id, conversation_id, agent_instance_id, role, content, attachments, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
