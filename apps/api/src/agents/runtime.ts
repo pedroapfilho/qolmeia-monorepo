@@ -98,6 +98,7 @@ const runAgentInstance = async (args: AgentDispatchArgs): Promise<AgentRunResult
     template: { defaultModel: template.defaultModel },
   });
   const result = await generateText({
+    maxOutputTokens: 2048,
     messages: [{ content: buildUserContent(input), role: "user" }],
     model: openrouter.chat(modelId),
     stopWhen: stepCountIs(5),

@@ -59,16 +59,21 @@ const buildV1Routes = (deps: V1RouteDeps = {}): Hono => {
   meApp.route("/", deps.routes?.me ?? buildMeRoutes());
   app.route("/me", meApp);
 
-  // Staff-gated surface: backoffice REST.
-  const staffApp = new Hono<{ Variables: StaffContextVars }>();
-  staffApp.use("*", staffGuard);
-  staffApp.route("/agents", deps.routes?.agents ?? buildAgentsRoutes());
-  staffApp.route("/approvals", deps.routes?.approvals ?? buildApprovalsRoutes());
-  staffApp.route("/activity", deps.routes?.activity ?? buildActivityRoutes());
-  staffApp.route("/soul", deps.routes?.soul ?? buildSoulRoutes());
-  staffApp.route("/runs", deps.routes?.runs ?? buildRunsRoutes());
-  staffApp.route("/team", deps.routes?.team ?? buildTeamRoutes());
-  app.route("/", staffApp);
+  // Staff-gated surface: backoffice REST. Each group is mounted at its own
+  // path so the guard is scoped there — a single staff app at "/" would
+  // apply its use("*") guard to every /api/v1 path, including /web-chat.
+  const staffMount = (routes: Hono<{ Variables: StaffContextVars }>) => {
+    const guarded = new Hono<{ Variables: StaffContextVars }>();
+    guarded.use("*", staffGuard);
+    guarded.route("/", routes);
+    return guarded;
+  };
+  app.route("/agents", staffMount(deps.routes?.agents ?? buildAgentsRoutes()));
+  app.route("/approvals", staffMount(deps.routes?.approvals ?? buildApprovalsRoutes()));
+  app.route("/activity", staffMount(deps.routes?.activity ?? buildActivityRoutes()));
+  app.route("/soul", staffMount(deps.routes?.soul ?? buildSoulRoutes()));
+  app.route("/runs", staffMount(deps.routes?.runs ?? buildRunsRoutes()));
+  app.route("/team", staffMount(deps.routes?.team ?? buildTeamRoutes()));
 
   // Customer-gated surface: web-chat REST + SSE.
   const customerApp = new Hono<{ Variables: CustomerContextVars }>();
