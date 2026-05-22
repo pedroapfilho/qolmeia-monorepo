@@ -1,9 +1,9 @@
 # Cloudflare-Native Agent Platform — Greenfield Rebuild Design Spec
 
 **Date:** 2026-05-22
-**Status:** Draft (awaiting review)
+**Status:** Draft — refined through a design grilling session (16 decisions locked, §2)
 **Author:** Pedro + Claude (design session)
-**Supersedes:** the entire `apps/api` backend (Hono on Node + Postgres + Redis + OpenRouter). The two Next.js apps (`apps/backoffice`, `apps/client`) survive and re-point.
+**Supersedes:** the entire `apps/api` backend (Hono on Node + Prisma/Postgres + Redis/BullMQ + OpenRouter). The two Next.js apps (`apps/backoffice`, `apps/client`) survive and re-point. **Auth is not superseded** — it stays on the existing Node + Postgres Better Auth service (§9).
 
 This is a **design doc**, not an implementation plan. No application code. It exists for Pedro and his team to review the load-bearing choices before any phase plan is written.
 
@@ -13,44 +13,55 @@ This is a **design doc**, not an implementation plan. No application code. It ex
 
 ### 1.1 Goal
 
-Rebuild the Qolmeia agent backend from scratch on Cloudflare's native stack so the agency model — Company / Correspondent / Team / Worker / Planner / Connectors — runs as **stateful, addressable, individually-billable agents** rather than a stateless Node service plus a Postgres/Redis fleet.
+Rebuild the Qolmeia agent backend from scratch on Cloudflare's native stack so the agency model — Company / Planner / Correspondent / Team / Worker / Connectors — runs as **stateful, addressable agents** rather than a stateless Node service plus a Postgres/Redis fleet.
 
 The target the spec implements:
 
-- A **Company** is the tenant. Creating one triggers a web-driven onboarding **debrief**: a **Planner** agent interviews the customer and **suggests a Team**; the customer confirms.
-- Every Company has exactly one **Correspondent** — the single communication path. Reports team progress, surfaces deliverables, relays approve/reject/change. Has persistent memory of the Company. Reachable through any **Connector** the Company configured.
-- A **Team** is a customer-chosen set of **Worker** agents (marketing, support, design, sales, …). Workers have persistent memory, do scoped jobs, and **invoke each other** (delegation).
-- **Connectors** are inbound/outbound channels (Telegram, Slack, WhatsApp, Discord, web), configured per Company, **shared across all agents**.
-- **Users** (owner / employees) talk to the agency through any connector including audio, and approve / reject / request changes by chat.
-- **Workers behave like employees** — heartbeats, a ticket/task model, scoped responsibilities (Paperclip-inspired).
+- A **Company** is the tenant. Creating one triggers an onboarding **debrief**: a **Planner** agent interviews the customer conversationally and **proposes a Team**; the customer confirms.
+- The **Planner** is a persistent agent. It runs the initial debrief and stays available so the customer can return to scale the Team, swap Workers, or re-debrief when the business changes. It owns team composition long-term.
+- Every Company has exactly one **Correspondent** — the single communication path. It relays Team progress, surfaces deliverables, runs the approve/reject/change loop, and holds persistent memory of the Company. Reachable through any **Connector**.
+- A **Team** is a customer-chosen set of **Worker** agents (marketing, support, design, sales, …). Workers have persistent memory and do scoped jobs.
+- **Connectors** are inbound/outbound channels (web chat, Telegram, WhatsApp, Slack, Discord), configured per Company, **shared across all agents**. Every channel is a first-class citizen — full channel parity (§6).
+- **Users** (owner / employees) talk to the agency through any connector and approve / reject / request changes by chat.
 
-### 1.2 Non-goals
+### 1.2 Architecture principle — Cloudflare-first, not Cloudflare-only
 
-- Porting any code from `apps/api`. Concepts are salvaged (see §14); code is not.
-- Rebuilding the two Next.js apps. They get a new API base URL, a new auth client wiring, and updated endpoint contracts — nothing more (§11).
-- Self-hosting / a plugin marketplace. Cloudflare-only deployment.
-- Hard budget enforcement, billing, LGPD/compliance surfaces — out of scope for this rebuild, future specs.
+Cloudflare is the default for every new platform component (Workers, Durable Objects, D1, Vectorize, Workflows, R2, AI Gateway). A non-Cloudflare service is allowed where it is genuinely the better tool — but each exception must be **justified at the boundary** and **isolated** from platform data. The one exception at launch: **auth** stays on the existing Node + Postgres Better Auth service, to avoid a risky rewrite. Its Postgres database never holds platform data.
+
+### 1.3 Non-goals
+
+- Porting any code from `apps/api`. Concepts are salvaged (§14); code is not.
+- Rebuilding the two Next.js apps. They get a new API base URL and updated endpoint/transport contracts — nothing more (§11).
+- Rewriting auth. The Node + Postgres Better Auth service is reused as-is.
+- Self-hosting / a plugin marketplace.
+- Hard budget enforcement, billing surfaces, LGPD/compliance — future specs.
 - Frontier-model fine-tuning, voice synthesis, video. Audio is **input transcription** only.
-- Migrating live tenant data. There is no production tenant data worth migrating; the cutover is a clean switch (§12).
+- Migrating live tenant data. The cutover is a clean switch (§12).
 
 ---
 
-## 2. Decisions to confirm
+## 2. Locked decisions
 
-Each row is a load-bearing choice. The **Recommendation** column is what this spec assumes downstream; the reader confirms or overrides before any phase plan is written.
+Resolved one-by-one in the design grilling. These are **decided**, not proposals — the rest of the spec is built on them.
 
-| # | Decision | Options | Recommendation | Rationale |
-|---|----------|---------|----------------|-----------|
-| D1 | Agent harness | `@cloudflare/think` base class · raw `agents` SDK primitives · `AIChatAgent` (`@cloudflare/ai-chat`) | **`@cloudflare/think`** | Cloudflare explicitly steers new chat-from-scratch projects to Think ([blog](https://blog.cloudflare.com/project-think/)). It gives the agentic loop, tool calling, sub-agents (`agentTool`/`subAgent`), durable execution via fibers, persistent tree-structured sessions with FTS5, message persistence, streaming, and stream resumption — all backed by DO SQLite. `AIChatAgent` is now positioned as the older path; raw primitives mean we rebuild the loop ourselves. **Caveat: Think is experimental.** API surface is "stable but may evolve." See §15. |
-| D2 | Model-call layer | Vercel AI SDK v6 + `workers-ai-provider` · Think native `getModel()` · raw `env.AI` binding | **Vercel AI SDK v6 + `workers-ai-provider`, returned from Think's `getModel()`** | This is exactly Think's documented pattern — `getModel()` returns `createWorkersAI({ binding: this.env.AI })("@cf/…")`. Think owns the `streamText` loop internally; we only supply the model. Keeps the door open to swap a model for an **AI Gateway** route (frontier models, see D8) without touching loop code. |
-| D3 | Auth | Better Auth (native D1, v1.5+) · Cloudflare Access · Workers-native (custom JWT/sessions) | **Better Auth 1.5+ with native D1** | Better Auth 1.5 ships first-class D1 support — `betterAuth({ database: env.DB })`, auto-detected, batch()-based atomicity ([discussion](https://github.com/better-auth/better-auth/discussions/7963)). Two distinct audiences (operators, customers) with email+password and magic-link — Cloudflare Access is built for org-internal SSO, not customer-facing multi-tenant auth. Keeps continuity with the team's existing Better Auth knowledge. **Caveats:** per-request instantiation required (workerd isolation); CLI `generate` needs `getPlatformProxy()`; avoid `cookieCache` + `secondaryStorage` together (open bug #4203). |
-| D4 | D1 vs DO-SQLite split | All-in-D1 · all-in-DO-SQLite · split | **Split** — D1 holds shared/relational/cross-tenant data; each agent DO's embedded SQLite holds that agent's private memory + working state | D1 is the queryable system-of-record the backoffice needs (list Companies, Tickets across a Team, ActivityLog). Per-agent memory is high-write, agent-private, and naturally colocated with the agent's compute — DO SQLite. Cross-agent queries never need an agent's private memory. See §5. |
-| D5 | New app directory | New `apps/agents` · replace `apps/api` in place | **New `apps/agents`** dir; keep `apps/api` until cutover, then delete it | The build tooling is incompatible (tsdown/Node vs Wrangler/workerd). A parallel dir lets the new Worker reach a deployable state while `apps/api` still serves the current apps. One clean deletion at cutover beats an in-place mutation that is half-Node-half-Worker for weeks. |
-| D6 | Old `apps/api` retirement | Retire incrementally · retire at one cutover | **One cutover.** `apps/api` is deleted, with its Postgres/Redis/OpenRouter config, in the final phase once `apps/agents` passes acceptance and the Next apps point at it | There is no shared runtime between the two backends, so incremental retirement buys nothing. A single PR removes `apps/api`, the Prisma package, BullMQ, and Redis. |
-| D7 | Connector inbound handler placement | Connector webhooks hit the main Worker; DO does the work · webhooks hit the DO directly | **Main Worker (stateless `fetch`) terminates webhooks, normalizes, then routes to the Correspondent DO by Company id** | Webhook signature verification, dedup, and connector→Company resolution are stateless and benefit from the Worker's edge placement. The DO should receive a clean `NormalizedMessage`, not raw provider payloads. |
-| D8 | Model catalog | Workers AI only · Workers AI + AI Gateway to external providers | **Workers AI for the default tier; AI Gateway as the escape hatch for frontier models** | **Honest correction to the brief: there is no GPT-5.4 on Workers AI.** Workers AI carries open-weight models (`gpt-oss-120b`/`20b`, Llama 4, Gemma 4, Kimi K2.x, Nemotron) plus FLUX.2 for images ([models](https://developers.cloudflare.com/workers-ai/models/)). Frontier OpenAI/Anthropic models are *not* on Workers AI; reach them via **AI Gateway** as a proxy. The per-agent model is a config field so each Worker role picks its tier. See §5 `agent_instance.model`. |
-| D9 | Heartbeats / scheduled work | DO alarms · Cloudflare Workflows · Queues + cron | **DO alarms for the per-agent heartbeat tick; Workflows for any multi-step durable job a tick kicks off** | Each Worker agent is a DO and already owns `setAlarm()`. A heartbeat is "wake on schedule, scan my tickets, act" — that is one alarm handler. Long, multi-step deliverable work (research → draft → image → assemble) wants Workflows' checkpointing and retries. Queues only enter if cross-agent fan-out volume demands buffering — deferred (§4.6). |
-| D10 | Ticket model | Tickets in D1 · tickets in the owning Worker's DO-SQLite | **Tickets in D1**, owned-by `agent_instance_id`, so the backoffice and the Correspondent can both read a Team's full board without RPC-fanning every Worker | A ticket is cross-agent visible (Correspondent reports on them, operators audit them, Workers delegate them). Agent-private *scratch* state for an in-progress ticket stays in the Worker's DO-SQLite. |
+| # | Decision | Locked answer | Why |
+|---|----------|---------------|-----|
+| 1 | Model-call layer | **Cloudflare AI Gateway** in front of frontier models. AI SDK provider points its `baseURL` at the Gateway; the provider key is a Worker secret behind it. | Keeps frontier-class quality (GPT-5.x / Gemini / Nano Banana) while gaining caching, rate-limiting, retries, fallbacks, and unified observability. Embeddings use Workers AI natively (§5.3). |
+| 2 | Agent harness | **`agents` SDK** — each agent is a Durable Object subclassing `Agent` / `AIChatAgent`. We own the orchestration logic. | GA, documented, stable. Built-in DO SQLite state, `this.schedule()`, WebSocket hibernation, AI-SDK integration, `routeAgentRequest` / `getAgentByName`. Retires the old spec's #1 risk (betting on the experimental `@cloudflare/think`). |
+| 3 | Agent topology | **One DO per agent instance.** Planner `planner:{companyId}`, Correspondent `corr:{companyId}`, each Worker `worker:{companyId}:{workerId}`. | The DO *is* the agent's identity + single-threaded execution guarantee. Isolated memory, approval queue, and scheduling per agent. Mirrors the agency org chart 1:1. |
+| 4 | Planner lifecycle | **Persistent DO.** Runs onboarding, then stays for re-planning / team scaling. | Team composition changes over a Company's life; the Planner owns that. Idle DOs hibernate at zero cost. |
+| 5 | Delegation + 13 Workflows | **Every Worker job runs as a Cloudflare Workflow.** The Correspondent delegates a ticket to a Worker DO; the Worker starts a Workflow per task. Non-blocking — the Correspondent stays conversational. Queue is *not* in the delegation path. | Workflows give checkpointed steps, automatic retries, and `waitForEvent`. A crash mid-campaign resumes from the last step instead of re-billing image generation. |
+| 6 | Data boundary | **D1 is the system-of-record** for everything queryable (company/user registry, team, connectors, conversations, messages, tickets, runs, actions, catalog, skills). Each DO's SQLite holds **working memory only** — recent turns, scratchpad, in-flight state. | The backoffice queries D1 directly; no cross-DO fan-out to list conversations across tenants. |
+| 7 | Connectors | **Uniform `ConnectorAdapter` contract.** Stateless Worker routes every channel; **no connector DO.** Full channel parity — web chat, WhatsApp, Telegram are identical at the agent layer; transport differences live inside adapters. | Cloudflare's documented routing pattern (`routeAgentRequest` + webhook routes). Parity comes from the shared adapter contract, not a shared DO. |
+| 8 | Approval model | **Policy per action type**, default `require-approval` (configurable per company/Worker to `auto-execute` / `notify-only`). The executing **Workflow pauses at `waitForEvent`** until the User decides; **no timeout cap** — the checkpoint sleeps free until approve / reject / request-changes. | Request-changes resumes the same Workflow with feedback; no work lost. Stale-backlog visibility is a backoffice concern, not a timeout. |
+| 9 | Worker catalog | **Fully D1-defined.** Worker templates (prompt, model, skill list, default policies) are D1 rows, editable by operators in the backoffice with no deploy. | Fast iteration on agent behavior. Skills themselves stay code (§10) — a D1 template references skills by string ID. |
+| 10 | Skill model | **Code registry + D1 overlay.** `execute()` and the zod input schema are code modules. A D1 `skill` table holds the operator-tunable layer: LLM-facing description, parameter hints, `defaultConfig`, `enabled`. Runtime joins the two. | The description is the biggest lever on tool-selection quality — operators tune it without a deploy. The executable contract stays version-controlled. |
+| 11 | Auth | **Keep the existing Node + Postgres Better Auth service** unchanged. The agent Worker validates its sessions. | Avoids a rewrite risk. Honors the Cloudflare-first-not-only principle (§1.2). |
+| 12 | Agent memory | **Vector/semantic memory from day one** (Cloudflare Vectorize) **+ a recent-turns buffer** in DO SQLite. Full history in D1. | Long-term recall across a Company's history; the recent-turns buffer guarantees the live thread even if retrieval misfires. |
+| 14 | Client transport | **`agents` SDK WebSocket** — the client uses `useAgentChat` to connect straight to its Correspondent DO. The `ai-elements` chat UI components stay (transport-agnostic). | Streaming, reconnection, state sync handled by the SDK. Replaces the hand-rolled SSE transport. |
+| 16 | Onboarding | **Conversational Planner debrief.** The Planner interviews the customer, calls a structured-output skill that crystallizes a typed `CompanyBrief`, then proposes a Team. | Feels like an agency intake, not a form; works over any channel. |
+| — | Phasing | **Vertical walking skeleton first** — one thin end-to-end path live on Cloudflare, then broaden (§12). | Proves the hard integration (DO + Workflow + D1 + AI Gateway) earliest. |
+| — | UI theme | shadcn preset **`b1txbSwNv`** (`pnpm dlx shadcn@latest apply --preset b1txbSwNv`) is the design system for both Next.js apps. | — |
 
 ---
 
@@ -61,71 +72,83 @@ flowchart TB
   subgraph Clients["Clients"]
     BO["apps/backoffice<br/>Next.js · operators"]
     CL["apps/client<br/>Next.js · customers"]
-    CONN["Connectors<br/>Telegram · Slack · WhatsApp · Discord"]
+    CONN["External channels<br/>Telegram · WhatsApp · Slack · Discord"]
+  end
+
+  subgraph AuthSvc["Auth — existing, off Cloudflare"]
+    BA["Better Auth<br/>Node + Postgres"]
   end
 
   subgraph Edge["apps/agents — Cloudflare Worker (stateless fetch)"]
     ROUTER["Router / API<br/>Hono on Workers"]
-    AUTH["Better Auth<br/>(native D1)"]
-    WEBHOOK["Connector webhook<br/>terminator + adapters"]
+    SESSION["Session validator<br/>(checks Better Auth)"]
+    WEBHOOK["Connector adapters<br/>+ webhook routes"]
   end
 
-  subgraph DOs["Durable Objects (stateful, hibernating, embedded SQLite)"]
-    CORR["CorrespondentAgent DO<br/>1 per Company"]
-    PLAN["PlannerAgent DO<br/>1 per onboarding"]
-    W1["WorkerAgent DO<br/>marketing"]
-    W2["WorkerAgent DO<br/>design"]
-    W3["WorkerAgent DO<br/>support / sales / …"]
+  subgraph DOs["Durable Objects (agents SDK · hibernating · embedded SQLite)"]
+    PLAN["PlannerAgent DO<br/>planner:{companyId}"]
+    CORR["CorrespondentAgent DO<br/>corr:{companyId}"]
+    W1["WorkerAgent DO<br/>worker:{companyId}:{id}"]
+    W2["WorkerAgent DO<br/>worker:{companyId}:{id}"]
+  end
+
+  subgraph Exec["Durable execution"]
+    WF["Cloudflare Workflows<br/>one instance per Worker job"]
   end
 
   subgraph Data["Cloudflare data + AI plane"]
-    D1[("D1<br/>Companies · Users · Teams<br/>Connectors · Tickets · ActivityLog")]
-    AI["Workers AI<br/>gpt-oss · Llama4 · FLUX.2"]
-    GW["AI Gateway<br/>(frontier-model escape hatch)"]
-    R2[("R2<br/>brand assets · knowledge docs · audio")]
-    WF["Workflows<br/>multi-step deliverables"]
-    Q["Queues<br/>(optional · deferred)"]
+    D1[("D1 — system of record<br/>companies · teams · connectors<br/>conversations · tickets · actions<br/>catalog · skills · activity")]
+    VEC[("Vectorize<br/>agent semantic memory")]
+    R2[("R2<br/>generated assets · docs · audio")]
+    GW["AI Gateway<br/>→ frontier models"]
+    AI["Workers AI<br/>embeddings · transcription"]
   end
 
-  BO -->|REST + cookie auth| ROUTER
+  BO -->|REST + cookie| ROUTER
   CL -->|REST + WebSocket chat| ROUTER
   CONN -->|signed webhooks| WEBHOOK
 
-  ROUTER --> AUTH
-  AUTH --> D1
+  ROUTER --> SESSION
+  SESSION -.->|validate session| BA
   ROUTER -->|routeAgentRequest / RPC| CORR
   ROUTER -->|RPC| PLAN
   WEBHOOK -->|RPC by Company id| CORR
 
-  CORR -->|agentTool / RPC| W1
-  CORR -->|agentTool / RPC| W2
-  W1 -->|delegation RPC| W2
-  W2 -->|delegation RPC| W3
+  CORR -->|RPC: delegate ticket| W1
+  CORR -->|RPC: delegate ticket| W2
+  W1 -->|create instance| WF
+  W2 -->|create instance| WF
 
+  ROUTER --> D1
   CORR --> D1
   W1 --> D1
   PLAN --> D1
+  WF --> D1
+  CORR --> VEC
+  W1 --> VEC
+  CORR --> GW
+  W1 --> GW
+  WF --> GW
   CORR --> AI
-  W1 --> AI
-  W2 --> AI
-  W1 -.->|frontier| GW
-  W2 --> R2
-  W1 -->|kick off| WF
-  WF --> AI
   WF --> R2
+  WF -.->|report| CORR
   CORR -.->|outbound send| CONN
 
   classDef cli fill:#e1f5ff,stroke:#0288d1
+  classDef ext fill:#eceff1,stroke:#607d8b
   classDef edge fill:#fff3e0,stroke:#f57c00
   classDef do fill:#ede7f6,stroke:#5e35b1
+  classDef exec fill:#e8f5e9,stroke:#43a047
   classDef data fill:#f3e5f5,stroke:#8e24aa
   class BO,CL,CONN cli
-  class ROUTER,AUTH,WEBHOOK edge
-  class CORR,PLAN,W1,W2,W3 do
-  class D1,AI,GW,R2,WF,Q data
+  class BA ext
+  class ROUTER,SESSION,WEBHOOK edge
+  class PLAN,CORR,W1,W2 do
+  class WF exec
+  class D1,VEC,R2,GW,AI data
 ```
 
-One Worker script, many DO classes, one D1 database. The Next apps never touch DOs or D1 directly — every request goes through the Worker's Hono router, which authenticates against D1 and RPC-routes to the right DO.
+One Worker script, three DO classes, one D1 database, one Vectorize index, Workflows for task execution. The Next apps never touch DOs or D1 directly — every request goes through the Worker's Hono router, which validates the session against the external auth service and RPC-routes to the right DO.
 
 ---
 
@@ -133,115 +156,143 @@ One Worker script, many DO classes, one D1 database. The Next apps never touch D
 
 ### 4.1 Roles → Durable Object classes
 
-Three DO classes, not one-per-role. Behaviour is **data-driven** off the `agent_instance` row, not the class.
+Three DO classes. Behaviour is **data-driven** off D1 rows (the `agent_instance` and its `template`), not the class.
 
-| DO class | Instances | Backing row | Purpose |
-|----------|-----------|-------------|---------|
-| `CorrespondentAgent extends Think` | exactly one per Company | `agent_instance` where `role = 'correspondent'` | The single comms path. Holds Company memory. |
-| `WorkerAgent extends Think` | one per hired Worker per Company | `agent_instance` where `role = 'worker'` | Scoped specialist. Marketing / design / support / sales / … differentiated by `worker_kind` + system prompt + tool set, **not** by class. |
-| `PlannerAgent extends Think` | one per onboarding session | `agent_instance` where `role = 'planner'` | Runs the debrief, proposes a Team. Short-lived; can be torn down after confirmation or kept dormant for re-planning. |
+| DO class | Keying | Backing row | Purpose |
+|----------|--------|-------------|---------|
+| `PlannerAgent extends AIChatAgent` | `planner:{companyId}` | `agent_instance` role=`planner` | Conversational onboarding debrief; proposes + re-plans the Team. Persistent. |
+| `CorrespondentAgent extends AIChatAgent` | `corr:{companyId}` | `agent_instance` role=`correspondent` | The single comms path. Holds Company memory, delegates, runs the approval loop. |
+| `WorkerAgent extends Agent` | `worker:{companyId}:{workerId}` | `agent_instance` role=`worker` | Scoped specialist. Marketing / design / support / sales differ by their D1 `template`, not by class. Launches a Workflow per delegated job. Can be chatted for follow-ups. |
 
-**Decision — one parameterized `WorkerAgent` class, not one class per specialty.** A "marketing worker" and a "design worker" differ only in system prompt, enabled tools, and model tier — all configuration. One class keeps `wrangler.jsonc` migrations small (DO classes are capped at 500/account; see §15) and means adding a new specialty is a D1 row, not a deploy. The DO id is derived from `agent_instance.id` so each hired Worker is a distinct, addressable, hibernating instance.
+**One parameterized `WorkerAgent` class, not one per specialty.** A marketing Worker and a design Worker differ only in their D1 `template` (system prompt, enabled skills, model). One class keeps `wrangler.jsonc` DO migrations small and means adding a specialty is a D1 row, not a deploy.
 
-DO instance naming: `idFromName(agent_instance.id)`. Stable, deterministic, one DO per hired agent.
+`PlannerAgent` and `CorrespondentAgent` extend **`AIChatAgent`** because they are chat-facing — `useAgentChat` connects to them directly and the SDK manages message history + tool-approval plumbing. `WorkerAgent` extends the plainer **`Agent`** — it is task-facing; its work runs in Workflows. It can be promoted to `AIChatAgent` later if direct Worker chat becomes a product need.
 
-### 4.2 How an agent invokes another agent
+### 4.2 How delegation works
 
-Two mechanisms, both Think-native, both DO-to-DO:
+The Correspondent delegates by **DO-to-DO RPC**, and the Worker executes the job as a **Cloudflare Workflow**:
 
-1. **`agentTool()` — preferred for delegation.** The Correspondent (or a Worker) exposes a child agent *as a tool* in its tool set. When the model calls it, Think runs the child as a retained sub-run with event replay, abort bridging, and UI drill-in. The parent's model sees the child's structured output via `getAgentToolOutput`. This is the delegation path: Correspondent → Worker, Worker → Worker.
-2. **`subAgent(...).chat()` — low-level RPC streaming** when the parent code (not the model) owns forwarding/cancellation. Used where delegation is deterministic rather than model-decided (e.g. the Planner programmatically asking a costed sub-step).
+1. The Correspondent decides a User request needs a Worker. It writes a `ticket` row in D1 and RPCs the target `WorkerAgent` DO: `assignTicket(ticketId)`.
+2. The Worker DO validates the request against the delegation graph (`team_member.can_delegate_to`), then **creates a Workflow instance** for the job and stores `workflow_id` on the ticket. It returns immediately — the Correspondent is never blocked.
+3. The Workflow runs the job as checkpointed steps (research → draft → generate → assemble). Steps that need reasoning call the AI SDK through AI Gateway; steps reading/writing memory RPC the Worker DO; long external calls (image gen) are their own retryable steps.
+4. When the job produces a gated deliverable, the Workflow files an `action` row and **pauses at `waitForEvent`** (§4.4).
+5. On completion the Workflow writes `ticket.result`, sets `ticket.status='done'`, and RPCs the Correspondent to report.
 
-A delegation call is a DO RPC: the parent DO resolves the child DO stub by `agent_instance.id` and invokes it. RPC latency is comparable to a function call (colocated). The delegation graph (who-may-delegate-to-whom) is stored in D1 as `team_member.can_delegate_to` and enforced before the RPC — a Worker cannot invoke an agent outside its Company's Team, and cycles are rejected at Team-confirmation time.
+Worker-to-Worker delegation is the same shape: a Workflow step can RPC another Worker DO to assign a child ticket, subject to the same graph check. The delegation graph is stored in D1 and validated acyclic at Team-confirmation time.
+
+**The split in one line: the DO is *who the agent is* (identity + memory + addressable); the Workflow is *what the agent is currently doing* (durable execution).** The DO's single-threaded execution serializes a chat message and a Workflow callback that both touch the same Worker — that is the concrete reason the Worker stays a DO rather than the Workflow owning everything.
 
 ### 4.3 How memory works
 
-Per-agent memory lives in **that agent's DO embedded SQLite**, managed through Think's `Session` API (tree-structured messages, context blocks, non-destructive compaction, FTS5 full-text search). Concretely:
+Per-agent memory is **vector/semantic from day one**, paired with a recent-turns buffer:
 
-- **Correspondent memory** — the durable record of the Company: who the Users are, what was promised, what was delivered, standing preferences, the running narrative of every Team interaction. This is the "persistent memory of the Company" the brief requires. It is *the* Correspondent DO's SQLite.
-- **Worker memory** — each Worker's own working history: prior deliverables in its specialty, brand decisions it made, what approaches worked. Its own DO SQLite.
-- **Shared facts** that must be queryable cross-agent (the Company's brand palette, business profile, knowledge-doc index) live in D1 and/or R2 and are *read* into an agent's context block at turn start — not duplicated as agent memory.
+- **D1** is the durable transcript — every `message` row, queryable by the backoffice.
+- **Cloudflare Vectorize** holds the semantic index. Every stored message is embedded (Workers AI embedding model, §5.3) and upserted to one platform Vectorize index, with metadata `{ companyId, agentInstanceId, messageId, role, createdAt }`. Retrieval per turn: embed the incoming message, query Vectorize filtered to this agent, take top-K neighbours, inject them as a context block. Recency is a metadata weight so old-but-similar memories don't crowd out recent ones.
+- **DO SQLite** holds the **recent-turns buffer** — the last N raw turns, always in context regardless of retrieval. This guarantees a coherent live thread even if vector retrieval misfires or returns nothing.
+- **Structured facts** the agent chooses to remember (a brand decision, a standing preference) are written by a `rememberFact` skill into D1 (`memory_fact`), embedded into Vectorize alongside messages, and recalled the same way.
+- **Shared Company data** (brand kit, business profile, knowledge-doc index) lives in D1/R2 and is read into a context block at turn start — not duplicated as agent memory.
 
-Compaction and `truncateOlderMessages` (Think defaults) keep per-turn context cost bounded as memory grows. A `recallMemory` tool backed by `Session` FTS5 lets an agent search its own history explicitly rather than relying on the rolling window.
+The Correspondent's memory is *the* Company memory: every interaction, promise, and delivered artifact across every channel. Because the Correspondent is one DO instance, memory is unified — a conversation started on WhatsApp continues coherently on web.
 
-### 4.4 How heartbeats work
+### 4.4 The approval lifecycle
 
-A Worker behaves like an employee: it wakes on a schedule, checks its work, acts.
+Approval is governed by a **policy per action type** and executed through the Workflow's `waitForEvent`:
 
-- Each `WorkerAgent` DO sets a recurring **alarm** (`this.ctx.storage.setAlarm`). The alarm handler is the heartbeat tick.
-- A tick: query D1 for this Worker's open `ticket` rows in actionable states; for each, decide an action; for anything multi-step, kick off a **Workflow**; report material progress to the Correspondent via RPC.
-- Heartbeat cadence is a config field (`agent_instance.heartbeat_seconds`), so a support Worker can tick every few minutes while a strategy Worker ticks daily.
-- DO alarms have a 15-minute max wall time per invocation — a tick must dispatch long work to Workflows, not do it inline (see §15).
-- Hibernation: between ticks the DO is evicted and costs nothing. The alarm re-wakes it. This is the cost story — 10k mostly-idle agents, ~100 awake at once.
+- Each action type has a policy in D1 — default `require-approval`, configurable per company / per Worker to `auto-execute` or `notify-only`.
+- When a Workflow reaches a gated action, it writes an `action` row (`status='pending'`) with the proposed payload, RPCs the Correspondent to present it to the User, and **pauses at `step.waitForEvent`**. The half-finished job is frozen in the Workflow checkpoint at zero cost.
+- The User replies on any connector. The Correspondent interprets the reply and **sends the event** that resumes the Workflow:
+  - **approve** → the Workflow resumes and executes the action.
+  - **reject** → the Workflow resumes, discards the action, closes the ticket.
+  - **request-changes** → the Workflow resumes *from the same checkpoint* with the User's feedback appended; the Worker revises and re-proposes. No work is lost; no Workflow is restarted.
+- **No timeout cap.** A User can take days. A backoffice view of "actions awaiting decision, sorted by age" surfaces stale backlog; cancellation is a deliberate operator action.
+- The backoffice can decide an `action` directly (operator override) — same D1 rows, same resume event.
+- Every transition writes `activity_log`.
 
-### 4.5 Tickets / tasks
+What is gated, by default: anything customer-facing or irreversible (publishing, sending to a third party, volume image generation). Internal steps (drafting, delegation, memory writes) are `auto-execute`.
 
-A `ticket` is the employee-style unit of work (Paperclip-inspired, deliberately lighter than Multica's Issue). It lives in **D1** (D10), is owned by an `agent_instance_id`, has a lifecycle, and is what heartbeats scan. The Correspondent creates tickets when a User asks for work; Workers create child tickets when they delegate. Agent-private scratch state for an in-progress ticket stays in the Worker's DO SQLite; the D1 row carries only cross-agent-visible status.
+### 4.5 Tickets
 
-### 4.6 Queues — deferred
+A `ticket` is the unit of work, in **D1**, owned by an `agent_instance_id`, with a lifecycle. The Correspondent creates tickets from User requests; Workers create child tickets when they delegate. The D1 row carries only cross-agent-visible status and the `workflow_id`; agent-private scratch state for an in-progress job stays in the Worker DO's SQLite and is summarized into `ticket.result` on completion.
 
-Cross-agent invocation is synchronous DO RPC today. Queues earn their place only if a Worker fans out to many children faster than they can absorb, or if connector-outbound needs rate-limit buffering. Neither is true at launch. The schema and topology leave room (a `ticket` row is already a durable work record a Queue consumer could claim) but Phase 1–8 ship without Queues.
+### 4.6 Scheduled work
+
+Recurring agent work (a weekly report, a daily scan) uses the `agents` SDK's `this.schedule(cron, method, payload)` on the relevant DO — no separate scheduler service. A scheduled tick that needs multi-step durable work creates a Workflow, exactly like a delegated job. Queues are not used at launch; the topology leaves room (a `ticket` row is a durable work record a Queue consumer could claim) if cross-agent fan-out volume ever demands buffering.
 
 ---
 
 ## 5. Data model
 
-Two stores. The split rule (D4): **D1 = shared, relational, cross-tenant, backoffice-queryable. DO-SQLite = agent-private memory + working state.**
+Three stores. The boundary rule (decision 6): **D1 = system-of-record for everything queryable. DO SQLite = agent working memory. Vectorize = semantic recall.**
 
-### 5.1 D1 schema (Cloudflare serverless SQLite)
+### 5.1 D1 schema
 
-SQLite dialect. `TEXT` ids (UUID/ULID), `INTEGER` epoch-ms timestamps, `TEXT` enums with `CHECK` constraints (SQLite has no native enum). Every tenant-scoped table carries `company_id`. JSON blobs stored as `TEXT` with app-side parse.
+SQLite dialect. `TEXT` ids (ULID), `INTEGER` epoch-ms timestamps, `TEXT` enums with `CHECK` constraints, JSON stored as `TEXT`. Every tenant-scoped table carries `company_id`. Auth tables are **not** here — they live in the external auth service's Postgres (§9); `company.id` equals the auth service's organization id.
 
 ```sql
--- ── Tenancy + auth ──────────────────────────────────────────────
+-- ── Tenancy ────────────────────────────────────────────────────
 company(
-  id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT UNIQUE NOT NULL,
+  id TEXT PRIMARY KEY,            -- == auth-service organization id
+  name TEXT NOT NULL, slug TEXT UNIQUE NOT NULL,
   timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
   locale   TEXT NOT NULL DEFAULT 'pt-BR',
-  status   TEXT NOT NULL DEFAULT 'onboarding'  -- onboarding | active | paused
+  status   TEXT NOT NULL DEFAULT 'onboarding'
     CHECK(status IN ('onboarding','active','paused')),
-  business_profile TEXT,        -- JSON, AI-curated; single-writer
-  owner_brief      TEXT,        -- free text, owner-curated (the "IDEA.md" reserved field)
+  brief TEXT,                     -- JSON CompanyBrief, produced by the Planner debrief
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 )
 
--- Better Auth owns: user, session, account, verification (native D1 schema).
--- membership is ours — the authorization seam.
-membership(
+-- ── Catalog (decision 9 — fully D1-defined, operator-editable) ──
+template(                         -- a Worker type the customer can hire
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,        -- FK Better Auth user
-  company_id TEXT NOT NULL REFERENCES company(id),
-  role TEXT NOT NULL CHECK(role IN ('owner','staff','customer')),
-  created_at INTEGER NOT NULL,
-  UNIQUE(user_id, company_id)
+  worker_kind TEXT NOT NULL,      -- marketing|design|support|sales|…
+  display_name TEXT NOT NULL,
+  description TEXT NOT NULL,      -- customer-facing, shown in the Team picker
+  system_prompt TEXT NOT NULL,
+  model TEXT NOT NULL,            -- AI Gateway model id
+  skill_ids TEXT NOT NULL,        -- JSON array of skill ids (validated against the code registry)
+  default_policies TEXT NOT NULL, -- JSON: { actionType: 'require-approval'|'auto-execute'|'notify-only' }
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','retired')),
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 )
+
+skill(                            -- D1 overlay over the code skill registry (decision 10)
+  id TEXT PRIMARY KEY,            -- matches a code-registry skill id
+  display_name TEXT NOT NULL,
+  description TEXT NOT NULL,      -- the LLM-facing description — the tool-selection lever
+  param_hints TEXT,              -- JSON: per-parameter description overrides
+  default_config TEXT,           -- JSON: e.g. { imageSize, subModel, temperature }
+  enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at INTEGER NOT NULL
+)
+-- execute() + zod input schema are NOT here — they are code. A skill row with no
+-- matching registry entry is a config error caught at agent boot.
 
 -- ── Team + agents ──────────────────────────────────────────────
 team(
   id TEXT PRIMARY KEY,
-  company_id TEXT NOT NULL UNIQUE REFERENCES company(id),  -- one team per company
-  confirmed_at INTEGER,         -- null until customer confirms the Planner's proposal
+  company_id TEXT NOT NULL UNIQUE REFERENCES company(id),
+  confirmed_at INTEGER,           -- null until the customer confirms the Planner's proposal
   created_at INTEGER NOT NULL
 )
 
 agent_instance(
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES company(id),
-  role TEXT NOT NULL CHECK(role IN ('correspondent','worker','planner')),
-  worker_kind TEXT,             -- marketing|design|support|sales|… ; null unless role='worker'
+  role TEXT NOT NULL CHECK(role IN ('planner','correspondent','worker')),
+  template_id TEXT REFERENCES template(id),   -- null for planner/correspondent
+  template_version INTEGER,                   -- pinned at hire time
   display_name TEXT NOT NULL,
-  system_prompt TEXT NOT NULL,
-  model TEXT NOT NULL,          -- '@cf/openai/gpt-oss-120b' | 'gateway:openai/gpt-frontier' | …
+  model_override TEXT,            -- null = use template/role default
   status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','paused')),
-  heartbeat_seconds INTEGER,    -- null = no heartbeat (correspondent, planner)
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
-  UNIQUE(company_id, role, worker_kind)   -- one correspondent; one worker per kind
+  UNIQUE(company_id, role, template_id)       -- one correspondent; one worker per template
 )
 
-team_member(            -- which agents are on the team + the delegation graph
+team_member(                      -- team membership + delegation graph
   team_id TEXT NOT NULL REFERENCES team(id),
   agent_instance_id TEXT NOT NULL REFERENCES agent_instance(id),
-  can_delegate_to TEXT NOT NULL DEFAULT '[]',  -- JSON array of agent_instance ids
+  can_delegate_to TEXT NOT NULL DEFAULT '[]', -- JSON array of agent_instance ids
   PRIMARY KEY(team_id, agent_instance_id)
 )
 
@@ -249,29 +300,37 @@ team_member(            -- which agents are on the team + the delegation graph
 connector(
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES company(id),
-  type TEXT NOT NULL CHECK(type IN ('telegram','slack','whatsapp','discord','web')),
+  type TEXT NOT NULL CHECK(type IN ('web','telegram','whatsapp','slack','discord')),
   display_name TEXT NOT NULL,
-  config TEXT NOT NULL,         -- JSON; tokens/secrets (see §15 on secret storage)
-  inbound  INTEGER NOT NULL DEFAULT 1,   -- bool
-  outbound INTEGER NOT NULL DEFAULT 1,
+  config_ref TEXT NOT NULL,       -- reference into Worker Secrets / secret store (§15)
+  inbound INTEGER NOT NULL DEFAULT 1, outbound INTEGER NOT NULL DEFAULT 1,
   status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled')),
   created_at INTEGER NOT NULL,
   UNIQUE(company_id, type)
 )
--- Connectors are company-scoped and shared across ALL the company's agents.
--- There is no per-agent connector binding — any agent may send on any connector.
 
 conversation(
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES company(id),
   connector_id TEXT NOT NULL REFERENCES connector(id),
-  external_thread_id TEXT NOT NULL,   -- provider chat/thread id
-  user_id TEXT,                       -- resolved Better Auth user, when known
+  external_thread_id TEXT NOT NULL,
+  user_id TEXT,                   -- resolved auth-service user id, when known
   created_at INTEGER NOT NULL,
   UNIQUE(connector_id, external_thread_id)
 )
 
-webhook_event(           -- inbound idempotency
+message(                          -- durable transcript; also embedded into Vectorize
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES company(id),
+  conversation_id TEXT NOT NULL REFERENCES conversation(id),
+  agent_instance_id TEXT,         -- author, when an agent
+  role TEXT NOT NULL CHECK(role IN ('user','agent','system')),
+  content TEXT NOT NULL,
+  attachments TEXT,               -- JSON
+  created_at INTEGER NOT NULL
+)
+
+webhook_event(                    -- inbound idempotency
   provider TEXT NOT NULL, external_id TEXT NOT NULL,
   received_at INTEGER NOT NULL,
   PRIMARY KEY(provider, external_id)
@@ -281,88 +340,106 @@ webhook_event(           -- inbound idempotency
 ticket(
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES company(id),
-  agent_instance_id TEXT NOT NULL REFERENCES agent_instance(id),  -- current owner
-  parent_ticket_id TEXT REFERENCES ticket(id),     -- delegation chain
+  agent_instance_id TEXT NOT NULL REFERENCES agent_instance(id),
+  parent_ticket_id TEXT REFERENCES ticket(id),
   title TEXT NOT NULL, brief TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open'
     CHECK(status IN ('open','in_progress','awaiting_approval','blocked','done','rejected','cancelled')),
-  origin TEXT NOT NULL CHECK(origin IN ('user','delegation','heartbeat')),
-  workflow_id TEXT,                  -- Cloudflare Workflow instance id, if dispatched
-  result TEXT,                       -- JSON deliverable summary
+  origin TEXT NOT NULL CHECK(origin IN ('user','delegation','scheduled')),
+  workflow_id TEXT,               -- Cloudflare Workflow instance id
+  result TEXT,                    -- JSON deliverable summary
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 )
 
-approval(                -- the approve/reject/change loop
+action(                           -- the approve/reject/change loop
   id TEXT PRIMARY KEY,
   ticket_id TEXT NOT NULL REFERENCES ticket(id),
   company_id TEXT NOT NULL REFERENCES company(id),
-  proposed TEXT NOT NULL,            -- JSON: what the agent wants to do/deliver
+  action_type TEXT NOT NULL,      -- keys the policy
+  policy TEXT NOT NULL,           -- resolved: require-approval|auto-execute|notify-only
+  proposed TEXT NOT NULL,         -- JSON: what the agent wants to do
   status TEXT NOT NULL DEFAULT 'pending'
-    CHECK(status IN ('pending','approved','rejected','changes_requested')),
+    CHECK(status IN ('pending','approved','rejected','changes_requested','executed')),
   decided_by_user_id TEXT, decided_at INTEGER, feedback TEXT,
   created_at INTEGER NOT NULL
 )
 
-asset(                   -- R2-backed brand assets / knowledge docs / audio
+asset(                            -- R2-backed assets
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES company(id),
-  kind TEXT NOT NULL CHECK(kind IN ('brand_asset','knowledge_doc','audio')),
+  kind TEXT NOT NULL CHECK(kind IN ('generated_image','knowledge_doc','audio','brand_asset')),
   r2_key TEXT NOT NULL, sha256 TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL,
-  metadata TEXT,                     -- JSON: palette/labels/title/summary
+  metadata TEXT,                  -- JSON
   created_at INTEGER NOT NULL,
   UNIQUE(company_id, sha256)
 )
 
-activity_log(            -- append-only per-company timeline
+memory_fact(                      -- distilled durable facts; mirrored into Vectorize
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES company(id),
-  type TEXT NOT NULL,                -- message_in|message_out|ticket_opened|ticket_done|
-                                     -- approval_requested|approval_decided|agent_run|heartbeat|…
+  agent_instance_id TEXT NOT NULL REFERENCES agent_instance(id),
+  kind TEXT NOT NULL,
+  content TEXT NOT NULL,
+  salience REAL NOT NULL DEFAULT 0.5,
+  created_at INTEGER NOT NULL
+)
+
+activity_log(                     -- append-only per-company timeline
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES company(id),
+  type TEXT NOT NULL,
   ref_type TEXT, ref_id TEXT,
-  summary TEXT NOT NULL,             -- pt-BR
-  payload TEXT,                      -- JSON
-  actor_id TEXT,                     -- user or agent_instance id
+  summary TEXT NOT NULL,          -- pt-BR
+  payload TEXT, actor_id TEXT,
   created_at INTEGER NOT NULL
 )
 ```
 
-Indexes: `ticket(company_id, agent_instance_id, status)`, `ticket(agent_instance_id, status)` (heartbeat scan), `activity_log(company_id, created_at)`, `approval(company_id, status)`, `conversation(company_id)`.
+Indexes: `ticket(company_id, agent_instance_id, status)`, `message(conversation_id, created_at)`, `action(company_id, status, created_at)` (the backoffice stale-backlog view), `activity_log(company_id, created_at)`, `conversation(company_id)`.
 
-### 5.2 Per-agent DO-SQLite (each agent DO's embedded store)
+### 5.2 Per-agent DO SQLite (working memory)
 
-Owned and managed mostly by Think's `Session` layer; the agent never queries another agent's DO SQLite.
+Each DO's embedded SQLite, never read by another agent. Managed via the `agents` SDK's `this.sql`:
 
-- **Session messages** — tree-structured conversation history, context blocks, compaction state, FTS5 index (Think-managed).
-- **Fiber checkpoints** — Think's durable-execution checkpoints for crash recovery (Think-managed).
-- **Memory facts** — a small app-managed table (`memory_fact(id, kind, content, salience, created_at)`) for distilled, durable facts the agent chooses to remember beyond raw transcript — written by a `rememberFact` tool, read by `recallMemory`.
-- **Ticket scratch** — in-progress reasoning/intermediate artifacts for a ticket the agent currently owns, keyed by `ticket_id`. Discarded or summarized into the D1 `ticket.result` on completion.
+- **Recent-turns buffer** — the last N turns of this agent's conversation, the always-in-context window.
+- **Catalog cache** — the agent's resolved `template` + `skill` metadata, cached on cold start, invalidated on a `version` bump, so every boot doesn't re-read D1.
+- **Job scratch** — intermediate reasoning/artifacts for a ticket the agent currently owns, keyed by `ticket_id`, discarded or summarized into `ticket.result` on completion.
+- **`agents` SDK state** (`this.setState`) — small UI-sync state pushed to connected clients (typing indicators, run status).
 
-### 5.3 Invariants
+### 5.3 Vectorize + the AI plane
 
-- Every `company` has exactly one `team` (`team.company_id` UNIQUE) and exactly one `agent_instance` with `role='correspondent'`.
+- **One Vectorize index** for the platform; per-agent isolation by metadata filter (`agentInstanceId`). Vectors: message + `memory_fact` embeddings.
+- **Embeddings run on Workers AI natively** (`@cf/baai/bge-*` or current best) — cheap, low-latency, no Gateway hop. This is the deliberate hybrid: embeddings = Workers AI; chat/generation = AI Gateway frontier (decision 1).
+- **Chat + generation models** are reached through **AI Gateway** — an AI SDK provider with its `baseURL` set to the Company's Gateway endpoint, the provider key held as a Worker secret. The per-agent model id is `template.model` (or `agent_instance.model_override`), so each Worker role picks its tier without call-site branching.
+- **Audio transcription** uses a Workers AI speech model — a `transcribeAudio` skill makes audio-in just another input modality.
+- **Image generation** (Nano Banana Pro class) is reached through AI Gateway; output bytes land in R2 as an `asset`.
+
+### 5.4 Invariants
+
+- Every `company` has exactly one `team` and exactly one `agent_instance` with `role='correspondent'` (and one `planner`).
 - A `connector` is company-scoped; any of that company's agents may use it (no per-agent binding).
-- `team_member.can_delegate_to` references only `agent_instance` ids in the *same* team; the delegation graph is acyclic — validated at Team-confirmation time and re-validated on any Team edit.
-- `agent_instance.heartbeat_seconds` is non-null only for `role='worker'`.
-- `ticket.agent_instance_id` and the ticket's `company_id` belong to the same company; `parent_ticket_id` (if set) is same-company.
-- `webhook_event` is write-once; a duplicate `(provider, external_id)` short-circuits the inbound pipeline.
+- `team_member.can_delegate_to` references only `agent_instance` ids in the same team; the graph is acyclic — validated at Team-confirmation and on any edit.
+- `template.skill_ids` and every `skill.id` must resolve against the code skill registry — checked at agent boot; an unknown id fails loudly.
+- `ticket.agent_instance_id`, `parent_ticket_id`, and the ticket's `company_id` are same-company.
+- `webhook_event` is write-once; a duplicate short-circuits the inbound pipeline.
 - `asset` dedups on `(company_id, sha256)`.
-- `business_profile` has a single writer (the knowledge-apply path); `owner_brief` is writable only by an owner User.
-- `activity_log` is append-only and best-effort (a failed log write never fails the request).
+- `activity_log` is append-only and best-effort — a failed log write never fails the request.
 
 ---
 
 ## 6. Connectors
 
-### 6.1 Adapter pattern (Cloudflare-native)
+### 6.1 The uniform adapter contract (decision 7)
 
-A connector is an **adapter module** in the Worker — a pure function set, no per-connector class, no DO. The salvaged concept from `apps/api` (`ConnectorAdapter`); the implementation is greenfield on workerd.
+Every channel — web chat, Telegram, WhatsApp, Slack, Discord — is a `ConnectorAdapter`: a plain module in the Worker, no class, no DO. Parity comes from the **identical interface**, not from shared infrastructure.
 
 ```
 type ConnectorAdapter = {
-  type: 'telegram' | 'slack' | 'whatsapp' | 'discord' | 'web'
-  verify(req, connectorConfig): Promise<boolean>            // signature / secret check
-  parseInbound(rawBody, connectorConfig): Promise<NormalizedMessage | null>
-  sendOutbound(args: { connectorConfig, threadId, payload }): Promise<{ externalMessageId }>
+  type: 'web' | 'telegram' | 'whatsapp' | 'slack' | 'discord'
+  verify(req, config): Promise<boolean>                       // signature / secret check
+  parseInbound(raw, config): Promise<NormalizedMessage | null>
+  sendOutbound(args: { config, threadId, payload }): Promise<{ externalMessageId }>
+  resolveIdentity(raw, config): Promise<{ companyId, userId? }>
 }
 
 type NormalizedMessage = {
@@ -372,338 +449,270 @@ type NormalizedMessage = {
 }
 ```
 
-A `registry` maps `type → adapter`, total over the enum; unimplemented adapters throw `NotImplemented`. Adding a connector type = one module + one registry entry + one D1 enum value.
+The Correspondent DO exposes **one channel-blind inbound handler** (`handleMessage(NormalizedMessage)`) and **one outbound emit**. Workers, skills, and the approval loop never know which channel a message came from. Adding a channel = one adapter module + one registry entry + one D1 enum value; nothing above the `NormalizedMessage` line changes.
 
-### 6.2 Shared-across-agents
+### 6.2 Channel parity — and where transport differences live
 
-Connectors are **company-scoped, not agent-scoped**. There is no binding table. Any agent in the company that needs to send a message resolves the company's `connector` rows and uses the right adapter. Concretely, agents get a `sendMessage` tool whose implementation: takes a `connector_id` (or picks the conversation's connector), loads config from D1, calls `adapter.sendOutbound`. The Correspondent is the *usual* sender, but a Worker can notify a User directly when its system prompt and the situation call for it.
+The one genuine difference between channels is **transport**: web chat is a persistent WebSocket that can stream tokens; Telegram/WhatsApp are webhook-in + REST-out and cannot stream. That difference is **fully encapsulated inside each adapter**. The agent emits the same message events for every channel; the web adapter renders them token-by-token, the Telegram adapter buffers and sends one message plus a "typing…" indicator. Agent code is byte-identical across channels. Streaming is an adapter rendering choice, never an agent capability — that is the discipline that keeps parity real.
 
-### 6.3 Webhook routing
+### 6.3 Routing — the stateless Worker is the router
 
+This is Cloudflare's documented model — `routeAgentRequest` for client connections, webhook routes for external providers, both terminating at the same agent. **No connector DO.**
+
+**External channel (webhook):**
 ```
-Provider → POST /webhooks/:type/:connectorId   (main Worker, stateless fetch)
-  1. Load connector row from D1 (404 if missing / wrong type / disabled).
-  2. adapter.verify(req, config)  → 401 on mismatch.
-  3. Insert webhook_event (provider, externalId); duplicate → 200, stop.
-  4. adapter.parseInbound(rawBody, config) → NormalizedMessage (null → 200, stop: receipts).
-  5. Resolve/insert conversation by (connectorId, externalThreadId); resolve user_id if known.
-  6. RPC the company's CorrespondentAgent DO with { conversation, normalizedMessage }.
-  7. Return 200 immediately. The DO does the agentic work asynchronously.
+Provider → POST /webhooks/:type/:connectorId   (stateless Worker fetch)
+  1. Load connector row; 404 if missing / wrong type / disabled.
+  2. adapter.verify(req, config) → 401 on mismatch.
+  3. Insert webhook_event; duplicate → 200, stop.
+  4. adapter.parseInbound(raw, config) → NormalizedMessage (null → 200, stop).
+  5. adapter.resolveIdentity → companyId; upsert conversation.
+  6. getAgentByName(env.CORRESPONDENT, `corr:${companyId}`).handleMessage(normalized)
+  7. Return 200 immediately; the DO does the agentic work asynchronously.
 ```
 
-Audio attachments: the adapter passes bytes/URL through; the Correspondent's tool set includes a `transcribeAudio` tool (Workers AI speech model) so audio-in is just another input modality. Web connector has no provider — the `/webhooks/web` path is replaced by the authenticated chat route (§11), but it presents the same `NormalizedMessage` to the DO.
+**Web channel:** the authenticated client opens a WebSocket; `routeAgentRequest` connects it straight to `corr:{companyId}`. The web adapter normalizes inside the Correspondent's WebSocket message handler and calls the same `handleMessage`. Per-company rate limiting uses Cloudflare's Rate Limiting API, not a DO.
 
 ---
 
 ## 7. Onboarding flow
-
-Web-driven. The customer is in `apps/client`; no connector is configured yet.
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor Cust as Customer (apps/client)
   participant W as Worker / Router
+  participant BA as Auth service
   participant D1 as D1
   participant PL as PlannerAgent DO
   participant CO as CorrespondentAgent DO
 
-  Cust->>W: POST /companies  { name, … }
-  W->>D1: insert company(status='onboarding'), membership(owner), team(confirmed_at=null)
+  Cust->>BA: sign up (magic-link)
+  Cust->>W: POST /companies { name, … }
+  W->>BA: create organization + owner membership
+  W->>D1: insert company(status='onboarding'), team(confirmed_at=null)
   W->>D1: insert agent_instance(role='planner')
-  W-->>Cust: { companyId, plannerChatUrl }
+  W-->>Cust: { companyId } → open Planner chat
 
-  Cust->>W: WebSocket /agents/planner/:companyId  (debrief chat)
-  W->>PL: routeAgentRequest → PlannerAgent DO
-  loop Debrief interview
+  Cust->>W: WebSocket → routeAgentRequest → PlannerAgent DO
+  loop Conversational debrief
     Cust->>PL: answers about the business
-    PL->>PL: Think agentic loop · stores debrief in its Session
+    PL->>PL: agents-SDK chat loop · AI Gateway model
+    PL->>PL: skill: extractBrief → typed CompanyBrief (structured output)
   end
-  PL->>PL: tool: proposeTeam → { worker_kinds[], rationale }
-  PL-->>Cust: proposed Team (kinds + why) for review
+  PL->>D1: company.brief = CompanyBrief
+  PL->>PL: skill: proposeTeam → { template_ids[], rationale }
+  PL-->>Cust: proposed Team (templates + why) for review
 
-  Cust->>W: POST /teams/:companyId/confirm  { accepted_worker_kinds[] }
-  W->>D1: insert agent_instance rows (correspondent + one worker per kind)
-  W->>D1: insert team_member rows + can_delegate_to graph; validate acyclic
-  W->>D1: team.confirmed_at = now; company.status='active'
-  W->>CO: RPC seedMemory(business_profile, debrief summary from Planner)
-  W-->>Cust: Team ready → redirect to chat with the Correspondent
+  Cust->>W: POST /teams/:companyId/confirm { accepted_template_ids[] }
+  W->>D1: batch() — agent_instance (correspondent + one worker per template),
+  W->>D1:          team_member rows + can_delegate_to graph (validate acyclic),
+  W->>D1:          team.confirmed_at = now, company.status = 'active'
+  W->>CO: RPC seedMemory(CompanyBrief + debrief summary)
+  W-->>Cust: Team ready → redirect to Correspondent chat
 ```
 
 Notes:
 
-- The Planner is a `PlannerAgent` DO running Think. Its debrief transcript is its Session memory. `proposeTeam` is a tool returning structured output (`getAgentToolOutput`-style) the client renders for confirmation.
-- Team confirmation is a transactional D1 write (D1 `batch()` for atomicity — no interactive transactions). It materializes the Correspondent + one Worker per accepted kind, plus `team_member` rows and the delegation graph.
-- After confirmation the Planner DO can be left dormant (re-planning later) or torn down. Recommendation: keep dormant — DOs cost nothing idle.
-- The Correspondent is seeded with the Company's business profile and the debrief summary so it starts with memory, not blank.
+- The Planner runs the `agents` SDK chat loop with an AI Gateway model. The debrief lives in its DO memory.
+- `extractBrief` is a structured-output skill (AI SDK `generateObject`) running alongside the chat — the Planner converses freely and crystallizes a typed `CompanyBrief` (industry, goals, audience, channels, brand) on a schema. The `CompanyBrief` schema is a real artifact to design in the P6 plan.
+- `proposeTeam` reads the live `template` catalog from D1 and returns a recommended set; the client renders it for confirmation.
+- Team confirmation is one D1 `batch()` (D1 has no interactive transactions) that materializes the Correspondent + one Worker per accepted template, the `team_member` rows, and the delegation graph.
+- The Planner DO stays **persistent** (decision 4) — the customer returns to it to scale or re-plan the Team.
+- The Correspondent is seeded with the brief + debrief summary so it starts with memory, not blank.
 
 ---
 
-## 8. The Correspondent
-
-### 8.1 Role
-
-Exactly one per Company. The single communication path. It does not do specialist work itself — it interviews, routes, reports, and relays. Concretely it:
-
-- Receives every inbound User message (from any connector) and every Worker progress report.
-- Decides whether to answer directly, open a `ticket`, or delegate to a Worker (`agentTool` call).
-- Surfaces deliverables and relays the approve/reject/change loop.
-- Maintains the running narrative of the Company.
-
-### 8.2 Memory
-
-The Correspondent DO's embedded SQLite is *the* Company memory: every interaction, every promise, every delivered artifact, standing User preferences. Think's `Session` handles tree-structured history, compaction, and FTS5. A `rememberFact`/`recallMemory` tool pair lets it persist and search distilled facts. Shared brand/profile data is read from D1/R2 into a context block at turn start.
-
-### 8.3 Multi-connector reachability
-
-The Correspondent is not tied to a connector. Inbound from Telegram, Slack, WhatsApp, Discord, or web all RPC the *same* Correspondent DO (resolved by `company_id`). Outbound: the Correspondent picks the connector — usually the conversation's originating connector, but it can proactively reach a User on a different one (e.g. a User configured Slack later; the Correspondent can use it). Because the DO is one instance, memory is unified across channels — a conversation started on WhatsApp continues coherently on web.
-
-### 8.4 The approve / reject / change loop
-
-```mermaid
-flowchart LR
-  W["Worker produces deliverable"] -->|RPC report| C["Correspondent"]
-  C -->|insert approval(pending),<br/>ticket.status='awaiting_approval'| D1[(D1)]
-  C -->|sendOutbound: deliverable + ask| U["User (any connector)"]
-  U -->|reply: approve / reject / change| C
-  C -->|update approval + ticket| D1
-  C -->|approved → notify Worker: ship| W
-  C -->|changes_requested → re-delegate w/ feedback| W
-  C -->|rejected → close ticket| W
-```
-
-- A Worker that produces something gated reports to the Correspondent, which creates an `approval(pending)` row and moves the `ticket` to `awaiting_approval`.
-- The Correspondent presents the deliverable to the User over their connector in natural language and waits.
-- The User's chat reply ("approve", "muda a cor", "não") is interpreted by the Correspondent's model; it writes the `approval` decision and routes: approved → Worker ships; `changes_requested` → Correspondent re-delegates the ticket with the feedback; rejected → ticket closed.
-- The backoffice can also decide an `approval` directly (operator override) — same D1 rows, the Correspondent observes the change on its next relevant turn or via a DO RPC notification.
-- Every transition writes `activity_log`.
-
-What approval gates: configurable per `worker_kind` / per tool. Default: anything customer-facing or irreversible (publishing, sending to a third party, spending on image generation at volume) is gated; internal steps (delegation, drafting, memory writes) are not. This is the salvaged "approval rule" *shape* (sender role × per-skill default) — re-expressed as a per-tool policy, not ported code.
-
----
-
-## 9. Auth
-
-**Better Auth 1.5+ with native D1** (D3). Single source of truth in the Worker; the two Next apps only validate cookies.
-
-- Better Auth runs *inside* the `apps/agents` Worker, mounted on the Hono router at `/api/auth/*`. `betterAuth({ database: env.DB })` — native D1, auto-detected. Instantiated **per request** (workerd isolation: bindings are request-scoped).
-- **Operators** (`apps/backoffice`): email + password.
-- **Customers** (`apps/client`): magic-link (the `magic-link` plugin).
-- Atomicity via D1 `batch()` — Better Auth's D1 dialect handles this; no interactive transactions on D1.
-- Authorization is the `membership` table: `(user_id, company_id, role)`. Role guards in the Hono router resolve `membership` before any handler runs — `requireOwnerOrStaff`, `requireCustomer`, `requireMember`. The matched `company_id` + `role` ride on the request context.
-- Both Next apps use Better Auth's client (`createAuthClient`) pointed at the Worker's `/api/auth/*`. Cookies are issued by the Worker; the Next apps' middleware just checks presence and redirects.
-- Sessions: DB-backed in D1. Avoid `cookieCache` + `secondaryStorage` together until upstream bug #4203 is resolved (D3 caveat).
-- CLI schema generation (`better-auth generate`) needs Cloudflare's `getPlatformProxy()` so the CLI can reach a local D1 — a build-tooling note for the phase plan, not a runtime concern.
-
-The connector webhook routes (`/webhooks/*`) are **not** cookie-authed — they are signature-verified by the adapter (§6.3).
-
----
-
-## 10. Request lifecycles
-
-### 10.1 User message via a connector → Correspondent → delegation → reply
+## 8. Request lifecycle — User message → delegation → approved reply
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor U as User
-  participant P as Provider (e.g. Telegram)
-  participant W as Worker /webhooks
+  participant P as Channel (web / Telegram / …)
+  participant W as Worker
   participant D1 as D1
   participant CO as CorrespondentAgent DO
   participant WK as WorkerAgent DO (design)
-  participant AI as Workers AI
+  participant WF as Workflow
+  participant GW as AI Gateway
   participant R2 as R2
 
   U->>P: "preciso de um post de Black Friday"
-  P->>W: POST /webhooks/telegram/:connectorId
-  W->>D1: load connector · verify · webhook_event dedup
-  W->>D1: upsert conversation
-  W->>CO: RPC handleInbound(NormalizedMessage)
-  W-->>P: 200 OK
+  P->>W: inbound (webhook or WebSocket)
+  W->>CO: handleMessage(NormalizedMessage)
+  W-->>P: 200 / ack
 
-  CO->>CO: Think loop · getModel() · getTools()
-  CO->>D1: insert ticket(origin='user', owner=design worker)
-  CO->>WK: agentTool call → delegate ticket
-  WK->>WK: Think loop on the design subtask
-  WK->>AI: FLUX.2 image generation
-  WK->>R2: store generated asset
-  WK->>D1: insert asset · update ticket(result, status)
-  WK-->>CO: getAgentToolOutput → { assetId, summary }
-  CO->>D1: insert approval(pending) · ticket.status='awaiting_approval'
-  CO->>D1: activity_log entries
-  CO->>P: sendOutbound — deliverable + "quer que ajuste algo?"
-  P-->>U: agent reply with image
+  CO->>CO: chat loop · AI Gateway model · retrieve memory (Vectorize)
+  CO->>D1: insert ticket(origin='user', owner=design Worker)
+  CO->>WK: RPC assignTicket(ticketId)
+  WK->>WF: create Workflow instance · ticket.workflow_id set
+  WK-->>CO: ack (non-blocking — Correspondent stays free)
+
+  WF->>GW: step: strategy + copy (checkpointed)
+  WF->>GW: step: image generation (Nano Banana Pro)
+  WF->>R2: store generated image as asset
+  WF->>D1: insert action(type='publish_post', status='pending')
+  WF->>CO: RPC: present deliverable
+  CO->>P: sendOutbound — deliverable + "quer ajustar algo?"
+  Note over WF: Workflow paused at waitForEvent (no timeout)
+
+  U->>P: "aprovado"
+  P->>W: inbound
+  W->>CO: handleMessage
+  CO->>WF: sendEvent('decision', { approved: true })
+  WF->>WF: resume from checkpoint · execute publish
+  WF->>D1: action.status='executed' · ticket.status='done'
+  WF->>CO: RPC: report done
+  CO->>P: sendOutbound — "publicado ✅"
 ```
 
-### 10.2 Onboarding debrief
+`request-changes` resumes the *same* Workflow from the same checkpoint with the feedback appended; `reject` resumes it to discard and close. Operator override from the backoffice sends the identical `decision` event.
 
-Covered by the sequence diagram in §7. Shape: Company insert → Planner DO → WebSocket debrief chat (Think loop) → `proposeTeam` → customer confirms → D1 `batch()` materializes Correspondent + Workers + delegation graph → Correspondent seeded → redirect to Correspondent chat.
-
-### 10.3 Heartbeat-driven Worker task
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant AL as DO Alarm
-  participant WK as WorkerAgent DO
-  participant D1 as D1
-  participant WF as Workflow
-  participant AI as Workers AI
-  participant CO as CorrespondentAgent DO
-
-  AL->>WK: alarm fires (every heartbeat_seconds)
-  WK->>D1: SELECT tickets WHERE agent_instance_id=me AND status IN ('open','in_progress')
-  alt actionable ticket needs multi-step work
-    WK->>WF: create Workflow instance (research → draft → asset → assemble)
-    WK->>D1: ticket.workflow_id = instance id · status='in_progress'
-    WF->>AI: model + image steps (checkpointed, retried)
-    WF->>D1: ticket.result · status='awaiting_approval'
-    WF->>CO: RPC report progress
-  else quick action
-    WK->>WK: Think loop · resolve inline
-    WK->>D1: ticket.status='done'
-    WK->>CO: RPC report
-  end
-  WK->>WK: setAlarm(now + heartbeat_seconds)
-```
-
-The tick is bounded (alarm 15-min max wall time) — anything longer is a Workflow. The Worker re-arms its own alarm at the end of every tick.
-
-### 10.4 Error matrix
+### 8.1 Error matrix
 
 | Failure | Where | Behaviour |
 |---------|-------|-----------|
-| Connector signature mismatch | `/webhooks` adapter.verify | 401 immediate; no D1 write |
+| Connector signature mismatch | `adapter.verify` | 401 immediate, no D1 write |
 | Duplicate provider update | `webhook_event` insert | 200 OK, pipeline short-circuits |
-| Unparseable / receipt payload | adapter.parseInbound returns null | 200 OK, no DO call |
-| Correspondent DO evicted mid-turn | DO runtime | Think fiber checkpoints in DO SQLite; resumes from last checkpoint on re-wake |
-| Worker DO crash during delegation | parent `agentTool` | Think agent-tool retains the child run; abort bridged to parent; ticket stays non-`done`, retried next heartbeat |
-| Delegation to an agent outside the Team / cycle | pre-RPC graph check | Rejected before RPC; tool returns `{ok:false}`; model surfaces a graceful message |
-| Workflow step fails | Cloudflare Workflows | Step-level retry with backoff; exhausted → ticket.status='blocked', activity_log error, Correspondent notified |
-| Workers AI model error / rate limit | model call | Caught in tool; ticket→`blocked`; Correspondent tells the User "tive um problema" |
-| Workers AI daily neuron cap hit | model call | Hard fail from Workers AI (caps reset 00:00 UTC); ticket→`blocked`; ops alert. See §15 |
-| D1 query timeout (30 s) | any D1 call | Surfaced as a 5xx; the originating webhook already returned 200 so no provider retry storm; activity_log + ops alert |
-| DO SQLite approaching 10 GB | per-agent memory growth | Compaction + `truncateOlderMessages` keep it bounded; if a single agent genuinely needs >10 GB, that is a design smell — see §15 |
-| Outbound send to provider fails | adapter.sendOutbound | ticket/approval rows unchanged; activity_log error; Correspondent retries on next turn (no double-charge) |
+| Unparseable / receipt payload | `parseInbound` returns null | 200 OK, no DO call |
+| Correspondent DO evicted mid-turn | DO runtime | `agents` SDK hibernation; re-wakes on next event, recent-turns buffer intact in DO SQLite |
+| Workflow step fails | Cloudflare Workflows | Step-level retry with backoff; exhausted → `ticket.status='blocked'`, `activity_log` error, Correspondent notified |
+| Delegation outside the Team / cycle | pre-RPC graph check | Rejected before RPC; surfaced as a graceful message |
+| AI Gateway / model error or rate limit | model call in a Workflow step | Caught; step retries; on exhaustion `ticket→blocked`; Correspondent tells the User "tive um problema" |
+| Vectorize query failure | memory retrieval | Degrade gracefully — fall back to the recent-turns buffer; log; turn still completes |
+| D1 query timeout (30 s) | any D1 call | Surfaced as 5xx; the webhook already returned 200 so no provider retry storm; `activity_log` + ops alert |
+| Outbound send fails | `adapter.sendOutbound` | Ticket/action rows unchanged; `activity_log` error; Correspondent retries next turn (no double-charge) |
+| Action awaiting decision indefinitely | `waitForEvent` | By design — no timeout. Backoffice stale-backlog view surfaces it; operator may cancel |
 
 ---
 
-## 11. How the existing Next apps integrate
+## 9. Auth
 
-Minimal-touch. The two Next apps' UI, components, and page structure are untouched; only the API edges move.
+**Reuse the existing Node + Postgres Better Auth service unchanged** (decision 11). No rewrite.
+
+- The auth service owns identity: `user`, `session`, `account`, organization, and org membership (`owner` / `staff` / `customer` roles). Its Postgres database holds **only** auth-domain data.
+- `company.id` in D1 equals the auth service's organization id — the shared join key between the two domains.
+- The agent Worker has a **session validator** in its Hono router: on each request it verifies the Better Auth session (cookie / token) against the auth service and receives `{ userId, memberships: [{ companyId, role }] }`. Role guards (`requireOwnerOrStaff`, `requireCustomer`, `requireMember`) resolve membership before any handler runs; the matched `companyId` + `role` ride on the request context.
+- Both Next apps keep their existing Better Auth client wiring — only the agent-API base URL changes. Login / magic-link flows are untouched.
+- Connector webhook routes (`/webhooks/*`) are **not** session-authed — they are signature-verified by the adapter (§6.3).
+- Session validation is a cross-service call. To keep it cheap: short-TTL cache of validated sessions in the Worker, or signed-JWT sessions the Worker verifies locally with a shared key — a P2 implementation choice.
+
+---
+
+## 10. How the existing Next apps integrate
+
+Minimal-touch. UI, components, and page structure are untouched; only the API edges and the chat transport move.
 
 | Change | `apps/backoffice` | `apps/client` |
 |--------|-------------------|----------------|
-| API base URL | env var → the `apps/agents` Worker URL (`*.workers.dev` or a custom domain) | same |
-| Auth client | `createAuthClient` re-pointed at the Worker's `/api/auth/*` — Better Auth client API is unchanged, so existing login/magic-link calls work as-is | same |
-| Endpoint contracts | REST surface re-homed under the Worker's Hono router: `/api/companies`, `/api/teams`, `/api/tickets`, `/api/approvals`, `/api/activity`, `/api/agents` | `/api/companies` (create), `/api/teams/:id/confirm`, chat |
-| Real-time chat | n/a (operator UI is request/response) | the home-rolled SSE `useChat` transport is replaced by **Think's WebSocket chat** via `useAgentChat` / `routeAgentRequest` — Cloudflare's hook, resumable streams, reconnect-safe. This is the one non-trivial client change. |
-| Cookies | issued by the Worker; same-site config must allow the Worker's domain | same |
+| API base URL | env var → the `apps/agents` Worker URL | same |
+| Auth client | unchanged — still points at the existing Better Auth service | same |
+| REST contracts | re-homed under the Worker's Hono router: `/api/companies`, `/api/teams`, `/api/templates`, `/api/skills`, `/api/tickets`, `/api/actions`, `/api/activity`, `/api/agents` | `/api/companies` (create), `/api/teams/:id/confirm` |
+| Real-time chat | n/a (operator UI is request/response) | the hand-rolled SSE `useChat` transport is replaced by **`useAgentChat`** (`agents` SDK WebSocket to the Correspondent DO). `ai-elements` UI components stay. Resumable streaming + reconnect come for free. The one non-trivial client change. |
+| UI theme | shadcn preset `b1txbSwNv` applied as the design system | same |
 
-The contracts shift from "Hono-on-Node REST + custom SSE" to "Hono-on-Workers REST + Think WebSocket chat." The backoffice barely notices (REST in, REST out). The client app swaps its chat transport for `useAgentChat` — a net simplification, since resumable streaming and reconnect come for free. No component rewrites; the chat container changes its data hook.
+The backoffice barely notices — REST in, REST out, plus a template/skill editor for the D1 catalog (decision 9) and the stale-action backlog view. The client app swaps its chat data hook for `useAgentChat` — a net simplification. No component rewrites.
 
 CORS: the Worker's router sets `Access-Control-Allow-Origin` to the two Next app origins, `credentials: true`.
 
 ---
 
-## 12. Phasing
+## 11. Phasing — vertical walking skeleton
 
-Eight phases. Each is shippable and gets its own future plan. The current `apps/api` keeps serving the live apps until Phase 8.
+Each phase is shippable and gets its own future plan. `apps/api` keeps serving the live apps until the final cutover.
 
-| Phase | Scope | Ships / acceptance |
-|-------|-------|--------------------|
-| **P1 — Thin slice** | New `apps/agents` Worker. One `wrangler.jsonc` with: one DO class (`CorrespondentAgent extends Think`), one D1 binding (empty `company` table), the `AI` binding. One connector adapter (`telegram`) end-to-end: webhook → verify → dedup → RPC the DO. The DO runs a Think loop with `getModel()` → `workers-ai-provider` and replies "hello from Workers AI" with no tools. No auth, no Team, hard-coded single Company. | A Telegram message round-trips through a DO-hosted Think agent on Workers AI. Deployed to `*.workers.dev`. |
-| **P2 — D1 schema + auth** | Full D1 schema (§5.1). Better Auth on native D1 with both flows (email/password, magic-link). `membership` + role guards. The Hono REST skeleton (`/api/companies`, `/api/me`). | An operator and a customer can authenticate; `membership` gates routes; D1 migrations apply via Wrangler. |
-| **P3 — Real Correspondent + memory** | `CorrespondentAgent` gets a real tool set, Think `Session` memory, `rememberFact`/`recallMemory`, business-profile context blocks from D1. The web connector path: authenticated WebSocket chat via `routeAgentRequest` / `useAgentChat`. | A customer chats the Correspondent in `apps/client`; it remembers across turns and across reconnects. |
-| **P4 — Worker agents + delegation** | `WorkerAgent` DO class (parameterized). `team` / `team_member` / `agent_instance` rows. Correspondent → Worker delegation via `agentTool`; Worker → Worker delegation; the acyclic delegation-graph check. One real `worker_kind` (design) doing FLUX.2 image generation to R2. `asset` table. | A customer asks for an image; Correspondent delegates to the design Worker; asset lands in R2; reply returns. |
-| **P5 — Tickets + approval loop** | `ticket` + `approval` tables. The approve/reject/change loop (§8.4). `activity_log`. Backoffice `/api/tickets`, `/api/approvals`, `/api/activity` endpoints + the operator override path. | A gated deliverable creates an `approval`; the customer approves by chat; an operator can override in the backoffice. |
-| **P6 — Onboarding / Planner** | `PlannerAgent` DO class. Company-creation flow, the debrief chat, `proposeTeam`, Team confirmation as a D1 `batch()` that materializes the Correspondent + Workers. Correspondent memory seeding. | A new customer creates a Company, completes the debrief, confirms a Team, and lands in a seeded Correspondent chat. |
-| **P7 — Heartbeats + Workflows + more connectors** | Worker DO alarms (heartbeat ticks). Cloudflare Workflows for multi-step deliverables. Remaining connector adapters (Slack, WhatsApp, Discord) + `transcribeAudio` for audio-in. More `worker_kind`s (marketing, support, sales). | A Worker wakes on a schedule, picks up a ticket, runs a Workflow; a customer reaches the agency on Slack and via voice note. |
-| **P8 — Cutover + retire `apps/api`** | Re-point `apps/backoffice` + `apps/client` env to the Worker. Delete `apps/api`, `@repo/db` (Prisma), BullMQ/Redis config, OpenRouter keys. Update root `CLAUDE.md` / `docs`. | The two Next apps run entirely against `apps/agents`; the old backend and its Postgres/Redis are gone. |
+| Phase | Scope | Acceptance |
+|-------|-------|------------|
+| **P1 — Thin slice** | New `apps/agents` Worker. One `wrangler.jsonc`: `CorrespondentAgent` DO class, a D1 binding (minimal schema), an AI Gateway provider, the web connector adapter. Authenticated WebSocket chat via `routeAgentRequest` / `useAgentChat`. The DO runs an `agents` SDK chat loop through AI Gateway and replies — no tools, no Team, hard-coded single Company. | A customer chats a DO-hosted agent in `apps/client` over WebSocket; replies stream; deployed to `*.workers.dev`. |
+| **P2 — Schema + auth + memory** | Full D1 schema (§5.1). Session validation against the existing auth service; role guards. Vectorize memory — message embedding (Workers AI) + retrieval + recent-turns buffer. `rememberFact`/`recallMemory` skills. | A customer chats the Correspondent; it remembers across turns and reconnects; an operator and a customer authenticate; role guards gate routes. |
+| **P3 — Catalog + skills + one Worker** | D1 `template` + `skill` tables. Code skill registry + the D1-overlay join. `WorkerAgent` DO class. `agent_instance` / `team` / `team_member`. Correspondent → Worker delegation by RPC. One real Worker (design) — but its job still runs inline (no Workflow yet). | A customer asks for an image; the Correspondent delegates to a design Worker; the Worker generates an image to R2 and replies. |
+| **P4 — Workflows + approval loop** | Every Worker job runs as a Cloudflare Workflow. `ticket` + `action` tables. The policy-per-action-type approval loop with `waitForEvent` (§4.4). `activity_log`. Backoffice `/api/tickets`, `/api/actions`, `/api/activity` + the operator override + stale-backlog view. | A gated deliverable pauses a Workflow at `waitForEvent`; the customer approves by chat and the Workflow resumes; request-changes loops; an operator can override. |
+| **P5 — Onboarding / Planner** | `PlannerAgent` DO class. Company creation, the conversational debrief, `extractBrief` (structured `CompanyBrief`), `proposeTeam`, Team confirmation as a D1 `batch()`. Correspondent memory seeding. The backoffice template/skill editor. | A new customer creates a Company, completes the debrief, confirms a Team, and lands in a seeded Correspondent chat; operators edit the catalog. |
+| **P6 — More channels + Worker types + scheduling** | Remaining connector adapters (Telegram, WhatsApp, Slack, Discord) + `transcribeAudio`. More Worker templates (marketing, support, sales). `this.schedule()` recurring agent work. | A customer reaches the agency on Telegram and via voice note; a Worker runs scheduled work; channel parity holds. |
+| **P7 — Cutover + retire `apps/api`** | Re-point both Next apps' env to the Worker. Delete `apps/api`, `@repo/db` (Prisma), BullMQ/Redis config, OpenRouter keys. Update `CLAUDE.md` / docs. | The two Next apps run entirely against `apps/agents`; the old backend, Postgres-for-platform-data, and Redis are gone. Auth's Postgres stays. |
 
-Phase 1 — the **thin slice** — is deliberately the minimum that proves the whole stack: one Worker, one DO class, one Think agent, one connector, one Workers AI call. Everything else is additive.
+P1 is the **walking skeleton** — the minimum that proves the hard integration (DO + `agents` SDK + D1 + AI Gateway + WebSocket chat) end-to-end. Everything after is additive.
 
 ---
 
-## 13. Testing strategy
+## 12. Testing strategy
 
 | Layer | Tooling | Mocked / real |
 |-------|---------|----------------|
-| DO agents (Correspondent, Worker, Planner) | Vitest + `@cloudflare/vitest-pool-workers` | Runs in real `workerd` via Miniflare. Real DO SQLite, real D1 (Miniflare's local D1), real bindings. The model call is the seam — stub `getModel()` to return a canned/scripted `LanguageModel` so the Think loop is deterministic. |
-| Connector adapters | Vitest (plain) | Pure functions — `verify`/`parseInbound`/`sendOutbound`. Mock `fetch` for outbound; fixture provider payloads for inbound. |
-| Webhook routing | Vitest + `vitest-pool-workers` | Real Worker `fetch`, real Miniflare D1, real DO. Assert dedup, verify, RPC dispatch. |
-| Hono REST + auth | Vitest + `vitest-pool-workers` | Real Better Auth against Miniflare D1. Assert role guards, membership resolution. |
-| Delegation / agent-tools | `vitest-pool-workers` | Real parent + child DOs; scripted models on both. Assert `can_delegate_to` enforcement, cycle rejection, `getAgentToolOutput` plumbing. |
-| Heartbeats | `vitest-pool-workers` | Miniflare alarm APIs; advance time, assert tick behaviour. |
-| Workflows | `vitest-pool-workers` | Miniflare Workflows; assert step retry + checkpoint resumption with an injected failing step. |
-| Full inbound→reply | `vitest-pool-workers` | End-to-end: fixture webhook → DO → scripted model → assert outbound payload + D1 rows + activity_log. |
+| DO agents | Vitest + `@cloudflare/vitest-pool-workers` | Real `workerd` via Miniflare — real DO SQLite, D1, bindings. The model call is the seam: stub the AI Gateway provider with a scripted `LanguageModel` so the loop is deterministic. |
+| Connector adapters | Vitest (plain) | Pure functions — fixture provider payloads in, mocked `fetch` out. |
+| Webhook routing | `vitest-pool-workers` | Real Worker `fetch` + Miniflare D1 + DO. Assert dedup, verify, RPC dispatch. |
+| Session validation / role guards | `vitest-pool-workers` | Mock the external auth service's validation response; assert guard behaviour and membership resolution. |
+| Delegation + Workflows | `vitest-pool-workers` | Real parent/child DOs + Miniflare Workflows; scripted models. Assert `can_delegate_to` enforcement, cycle rejection, `waitForEvent` resume on approve/reject/changes. |
+| Memory | `vitest-pool-workers` | Miniflare Vectorize; assert embed → upsert → retrieve, and graceful fallback to the recent-turns buffer on retrieval failure. |
+| Scheduled work | `vitest-pool-workers` | Miniflare alarm/schedule APIs; advance time, assert tick behaviour. |
+| Full inbound → approved reply | `vitest-pool-workers` | End-to-end: fixture inbound → DO → Workflow → scripted model → `waitForEvent` → decision event → assert outbound + D1 rows + `activity_log`. |
 
-`@cloudflare/vitest-pool-workers` runs tests *inside* `workerd`, so DO storage, D1, alarms, and Workflows are exercised for real rather than mocked. The single consistent mock is the **LLM** — every test injects a scripted model so the agentic loop is deterministic. External provider HTTP (Telegram/Slack/etc.) is mocked at `fetch`. AI Gateway / frontier routes are mocked the same way.
+`@cloudflare/vitest-pool-workers` runs tests inside `workerd`, so DO storage, D1, Vectorize, schedules, and Workflows are exercised for real. The single consistent mock is the **LLM** — every test injects a scripted model. External provider HTTP is mocked at `fetch`.
 
 ---
 
-## 14. What's discarded vs. salvaged
+## 13. What's discarded vs salvaged
 
 ### Discarded (code — none of it ports)
 
-- The entire `apps/api` Hono-on-Node service.
-- Postgres + Prisma (`@repo/db`, `schema.prisma`, the 23-model schema, `prisma.config.ts`).
-- Redis + BullMQ (queues, JobSchedulers, the `agent-runner` / `routine-scheduler` worker processes, `DISPATCH_MODE`).
-- OpenRouter integration and the AI-SDK-via-Gateway model wiring.
-- The two-process (API + worker) split — collapses into one Worker script plus DOs.
-- The `tsdown` build, the Node 24 runtime assumptions.
-- BullMQ-based delegation (`FlowProducer`, parent/child jobs) — replaced by DO RPC + `agentTool`.
+- The entire `apps/api` Hono-on-Node service and its two-process (API + worker) split.
+- Postgres + Prisma **for platform data** (`@repo/db`, `schema.prisma`). Postgres survives only for the auth service.
+- Redis + BullMQ — queues, JobSchedulers, `agent-runner` / `routine-scheduler`, `DISPATCH_MODE`.
+- OpenRouter integration and the AI-SDK-via-OpenRouter wiring.
+- BullMQ-based delegation (`FlowProducer`, parent/child jobs) — replaced by DO RPC + Workflows.
+- The `tsdown` build and Node 24 runtime assumptions for the backend.
 
 ### Salvaged (concepts only)
 
-- **The agency mental model** — Company/tenant, the single account-manager agent, specialist team, delegation. This *is* the product; it carries straight over (Correspondent replaces Controller; Worker replaces specialist `AgentInstance`; Planner is new).
-- **The connector-adapter idea** — `parseInbound`/`sendOutbound`/`verify` + a `NormalizedMessage`. Re-implemented as plain Worker modules (§6).
-- **The approval-rule shape** — sender-role × per-skill default, now a per-tool / per-`worker_kind` policy driving the `approval` table (§8.4).
+- **The agency mental model** — Company/tenant, the single account-manager agent, specialist Team, delegation. The product itself; carries straight over (Correspondent, Worker, Planner).
+- **The connector-adapter idea** — `parseInbound` / `sendOutbound` / `verify` + a `NormalizedMessage`. Re-implemented as plain Worker modules with the parity discipline (§6).
+- **The approval-rule shape** — sender-role × per-skill default, re-expressed as the policy-per-action-type model driving the `action` table (§4.4).
+- **The code skill registry** — typed `id` + description + zod schema + `execute()`. Carries over, now with a D1 metadata overlay (decision 10).
+- **The template/instance idea** — the `template` is now a fully D1-defined, operator-editable catalog row (decision 9); `agent_instance` references it.
 - **The append-only activity log** — `activity_log` in D1, same single-writer best-effort discipline.
-- **Heartbeats / paused-by-default proactive work** — the Routine concept becomes DO alarms + Workflows; the Paperclip-inspired "Workers behave like employees" framing is now first-class (§4.4).
-- **The two-tier template/instance idea** — collapsed: `agent_instance` is data-driven; "template" is just the system prompt + tool set + model fields on the row, no separate table.
+- **Existing auth** — reused wholesale, not salvaged-as-concept (decision 11).
 
 ---
 
-## 15. Open questions + honest concerns
+## 14. Risks + open questions
 
-### Things in the Cloudflare stack that genuinely worry me
+### Real risks
 
-- **`@cloudflare/think` is experimental.** Cloudflare's own words: API "stable but may evolve." We are betting the harness on a preview SDK that already shipped breaking-ish behaviour changes in May 2026 (the `pruneMessages` default change). Mitigation: pin exact versions, keep the model layer behind `getModel()` so a harness swap is contained, budget for churn. **This is the single biggest risk.** Confirm appetite before committing (D1).
-- **No frontier models on Workers AI.** The brief assumes GPT-5.4 on Workers AI — it is not there. Workers AI is open-weight (gpt-oss, Llama 4, Gemma 4, Kimi, Nemotron) + FLUX.2. Frontier OpenAI/Anthropic quality requires routing out through **AI Gateway**, which adds latency, a second billing surface, and a non-Cloudflare dependency — partially defeating "all-native." The team must decide whether open-weight models are good enough for the Correspondent and strategy Workers, or accept the Gateway hop (D8).
-- **Workers AI neuron caps and latency.** Workers AI bills in neurons with **daily caps that reset at 00:00 UTC**; exceeding a cap hard-fails requests. For a multi-tenant agency this is a real availability risk — one busy day across tenants can exhaust the allocation. FLUX.2 is explicitly "one of the slower models." Needs a capacity/quota plan and probably per-Company rate limiting before launch.
-- **DO SQLite 10 GB ceiling per agent.** The Correspondent accumulates Company memory forever. 10 GB is large, but "forever" is longer. Think's compaction/truncation bounds *context cost*, not *storage*. A long-lived heavy tenant could approach the cap. Needs a memory-archival story (cold facts to R2/D1) before it bites — flagged, not solved here.
-- **D1 30 s query timeout + sequential processing.** D1 processes queries sequentially per database; throughput is query-duration-bound (~1000 q/s at 1 ms queries). One D1 for all tenants is a shared chokepoint. The split (D4) helps — agent memory is off D1 — but `ticket`/`activity_log`/auth all share it. May need per-region read replicas or a D1-per-shard plan at scale. Fine for launch, watch it.
-- **DO alarm 15-min wall-time + 30 s CPU between requests.** Heartbeat ticks must stay short and dispatch real work to Workflows. A tick that tries to do a deliverable inline will be evicted. The design (§4.4) accounts for this, but it is a discipline the implementation must hold.
-- **Lock-in.** This design is deeply Cloudflare-coupled — DOs, D1, Workers AI, Workflows, the Think SDK. There is no realistic "lift to another cloud" path. That is an accepted trade for the cost/latency/durability story, but it should be a *conscious* acceptance, not a discovered one.
+- **AI Gateway is an external dependency in the hot path.** Every frontier-model call hops through AI Gateway to a provider. Gateway or provider downtime degrades the platform. Mitigations: AI Gateway's own fallback routing (configure a secondary model), caching, and graceful "tive um problema" messaging. Accept the dependency consciously — it is the price of frontier quality (decision 1).
+- **Vectorize retrieval quality is a tuning workstream.** Top-K, similarity threshold, recency weighting, and stale-context suppression all need iteration. The recent-turns buffer is the safety net; budget real time for retrieval tuning in P2.
+- **D1 as a shared multi-tenant chokepoint.** D1 processes queries sequentially per database with a 30 s timeout. One D1 for all tenants carries `ticket` / `message` / `action` / catalog. Fine for launch; watch it; a D1-per-shard or read-replica plan is the scale answer.
+- **DO SQLite 10 GB ceiling per agent.** The recent-turns buffer is bounded, but if anything unbounded accrues in DO SQLite it bites a long-lived heavy tenant. Keep durable history in D1, embeddings in Vectorize, DO SQLite genuinely working-set-only.
+- **`waitForEvent` with no timeout → invisible backlog.** Correct for not losing work, but pending Workflows accumulate silently. The backoffice stale-action view (sorted by age) is a required mitigation, not a nice-to-have — it ships in P4.
+- **Two stores, one mental model.** Auth in Postgres, platform in D1, joined on `company.id == organization.id`. The boundary must stay clean: no platform code reads auth's Postgres, no auth data leaks into D1.
+- **Lock-in.** Deeply Cloudflare-coupled — DOs, D1, Vectorize, Workflows, the `agents` SDK. No realistic lift-to-another-cloud path. Accepted consciously for the cost/latency/durability story.
 
 ### Open questions
 
-1. **Frontier vs open-weight for the Correspondent.** Is `gpt-oss-120b` (or Kimi K2.x) good enough for the customer-facing account-manager persona in pt-BR, or does the Correspondent specifically need an AI-Gateway frontier route? Affects D8 and cost.
-2. **Planner lifecycle.** Keep the `PlannerAgent` DO dormant for re-planning, or tear it down after Team confirmation? Recommendation: keep dormant. Confirm.
-3. **Re-planning a Team.** When a Company wants to add/remove Workers post-onboarding — does the Planner re-run, or is there a direct backoffice Team editor? Not designed here.
-4. **Audio output.** Audio is input-only in this spec. Do Users expect voice *replies*? If so, a TTS step and per-connector voice-message support is a future addition.
-5. **Connector secrets in D1.** `connector.config` holds provider tokens. D1 rows are not encrypted at rest by us. Should secrets go in Workers Secrets / a secret store with only a reference in D1? Recommendation: yes for production — flagged for the P2 plan.
-6. **Multi-User concurrency on one Correspondent.** Two Users of the same Company message simultaneously — the single Correspondent DO serializes them (DO single-threaded execution). Is serialized handling acceptable, or do we need per-User conversation lanes? Likely fine; confirm under expected load.
-7. **Cost attribution.** The old spec tracked per-action token cost. Workers AI bills in neurons, not tokens — per-Company cost attribution needs a different mechanism (AI Gateway analytics, or neuron accounting per DO). Not designed here.
-8. **`apps/agents` vs monorepo tooling.** The new app uses Wrangler, not Turborepo's tsdown path. How does it slot into `pnpm` workspaces + Turborepo `build`/`test`/`lint`? A tooling question for the P1 plan.
+1. **`CompanyBrief` schema.** The exact typed shape the Planner's `extractBrief` produces and the provisioning consumes — designed in the P5 plan.
+2. **Connector secrets.** `connector.config_ref` points into a secret store rather than holding tokens in D1 plaintext. Confirm the mechanism (Worker Secrets vs a secret-store binding) in the P3 plan.
+3. **Worker chat follow-ups.** `WorkerAgent` extends `Agent`, not `AIChatAgent`. If customers should chat a Worker directly (not only via the Correspondent), promote the class. Confirm the product need.
+4. **Audio output.** Audio is input-only here. If Users expect voice replies, a TTS step + per-connector voice-message support is a future addition.
+5. **Multi-User concurrency on one Correspondent.** Two Users of one Company message at once — the single Correspondent DO serializes them (single-threaded). Likely fine; confirm under expected load, or add per-User conversation lanes.
+6. **Cost attribution.** Per-Company cost tracking via AI Gateway analytics (it logs per-request usage). Not designed here — a billing-spec concern.
+7. **Re-planning UX.** The Planner is persistent; the customer returns to re-plan. Is re-planning a fresh debrief, or a lighter "add/remove a Worker" flow? Not designed here.
+8. **`apps/agents` monorepo tooling.** The new app uses Wrangler, not Turborepo's tsdown path. How it slots into pnpm workspaces + Turborepo `build`/`test`/`lint` — a P1 tooling question.
 
 ---
 
-## 16. References
+## 15. References
 
-- Project Think announcement — https://blog.cloudflare.com/project-think/
-- Think base class docs — https://developers.cloudflare.com/agents/api-reference/think/
-- Think docs (repo) — https://github.com/cloudflare/agents/blob/main/docs/think/index.md
 - Agents SDK — https://developers.cloudflare.com/agents/ · https://github.com/cloudflare/agents
-- Agent class internals — https://developers.cloudflare.com/agents/concepts/agent-class/
-- Durable Objects limits — https://developers.cloudflare.com/durable-objects/platform/limits/
+- Agent class + state/SQL — https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/
+- Routing (`routeAgentRequest`, `getAgentByName`) — https://developers.cloudflare.com/agents/api-reference/routing/
+- Chat agents + `useAgentChat` — https://developers.cloudflare.com/agents/api-reference/chat-agents/
+- Scheduling — https://developers.cloudflare.com/agents/api-reference/schedule-tasks/
+- Webhooks from a Worker — https://developers.cloudflare.com/agents/guides/webhooks/
+- AI Gateway — https://developers.cloudflare.com/ai-gateway/
+- Cloudflare Workflows — https://developers.cloudflare.com/workflows/
+- Vectorize — https://developers.cloudflare.com/vectorize/
 - D1 limits — https://developers.cloudflare.com/d1/platform/limits/
-- Workers AI models — https://developers.cloudflare.com/workers-ai/models/
-- Workers AI pricing (neurons) — https://developers.cloudflare.com/workers-ai/platform/pricing/
-- FLUX.2 on Workers AI — https://blog.cloudflare.com/flux-2-workers-ai/
-- Workflows limits — https://developers.cloudflare.com/workflows/reference/limits/
-- Better Auth + Cloudflare Workers/D1 — https://github.com/better-auth/better-auth/discussions/7963 · https://better-auth.com/blog/1-5
+- Durable Objects limits — https://developers.cloudflare.com/durable-objects/platform/limits/
 - `@cloudflare/vitest-pool-workers` — https://developers.cloudflare.com/workers/testing/vitest-integration/
-- Prior Qolmeia specs — `docs/superpowers/specs/2026-05-20-qolmeia-multi-agent-architecture-design.md`, `docs/ARCHITECTURE.md`, `docs/strategy/2026-05-21-system-overview.md`, `docs/research/2026-05-20-paperclip-and-multica.md`
+- Prior Qolmeia specs — `docs/superpowers/specs/2026-05-20-qolmeia-multi-agent-architecture-design.md`, `docs/ARCHITECTURE.md`
