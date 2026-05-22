@@ -145,6 +145,7 @@ export const createAuth = (config: AuthConfig) => {
       // but the user-visible flow (form submit → redirect) still works.
       sendResetPassword: async ({ url, user }) => {
         if (!resendApiKey) {
+          console.info(`[auth] password-reset link for ${user.email}: ${url}`);
           return;
         }
         const result = await sendPasswordResetEmail(
@@ -165,6 +166,7 @@ export const createAuth = (config: AuthConfig) => {
       // Same no-op-without-Resend pattern as sendResetPassword above.
       sendVerificationEmail: async ({ url, user }) => {
         if (!resendApiKey) {
+          console.info(`[auth] verification link for ${user.email}: ${url}`);
           return;
         }
         const result = await sendWelcomeEmail(
@@ -190,6 +192,7 @@ export const createAuth = (config: AuthConfig) => {
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           if (!resendApiKey) {
+            console.info(`[auth] magic-link for ${email}: ${url}`);
             return;
           }
           const result = await sendMagicLinkEmail(
