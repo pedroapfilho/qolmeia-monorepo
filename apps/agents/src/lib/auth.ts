@@ -28,7 +28,12 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     response = await fetch(`${env.AUTH_SERVICE_URL}/api/auth/get-session`, {
       headers: { Cookie: cookie },
     });
-  } catch {
+  } catch (error) {
+    // The auth service being unreachable is an outage, not an invalid
+    // session — surface it rather than letting it look like a normal 401.
+    // console is the Worker's logging channel (wrangler tail / observability).
+    // oxlint-disable-next-line no-console
+    console.error("[auth] session validation request failed", { error });
     return null;
   }
   if (!response.ok) {

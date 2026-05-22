@@ -51,7 +51,7 @@ class CorrespondentAgent extends AIChatAgent<Env> {
 
     const result = streamText({
       messages: await convertToModelMessages(this.messages),
-      model: getModel(this.env),
+      model: this.resolveModel(),
       onFinish: async (event) => {
         await insertMessage(this.env.DB, {
           agentInstanceId: "correspondent",
@@ -67,6 +67,13 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     });
 
     return result.toUIMessageStreamResponse();
+  }
+
+  // Model resolution is a seam: the DO runs inside the bundled worker, out of
+  // reach of module mocks, so tests inject a scripted model by reassigning
+  // this method on the instance.
+  resolveModel() {
+    return getModel(this.env);
   }
 }
 
