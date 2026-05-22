@@ -6,65 +6,65 @@ type CompanyStatus = "onboarding" | "active" | "paused";
 type MessageRole = "user" | "agent" | "system";
 
 type Company = {
-  id: string;
-  name: string;
-  slug: string;
-  timezone: string;
-  locale: string;
-  status: CompanyStatus;
   brief: string | null;
   createdAt: number;
+  id: string;
+  locale: string;
+  name: string;
+  slug: string;
+  status: CompanyStatus;
+  timezone: string;
   updatedAt: number;
 };
 
 type Conversation = {
-  id: string;
   companyId: string;
-  externalThreadId: string;
-  userId: string | null;
   createdAt: number;
+  externalThreadId: string;
+  id: string;
+  userId: string | null;
 };
 
 type Message = {
-  id: string;
-  companyId: string;
-  conversationId: string;
   agentInstanceId: string | null;
-  role: MessageRole;
-  content: string;
   attachments: string | null;
+  companyId: string;
+  content: string;
+  conversationId: string;
   createdAt: number;
+  id: string;
+  role: MessageRole;
 };
 
 type CompanyRow = {
-  id: string;
-  name: string;
-  slug: string;
-  timezone: string;
-  locale: string;
-  status: string;
   brief: string | null;
   created_at: number;
+  id: string;
+  locale: string;
+  name: string;
+  slug: string;
+  status: string;
+  timezone: string;
   updated_at: number;
 };
 
 type ConversationRow = {
-  id: string;
   company_id: string;
-  external_thread_id: string;
-  user_id: string | null;
   created_at: number;
+  external_thread_id: string;
+  id: string;
+  user_id: string | null;
 };
 
 type MessageRow = {
-  id: string;
-  company_id: string;
-  conversation_id: string;
   agent_instance_id: string | null;
-  role: string;
-  content: string;
   attachments: string | null;
+  company_id: string;
+  content: string;
+  conversation_id: string;
   created_at: number;
+  id: string;
+  role: string;
 };
 
 const COMPANY_STATUSES: ReadonlyArray<CompanyStatus> = ["onboarding", "active", "paused"];
@@ -79,34 +79,34 @@ const toMessageRole = (value: string): MessageRole =>
   MESSAGE_ROLES.find((role) => role === value) ?? "system";
 
 const mapCompany = (row: CompanyRow): Company => ({
-  id: row.id,
-  name: row.name,
-  slug: row.slug,
-  timezone: row.timezone,
-  locale: row.locale,
-  status: toCompanyStatus(row.status),
   brief: row.brief,
   createdAt: row.created_at,
+  id: row.id,
+  locale: row.locale,
+  name: row.name,
+  slug: row.slug,
+  status: toCompanyStatus(row.status),
+  timezone: row.timezone,
   updatedAt: row.updated_at,
 });
 
 const mapConversation = (row: ConversationRow): Conversation => ({
-  id: row.id,
   companyId: row.company_id,
-  externalThreadId: row.external_thread_id,
-  userId: row.user_id,
   createdAt: row.created_at,
+  externalThreadId: row.external_thread_id,
+  id: row.id,
+  userId: row.user_id,
 });
 
 const mapMessage = (row: MessageRow): Message => ({
-  id: row.id,
-  companyId: row.company_id,
-  conversationId: row.conversation_id,
   agentInstanceId: row.agent_instance_id,
-  role: toMessageRole(row.role),
-  content: row.content,
   attachments: row.attachments,
+  companyId: row.company_id,
+  content: row.content,
+  conversationId: row.conversation_id,
   createdAt: row.created_at,
+  id: row.id,
+  role: toMessageRole(row.role),
 });
 
 const getCompany = async (db: D1Database, id: string): Promise<Company | null> => {
@@ -115,9 +115,9 @@ const getCompany = async (db: D1Database, id: string): Promise<Company | null> =
 };
 
 type UpsertConversationInput = {
-  id: string;
   companyId: string;
   externalThreadId: string;
+  id: string;
   userId?: string | null;
 };
 
@@ -148,13 +148,13 @@ const upsertConversation = async (
 };
 
 type InsertMessageInput = {
-  id: string;
-  companyId: string;
-  conversationId: string;
   agentInstanceId?: string | null;
-  role: MessageRole;
-  content: string;
   attachments?: string | null;
+  companyId: string;
+  content: string;
+  conversationId: string;
+  id: string;
+  role: MessageRole;
 };
 
 // `INSERT OR IGNORE` keeps persistence idempotent on the message id — a
