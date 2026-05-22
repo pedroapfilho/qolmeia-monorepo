@@ -1,131 +1,175 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { toast } from "@repo/ui/components/sonner";
+import type { UIMessage } from "ai";
+import { MessageSquare } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Composer } from "@/components/composer";
-import { MessageList } from "@/components/message-list";
-import { SseSubscriber } from "@/components/sse-subscriber";
-import { apiGet } from "@/lib/api-client";
-import type { ListResponse, PostMessageResponse, SseEvent, WebChatMessage } from "@/lib/api-types";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Loader } from "@/components/ai-elements/loader";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputBody,
+  type PromptInputMessage,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+} from "@/components/ai-elements/prompt-input";
+import type { WebChatMessage } from "@/lib/api-types";
+import { createWebChatTransport, roleForSender } from "@/lib/web-chat-transport";
 
 type ChatProps = {
   initialConversationId: string | null;
   initialMessages: ReadonlyArray<WebChatMessage>;
 };
 
-const messagesQueryKey = (conversationId: string | null) =>
-  ["web-chat", "messages", conversationId] as const;
+const extractAssetId = (message: WebChatMessage): string | null => {
+  if (
+    message.contentType !== "IMAGE" ||
+    !message.metadata ||
+    typeof message.metadata !== "object"
+  ) {
+    return null;
+  }
+  const value = (message.metadata as Record<string, unknown>).assetId;
+  return typeof value === "string" ? value : null;
+};
 
-const buildOptimisticMessage = (text: string, sentAt: string): WebChatMessage => ({
-  content: text,
-  contentType: "TEXT",
-  // sentAt = user submit time, not POST-resolve time. In serial dispatch
-  // the POST resolves only after the agent reply is persisted, so a
-  // resolve-time stamp would sort the user's own message below the reply.
-  createdAt: sentAt,
-  // `local-` prefix avoids collision with server cuids.
-  id: `local-${Date.now()}`,
-  metadata: {},
-  sender: "CUSTOMER",
-});
+// Maps the server-rendered history into `UIMessage`s for `useChat` seeding.
+// API order is newest-first, so the list is reversed to oldest-first.
+const toUIMessages = (messages: ReadonlyArray<WebChatMessage>): Array<UIMessage> =>
+  [...messages]
+    .toSorted((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((message) => {
+      const assetId = extractAssetId(message);
+      return {
+        id: message.id,
+        parts: [
+          { text: message.content, type: "text" as const },
+          ...(assetId
+            ? [
+                {
+                  mediaType: "image/*",
+                  type: "file" as const,
+                  url: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/web-chat/assets/${assetId}`,
+                },
+              ]
+            : []),
+        ],
+        role: roleForSender(message.sender),
+      } satisfies UIMessage;
+    });
 
-// Client-side chat surface. Hydrates from server-rendered initial state,
-// then keeps the message list in sync via:
-//   1) Optimistic insert on composer submit
-//   2) SSE `message` events from agent responses
-//   3) TanStack Query background refetch as a safety net
+// Client chat surface. `useChat` owns the message list; the custom transport
+// bridges to the REST + SSE web-chat backend. Rendered with `ai-elements`.
 const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
-  const queryClient = useQueryClient();
-  const [conversationId, setConversationId] = useState<string | null>(initialConversationId);
-  const [agentThinkingFrom, setAgentThinkingFrom] = useState<string | null>(null);
+  const [input, setInput] = useState("");
 
-  const { data } = useQuery({
-    enabled: conversationId !== null,
-    initialData:
-      conversationId === initialConversationId
-        ? ({
-            items: [...initialMessages],
-            nextCursor: null,
-          } satisfies ListResponse<WebChatMessage>)
-        : undefined,
-    queryFn: () => {
-      const cid = conversationId ?? "";
-      return apiGet<ListResponse<WebChatMessage>>(`/web-chat/messages?conversationId=${cid}`);
-    },
-    queryKey: messagesQueryKey(conversationId),
+  const transport = useMemo(
+    () => createWebChatTransport({ initialConversationId }),
+    [initialConversationId],
+  );
+  const seededMessages = useMemo(() => toUIMessages(initialMessages), [initialMessages]);
+
+  const { error, messages, sendMessage, status } = useChat({
+    messages: seededMessages,
+    transport,
   });
 
-  // Sort by createdAt — cache insertion order isn't chronological (in
-  // serial dispatch the agent's SSE reply can land before the optimistic
-  // user row).
-  const messages = (data?.items ?? []).toSorted(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  );
+  useEffect(() => {
+    if (error) {
+      toast.error("Não foi possível enviar. Tente novamente.");
+    }
+  }, [error]);
 
-  const handleSent = useCallback(
-    (response: PostMessageResponse, sentText: string, sentAt: string) => {
-      const optimistic = buildOptimisticMessage(sentText, sentAt);
-
-      // First send creates the conversation; subsequent sends reuse it.
-      const wasNewConversation = conversationId === null;
-      if (wasNewConversation) {
-        setConversationId(response.conversationId);
-      }
-
-      queryClient.setQueryData<ListResponse<WebChatMessage>>(
-        messagesQueryKey(response.conversationId),
-        (prev) => {
-          const existingItems = prev?.items ?? [];
-          // Insert at the front because API order is newest-first.
-          return {
-            items: [optimistic, ...existingItems],
-            nextCursor: prev?.nextCursor ?? null,
-          };
-        },
-      );
-    },
-    [conversationId, queryClient],
-  );
-
-  const handleSseEvent = useCallback(
-    (event: SseEvent) => {
-      if (event.type === "agent-thinking") {
-        setAgentThinkingFrom(event.agentDisplayName);
+  const handleSubmit = useCallback(
+    (message: PromptInputMessage) => {
+      const text = message.text.trim();
+      if (!text || status === "submitted" || status === "streaming") {
         return;
       }
-      if (event.type === "message") {
-        setAgentThinkingFrom(null);
-        queryClient.setQueryData<ListResponse<WebChatMessage>>(
-          messagesQueryKey(event.conversationId),
-          (prev) => {
-            const items = prev?.items ?? [];
-            // Avoid duplicate inserts if the SSE event arrives twice (the
-            // browser EventSource auto-reconnects on transient errors,
-            // which can replay the last event).
-            if (items.some((existing) => existing.id === event.message.id)) {
-              return prev ?? { items, nextCursor: null };
-            }
-            return {
-              items: [event.message, ...items],
-              nextCursor: prev?.nextCursor ?? null,
-            };
-          },
-        );
-      }
-      // asset events trigger a background refetch of /assets — handled
-      // on the assets page; ignore here.
+      void sendMessage({ text });
+      setInput("");
     },
-    [queryClient],
+    [sendMessage, status],
   );
+
+  const isThinking = status === "submitted" || status === "streaming";
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <MessageList agentThinkingFrom={agentThinkingFrom} messages={messages} />
+      <Conversation>
+        <ConversationContent>
+          {messages.length === 0 ? (
+            <ConversationEmptyState
+              description="Os agentes da Qolmeia respondem em segundos."
+              icon={<MessageSquare aria-hidden className="size-10" />}
+              title="Comece a conversa"
+            />
+          ) : (
+            messages.map((message) => (
+              <Message from={message.role} key={message.id}>
+                <MessageContent>
+                  {message.parts.map((part, index) => {
+                    if (part.type === "text") {
+                      return (
+                        <MessageResponse key={`${message.id}-${index}`}>
+                          {part.text}
+                        </MessageResponse>
+                      );
+                    }
+                    if (part.type === "file" && part.mediaType?.startsWith("image")) {
+                      return (
+                        // The API streams asset bytes with a private
+                        // Cache-Control; a plain <img> is correct here.
+                        // oxlint-disable-next-line no-img-element
+                        <img
+                          alt="Imagem gerada"
+                          className="max-h-80 rounded-md object-contain"
+                          key={`${message.id}-${index}`}
+                          src={part.url}
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                </MessageContent>
+              </Message>
+            ))
+          )}
+          {isThinking ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader size={16} />
+              <span>Um agente está respondendo…</span>
+            </div>
+          ) : null}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <div className="border-t border-border bg-card p-3">
+        <PromptInput onSubmit={handleSubmit}>
+          <PromptInputBody>
+            <PromptInputTextarea
+              aria-label="Mensagem"
+              autoComplete="off"
+              disabled={isThinking}
+              onChange={(event) => setInput(event.currentTarget.value)}
+              placeholder="Escreva sua mensagem…"
+              value={input}
+            />
+          </PromptInputBody>
+          <PromptInputToolbar>
+            <PromptInputSubmit disabled={input.trim().length === 0 || isThinking} status={status} />
+          </PromptInputToolbar>
+        </PromptInput>
       </div>
-      <Composer conversationId={conversationId} onSent={handleSent} />
-      <SseSubscriber conversationId={conversationId} onEvent={handleSseEvent} />
     </div>
   );
 };
