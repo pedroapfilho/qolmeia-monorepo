@@ -17,13 +17,14 @@ type ChatProps = {
 const messagesQueryKey = (conversationId: string | null) =>
   ["web-chat", "messages", conversationId] as const;
 
-const buildOptimisticMessage = (text: string): WebChatMessage => ({
+const buildOptimisticMessage = (text: string, sentAt: string): WebChatMessage => ({
   content: text,
   contentType: "TEXT",
-  createdAt: new Date().toISOString(),
-  // Optimistic id — overwritten by the SSE message event once the API
-  // persists the row. We prefix with `local-` to avoid collisions with
-  // server-generated ids (server ids are cuids; no overlap).
+  // sentAt = user submit time, not POST-resolve time. In serial dispatch
+  // the POST resolves only after the agent reply is persisted, so a
+  // resolve-time stamp would sort the user's own message below the reply.
+  createdAt: sentAt,
+  // `local-` prefix avoids collision with server cuids.
   id: `local-${Date.now()}`,
   metadata: {},
   sender: "CUSTOMER",
@@ -44,7 +45,7 @@ const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
     initialData:
       conversationId === initialConversationId
         ? ({
-            items: initialMessages.toReversed(),
+            items: [...initialMessages],
             nextCursor: null,
           } satisfies ListResponse<WebChatMessage>)
         : undefined,
@@ -55,13 +56,16 @@ const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
     queryKey: messagesQueryKey(conversationId),
   });
 
-  // API returns newest-first; the UI renders oldest→newest so we use
-  // toReversed to avoid mutating the query cache's items array.
-  const messages = (data?.items ?? []).toReversed();
+  // Sort by createdAt — cache insertion order isn't chronological (in
+  // serial dispatch the agent's SSE reply can land before the optimistic
+  // user row).
+  const messages = (data?.items ?? []).toSorted(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
 
   const handleSent = useCallback(
-    (response: PostMessageResponse, sentText: string) => {
-      const optimistic = buildOptimisticMessage(sentText);
+    (response: PostMessageResponse, sentText: string, sentAt: string) => {
+      const optimistic = buildOptimisticMessage(sentText, sentAt);
 
       // First send creates the conversation; subsequent sends reuse it.
       const wasNewConversation = conversationId === null;
