@@ -2,9 +2,10 @@ import { getAgentByName } from "agents";
 import { generateText, stepCountIs } from "ai";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
+import { logActivity } from "@/activity/log";
 import { decideAction, markExecuted, proposeAction } from "@/db/action";
-import { getCompany } from "@/db/schema";
 import { resolvePolicy } from "@/db/policy";
+import { getCompany } from "@/db/schema";
 import { getTemplate } from "@/db/template";
 import {
   loadAgentInstance,
@@ -87,6 +88,13 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 
       if (policy === "auto-execute") {
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
+        await logActivity(this.env, {
+          companyId,
+          refId: ticketId,
+          refType: "ticket",
+          summary: "Ticket concluído automaticamente (auto-execute).",
+          type: "TICKET_DONE",
+        });
         return { actionId: null, policy };
       }
 
@@ -98,6 +106,14 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         ticketId,
       });
       await setTicketStatus(this.env.DB, ticketId, "awaiting_approval");
+      await logActivity(this.env, {
+        companyId,
+        payload: { actionId, summary: generated.summary },
+        refId: actionId,
+        refType: "action",
+        summary: "Ação proposta aguardando decisão.",
+        type: "ACTION_PROPOSED",
+      });
 
       // Notify the Correspondent so the User sees the proposal. RPC failure
       // shouldn't fail the Workflow — the action row exists in D1, the
@@ -136,12 +152,38 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (evt.payload.decision === "approved") {
         await markExecuted(this.env.DB, actionId);
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
+        await logActivity(this.env, {
+          actorId: evt.payload.decidedByUserId,
+          companyId,
+          refId: actionId,
+          refType: "action",
+          summary: "Ação aprovada e executada.",
+          type: "ACTION_EXECUTED",
+        });
       } else if (evt.payload.decision === "rejected") {
         await setTicketStatus(this.env.DB, ticketId, "rejected");
+        await logActivity(this.env, {
+          actorId: evt.payload.decidedByUserId,
+          companyId,
+          payload: { feedback: evt.payload.feedback ?? null },
+          refId: actionId,
+          refType: "action",
+          summary: "Ação rejeitada.",
+          type: "ACTION_REJECTED",
+        });
       } else {
         // changes_requested — back to in_progress so a re-run is possible.
         // P4 doesn't auto re-trigger; that's a P5 polish.
         await setTicketStatus(this.env.DB, ticketId, "in_progress");
+        await logActivity(this.env, {
+          actorId: evt.payload.decidedByUserId,
+          companyId,
+          payload: { feedback: evt.payload.feedback ?? null },
+          refId: actionId,
+          refType: "action",
+          summary: "Alterações solicitadas.",
+          type: "ACTION_CHANGES_REQUESTED",
+        });
       }
     });
 
