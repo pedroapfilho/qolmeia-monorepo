@@ -20,7 +20,9 @@ const delegateInputSchema = z.object({
     .describe("Tipo do especialista (ex: 'designer', 'marketing-strategist')."),
 });
 
-type DelegateResult = { error: string; ticketId?: string } | { summary: string; ticketId: string };
+type DelegateResult =
+  | { error: string; ticketId?: string }
+  | { status: "queued"; ticketId: string; workflowId: string };
 
 type WorkerLookup = { id: string };
 
@@ -78,7 +80,10 @@ const delegateToWorkerSkill: UnknownSkill = {
     if (!result.ok) {
       return { error: result.error, ticketId };
     }
-    return { summary: result.summary, ticketId };
+    // P4: the Workflow runs asynchronously and pauses for approval. The
+    // Correspondent's User-facing reply is "the Designer is working on it";
+    // the actual deliverable arrives later via Correspondent.presentAction.
+    return { status: "queued", ticketId, workflowId: result.workflowId };
   },
   id: "delegateToWorker",
   inputSchema: delegateInputSchema,

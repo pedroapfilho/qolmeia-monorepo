@@ -9,6 +9,7 @@ import {
 } from "ai";
 
 import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
+import { getAction } from "@/db/action";
 import { insertMessage, upsertConversation } from "@/db/schema";
 import { getModel } from "@/lib/ai-gateway";
 import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
@@ -16,7 +17,9 @@ import { buildSkillTools } from "@/skills/registry";
 
 const BASE_SYSTEM_PROMPT = `Você é o Correspondente da Qolmeia, o ponto único de contato de uma agência de IA para negócios. Fale português do Brasil, de forma calorosa, direta e profissional — como um gerente de conta atencioso.
 
-Você tem um Time de especialistas. Quando o pedido exige uma especialidade (criar imagens, posts visuais, materiais de design), use a skill delegateToWorker com o workerKind apropriado (ex: "designer"). Apresente o resultado do especialista ao cliente.
+Você tem um Time de especialistas. Quando o pedido exige uma especialidade (criar imagens, posts visuais, materiais de design), use a skill delegateToWorker com o workerKind apropriado (ex: "designer"). O especialista trabalha em segundo plano e a proposta chega depois — diga ao cliente que está sendo preparado.
+
+Quando uma ação pendente aparecer no histórico (mensagem marcada com 🟡 e um id), o cliente pode responder com aprovação, pedido de ajuste, ou rejeição. Interprete a resposta e use a skill decideAction com o actionId correto. Se o cliente pedir ajustes, inclua o que ele quer no campo feedback.
 
 Ao mostrar imagens geradas, inclua a URL no formato markdown ![descrição curta](URL) para que apareça inline no chat.`;
 
@@ -49,6 +52,52 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   // this method on the instance.
   resolveModel() {
     return getModel(this.env);
+  }
+
+  // Called by the WorkerJob Workflow when a Worker proposes a gated action.
+  // Formats the proposal as an assistant message + persists it everywhere
+  // the next chat turn looks: D1 (system of record), the SDK's message list
+  // (which it auto-broadcasts to connected WS clients), and the recent-turns
+  // buffer (so the model sees the proposal in context and knows to call
+  // decideAction on the User's next reply).
+  async presentAction(actionId: string): Promise<void> {
+    const action = await getAction(this.env.DB, actionId);
+    if (!action) {
+      return;
+    }
+    const proposedSummary =
+      typeof action.proposed.summary === "string" ? action.proposed.summary : "";
+    const text = `🟡 **Ação pendente** (id: \`${actionId}\`)
+
+O especialista propõe:
+
+${proposedSummary}
+
+Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
+
+    const companyId = this.name;
+    const agentInstanceId = `corr-${companyId}`;
+    const conversationId = `web-${companyId}`;
+    const messageId = crypto.randomUUID();
+
+    await upsertConversation(this.env.DB, {
+      companyId,
+      externalThreadId: "web",
+      id: conversationId,
+    });
+    await insertMessage(this.env.DB, {
+      agentInstanceId,
+      companyId,
+      content: text,
+      conversationId,
+      id: messageId,
+      role: "agent",
+    });
+    appendTurn(this, "agent", text);
+    await this.saveMessages([
+      ...this.messages,
+      { id: messageId, parts: [{ text, type: "text" }], role: "assistant" },
+    ]);
   }
 
   async onChatMessage(
@@ -105,12 +154,14 @@ class CorrespondentAgent extends AIChatAgent<Env> {
       role: turn.role === "user" ? "user" : "assistant",
     }));
 
-    // Correspondent's skill set is fixed for P3 — the role='correspondent'
+    // Correspondent's skill set is fixed for P4 — the role='correspondent'
     // agent_instance has no template binding (templates are for Workers).
+    // decideAction lets it interpret User replies to pending Actions.
     const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
       "rememberFact",
       "recallMemory",
       "delegateToWorker",
+      "decideAction",
     ]);
 
     const result = streamText({
