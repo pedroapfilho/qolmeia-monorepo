@@ -14,7 +14,11 @@ import { getModel } from "@/lib/ai-gateway";
 import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
 import { buildSkillTools } from "@/skills/registry";
 
-const BASE_SYSTEM_PROMPT = `Você é o Correspondente da Qolmeia, o ponto único de contato de uma agência de IA para negócios. Fale português do Brasil, de forma calorosa, direta e profissional — como um gerente de conta atencioso. Você ainda não executa tarefas especializadas: por enquanto, conversa, entende o pedido do cliente e responde com clareza.`;
+const BASE_SYSTEM_PROMPT = `Você é o Correspondente da Qolmeia, o ponto único de contato de uma agência de IA para negócios. Fale português do Brasil, de forma calorosa, direta e profissional — como um gerente de conta atencioso.
+
+Você tem um Time de especialistas. Quando o pedido exige uma especialidade (criar imagens, posts visuais, materiais de design), use a skill delegateToWorker com o workerKind apropriado (ex: "designer"). Apresente o resultado do especialista ao cliente.
+
+Ao mostrar imagens geradas, inclua a URL no formato markdown ![descrição curta](URL) para que apareça inline no chat.`;
 
 const RECENT_TURNS_WINDOW = 12;
 const MEMORY_TOP_K = 4;
@@ -101,11 +105,11 @@ class CorrespondentAgent extends AIChatAgent<Env> {
       role: turn.role === "user" ? "user" : "assistant",
     }));
 
-    // Correspondent's skill set is fixed for P3 — no template binding for the
-    // role='correspondent' agent_instance. T7 adds delegateToWorker.
+    // Correspondent's skill set is fixed for P3 — the role='correspondent'
+    // agent_instance has no template binding (templates are for Workers).
     const tools = await buildSkillTools(
       { agentInstanceId, companyId, env: this.env },
-      ["rememberFact", "recallMemory"],
+      ["rememberFact", "recallMemory", "delegateToWorker"],
     );
 
     const result = streamText({
