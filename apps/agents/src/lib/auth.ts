@@ -1,21 +1,21 @@
-import { z } from "zod";
+import { parseMeResponse, type Role } from "@/lib/membership";
 
-// Better Auth's get-session returns `{ session, user }` for a valid session,
-// or JSON `null` otherwise. P1 needs only the user id.
-const sessionResponseSchema = z.object({
-  user: z.object({ id: z.string() }),
-});
+type ValidatedSession = {
+  companyId: string;
+  role: Role;
+  userId: string;
+};
 
-type ValidatedSession = { userId: string };
-
-// P1 session gate. The Worker is a different origin than the auth service, so
-// the browser will not attach the auth cookie to a cross-origin Worker request
-// (cookies in this project use the `qolmeia` prefix and the standard
-// same-origin rules). The client passes its session token as a `cf_session`
-// query param; the Worker forwards it via the Bearer header to Better Auth's
-// bearer plugin, which validates the token against the session table directly.
-// Request cookies are also forwarded as a fallback for a future shared-domain
-// deployment. Caching, role/membership resolution, and proper handshake are P2.
+// P2 session gate. The validator hits /api/v1/me — the single shape the
+// Worker should depend on — and returns the resolved membership: who is
+// this, which company are they currently in, what role do they have. Path-
+// level role enforcement (CUSTOMER on agent paths, OWNER/STAFF on backoffice)
+// is the caller's job.
+//
+// The client passes its session token as a `cf_session` query param; the
+// Worker forwards it via the Bearer header to Better Auth's bearer plugin.
+// Request cookies are forwarded as a fallback for a future shared-domain
+// deployment. Caching is a P3+ concern.
 const validateSession = async (
   request: Request,
   env: Env,
@@ -34,21 +34,28 @@ const validateSession = async (
 
   let response: Response;
   try {
-    response = await fetch(`${env.AUTH_SERVICE_URL}/api/auth/get-session`, { headers });
+    response = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/me`, { headers });
   } catch (error) {
     // The auth service being unreachable is an outage, not an invalid
     // session — surface it rather than letting it look like a normal 401.
     // console is the Worker's logging channel (wrangler tail / observability).
     // oxlint-disable-next-line no-console
-    console.error("[auth] session validation request failed", { error });
+    console.error("[auth] /api/v1/me request failed", { error });
     return null;
   }
   if (!response.ok) {
     return null;
   }
 
-  const parsed = sessionResponseSchema.safeParse(await response.json());
-  return parsed.success ? { userId: parsed.data.user.id } : null;
+  const me = parseMeResponse(await response.json());
+  if (!me?.currentOrg) {
+    return null;
+  }
+  return {
+    companyId: me.currentOrg.id,
+    role: me.currentOrg.role,
+    userId: me.userId,
+  };
 };
 
 export { validateSession };
