@@ -21,13 +21,7 @@ const ChatPage = async () => {
     throw new Error("CUSTOMER has no currentOrg — auth invariant broken");
   }
 
-  return (
-    <Chat
-      agentsUrl={AGENTS_URL}
-      companyId={companyId}
-      sessionToken={session.session.token}
-    />
-  );
+  return <Chat agentsUrl={AGENTS_URL} companyId={companyId} sessionToken={session.session.token} />;
 };
 
 export default ChatPage;

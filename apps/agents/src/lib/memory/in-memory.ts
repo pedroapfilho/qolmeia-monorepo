@@ -1,9 +1,4 @@
-import type {
-  MemoryAdapter,
-  MemoryRecord,
-  RetrieveArgs,
-  ScoredRecord,
-} from "@/lib/memory/adapter";
+import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "@/lib/memory/adapter";
 
 // Crude bag-of-character-trigrams embedding hashed to a fixed-dim vector.
 // Quality is *intentionally* low — the point of this backend is exercising
@@ -14,7 +9,7 @@ const DIM = 256;
 // FNV-1a 32-bit. Math.imul keeps the intermediate state int32; no extra
 // truncation needed. Deterministic, cheap, no crypto-strength required.
 const hash = (input: string): number => {
-  let h = 0x81_1C_9D_C5;
+  let h = 0x81_1c_9d_c5;
   for (let i = 0; i < input.length; i++) {
     h ^= input.codePointAt(i) ?? 0;
     h = Math.imul(h, 0x01_00_01_93);

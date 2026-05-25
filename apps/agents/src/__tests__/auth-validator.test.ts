@@ -35,9 +35,7 @@ describe("validateSession", () => {
   });
 
   it("returns null when /api/v1/me responds 401", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve(new Response("Unauthorized", { status: 401 })),
-    );
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response("Unauthorized", { status: 401 })));
     expect(await validateSession(buildRequest("tok"), env)).toBeNull();
   });
 
@@ -67,9 +65,7 @@ describe("agent path role guard", () => {
   });
 
   it("rejects a STAFF session with 403", async () => {
-    const res = await SELF.fetch(
-      "https://agents.test/agents/correspondent/co_1?cf_session=tok",
-    );
+    const res = await SELF.fetch("https://agents.test/agents/correspondent/co_1?cf_session=tok");
     expect(res.status).toBe(403);
   });
 });

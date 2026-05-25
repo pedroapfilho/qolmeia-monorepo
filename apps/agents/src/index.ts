@@ -75,8 +75,8 @@ export default {
       if (session.role !== "CUSTOMER") {
         return new Response("Forbidden", { headers: agentCors, status: 403 });
       }
-      const routed = (await routeAgentRequest(request, env)) ??
-        new Response("Not found", { status: 404 });
+      const routed =
+        (await routeAgentRequest(request, env)) ?? new Response("Not found", { status: 404 });
       return withAgentCors(routed, agentCors);
     }
     return app.fetch(request, env, ctx);

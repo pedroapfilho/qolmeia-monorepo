@@ -86,14 +86,15 @@ class CorrespondentAgent extends AIChatAgent<Env> {
 
     // Build the model context from our buffers — NOT this.messages. The SDK's
     // history is for the client; we own what the model sees.
-    const retrieved = userText.length > 0
-      ? await memory.retrieve({
-          agentInstanceId,
-          minScore: MEMORY_MIN_SCORE,
-          query: userText,
-          topK: MEMORY_TOP_K,
-        })
-      : [];
+    const retrieved =
+      userText.length > 0
+        ? await memory.retrieve({
+            agentInstanceId,
+            minScore: MEMORY_MIN_SCORE,
+            query: userText,
+            topK: MEMORY_TOP_K,
+          })
+        : [];
     const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
     const messages: Array<ModelMessage> = turns.map((turn) => ({
       content: turn.content,

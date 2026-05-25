@@ -5,12 +5,7 @@ import { InMemoryMemoryAdapter } from "@/lib/memory/in-memory";
 const AGENT_A = "agent-a";
 const AGENT_B = "agent-b";
 
-const record = (
-  agentInstanceId: string,
-  id: string,
-  content: string,
-  kind = "message",
-) => ({
+const record = (agentInstanceId: string, id: string, content: string, kind = "message") => ({
   agentInstanceId,
   companyId: "co_1",
   content,

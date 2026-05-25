@@ -2,8 +2,8 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { recallMemorySkill } from "@/skills/recall-memory";
-import { rememberFactSkill } from "@/skills/remember-fact";
 import type { SkillContext } from "@/skills/registry";
+import { rememberFactSkill } from "@/skills/remember-fact";
 
 const COMPANY_ID = "co_skills_test";
 const AGENT_INSTANCE_ID = "agent_skills_test";
@@ -46,9 +46,7 @@ describe("rememberFact", () => {
     expect(result.id).toBeTruthy();
     expect(result.savedAt).toBeGreaterThan(0);
 
-    const { results } = await env.DB.prepare(
-      "SELECT content, kind FROM memory_fact WHERE id = ?",
-    )
+    const { results } = await env.DB.prepare("SELECT content, kind FROM memory_fact WHERE id = ?")
       .bind(result.id)
       .all<{ content: string; kind: string }>();
     expect(results[0]?.content).toBe("minha cor preferida é azul");
@@ -66,10 +64,9 @@ describe("recallMemory", () => {
       { content: "minha cor preferida é azul marinho", kind: "preference" },
       ctx,
     );
-    const result = (await recallMemorySkill.execute(
-      { query: "minha cor preferida" },
-      ctx,
-    )) as { matches: ReadonlyArray<{ content: string }> };
+    const result = (await recallMemorySkill.execute({ query: "minha cor preferida" }, ctx)) as {
+      matches: ReadonlyArray<{ content: string }>;
+    };
     expect(result.matches.length).toBeGreaterThan(0);
     expect(result.matches.some((m) => m.content.includes("azul marinho"))).toBe(true);
   });

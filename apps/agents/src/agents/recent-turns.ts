@@ -25,11 +25,7 @@ const ensureTable = (agent: AIChatAgent<Env>): void => {
   )`;
 };
 
-const appendTurn = (
-  agent: AIChatAgent<Env>,
-  role: RecentTurn["role"],
-  content: string,
-): void => {
+const appendTurn = (agent: AIChatAgent<Env>, role: RecentTurn["role"], content: string): void => {
   ensureTable(agent);
   const now = Date.now();
   void agent.sql`INSERT INTO recent_turns (role, content, created_at) VALUES (${role}, ${content}, ${now})`;

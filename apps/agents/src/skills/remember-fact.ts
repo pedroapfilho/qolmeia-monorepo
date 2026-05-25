@@ -8,10 +8,7 @@ import type { SkillContext, UnknownSkill } from "@/skills/registry";
 // a customer preference, a brand decision, a standing constraint. The same
 // id is used in D1 (audit / backoffice) and in the memory adapter (recall).
 const rememberFactInputSchema = z.object({
-  content: z
-    .string()
-    .min(1)
-    .describe("O fato a ser lembrado, em uma frase clara em pt-BR."),
+  content: z.string().min(1).describe("O fato a ser lembrado, em uma frase clara em pt-BR."),
   kind: z
     .string()
     .optional()

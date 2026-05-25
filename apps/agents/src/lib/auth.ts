@@ -16,10 +16,7 @@ type ValidatedSession = {
 // Worker forwards it via the Bearer header to Better Auth's bearer plugin.
 // Request cookies are forwarded as a fallback for a future shared-domain
 // deployment. Caching is a P3+ concern.
-const validateSession = async (
-  request: Request,
-  env: Env,
-): Promise<ValidatedSession | null> => {
+const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
   const cookieHeader = request.headers.get("Cookie");
 

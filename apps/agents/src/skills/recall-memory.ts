@@ -8,10 +8,7 @@ import type { SkillContext, UnknownSkill } from "@/skills/registry";
 // this skill lets the model do a *targeted* lookup when retrieval-on-turn
 // isn't enough — e.g. when the user asks "what did we decide about X".
 const recallMemoryInputSchema = z.object({
-  query: z
-    .string()
-    .min(1)
-    .describe("O que você está procurando, em uma frase clara em pt-BR."),
+  query: z.string().min(1).describe("O que você está procurando, em uma frase clara em pt-BR."),
   topK: z
     .number()
     .int()
