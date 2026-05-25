@@ -8,6 +8,7 @@ import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
 import { assetsRoutes } from "@/routes/assets";
 import { backofficeRoutes } from "@/routes/backoffice";
+import { teamsRoutes } from "@/routes/teams";
 import { WorkerJobWorkflow } from "@/workflows/worker-job";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -26,6 +27,7 @@ app.use(
 
 app.get("/healthz", (c) => c.json({ status: "ok" }));
 app.route("/api/backoffice", backofficeRoutes);
+app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);
 
 // Agent paths bypass Hono and go to routeAgentRequest, so the Hono CORS
