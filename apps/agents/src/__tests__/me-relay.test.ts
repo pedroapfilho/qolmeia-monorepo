@@ -21,7 +21,9 @@ describe("GET /api/me (P7.0 relay)", () => {
   });
 
   it("relays the auth service's MeResponse body unchanged", async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(fullMe))) as typeof globalThis.fetch;
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(Response.json(fullMe)),
+    ) as typeof globalThis.fetch;
     const res = await SELF.fetch("https://agents.test/api/me?cf_session=tok");
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof fullMe;
@@ -38,7 +40,9 @@ describe("GET /api/me (P7.0 relay)", () => {
   });
 
   it("returns 502 when the auth service is unreachable", async () => {
-    globalThis.fetch = vi.fn(() => Promise.reject(new Error("ECONNREFUSED"))) as typeof globalThis.fetch;
+    globalThis.fetch = vi.fn(() =>
+      Promise.reject(new Error("ECONNREFUSED")),
+    ) as typeof globalThis.fetch;
     const res = await SELF.fetch("https://agents.test/api/me?cf_session=tok");
     expect(res.status).toBe(502);
   });
