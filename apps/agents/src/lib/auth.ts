@@ -9,25 +9,32 @@ const sessionResponseSchema = z.object({
 type ValidatedSession = { userId: string };
 
 // P1 session gate. The Worker is a different origin than the auth service, so
-// the browser will not attach the auth cookie to a cross-origin Worker request.
-// The client passes its session token as a `cf_session` query param; the Worker
-// forwards it to the auth service's get-session as a cookie. Request cookies are
-// also forwarded, so a future shared-domain deployment works without the param.
-// Proper validation, caching, and role/membership resolution are P2 (spec §9).
-const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
+// the browser will not attach the auth cookie to a cross-origin Worker request
+// (cookies in this project use the `qolmeia` prefix and the standard
+// same-origin rules). The client passes its session token as a `cf_session`
+// query param; the Worker forwards it via the Bearer header to Better Auth's
+// bearer plugin, which validates the token against the session table directly.
+// Request cookies are also forwarded as a fallback for a future shared-domain
+// deployment. Caching, role/membership resolution, and proper handshake are P2.
+const validateSession = async (
+  request: Request,
+  env: Env,
+): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
-  const cookie = tokenParam
-    ? `${env.SESSION_COOKIE_NAME}=${tokenParam}`
-    : request.headers.get("Cookie");
-  if (!cookie) {
+  const cookieHeader = request.headers.get("Cookie");
+
+  const headers: Record<string, string> = {};
+  if (tokenParam) {
+    headers.Authorization = `Bearer ${tokenParam}`;
+  } else if (cookieHeader) {
+    headers.Cookie = cookieHeader;
+  } else {
     return null;
   }
 
   let response: Response;
   try {
-    response = await fetch(`${env.AUTH_SERVICE_URL}/api/auth/get-session`, {
-      headers: { Cookie: cookie },
-    });
+    response = await fetch(`${env.AUTH_SERVICE_URL}/api/auth/get-session`, { headers });
   } catch (error) {
     // The auth service being unreachable is an outage, not an invalid
     // session — surface it rather than letting it look like a normal 401.

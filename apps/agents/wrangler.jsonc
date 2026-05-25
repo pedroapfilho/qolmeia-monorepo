@@ -16,8 +16,6 @@
     "CORRESPONDENT_MODEL": "openai/gpt-5.3-chat",
     // The existing Better Auth service (apps/api); the Worker validates sessions against it.
     "AUTH_SERVICE_URL": "http://localhost:4000",
-    // Better Auth session-cookie name — used to forward the P1 token to the auth service.
-    "SESSION_COOKIE_NAME": "better-auth.session_token",
     // Comma-separated client origins allowed to call the Worker.
     "CLIENT_ORIGINS": "http://localhost:3001",
   },
