@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { CorrespondentAgent } from "@/agents/correspondent";
+import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -83,4 +84,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-export { CorrespondentAgent };
+export { CorrespondentAgent, WorkerAgent };
