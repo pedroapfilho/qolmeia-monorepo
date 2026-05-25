@@ -1,6 +1,7 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   type ModelMessage,
+  stepCountIs,
   streamText,
   type StreamTextOnFinishCallback,
   type ToolSet,
@@ -11,6 +12,7 @@ import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns
 import { insertMessage, upsertConversation } from "@/db/schema";
 import { getModel } from "@/lib/ai-gateway";
 import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
+import { buildSkillTools } from "@/skills/registry";
 
 const BASE_SYSTEM_PROMPT = `Você é o Correspondente da Qolmeia, o ponto único de contato de uma agência de IA para negócios. Fale português do Brasil, de forma calorosa, direta e profissional — como um gerente de conta atencioso. Você ainda não executa tarefas especializadas: por enquanto, conversa, entende o pedido do cliente e responde com clareza.`;
 
@@ -98,6 +100,8 @@ class CorrespondentAgent extends AIChatAgent<Env> {
       role: turn.role === "user" ? "user" : "assistant",
     }));
 
+    const tools = buildSkillTools({ agentInstanceId, companyId, env: this.env });
+
     const result = streamText({
       messages,
       model: this.resolveModel(),
@@ -124,7 +128,10 @@ class CorrespondentAgent extends AIChatAgent<Env> {
         pruneOldTurns(this, RECENT_TURNS_KEEP);
         await onFinish(event);
       },
+      // 3 steps: model emits a tool call → tool result feeds back → final reply.
+      stopWhen: stepCountIs(3),
       system: buildSystemPrompt(retrieved),
+      tools,
     });
 
     return result.toUIMessageStreamResponse();
