@@ -29,4 +29,12 @@
       "migrations_dir": "migrations",
     },
   ],
+  "r2_buckets": [
+    {
+      "binding": "ASSETS",
+      // Miniflare emulates R2 locally; deploy creates the real bucket via
+      // `wrangler r2 bucket create qolmeia-assets`.
+      "bucket_name": "qolmeia-assets",
+    },
+  ],
 }

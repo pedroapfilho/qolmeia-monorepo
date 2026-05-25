@@ -9,6 +9,9 @@
 // oxlint-disable-next-line typescript/consistent-type-definitions
 interface Env {
   AI?: Ai;
+  // Secret used to HMAC-sign /assets/:id URLs. Set via `wrangler secret put
+  // ASSETS_SIGNING_KEY` for prod or `.dev.vars` locally.
+  ASSETS_SIGNING_KEY: string;
   OPENROUTER_API_KEY: string;
   VECTORIZE?: VectorizeIndex;
 }
