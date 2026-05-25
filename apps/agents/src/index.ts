@@ -70,6 +70,11 @@ export default {
       if (!session) {
         return new Response("Unauthorized", { headers: agentCors, status: 401 });
       }
+      // Customer chat surface — non-CUSTOMER roles authenticate but don't
+      // connect here. Backoffice routes (P4) will accept OWNER/STAFF.
+      if (session.role !== "CUSTOMER") {
+        return new Response("Forbidden", { headers: agentCors, status: 403 });
+      }
       const routed = (await routeAgentRequest(request, env)) ??
         new Response("Not found", { status: 404 });
       return withAgentCors(routed, agentCors);

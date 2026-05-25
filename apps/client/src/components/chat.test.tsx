@@ -51,7 +51,7 @@ describe("Chat", () => {
   });
 
   it("renders the empty state when there are no messages", () => {
-    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
+    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText("Comece a conversa")).toBeInTheDocument();
   });
 
@@ -60,13 +60,13 @@ describe("Chat", () => {
       { id: "m1", parts: [{ text: "oi", type: "text" }], role: "user" },
       { id: "m2", parts: [{ text: "olá!", type: "text" }], role: "assistant" },
     ];
-    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
+    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText("oi")).toBeInTheDocument();
     expect(screen.getByText("olá!")).toBeInTheDocument();
   });
 
   it("sends the typed message on submit", () => {
-    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
+    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     const textarea = screen.getByLabelText("Mensagem");
     fireEvent.change(textarea, { target: { value: "preciso de ajuda" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
@@ -75,7 +75,7 @@ describe("Chat", () => {
 
   it("does not send while a reply is streaming", () => {
     chatState.status = "streaming";
-    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
+    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     const textarea = screen.getByLabelText("Mensagem");
     fireEvent.change(textarea, { target: { value: "outra" } });
     fireEvent.submit(textarea.closest("form") as HTMLFormElement);
@@ -84,13 +84,13 @@ describe("Chat", () => {
 
   it("shows a toast when the chat reports an error", () => {
     chatState.error = new Error("boom");
-    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
+    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(toastError).toHaveBeenCalledOnce();
   });
 
   it("shows the thinking indicator while submitted", () => {
     chatState.status = "submitted";
-    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
+    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText(/Um agente está respondendo/v)).toBeInTheDocument();
   });
 });
