@@ -6,8 +6,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { CorrespondentAgent } from "@/agents/correspondent";
 import { listMessages } from "@/db/schema";
 
-const P1_COMPANY_ID = "p1-demo-company";
-const P1_CONVERSATION_ID = "conv-web-p1-demo-company";
+const TEST_COMPANY_ID = "p1-demo-company";
+// Conversation id is now derived inside the DO as `web-{this.name}`.
+const TEST_CONVERSATION_ID = `web-${TEST_COMPANY_ID}`;
 
 // A scripted two-token reply — the one mocked seam. Everything else (DO, D1)
 // runs for real in workerd.
@@ -40,13 +41,13 @@ beforeEach(async () => {
        (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
      VALUES (?, 'Demo', 'demo', 'America/Sao_Paulo', 'pt-BR', 'active', NULL, 0, 0)`,
   )
-    .bind(P1_COMPANY_ID)
+    .bind(TEST_COMPANY_ID)
     .run();
 });
 
 describe("CorrespondentAgent", () => {
   it("runs the chat loop and persists both turns to D1", async () => {
-    const stub = env.CORRESPONDENT.get(env.CORRESPONDENT.idFromName(P1_COMPANY_ID));
+    const stub = env.CORRESPONDENT.get(env.CORRESPONDENT.idFromName(TEST_COMPANY_ID));
 
     let finishedResolve: (() => void) | undefined;
     const finished = new Promise<void>((resolve) => {
@@ -63,7 +64,7 @@ describe("CorrespondentAgent", () => {
       await finished;
     });
 
-    const messages = await listMessages(env.DB, P1_CONVERSATION_ID);
+    const messages = await listMessages(env.DB, TEST_CONVERSATION_ID);
     const byRole = Object.fromEntries(messages.map((message) => [message.role, message.content]));
     expect(byRole.user).toBe("oi");
     expect(byRole.agent).toBe("Olá! Como posso ajudar?");

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { Chat } from "@/components/chat";
-import { requireSession } from "@/lib/auth-helpers";
+import { requireCustomer, requireSession } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = {
   title: "Chat",
@@ -11,11 +11,17 @@ export const metadata: Metadata = {
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
 
 const ChatPage = async () => {
-  // The layout already guards CUSTOMER role; this resolves the session token
-  // the chat client forwards to the Worker (cached per-request).
+  // Layout already gates CUSTOMER role; these calls are cached per request
+  // and resolve (a) the session token the Worker validates and (b) the
+  // company id the Correspondent DO is keyed by.
   const session = await requireSession();
+  const me = await requireCustomer();
+  const companyId = me.currentOrg?.id;
+  if (!companyId) {
+    throw new Error("CUSTOMER has no currentOrg — auth invariant broken");
+  }
 
-  return <Chat agentsUrl={AGENTS_URL} sessionToken={session.session.token} />;
+  return <Chat agentsUrl={AGENTS_URL} companyId={companyId} sessionToken={session.session.token} />;
 };
 
 export default ChatPage;

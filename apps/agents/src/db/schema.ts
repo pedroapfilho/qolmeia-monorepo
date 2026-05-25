@@ -191,5 +191,86 @@ const listMessages = async (
   return results.map(mapMessage);
 };
 
-export { getCompany, insertMessage, listMessages, upsertConversation };
-export type { Company, Conversation, Message, MessageRole };
+// ── memory_fact (P2 active table) ─────────────────────────────
+
+type MemoryFact = {
+  agentInstanceId: string;
+  companyId: string;
+  content: string;
+  createdAt: number;
+  id: string;
+  kind: string;
+  salience: number;
+};
+
+type MemoryFactRow = {
+  agent_instance_id: string;
+  company_id: string;
+  content: string;
+  created_at: number;
+  id: string;
+  kind: string;
+  salience: number;
+};
+
+const mapMemoryFact = (row: MemoryFactRow): MemoryFact => ({
+  agentInstanceId: row.agent_instance_id,
+  companyId: row.company_id,
+  content: row.content,
+  createdAt: row.created_at,
+  id: row.id,
+  kind: row.kind,
+  salience: row.salience,
+});
+
+type InsertMemoryFactInput = {
+  agentInstanceId: string;
+  companyId: string;
+  content: string;
+  id: string;
+  kind: string;
+  salience?: number;
+};
+
+const insertMemoryFact = async (db: D1Database, input: InsertMemoryFactInput): Promise<void> => {
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO memory_fact
+         (id, company_id, agent_instance_id, kind, content, salience, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      input.id,
+      input.companyId,
+      input.agentInstanceId,
+      input.kind,
+      input.content,
+      input.salience ?? 0.5,
+      Date.now(),
+    )
+    .run();
+};
+
+const listMemoryFacts = async (
+  db: D1Database,
+  agentInstanceId: string,
+  limit = 100,
+): Promise<ReadonlyArray<MemoryFact>> => {
+  const { results } = await db
+    .prepare(
+      "SELECT * FROM memory_fact WHERE agent_instance_id = ? ORDER BY created_at DESC LIMIT ?",
+    )
+    .bind(agentInstanceId, limit)
+    .all<MemoryFactRow>();
+  return results.map(mapMemoryFact);
+};
+
+export {
+  getCompany,
+  insertMemoryFact,
+  insertMessage,
+  listMemoryFacts,
+  listMessages,
+  upsertConversation,
+};
+export type { Company, Conversation, MemoryFact, Message, MessageRole };

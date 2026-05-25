@@ -25,25 +25,22 @@ import {
 
 type ChatProps = {
   agentsUrl: string;
+  companyId: string;
   sessionToken: string;
 };
 
-// P1 hard-codes the single demo company as the Correspondent DO instance name.
-const AGENT_INSTANCE = "p1-demo-company";
-
 // Client chat surface. `useAgent` opens a WebSocket straight to the company's
-// Correspondent DO; `useAgentChat` wraps it with the AI SDK chat interface.
-// History, streaming, and reconnection are handled by the agents SDK — there
-// is no server-seeded message list and no custom transport. Rendered with
-// `ai-elements`.
-const Chat = ({ agentsUrl, sessionToken }: ChatProps) => {
+// Correspondent DO (named by the real org id); `useAgentChat` wraps it with
+// the AI SDK chat interface. History, streaming, and reconnection are handled
+// by the agents SDK. Rendered with `ai-elements`.
+const Chat = ({ agentsUrl, companyId, sessionToken }: ChatProps) => {
   const [input, setInput] = useState("");
 
   const agent = useAgent({
     agent: "correspondent",
     host: agentsUrl,
-    name: AGENT_INSTANCE,
-    // P1 auth token the Worker validates against the auth service (spec §9).
+    name: companyId,
+    // Session token the Worker validates against the auth service (spec §9).
     query: { cf_session: sessionToken },
   });
 
