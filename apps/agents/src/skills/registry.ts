@@ -3,6 +3,7 @@ import type { ZodType } from "zod";
 
 import { listSkillOverlays, type SkillOverlay } from "@/db/template";
 import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
+import { generateBrandImageSkill } from "@/skills/generate-brand-image";
 import { recallMemorySkill } from "@/skills/recall-memory";
 import { rememberFactSkill } from "@/skills/remember-fact";
 
@@ -29,6 +30,7 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
   rememberFactSkill,
   recallMemorySkill,
   delegateToWorkerSkill,
+  generateBrandImageSkill,
 ];
 
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));
