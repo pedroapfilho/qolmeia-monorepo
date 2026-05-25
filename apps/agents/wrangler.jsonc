@@ -9,11 +9,13 @@
     "bindings": [
       { "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" },
       { "name": "WORKER_AGENT", "class_name": "WorkerAgent" },
+      { "name": "PLANNER", "class_name": "PlannerAgent" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["CorrespondentAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["WorkerAgent"] },
+    { "tag": "v3", "new_sqlite_classes": ["PlannerAgent"] },
   ],
   "workflows": [
     {

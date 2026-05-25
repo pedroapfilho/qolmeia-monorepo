@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { CorrespondentAgent } from "@/agents/correspondent";
+import { PlannerAgent } from "@/agents/planner";
 import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
 import { assetsRoutes } from "@/routes/assets";
@@ -89,4 +90,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-export { CorrespondentAgent, WorkerAgent, WorkerJobWorkflow };
+export { CorrespondentAgent, PlannerAgent, WorkerAgent, WorkerJobWorkflow };
