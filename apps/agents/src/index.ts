@@ -10,6 +10,7 @@ import { assetsRoutes } from "@/routes/assets";
 import { backofficeRoutes } from "@/routes/backoffice";
 import { meRoutes } from "@/routes/me";
 import { teamsRoutes } from "@/routes/teams";
+import { webhooksRoutes } from "@/routes/webhooks";
 import { WorkerJobWorkflow } from "@/workflows/worker-job";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -31,6 +32,7 @@ app.route("/api/backoffice", backofficeRoutes);
 app.route("/api/me", meRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);
+app.route("/webhooks", webhooksRoutes);
 
 // Agent paths bypass Hono and go to routeAgentRequest, so the Hono CORS
 // middleware doesn't cover them. Build the same CORS headers and apply them
