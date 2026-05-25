@@ -2,6 +2,7 @@ import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
 import { listSkillOverlays, type SkillOverlay } from "@/db/template";
+import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
 import { recallMemorySkill } from "@/skills/recall-memory";
 import { rememberFactSkill } from "@/skills/remember-fact";
 
@@ -24,7 +25,11 @@ type UnknownSkill = {
   inputSchema: ZodType;
 };
 
-const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [rememberFactSkill, recallMemorySkill];
+const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
+  rememberFactSkill,
+  recallMemorySkill,
+  delegateToWorkerSkill,
+];
 
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));
 
