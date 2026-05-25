@@ -48,18 +48,19 @@ type MeResponse = {
   };
 };
 
-// Guards an RSC that requires CUSTOMER role. The API enforces this on
-// /api/v1/web-chat/*; this helper bounces staff-only callers to a friendly
-// "no access" page rather than letting them hit a customer page and see
-// 403 toasts.
+// Guards an RSC that requires CUSTOMER role. Bounces staff-only callers to
+// /no-access rather than letting them hit a customer page and see 403 toasts.
+// P7.0: this calls apps/agents' /api/me (which relays to the auth service)
+// instead of apps/api directly. Membership data still ultimately comes from
+// Postgres via the relay; full ownership moves to D1 in a later phase.
 export const requireCustomer = async (): Promise<MeResponse> => {
   await requireSession();
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const agentsUrl = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
 
   try {
-    const res = await fetch(`${apiUrl}/api/v1/me`, {
+    const res = await fetch(`${agentsUrl}/api/me`, {
       cache: "no-store",
       headers: { Accept: "application/json", Cookie: cookie },
     });
@@ -71,7 +72,7 @@ export const requireCustomer = async (): Promise<MeResponse> => {
       redirect("/no-access");
     }
     if (!res.ok) {
-      throw new Error(`/api/v1/me responded ${res.status}`);
+      throw new Error(`/api/me responded ${res.status}`);
     }
 
     const me = (await res.json()) as MeResponse;
