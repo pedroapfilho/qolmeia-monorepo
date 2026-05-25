@@ -48,7 +48,13 @@ const safeParse = (body: string): TelegramUpdate | null => {
   }
 };
 
-const displayName = (from?: TelegramUpdate["message"] extends infer T ? (T extends { from?: infer F } ? F : never) : never): string | undefined => {
+const displayName = (
+  from?: TelegramUpdate["message"] extends infer T
+    ? T extends { from?: infer F }
+      ? F
+      : never
+    : never,
+): string | undefined => {
   if (!from || typeof from !== "object") {
     return undefined;
   }
@@ -60,7 +66,10 @@ const displayName = (from?: TelegramUpdate["message"] extends infer T ? (T exten
 };
 
 const telegramAdapter: ConnectorAdapter = {
-  parseInbound(rawBody: string, _config: Record<string, unknown>): Promise<NormalizedMessage | null> {
+  parseInbound(
+    rawBody: string,
+    _config: Record<string, unknown>,
+  ): Promise<NormalizedMessage | null> {
     const update = safeParse(rawBody);
     const message = update?.message;
     if (!update || !message || !message.chat?.id || message.message_id === undefined) {
@@ -89,7 +98,10 @@ const telegramAdapter: ConnectorAdapter = {
     });
   },
 
-  resolveIdentity(rawBody: string, _config: Record<string, unknown>): Promise<ResolveIdentityResult | null> {
+  resolveIdentity(
+    rawBody: string,
+    _config: Record<string, unknown>,
+  ): Promise<ResolveIdentityResult | null> {
     const update = safeParse(rawBody);
     const message = update?.message;
     if (!message?.chat?.id) {
@@ -106,18 +118,15 @@ const telegramAdapter: ConnectorAdapter = {
     if (!config.bot_token) {
       throw new Error("Telegram connector config missing bot_token");
     }
-    const response = await fetch(
-      `${TELEGRAM_API_BASE}/bot${config.bot_token}/sendMessage`,
-      {
-        body: JSON.stringify({
-          chat_id: args.externalThreadId,
-          parse_mode: "Markdown",
-          text: args.text,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      },
-    );
+    const response = await fetch(`${TELEGRAM_API_BASE}/bot${config.bot_token}/sendMessage`, {
+      body: JSON.stringify({
+        chat_id: args.externalThreadId,
+        parse_mode: "Markdown",
+        text: args.text,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
     if (!response.ok) {
       const body = await response.text();
       throw new Error(`Telegram sendMessage HTTP ${response.status}: ${body.slice(0, 200)}`);
