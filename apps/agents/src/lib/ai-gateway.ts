@@ -16,13 +16,15 @@ const resolveBaseUrl = (env: Env): string => {
 // OpenRouter as the model provider (spec decision 1). OpenRouter is
 // OpenAI-compatible, so an openai-compatible provider works for both the
 // gateway route and the direct route. The key is a Worker secret.
-const getModel = (env: Env) => {
+// Pass an explicit modelId to override the Correspondent default — Worker
+// templates use this to pick their own model from D1.
+const getModel = (env: Env, modelId?: string) => {
   const provider = createOpenAICompatible({
     apiKey: env.OPENROUTER_API_KEY,
     baseURL: resolveBaseUrl(env),
     name: "openrouter",
   });
-  return provider(env.CORRESPONDENT_MODEL);
+  return provider(modelId ?? env.CORRESPONDENT_MODEL);
 };
 
 export { getModel };

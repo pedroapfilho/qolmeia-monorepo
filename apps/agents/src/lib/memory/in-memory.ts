@@ -8,11 +8,16 @@ const DIM = 256;
 
 // FNV-1a 32-bit. Math.imul keeps the intermediate state int32; no extra
 // truncation needed. Deterministic, cheap, no crypto-strength required.
+// oxlint-disable-next-line unicorn/number-literal-case -- oxfmt lower-cases; oxlint wants upper
+const FNV_OFFSET = 0x81_1c_9d_c5;
+// oxlint-disable-next-line unicorn/number-literal-case
+const FNV_PRIME = 0x01_00_01_93;
+
 const hash = (input: string): number => {
-  let h = 0x81_1c_9d_c5;
+  let h = FNV_OFFSET;
   for (let i = 0; i < input.length; i++) {
     h ^= input.codePointAt(i) ?? 0;
-    h = Math.imul(h, 0x01_00_01_93);
+    h = Math.imul(h, FNV_PRIME);
   }
   return h;
 };

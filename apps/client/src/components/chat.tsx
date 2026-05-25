@@ -80,11 +80,29 @@ const Chat = ({ agentsUrl, companyId, sessionToken }: ChatProps) => {
             messages.map((message) => (
               <Message from={message.role} key={message.id}>
                 <MessageContent>
-                  {message.parts.map((part, index) =>
-                    part.type === "text" ? (
-                      <MessageResponse key={`${message.id}-${index}`}>{part.text}</MessageResponse>
-                    ) : null,
-                  )}
+                  {message.parts.map((part, index) => {
+                    if (part.type === "text") {
+                      return (
+                        <MessageResponse key={`${message.id}-${index}`}>
+                          {part.text}
+                        </MessageResponse>
+                      );
+                    }
+                    if (part.type === "file" && part.mediaType?.startsWith("image/")) {
+                      return (
+                        // Asset URL is HMAC-signed by the Worker; a plain <img>
+                        // is correct — no CORS needed for image loads.
+                        // oxlint-disable-next-line no-img-element
+                        <img
+                          alt="Imagem gerada"
+                          className="max-h-80 rounded-md object-contain"
+                          key={`${message.id}-${index}`}
+                          src={part.url}
+                        />
+                      );
+                    }
+                    return null;
+                  })}
                 </MessageContent>
               </Message>
             ))

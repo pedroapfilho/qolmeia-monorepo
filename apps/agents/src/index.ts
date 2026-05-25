@@ -3,7 +3,9 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { CorrespondentAgent } from "@/agents/correspondent";
+import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
+import { assetsRoutes } from "@/routes/assets";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -20,6 +22,7 @@ app.use(
 );
 
 app.get("/healthz", (c) => c.json({ status: "ok" }));
+app.route("/assets", assetsRoutes);
 
 // Agent paths bypass Hono and go to routeAgentRequest, so the Hono CORS
 // middleware doesn't cover them. Build the same CORS headers and apply them
@@ -83,4 +86,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-export { CorrespondentAgent };
+export { CorrespondentAgent, WorkerAgent };
