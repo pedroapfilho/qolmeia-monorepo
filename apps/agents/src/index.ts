@@ -8,6 +8,7 @@ import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
 import { assetsRoutes } from "@/routes/assets";
 import { backofficeRoutes } from "@/routes/backoffice";
+import { meRoutes } from "@/routes/me";
 import { teamsRoutes } from "@/routes/teams";
 import { WorkerJobWorkflow } from "@/workflows/worker-job";
 
@@ -27,6 +28,7 @@ app.use(
 
 app.get("/healthz", (c) => c.json({ status: "ok" }));
 app.route("/api/backoffice", backofficeRoutes);
+app.route("/api/me", meRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);
 
