@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { BRIEF_SCHEMA_VERSION, companyBriefSchema, mergeBrief, parseBrief } from "@/lib/company-brief";
+import {
+  BRIEF_SCHEMA_VERSION,
+  companyBriefSchema,
+  mergeBrief,
+  parseBrief,
+} from "@/lib/company-brief";
 
 describe("companyBriefSchema", () => {
   it("validates a complete brief", () => {

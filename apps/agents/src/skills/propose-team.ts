@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { parseBrief } from "@/lib/company-brief";
 import { listActiveTemplates } from "@/db/template";
+import { parseBrief } from "@/lib/company-brief";
 import type { SkillContext, UnknownSkill } from "@/skills/registry";
 
 // Returns the live catalog of Worker templates the Planner can recommend.

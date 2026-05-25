@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { extractBriefSkill } from "@/skills/extract-brief";
 import { parseBrief } from "@/lib/company-brief";
+import { extractBriefSkill } from "@/skills/extract-brief";
 import type { SkillContext } from "@/skills/registry";
 
 const COMPANY_ID = "co_extract_test";
@@ -27,10 +27,9 @@ beforeEach(async () => {
 
 describe("extractBrief", () => {
   it("writes the first partial brief to company.brief", async () => {
-    const result = (await extractBriefSkill.execute(
-      { industry: "cafeteria" },
-      ctx,
-    )) as { brief: { industry?: string } };
+    const result = (await extractBriefSkill.execute({ industry: "cafeteria" }, ctx)) as {
+      brief: { industry?: string };
+    };
     expect(result.brief.industry).toBe("cafeteria");
 
     const row = await env.DB.prepare("SELECT brief FROM company WHERE id = ?")

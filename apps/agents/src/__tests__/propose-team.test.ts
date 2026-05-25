@@ -35,9 +35,7 @@ describe("proposeTeam", () => {
   });
 
   it("includes the brief so the Planner can present it back to the user", async () => {
-    await env.DB.prepare(
-      "UPDATE company SET brief = ? WHERE id = ?",
-    )
+    await env.DB.prepare("UPDATE company SET brief = ? WHERE id = ?")
       .bind(JSON.stringify({ industry: "alimentação" }), COMPANY_ID)
       .run();
     const result = (await proposeTeamSkill.execute({}, ctx)) as {

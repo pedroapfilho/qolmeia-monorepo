@@ -24,11 +24,7 @@ const brandSchema = z.object({
     .max(200)
     .optional()
     .describe("Cores principais e secundárias (texto curto: hex ou nomes)."),
-  references: z
-    .string()
-    .max(500)
-    .optional()
-    .describe("Marcas ou estilos de inspiração."),
+  references: z.string().max(500).optional().describe("Marcas ou estilos de inspiração."),
   voice: z
     .string()
     .max(200)
@@ -44,10 +40,7 @@ const companyBriefSchema = z.object({
     .optional()
     .describe("Quem é o cliente final do negócio (perfil, dor, contexto)."),
   brand: brandSchema.optional(),
-  channels: z
-    .array(channelEnum)
-    .optional()
-    .describe("Canais onde o negócio quer (ou já) atua."),
+  channels: z.array(channelEnum).optional().describe("Canais onde o negócio quer (ou já) atua."),
   industry: z
     .string()
     .min(1)

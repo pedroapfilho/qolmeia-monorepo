@@ -3,9 +3,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { logActivity } from "@/activity/log";
-import { parseBrief } from "@/lib/company-brief";
 import { materializeTeam } from "@/db/team";
 import { validateSession, type ValidatedSession } from "@/lib/auth";
+import { parseBrief } from "@/lib/company-brief";
 
 // Team confirm. The customer goes through the Planner debrief, picks the
 // templates from the proposed candidates, and POSTs here to materialize the

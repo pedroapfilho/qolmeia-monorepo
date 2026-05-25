@@ -35,7 +35,12 @@ type ChatProps = {
 // chat interface. History, streaming, and reconnection are handled by the
 // agents SDK. The `agent` prop picks which DO class to talk to — default is
 // "correspondent"; onboarding sets it to "planner".
-const Chat = ({ agent: agentName = "correspondent", agentsUrl, companyId, sessionToken }: ChatProps) => {
+const Chat = ({
+  agent: agentName = "correspondent",
+  agentsUrl,
+  companyId,
+  sessionToken,
+}: ChatProps) => {
   const [input, setInput] = useState("");
 
   const agent = useAgent({

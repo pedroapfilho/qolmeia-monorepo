@@ -55,12 +55,7 @@ const ChatPage = async () => {
     return (
       <div className="flex h-[calc(100vh-3.5rem)] flex-col">
         <div className="flex-1 overflow-hidden">
-          <Chat
-            agent="planner"
-            agentsUrl={AGENTS_URL}
-            companyId={companyId}
-            sessionToken={token}
-          />
+          <Chat agent="planner" agentsUrl={AGENTS_URL} companyId={companyId} sessionToken={token} />
         </div>
         <OnboardingActions
           agentsUrl={AGENTS_URL}
@@ -73,12 +68,7 @@ const ChatPage = async () => {
   }
 
   return (
-    <Chat
-      agent="correspondent"
-      agentsUrl={AGENTS_URL}
-      companyId={companyId}
-      sessionToken={token}
-    />
+    <Chat agent="correspondent" agentsUrl={AGENTS_URL} companyId={companyId} sessionToken={token} />
   );
 };
 
