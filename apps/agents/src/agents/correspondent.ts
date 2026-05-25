@@ -10,8 +10,9 @@ import {
 
 import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
 import { getAction } from "@/db/action";
-import { insertMessage, upsertConversation } from "@/db/schema";
+import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema";
 import { getModel } from "@/lib/ai-gateway";
+import type { CompanyBriefPartial } from "@/lib/company-brief";
 import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
 import { buildSkillTools } from "@/skills/registry";
 
@@ -98,6 +99,65 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       ...this.messages,
       { id: messageId, parts: [{ text, type: "text" }], role: "assistant" },
     ]);
+  }
+
+  // Called by the team-confirm route after materializeTeam. Writes structured
+  // facts into memory so the Correspondent's first chat turn already knows
+  // who the customer is, instead of starting blank.
+  async seedMemory(input: {
+    brief: Partial<CompanyBriefPartial>;
+    debriefSummary: string;
+  }): Promise<void> {
+    const companyId = this.name;
+    const agentInstanceId = `corr-${companyId}`;
+    const memory = getMemoryAdapter(this.env);
+
+    const facts: Array<{ content: string; kind: string }> = [];
+    if (input.brief.industry) {
+      facts.push({ content: `Setor: ${input.brief.industry}`, kind: "industry" });
+    }
+    if (input.brief.primaryGoal) {
+      facts.push({ content: `Objetivo principal: ${input.brief.primaryGoal}`, kind: "goal" });
+    }
+    if (input.brief.audience) {
+      facts.push({ content: `Público: ${input.brief.audience}`, kind: "audience" });
+    }
+    if (input.brief.channels && input.brief.channels.length > 0) {
+      facts.push({
+        content: `Canais ativos: ${input.brief.channels.join(", ")}`,
+        kind: "channels",
+      });
+    }
+    if (input.brief.brand?.voice) {
+      facts.push({ content: `Tom da marca: ${input.brief.brand.voice}`, kind: "brand_voice" });
+    }
+    if (input.brief.brand?.palette) {
+      facts.push({ content: `Paleta: ${input.brief.brand.palette}`, kind: "brand_palette" });
+    }
+    if (input.debriefSummary) {
+      facts.push({ content: input.debriefSummary, kind: "onboarding_summary" });
+    }
+
+    await Promise.all(
+      facts.map(async (fact) => {
+        const id = crypto.randomUUID();
+        await insertMemoryFact(this.env.DB, {
+          agentInstanceId,
+          companyId,
+          content: fact.content,
+          id,
+          kind: fact.kind,
+        });
+        await memory.upsert({
+          agentInstanceId,
+          companyId,
+          content: fact.content,
+          createdAt: Date.now(),
+          id,
+          kind: fact.kind,
+        });
+      }),
+    );
   }
 
   async onChatMessage(

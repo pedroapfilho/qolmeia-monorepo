@@ -24,20 +24,27 @@ import {
 } from "@/components/ai-elements/prompt-input";
 
 type ChatProps = {
+  agent?: "correspondent" | "planner";
   agentsUrl: string;
   companyId: string;
   sessionToken: string;
 };
 
 // Client chat surface. `useAgent` opens a WebSocket straight to the company's
-// Correspondent DO (named by the real org id); `useAgentChat` wraps it with
-// the AI SDK chat interface. History, streaming, and reconnection are handled
-// by the agents SDK. Rendered with `ai-elements`.
-const Chat = ({ agentsUrl, companyId, sessionToken }: ChatProps) => {
+// agent DO (named by the real org id). `useAgentChat` wraps it with the AI SDK
+// chat interface. History, streaming, and reconnection are handled by the
+// agents SDK. The `agent` prop picks which DO class to talk to — default is
+// "correspondent"; onboarding sets it to "planner".
+const Chat = ({
+  agent: agentName = "correspondent",
+  agentsUrl,
+  companyId,
+  sessionToken,
+}: ChatProps) => {
   const [input, setInput] = useState("");
 
   const agent = useAgent({
-    agent: "correspondent",
+    agent: agentName,
     host: agentsUrl,
     name: companyId,
     // Session token the Worker validates against the auth service (spec §9).
