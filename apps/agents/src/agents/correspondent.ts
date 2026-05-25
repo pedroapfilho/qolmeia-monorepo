@@ -1,5 +1,6 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
+  generateText,
   type ModelMessage,
   stepCountIs,
   streamText,
@@ -9,10 +10,13 @@ import {
 } from "ai";
 
 import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
+import { getAdapter } from "@/connectors/registry";
+import type { ConnectorType, NormalizedMessage } from "@/connectors/types";
 import { getAction } from "@/db/action";
 import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema";
 import { getModel } from "@/lib/ai-gateway";
 import type { CompanyBriefPartial } from "@/lib/company-brief";
+import { getConnectorSecrets } from "@/lib/connector-secrets";
 import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
 import { buildSkillTools } from "@/skills/registry";
 
@@ -99,6 +103,126 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       ...this.messages,
       { id: messageId, parts: [{ text, type: "text" }], role: "assistant" },
     ]);
+  }
+
+  // Called by the webhooks route when a NormalizedMessage arrives from an
+  // external channel (Telegram, etc.). Mirrors the chat-loop logic in
+  // onChatMessage but uses generateText (non-streaming) and sends the reply
+  // out via the channel adapter — there's no WebSocket client on this path.
+  async handleInboundFromConnector(input: {
+    connectorId: string;
+    connectorType: ConnectorType;
+    conversationId: string;
+    message: NormalizedMessage;
+  }): Promise<void> {
+    const companyId = this.name;
+    const agentInstanceId = `corr-${companyId}`;
+    const memory = getMemoryAdapter(this.env);
+    const text = input.message.text;
+    if (!text) {
+      return;
+    }
+
+    await insertMessage(this.env.DB, {
+      companyId,
+      content: text,
+      conversationId: input.conversationId,
+      id: input.message.externalId,
+      role: "user",
+    });
+    appendTurn(this, "user", text);
+    await memory.upsert({
+      agentInstanceId,
+      companyId,
+      content: text,
+      createdAt: Date.now(),
+      id: input.message.externalId,
+      kind: "message",
+    });
+
+    const retrieved = await memory.retrieve({
+      agentInstanceId,
+      minScore: MEMORY_MIN_SCORE,
+      query: text,
+      topK: MEMORY_TOP_K,
+    });
+    const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
+    const messages: Array<ModelMessage> = turns.map((turn) => ({
+      content: turn.content,
+      role: turn.role === "user" ? "user" : "assistant",
+    }));
+    const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
+      "rememberFact",
+      "recallMemory",
+      "delegateToWorker",
+      "decideAction",
+    ]);
+
+    let reply: string;
+    try {
+      const result = await generateText({
+        messages,
+        model: this.resolveModel(),
+        stopWhen: stepCountIs(3),
+        system: buildSystemPrompt(retrieved),
+        tools,
+      });
+      reply = result.text.trim();
+    } catch (error) {
+      // oxlint-disable-next-line no-console
+      console.error("[correspondent] generateText failed for inbound connector message", { error });
+      return;
+    }
+    if (!reply) {
+      return;
+    }
+
+    const agentMessageId = crypto.randomUUID();
+    await insertMessage(this.env.DB, {
+      agentInstanceId,
+      companyId,
+      content: reply,
+      conversationId: input.conversationId,
+      id: agentMessageId,
+      role: "agent",
+    });
+    appendTurn(this, "agent", reply);
+    await memory.upsert({
+      agentInstanceId,
+      companyId,
+      content: reply,
+      createdAt: Date.now(),
+      id: agentMessageId,
+      kind: "message",
+    });
+    pruneOldTurns(this, RECENT_TURNS_KEEP);
+
+    // Send the reply back out through the channel. Failure here is logged
+    // but doesn't blow up — the reply still lives in D1; operator can
+    // surface it from the backoffice.
+    const adapter = getAdapter(input.connectorType);
+    const config = await getConnectorSecrets(this.env, input.connectorId);
+    if (!adapter || !config) {
+      // oxlint-disable-next-line no-console
+      console.error("[correspondent] missing adapter/config for outbound reply", {
+        connectorId: input.connectorId,
+        connectorType: input.connectorType,
+      });
+      return;
+    }
+    try {
+      await adapter.sendOutbound({
+        config,
+        externalThreadId: input.message.externalThreadId,
+        text: reply,
+      });
+    } catch (error) {
+      // oxlint-disable-next-line no-console
+      console.error("[correspondent] sendOutbound failed", {
+        connectorType: input.connectorType,
+        error,
+      });
+    }
   }
 
   // Called by the team-confirm route after materializeTeam. Writes structured

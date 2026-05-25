@@ -57,4 +57,12 @@
       "bucket_name": "qolmeia-assets",
     },
   ],
+  "kv_namespaces": [
+    {
+      "binding": "CONNECTOR_SECRETS",
+      // Miniflare emulates KV locally; deploy provisions the real namespace
+      // via `wrangler kv namespace create qolmeia-connector-secrets`.
+      "id": "PLACEHOLDER-connector-secrets-namespace-id",
+    },
+  ],
 }
