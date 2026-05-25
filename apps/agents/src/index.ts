@@ -6,6 +6,7 @@ import { CorrespondentAgent } from "@/agents/correspondent";
 import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
 import { assetsRoutes } from "@/routes/assets";
+import { WorkerJobWorkflow } from "@/workflows/worker-job";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -86,4 +87,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-export { CorrespondentAgent, WorkerAgent };
+export { CorrespondentAgent, WorkerAgent, WorkerJobWorkflow };

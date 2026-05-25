@@ -15,6 +15,13 @@
     { "tag": "v1", "new_sqlite_classes": ["CorrespondentAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["WorkerAgent"] },
   ],
+  "workflows": [
+    {
+      "binding": "WORKER_JOB",
+      "class_name": "WorkerJobWorkflow",
+      "name": "qolmeia-worker-job",
+    },
+  ],
   "vars": {
     // PLACEHOLDER — replace with your Cloudflare account id (see `wrangler whoami`).
     "AI_GATEWAY_ACCOUNT_ID": "PLACEHOLDER-cloudflare-account-id",
