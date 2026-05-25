@@ -4,12 +4,7 @@ import type { Policy } from "@/db/policy";
 // Worker wants to do is proposed here; the Workflow pauses until the row
 // transitions out of `pending`. Backoffice (T7) reads via the same shape.
 
-type ActionStatus =
-  | "approved"
-  | "changes_requested"
-  | "executed"
-  | "pending"
-  | "rejected";
+type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | "rejected";
 
 type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
@@ -60,9 +55,7 @@ const toPolicy = (raw: string): Policy => {
 const safeJson = (value: string): Record<string, unknown> => {
   try {
     const parsed = JSON.parse(value) as unknown;
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : {};
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
   } catch {
     return {};
   }
@@ -132,26 +125,20 @@ const decideAction = async (db: D1Database, input: DecideActionInput): Promise<b
          SET status = ?, decided_by_user_id = ?, decided_at = ?, feedback = ?
        WHERE id = ? AND status = 'pending'`,
     )
-    .bind(
-      input.decision,
-      input.decidedByUserId,
-      Date.now(),
-      input.feedback ?? null,
-      input.actionId,
-    )
+    .bind(input.decision, input.decidedByUserId, Date.now(), input.feedback ?? null, input.actionId)
     .run();
   return (meta?.changes ?? 0) > 0;
 };
 
 const markExecuted = async (db: D1Database, actionId: string): Promise<void> => {
-  await db
-    .prepare("UPDATE action SET status = 'executed' WHERE id = ?")
-    .bind(actionId)
-    .run();
+  await db.prepare("UPDATE action SET status = 'executed' WHERE id = ?").bind(actionId).run();
 };
 
 const getAction = async (db: D1Database, actionId: string): Promise<Action | null> => {
-  const row = await db.prepare("SELECT * FROM action WHERE id = ?").bind(actionId).first<ActionRow>();
+  const row = await db
+    .prepare("SELECT * FROM action WHERE id = ?")
+    .bind(actionId)
+    .first<ActionRow>();
   return row ? mapAction(row) : null;
 };
 
@@ -174,11 +161,5 @@ const listPendingActions = async (
   return results.map(mapAction);
 };
 
-export {
-  decideAction,
-  getAction,
-  listPendingActions,
-  markExecuted,
-  proposeAction,
-};
+export { decideAction, getAction, listPendingActions, markExecuted, proposeAction };
 export type { Action, ActionStatus, DecideActionInput, DecisionOutcome, ProposeActionInput };

@@ -1,7 +1,13 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { decideAction, getAction, listPendingActions, markExecuted, proposeAction } from "@/db/action";
+import {
+  decideAction,
+  getAction,
+  listPendingActions,
+  markExecuted,
+  proposeAction,
+} from "@/db/action";
 
 const COMPANY_ID = "co_action_test";
 

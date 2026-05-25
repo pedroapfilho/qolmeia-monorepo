@@ -14,10 +14,7 @@ type LogActivityInput = {
   type: string;
 };
 
-const logActivity = async (
-  env: { DB: D1Database },
-  input: LogActivityInput,
-): Promise<void> => {
+const logActivity = async (env: { DB: D1Database }, input: LogActivityInput): Promise<void> => {
   try {
     await env.DB.prepare(
       `INSERT INTO activity_log
@@ -113,9 +110,7 @@ const listActivity = async (
         )
         .bind(options.companyId, options.since, limit)
     : db
-        .prepare(
-          "SELECT * FROM activity_log WHERE company_id = ? ORDER BY created_at DESC LIMIT ?",
-        )
+        .prepare("SELECT * FROM activity_log WHERE company_id = ? ORDER BY created_at DESC LIMIT ?")
         .bind(options.companyId, limit);
   const { results } = await cursor.all<ActivityRow>();
   return results.map(mapActivity);

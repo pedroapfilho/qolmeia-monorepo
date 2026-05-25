@@ -29,7 +29,9 @@ describe("logActivity + listActivity", () => {
       type: "TEST_EVENT",
     });
     const items = await listActivity(env.DB, { companyId: COMPANY_ID });
-    expect(items.find((i) => i.summary === "Coisa aconteceu" && i.type === "TEST_EVENT")).toBeTruthy();
+    expect(
+      items.find((i) => i.summary === "Coisa aconteceu" && i.type === "TEST_EVENT"),
+    ).toBeTruthy();
   });
 
   it("filters by since", async () => {

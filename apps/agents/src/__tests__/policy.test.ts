@@ -4,7 +4,9 @@ import { resolvePolicy } from "@/db/policy";
 
 describe("resolvePolicy", () => {
   it("returns the template's policy when the action type is pinned", () => {
-    const tpl = { defaultPolicies: { publish_post: "require-approval", worker_deliverable: "auto-execute" } };
+    const tpl = {
+      defaultPolicies: { publish_post: "require-approval", worker_deliverable: "auto-execute" },
+    };
     expect(resolvePolicy("worker_deliverable", tpl)).toBe("auto-execute");
     expect(resolvePolicy("publish_post", tpl)).toBe("require-approval");
   });

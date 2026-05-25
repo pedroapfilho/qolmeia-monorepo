@@ -8,9 +8,7 @@ import { loadAgentInstance, loadTicket, setTicketWorkflowId } from "@/db/ticket"
 // long jobs and lets the approval flow pause at `step.waitForEvent` for as
 // long as the User takes.
 
-type HandleTicketResult =
-  | { error: string; ok: false }
-  | { ok: true; workflowId: string };
+type HandleTicketResult = { error: string; ok: false } | { ok: true; workflowId: string };
 
 class WorkerAgent extends Agent<Env> {
   async handleTicket(ticketId: string): Promise<HandleTicketResult> {

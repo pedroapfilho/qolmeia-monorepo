@@ -97,7 +97,9 @@ const setTicketWorkflowId = async (
   workflowId: string,
 ): Promise<void> => {
   await db
-    .prepare("UPDATE ticket SET workflow_id = ?, status = 'in_progress', updated_at = ? WHERE id = ?")
+    .prepare(
+      "UPDATE ticket SET workflow_id = ?, status = 'in_progress', updated_at = ? WHERE id = ?",
+    )
     .bind(workflowId, Date.now(), ticketId)
     .run();
 };
@@ -124,11 +126,5 @@ const markTicketDone = async (
     .run();
 };
 
-export {
-  loadAgentInstance,
-  loadTicket,
-  markTicketDone,
-  setTicketStatus,
-  setTicketWorkflowId,
-};
+export { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus, setTicketWorkflowId };
 export type { Ticket, TicketStatus };

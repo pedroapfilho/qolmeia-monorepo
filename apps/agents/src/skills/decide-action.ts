@@ -18,9 +18,7 @@ const decideActionInputSchema = z.object({
     .describe("Para changes_requested, repasse o que o cliente quer ajustado."),
 });
 
-type DecideResult =
-  | { decision: string; ok: true }
-  | { error: string };
+type DecideResult = { decision: string; ok: true } | { error: string };
 
 const decideActionSkill: UnknownSkill = {
   description:

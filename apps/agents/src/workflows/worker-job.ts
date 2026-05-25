@@ -4,18 +4,13 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 
 import { logActivity } from "@/activity/log";
 import { decideAction, markExecuted, proposeAction } from "@/db/action";
+import type { DecisionOutcome } from "@/db/action";
 import { resolvePolicy } from "@/db/policy";
 import { getCompany } from "@/db/schema";
 import { getTemplate } from "@/db/template";
-import {
-  loadAgentInstance,
-  loadTicket,
-  markTicketDone,
-  setTicketStatus,
-} from "@/db/ticket";
+import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "@/db/ticket";
 import { getModel } from "@/lib/ai-gateway";
 import { buildSkillTools } from "@/skills/registry";
-import type { DecisionOutcome } from "@/db/action";
 
 // One generic Workflow class for every Worker job (decision 1 in the P4 plan).
 // The Workflow is the *task's* lifecycle; the Worker DO is the agent's
@@ -44,10 +39,7 @@ type DecisionEvent = {
 };
 
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
-  async run(
-    event: Readonly<WorkflowEvent<WorkerJobParams>>,
-    step: WorkflowStep,
-  ): Promise<unknown> {
+  async run(event: Readonly<WorkflowEvent<WorkerJobParams>>, step: WorkflowStep): Promise<unknown> {
     const { agentInstanceId, companyId, ticketId } = event.payload;
 
     const generated = await step.do("generate", async (): Promise<GenerateResult> => {
