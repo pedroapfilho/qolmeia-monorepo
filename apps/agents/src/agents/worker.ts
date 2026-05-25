@@ -11,9 +11,7 @@ import { buildSkillTools } from "@/skills/registry";
 // Cloudflare Workflow so long jobs survive eviction and the approval loop
 // has a place to pause.
 
-type HandleTicketResult =
-  | { error: string; ok: false }
-  | { ok: true; summary: string };
+type HandleTicketResult = { error: string; ok: false } | { ok: true; summary: string };
 
 type TicketRow = {
   agent_instance_id: string;
@@ -71,9 +69,7 @@ class WorkerAgent extends Agent<Env> {
   }
 
   private async loadAgentInstance(id: string): Promise<AgentInstanceRow | null> {
-    const row = await this.env.DB.prepare(
-      "SELECT id, template_id FROM agent_instance WHERE id = ?",
-    )
+    const row = await this.env.DB.prepare("SELECT id, template_id FROM agent_instance WHERE id = ?")
       .bind(id)
       .first<AgentInstanceRow>();
     return row;

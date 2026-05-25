@@ -20,9 +20,7 @@ const delegateInputSchema = z.object({
     .describe("Tipo do especialista (ex: 'designer', 'marketing-strategist')."),
 });
 
-type DelegateResult =
-  | { error: string; ticketId?: string }
-  | { summary: string; ticketId: string };
+type DelegateResult = { error: string; ticketId?: string } | { summary: string; ticketId: string };
 
 type WorkerLookup = { id: string };
 

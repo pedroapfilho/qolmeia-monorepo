@@ -20,8 +20,7 @@ beforeEach(async () => {
         skill_ids, default_policies, status, version, created_at, updated_at)
      VALUES ('tpl-designer-test', 'designer', 'Designer', 'd', 'sys', 'openai/gpt-5.4-nano',
              '[]', '{}', 'active', 1, 0, 0)`,
-  )
-    .run();
+  ).run();
 });
 
 describe("isAcyclic", () => {

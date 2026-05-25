@@ -132,10 +132,5 @@ const listSkillOverlays = async (
   return results.map(mapSkillOverlay);
 };
 
-export {
-  getTemplate,
-  getTemplateByWorkerKind,
-  listActiveTemplates,
-  listSkillOverlays,
-};
+export { getTemplate, getTemplateByWorkerKind, listActiveTemplates, listSkillOverlays };
 export type { SkillOverlay, Template, TemplateStatus };

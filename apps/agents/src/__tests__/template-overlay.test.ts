@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { getTemplate, listSkillOverlays } from "@/db/template";
 import { buildSkillTools, registerSkill, type UnknownSkill } from "@/skills/registry";
-import { z } from "zod";
 
 const COMPANY_ID = "co_tpl_test";
 const AGENT_INSTANCE_ID = "agent_tpl_test";
@@ -39,9 +39,10 @@ describe("getTemplate / listSkillOverlays", () => {
 
   it("listSkillOverlays returns only the requested ids", async () => {
     const overlays = await listSkillOverlays(env.DB, ["generateBrandImage", "delegateToWorker"]);
-    expect(overlays.map((o) => o.id).toSorted()).toEqual(
-      ["delegateToWorker", "generateBrandImage"],
-    );
+    expect(overlays.map((o) => o.id).toSorted()).toEqual([
+      "delegateToWorker",
+      "generateBrandImage",
+    ]);
     expect(overlays.every((o) => o.enabled)).toBe(true);
   });
 });
@@ -83,10 +84,9 @@ describe("buildSkillTools — D1 overlay join", () => {
 
   it("throws when a template references an unknown skill id", async () => {
     await expect(
-      buildSkillTools(
-        { agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env },
-        ["this-skill-does-not-exist"],
-      ),
+      buildSkillTools({ agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env }, [
+        "this-skill-does-not-exist",
+      ]),
     ).rejects.toThrow(/unknown skill id/v);
   });
 
@@ -95,8 +95,7 @@ describe("buildSkillTools — D1 overlay join", () => {
       `INSERT OR IGNORE INTO skill
          (id, display_name, description, param_hints, default_config, enabled, updated_at)
        VALUES ('disabled-skill', 'Disabled', 'd', NULL, NULL, 0, 0)`,
-    )
-      .run();
+    ).run();
     const disabledSkill: UnknownSkill = {
       description: "x",
       execute(): Promise<{ ok: true }> {

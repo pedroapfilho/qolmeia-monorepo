@@ -12,11 +12,14 @@ import {
 describe("R2 asset upload + fetch", () => {
   it("round-trips bytes through Miniflare R2", async () => {
     const bytes = new TextEncoder().encode("hello R2");
-    await uploadAsset({ ASSETS: env.ASSETS }, {
-      bytes,
-      key: "test/hello.txt",
-      mime: "text/plain",
-    });
+    await uploadAsset(
+      { ASSETS: env.ASSETS },
+      {
+        bytes,
+        key: "test/hello.txt",
+        mime: "text/plain",
+      },
+    );
     const obj = await fetchAsset({ ASSETS: env.ASSETS }, "test/hello.txt");
     expect(obj).not.toBeNull();
     expect(await obj?.text()).toBe("hello R2");

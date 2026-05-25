@@ -14,10 +14,7 @@ type UploadInput = {
   mime: string;
 };
 
-const uploadAsset = async (
-  env: { ASSETS: R2Bucket },
-  input: UploadInput,
-): Promise<void> => {
+const uploadAsset = async (env: { ASSETS: R2Bucket }, input: UploadInput): Promise<void> => {
   await env.ASSETS.put(input.key, input.bytes, {
     customMetadata: input.metadata,
     httpMetadata: { contentType: input.mime },
@@ -28,13 +25,10 @@ const fetchAsset = (env: { ASSETS: R2Bucket }, key: string): Promise<R2ObjectBod
   env.ASSETS.get(key);
 
 const importHmacKey = (secret: string): Promise<CryptoKey> =>
-  crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign", "verify"],
-  );
+  crypto.subtle.importKey("raw", encoder.encode(secret), { hash: "SHA-256", name: "HMAC" }, false, [
+    "sign",
+    "verify",
+  ]);
 
 const toBase64Url = (bytes: ArrayBuffer): string => {
   const arr = new Uint8Array(bytes);
@@ -56,11 +50,7 @@ const fromBase64Url = (s: string): Uint8Array => {
   return out;
 };
 
-const signAssetToken = async (
-  secret: string,
-  assetId: string,
-  ttlMs: number,
-): Promise<string> => {
+const signAssetToken = async (secret: string, assetId: string, ttlMs: number): Promise<string> => {
   const expiresAt = Date.now() + ttlMs;
   const key = await importHmacKey(secret);
   const payload = encoder.encode(`${assetId}.${expiresAt}`);
@@ -99,10 +89,4 @@ const buildSignedAssetUrl = async (
   return `${baseUrl.replace(/\/$/v, "")}/assets/${assetId}?token=${encodeURIComponent(token)}`;
 };
 
-export {
-  buildSignedAssetUrl,
-  fetchAsset,
-  signAssetToken,
-  uploadAsset,
-  verifyAssetToken,
-};
+export { buildSignedAssetUrl, fetchAsset, signAssetToken, uploadAsset, verifyAssetToken };

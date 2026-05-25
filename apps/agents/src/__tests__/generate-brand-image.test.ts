@@ -49,9 +49,7 @@ describe("generateBrandImage", () => {
     expect(result.url).toContain("/assets/");
     expect(result.url).toContain("token=");
 
-    const row = await env.DB.prepare(
-      "SELECT kind, mime, bytes, r2_key FROM asset WHERE id = ?",
-    )
+    const row = await env.DB.prepare("SELECT kind, mime, bytes, r2_key FROM asset WHERE id = ?")
       .bind(result.assetId)
       .first<{ bytes: number; kind: string; mime: string; r2_key: string }>();
     expect(row?.kind).toBe("generated_image");
@@ -65,22 +63,18 @@ describe("generateBrandImage", () => {
   });
 
   it("surfaces OpenRouter HTTP errors without throwing", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve(new Response("rate limit", { status: 429 })),
-    );
-    const result = (await generateBrandImageSkill.execute(
-      { prompt: "x" },
-      ctx,
-    )) as { error: string };
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response("rate limit", { status: 429 })));
+    const result = (await generateBrandImageSkill.execute({ prompt: "x" }, ctx)) as {
+      error: string;
+    };
     expect(result.error).toContain("429");
   });
 
   it("returns an error when the response is missing b64_json", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json({ data: [{}] })));
-    const result = (await generateBrandImageSkill.execute(
-      { prompt: "x" },
-      ctx,
-    )) as { error: string };
+    const result = (await generateBrandImageSkill.execute({ prompt: "x" }, ctx)) as {
+      error: string;
+    };
     expect(result.error).toContain("b64_json");
   });
 

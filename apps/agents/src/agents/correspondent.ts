@@ -107,10 +107,11 @@ class CorrespondentAgent extends AIChatAgent<Env> {
 
     // Correspondent's skill set is fixed for P3 — the role='correspondent'
     // agent_instance has no template binding (templates are for Workers).
-    const tools = await buildSkillTools(
-      { agentInstanceId, companyId, env: this.env },
-      ["rememberFact", "recallMemory", "delegateToWorker"],
-    );
+    const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
+      "rememberFact",
+      "recallMemory",
+      "delegateToWorker",
+    ]);
 
     const result = streamText({
       messages,

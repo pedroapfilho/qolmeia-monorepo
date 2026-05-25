@@ -89,7 +89,9 @@ const materializeTeam = async (
 
   const statements: Array<D1PreparedStatement> = [
     db
-      .prepare("INSERT OR IGNORE INTO team (id, company_id, confirmed_at, created_at) VALUES (?, ?, ?, ?)")
+      .prepare(
+        "INSERT OR IGNORE INTO team (id, company_id, confirmed_at, created_at) VALUES (?, ?, ?, ?)",
+      )
       .bind(teamId, input.companyId, now, now),
     db
       .prepare(
@@ -158,7 +160,9 @@ const getDelegationTargets = async (
   }
   try {
     const parsed = JSON.parse(row.can_delegate_to) as unknown;
-    return Array.isArray(parsed) ? (parsed.filter((v) => typeof v === "string") as Array<string>) : [];
+    return Array.isArray(parsed)
+      ? (parsed.filter((v) => typeof v === "string") as Array<string>)
+      : [];
   } catch {
     return [];
   }
