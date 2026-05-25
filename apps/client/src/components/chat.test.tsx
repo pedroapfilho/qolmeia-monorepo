@@ -1,8 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WebChatMessage } from "@/lib/api-types";
-
 // `use-stick-to-bottom` (used by Conversation) observes element resizes;
 // jsdom ships no ResizeObserver, so stub one.
 globalThis.ResizeObserver = class {
@@ -12,25 +10,23 @@ globalThis.ResizeObserver = class {
 };
 
 const sendMessage = vi.fn();
-const useChatState = {
+const chatState = {
   error: undefined as Error | undefined,
   messages: [] as Array<unknown>,
   status: "ready" as string,
 };
 
-vi.mock("@ai-sdk/react", () => ({
-  useChat: () => ({
-    error: useChatState.error,
-    messages: useChatState.messages,
-    sendMessage,
-    status: useChatState.status,
-  }),
+vi.mock("agents/react", () => ({
+  useAgent: () => ({ id: "test-agent" }),
 }));
 
-vi.mock("@/lib/web-chat-transport", () => ({
-  createWebChatTransport: vi.fn(() => ({})),
-  roleForSender: (sender: WebChatMessage["sender"]) =>
-    sender === "CUSTOMER" ? "user" : "assistant",
+vi.mock("@cloudflare/ai-chat/react", () => ({
+  useAgentChat: () => ({
+    error: chatState.error,
+    messages: chatState.messages,
+    sendMessage,
+    status: chatState.status,
+  }),
 }));
 
 const toastError = vi.fn();
@@ -49,28 +45,28 @@ describe("Chat", () => {
   beforeEach(() => {
     sendMessage.mockReset();
     toastError.mockReset();
-    useChatState.error = undefined;
-    useChatState.messages = [];
-    useChatState.status = "ready";
+    chatState.error = undefined;
+    chatState.messages = [];
+    chatState.status = "ready";
   });
 
   it("renders the empty state when there are no messages", () => {
-    render(<Chat initialConversationId={null} initialMessages={[]} />);
+    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
     expect(screen.getByText("Comece a conversa")).toBeInTheDocument();
   });
 
-  it("renders seeded messages from useChat", () => {
-    useChatState.messages = [
+  it("renders messages from useAgentChat", () => {
+    chatState.messages = [
       { id: "m1", parts: [{ text: "oi", type: "text" }], role: "user" },
       { id: "m2", parts: [{ text: "olá!", type: "text" }], role: "assistant" },
     ];
-    render(<Chat initialConversationId="conv_1" initialMessages={[]} />);
+    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
     expect(screen.getByText("oi")).toBeInTheDocument();
     expect(screen.getByText("olá!")).toBeInTheDocument();
   });
 
   it("sends the typed message on submit", () => {
-    render(<Chat initialConversationId={null} initialMessages={[]} />);
+    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
     const textarea = screen.getByLabelText("Mensagem");
     fireEvent.change(textarea, { target: { value: "preciso de ajuda" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
@@ -78,23 +74,23 @@ describe("Chat", () => {
   });
 
   it("does not send while a reply is streaming", () => {
-    useChatState.status = "streaming";
-    render(<Chat initialConversationId="conv_1" initialMessages={[]} />);
+    chatState.status = "streaming";
+    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
     const textarea = screen.getByLabelText("Mensagem");
     fireEvent.change(textarea, { target: { value: "outra" } });
     fireEvent.submit(textarea.closest("form") as HTMLFormElement);
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("shows a toast when useChat reports an error", () => {
-    useChatState.error = new Error("boom");
-    render(<Chat initialConversationId={null} initialMessages={[]} />);
+  it("shows a toast when the chat reports an error", () => {
+    chatState.error = new Error("boom");
+    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
     expect(toastError).toHaveBeenCalledOnce();
   });
 
   it("shows the thinking indicator while submitted", () => {
-    useChatState.status = "submitted";
-    render(<Chat initialConversationId="conv_1" initialMessages={[]} />);
+    chatState.status = "submitted";
+    render(<Chat agentsUrl="http://localhost:8787" sessionToken="tok" />);
     expect(screen.getByText(/Um agente está respondendo/v)).toBeInTheDocument();
   });
 });

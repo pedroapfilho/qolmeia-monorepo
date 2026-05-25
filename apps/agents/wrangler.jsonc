@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "qolmeia-agents",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CorrespondentAgent"] }],
+  "vars": {
+    // PLACEHOLDER — replace with your Cloudflare account id (see `wrangler whoami`).
+    "AI_GATEWAY_ACCOUNT_ID": "PLACEHOLDER-cloudflare-account-id",
+    "AI_GATEWAY_NAME": "qolmeia",
+    "CORRESPONDENT_MODEL": "openai/gpt-5.3-chat",
+    // The existing Better Auth service (apps/api); the Worker validates sessions against it.
+    "AUTH_SERVICE_URL": "http://localhost:4000",
+    // Better Auth session-cookie name — used to forward the P1 token to the auth service.
+    "SESSION_COOKIE_NAME": "better-auth.session_token",
+    // Comma-separated client origins allowed to call the Worker.
+    "CLIENT_ORIGINS": "http://localhost:3001",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "qolmeia-agents",
+      // PLACEHOLDER — replace with the id printed by `wrangler d1 create qolmeia-agents`.
+      // Local dev and vitest-pool-workers ignore this value; remote deploy needs the real id.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+}

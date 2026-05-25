@@ -1,0 +1,31 @@
+{
+  "name": "qolmeia-agents",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cf-typegen": "wrangler types",
+    "clean": "rm -rf .turbo node_modules .wrangler",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "lint": "oxlint src",
+    "test": "vitest run",
+    "typecheck": "wrangler types && tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.47",
+    "@cloudflare/ai-chat": "^0.7.1",
+    "agents": "^0.13.2",
+    "ai": "^6.0.190",
+    "hono": "^4.12.18",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "^3.0.10",
+    "@cloudflare/vitest-pool-workers": "^0.16.9",
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5",
+    "wrangler": "^4.94.0"
+  }
+}

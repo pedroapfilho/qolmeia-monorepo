@@ -1,10 +1,10 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
+import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { toast } from "@repo/ui/components/sonner";
-import type { UIMessage } from "ai";
+import { useAgent } from "agents/react";
 import { MessageSquare } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   Conversation,
@@ -22,66 +22,32 @@ import {
   PromptInputTextarea,
   PromptInputToolbar,
 } from "@/components/ai-elements/prompt-input";
-import type { WebChatMessage } from "@/lib/api-types";
-import { createWebChatTransport, roleForSender } from "@/lib/web-chat-transport";
 
 type ChatProps = {
-  initialConversationId: string | null;
-  initialMessages: ReadonlyArray<WebChatMessage>;
+  agentsUrl: string;
+  sessionToken: string;
 };
 
-const extractAssetId = (message: WebChatMessage): string | null => {
-  if (
-    message.contentType !== "IMAGE" ||
-    !message.metadata ||
-    typeof message.metadata !== "object"
-  ) {
-    return null;
-  }
-  const value = (message.metadata as Record<string, unknown>).assetId;
-  return typeof value === "string" ? value : null;
-};
+// P1 hard-codes the single demo company as the Correspondent DO instance name.
+const AGENT_INSTANCE = "p1-demo-company";
 
-// Maps the server-rendered history into `UIMessage`s for `useChat` seeding.
-// API order is newest-first, so the list is reversed to oldest-first.
-const toUIMessages = (messages: ReadonlyArray<WebChatMessage>): Array<UIMessage> =>
-  [...messages]
-    .toSorted((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .map((message) => {
-      const assetId = extractAssetId(message);
-      return {
-        id: message.id,
-        parts: [
-          { text: message.content, type: "text" as const },
-          ...(assetId
-            ? [
-                {
-                  mediaType: "image/*",
-                  type: "file" as const,
-                  url: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/web-chat/assets/${assetId}`,
-                },
-              ]
-            : []),
-        ],
-        role: roleForSender(message.sender),
-      } satisfies UIMessage;
-    });
-
-// Client chat surface. `useChat` owns the message list; the custom transport
-// bridges to the REST + SSE web-chat backend. Rendered with `ai-elements`.
-const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
+// Client chat surface. `useAgent` opens a WebSocket straight to the company's
+// Correspondent DO; `useAgentChat` wraps it with the AI SDK chat interface.
+// History, streaming, and reconnection are handled by the agents SDK — there
+// is no server-seeded message list and no custom transport. Rendered with
+// `ai-elements`.
+const Chat = ({ agentsUrl, sessionToken }: ChatProps) => {
   const [input, setInput] = useState("");
 
-  const transport = useMemo(
-    () => createWebChatTransport({ initialConversationId }),
-    [initialConversationId],
-  );
-  const seededMessages = useMemo(() => toUIMessages(initialMessages), [initialMessages]);
-
-  const { error, messages, sendMessage, status } = useChat({
-    messages: seededMessages,
-    transport,
+  const agent = useAgent({
+    agent: "correspondent",
+    host: agentsUrl,
+    name: AGENT_INSTANCE,
+    // P1 auth token the Worker validates against the auth service (spec §9).
+    query: { cf_session: sessionToken },
   });
+
+  const { error, messages, sendMessage, status } = useAgentChat({ agent });
 
   useEffect(() => {
     if (error) {
@@ -89,19 +55,19 @@ const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
     }
   }, [error]);
 
+  const isThinking = status === "submitted" || status === "streaming";
+
   const handleSubmit = useCallback(
     (message: PromptInputMessage) => {
       const text = message.text.trim();
-      if (!text || status === "submitted" || status === "streaming") {
+      if (!text || isThinking) {
         return;
       }
       void sendMessage({ text });
       setInput("");
     },
-    [sendMessage, status],
+    [isThinking, sendMessage],
   );
-
-  const isThinking = status === "submitted" || status === "streaming";
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -117,29 +83,11 @@ const Chat = ({ initialConversationId, initialMessages }: ChatProps) => {
             messages.map((message) => (
               <Message from={message.role} key={message.id}>
                 <MessageContent>
-                  {message.parts.map((part, index) => {
-                    if (part.type === "text") {
-                      return (
-                        <MessageResponse key={`${message.id}-${index}`}>
-                          {part.text}
-                        </MessageResponse>
-                      );
-                    }
-                    if (part.type === "file" && part.mediaType?.startsWith("image")) {
-                      return (
-                        // The API streams asset bytes with a private
-                        // Cache-Control; a plain <img> is correct here.
-                        // oxlint-disable-next-line no-img-element
-                        <img
-                          alt="Imagem gerada"
-                          className="max-h-80 rounded-md object-contain"
-                          key={`${message.id}-${index}`}
-                          src={part.url}
-                        />
-                      );
-                    }
-                    return null;
-                  })}
+                  {message.parts.map((part, index) =>
+                    part.type === "text" ? (
+                      <MessageResponse key={`${message.id}-${index}`}>{part.text}</MessageResponse>
+                    ) : null,
+                  )}
                 </MessageContent>
               </Message>
             ))
