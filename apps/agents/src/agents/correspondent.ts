@@ -51,6 +51,14 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     return getModel(this.env);
   }
 
+  // Called by the WorkerJob Workflow when a Worker proposes a gated action.
+  // T6 wires this to format the proposal as an assistant message via the
+  // AIChatAgent message API and surface it to the User. For T4 it's a stub
+  // so the type signature satisfies the Workflow's RPC call.
+  async presentAction(_actionId: string): Promise<void> {
+    // T6: format action + saveMessages(...)
+  }
+
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
   ): Promise<Response | undefined> {
