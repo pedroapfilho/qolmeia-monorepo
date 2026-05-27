@@ -8,7 +8,7 @@ This file provides guidance to AI coding agents when working with code in this r
 # Development
 pnpm dev                                 # turbo runs all four apps in parallel
 pnpm dev --filter=auth                   # auth service (Hono, :4000)
-pnpm dev --filter=qolmeia-agents         # Cloudflare Worker (wrangler dev, :8787)
+pnpm dev --filter=worker-bees            # Cloudflare Worker (wrangler dev, :8787)
 pnpm dev --filter=client                 # customer app (Next.js, :3001)
 pnpm dev --filter=backoffice             # operator panel (Next.js, :3000)
 
@@ -33,12 +33,12 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 
 ### Apps
 
-| Folder            | Package name     | Framework         | Dev URL                 | Audience                                                                                                                            |
-| ----------------- | ---------------- | ----------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/auth`       | `auth`           | Hono on Node 24   | `http://localhost:4000` | Auth service — `/api/auth/*` (Better Auth) + `/api/v1/me` (relay target).                                                           |
-| `apps/agents`     | `qolmeia-agents` | Cloudflare Worker | `http://localhost:8787` | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`). |
-| `apps/client`     | `client`         | Next.js 16        | `http://localhost:3001` | End-customer chat surface — CUSTOMER role.                                                                                          |
-| `apps/backoffice` | `backoffice`     | Next.js 16        | `http://localhost:3000` | Operator panel — OWNER/STAFF roles.                                                                                                 |
+| Folder            | Package name  | Framework         | Dev URL                 | Audience                                                                                                                            |
+| ----------------- | ------------- | ----------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/auth`       | `auth`        | Hono on Node 24   | `http://localhost:4000` | Auth service — `/api/auth/*` (Better Auth) + `/api/v1/me` (relay target).                                                           |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`). |
+| `apps/client`     | `client`      | Next.js 16        | `http://localhost:3001` | End-customer chat surface — CUSTOMER role.                                                                                          |
+| `apps/backoffice` | `backoffice`  | Next.js 16        | `http://localhost:3000` | Operator panel — OWNER/STAFF roles.                                                                                                 |
 
 ### Key runtime moves (P1–P7)
 
@@ -107,9 +107,9 @@ pnpm --filter=auth exec tsx src/scripts/seed-dev.ts
 
 # 4. Apply D1 migrations + seed the company row, Correspondent + Designer worker
 cd apps/agents
-pnpm wrangler d1 migrations apply qolmeia-agents --local
-pnpm wrangler d1 execute qolmeia-agents --local --file scripts/seed-p2.sql
-pnpm wrangler d1 execute qolmeia-agents --local --file scripts/seed-p3-team.sql
+pnpm wrangler d1 migrations apply worker-bees --local
+pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
+pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
 cd -
 
 # 5. Run all four apps (or one per terminal with --filter)

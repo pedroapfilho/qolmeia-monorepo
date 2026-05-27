@@ -2,8 +2,8 @@
 -- Equivalent to `materializeTeam(db, { companyId, templateIds: ['tpl-designer'] })`
 -- but issued as SQL so the seed is self-contained.
 --
---   wrangler d1 execute qolmeia-agents --local  --file scripts/seed-p3-team.sql
---   wrangler d1 execute qolmeia-agents --remote --file scripts/seed-p3-team.sql
+--   wrangler d1 execute worker-bees --local  --file scripts/seed-p3-team.sql
+--   wrangler d1 execute worker-bees --remote --file scripts/seed-p3-team.sql
 
 INSERT OR IGNORE INTO team (id, company_id, confirmed_at, created_at) VALUES
   ('team-cmpg10ke30000147uj4gpeadb', 'cmpg10ke30000147uj4gpeadb',

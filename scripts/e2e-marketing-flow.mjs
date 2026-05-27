@@ -4,7 +4,7 @@
 //
 // Prereqs: same as e2e-chat-flow.mjs. Make sure scripts/seed-p8-marketing.sql
 // has been applied so the marketing-strategist worker is on the dev team:
-//   pnpm wrangler d1 execute qolmeia-agents --local --file scripts/seed-p8-marketing.sql
+//   pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p8-marketing.sql
 //
 // What it does:
 //   1. Signs in customer + operator.
@@ -153,7 +153,7 @@ const main = async () => {
     console.error("FAIL: no pending publish_post action surfaced.");
     console.error("Tip: ensure the marketing-strategist worker is seeded:");
     console.error(
-      "  pnpm wrangler d1 execute qolmeia-agents --local --file scripts/seed-p8-marketing.sql",
+      "  pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p8-marketing.sql",
     );
     process.exit(1);
   }

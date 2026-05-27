@@ -5,8 +5,8 @@
 --
 -- Idempotent — safe to re-run.
 --
---   wrangler d1 execute qolmeia-agents --local  --file scripts/seed-p2.sql
---   wrangler d1 execute qolmeia-agents --remote --file scripts/seed-p2.sql
+--   wrangler d1 execute worker-bees --local  --file scripts/seed-p2.sql
+--   wrangler d1 execute worker-bees --remote --file scripts/seed-p2.sql
 
 INSERT OR IGNORE INTO company
   (id, name, slug, timezone, locale, status, brief, created_at, updated_at)

@@ -3,10 +3,10 @@
 // Prereqs:
 //   docker compose up -d           (postgres + redis)
 //   pnpm tsx apps/api/src/scripts/seed-dev.ts
-//   wrangler d1 execute qolmeia-agents --local --file scripts/seed-p2.sql
-//   wrangler d1 execute qolmeia-agents --local --file scripts/seed-p3-team.sql
+//   wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
+//   wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
 //   pnpm dev --filter=api          (:4000)
-//   pnpm dev --filter=qolmeia-agents (:8787)
+//   pnpm dev --filter=worker-bees  (:8787)
 //
 // What it does:
 //   1. Signs in customer + operator via apps/api → grabs bearer tokens.

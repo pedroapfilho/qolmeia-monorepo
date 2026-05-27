@@ -4,8 +4,8 @@
 --
 -- Idempotent — safe to re-run.
 --
---   wrangler d1 execute qolmeia-agents --local  --file scripts/seed-p8-marketing.sql
---   wrangler d1 execute qolmeia-agents --remote --file scripts/seed-p8-marketing.sql
+--   wrangler d1 execute worker-bees --local  --file scripts/seed-p8-marketing.sql
+--   wrangler d1 execute worker-bees --remote --file scripts/seed-p8-marketing.sql
 
 INSERT OR IGNORE INTO agent_instance
   (id, company_id, role, template_id, template_version, display_name,

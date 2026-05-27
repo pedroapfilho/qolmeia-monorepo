@@ -11,12 +11,12 @@ import { env } from "../lib/env";
 // to re-run.
 //
 // After running, also run:
-//   pnpm --filter=qolmeia-agents wrangler d1 execute qolmeia-agents \
+//   pnpm --filter=worker-bees wrangler d1 execute worker-bees \
 //     --local --file scripts/seed-p2.sql
 //
 // then start the four dev processes:
 //   pnpm dev --filter=auth         (port 4000)
-//   pnpm dev --filter=qolmeia-agents (port 8787 via wrangler dev)
+//   pnpm dev --filter=worker-bees  (port 8787 via wrangler dev)
 //   pnpm dev --filter=client       (port 3001)
 //   pnpm dev --filter=backoffice   (port 3000)
 //
@@ -105,7 +105,7 @@ const main = async () => {
   console.log("");
   console.log("Next: seed the D1 company row + Correspondent agent_instance:");
   console.log(
-    "  pnpm --filter=qolmeia-agents wrangler d1 execute qolmeia-agents --local --file scripts/seed-p2.sql",
+    "  pnpm --filter=worker-bees wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql",
   );
 };
 
