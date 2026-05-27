@@ -2,51 +2,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
-import { getAction, listPendingActions } from "@/db/action";
+import { getAction, listActions, listActionsForTicket, listPendingActions } from "@/db/action";
 import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
-
-type ActionRow = {
-  action_type: string;
-  company_id: string;
-  created_at: number;
-  decided_at: number | null;
-  decided_by_user_id: string | null;
-  feedback: string | null;
-  id: string;
-  policy: string;
-  proposed: string;
-  status: string;
-  ticket_id: string;
-};
-
-const safeJson = (value: string | null): Record<string, unknown> | null => {
-  if (!value) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const mapActionRow = (row: ActionRow) => ({
-  actionType: row.action_type,
-  companyId: row.company_id,
-  createdAt: row.created_at,
-  decidedAt: row.decided_at,
-  decidedByUserId: row.decided_by_user_id,
-  feedback: row.feedback,
-  id: row.id,
-  policy: row.policy,
-  proposed: safeJson(row.proposed),
-  status: row.status,
-  ticketId: row.ticket_id,
-});
 
 // Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
 // agent paths, just with a different role guard. Every write — including the
@@ -93,6 +51,9 @@ backofficeRoutes.get("/actions", async (c) => {
   if (status === "pending") {
     const items = await listPendingActions(c.env.DB, { companyId });
     const now = Date.now();
+    // Explicit field copy (not `{...a, ageSeconds}`) — oxlint's no-map-spread
+    // forbids spread inside .map. The `mapAction` boundary above guarantees
+    // every `a` is camelCase + typed, so this stays a pure projection.
     const enriched = items.map((a) => ({
       actionType: a.actionType,
       ageSeconds: Math.floor((now - a.createdAt) / 1000),
@@ -112,15 +73,10 @@ backofficeRoutes.get("/actions", async (c) => {
     return c.json({ items: sorted });
   }
 
-  // Any status — recent first. Same mapper as the ticket-detail branch and
-  // the `?status=pending` branch so every list returns camelCase (the
-  // backoffice never sees raw snake_case columns).
-  const { results } = await c.env.DB.prepare(
-    "SELECT * FROM action WHERE company_id = ? ORDER BY created_at DESC LIMIT 200",
-  )
-    .bind(companyId)
-    .all<ActionRow>();
-  return c.json({ items: results.map(mapActionRow) });
+  // Any status — recent first. All list endpoints flow through the same
+  // mapAction so the backoffice never sees raw snake_case columns.
+  const items = await listActions(c.env.DB, { companyId });
+  return c.json({ items });
 });
 
 const decideBodySchema = z.object({
@@ -192,15 +148,8 @@ backofficeRoutes.get("/tickets/:id", async (c) => {
   if (ticket.companyId !== c.get("companyId")) {
     return c.text("Forbidden", 403);
   }
-  const { results } = await c.env.DB.prepare(
-    "SELECT * FROM action WHERE ticket_id = ? ORDER BY created_at ASC",
-  )
-    .bind(id)
-    .all<ActionRow>();
-  return c.json({
-    actions: results.map(mapActionRow),
-    ticket,
-  });
+  const actions = await listActionsForTicket(c.env.DB, id);
+  return c.json({ actions, ticket });
 });
 
 // Action detail — used by /approvals/:id to render the proposal + decide form.

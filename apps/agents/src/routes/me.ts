@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import { listActivity } from "@/activity/log";
+import { safeJson } from "@/db/mappers";
 import { listActiveTemplates } from "@/db/template";
 import { validateSession, type ValidatedSession } from "@/lib/auth";
 import { parseBrief } from "@/lib/company-brief";
@@ -155,17 +156,6 @@ type AssetRow = {
   mime: string;
 };
 
-const safeJson = (value: string | null): unknown => {
-  if (!value) {
-    return null;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
 const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
   if (!raw) {
     return fallback;
@@ -194,7 +184,7 @@ meRoutes.get("/assets", async (c) => {
     results.map(async (row) => ({
       createdAt: new Date(row.created_at).toISOString(),
       id: row.id,
-      metadata: safeJson(row.metadata),
+      metadata: safeJson<unknown>(row.metadata, null),
       mimeType: row.mime,
       size: row.bytes,
       url: await buildSignedAssetUrl(

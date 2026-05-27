@@ -1,3 +1,4 @@
+import { safeJson } from "@/db/mappers";
 import type { Policy } from "@/db/policy";
 
 // The `action` table is the spec's approval surface. Every gated thing a
@@ -52,15 +53,6 @@ const toPolicy = (raw: string): Policy => {
   return valid.find((p) => p === raw) ?? "require-approval";
 };
 
-const safeJson = (value: string): Record<string, unknown> => {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-};
-
 const mapAction = (row: ActionRow): Action => ({
   actionType: row.action_type,
   companyId: row.company_id,
@@ -70,7 +62,7 @@ const mapAction = (row: ActionRow): Action => ({
   feedback: row.feedback,
   id: row.id,
   policy: toPolicy(row.policy),
-  proposed: safeJson(row.proposed),
+  proposed: safeJson<Record<string, unknown>>(row.proposed, {}),
   status: toStatus(row.status),
   ticketId: row.ticket_id,
 });
@@ -161,5 +153,47 @@ const listPendingActions = async (
   return results.map(mapAction);
 };
 
-export { decideAction, getAction, listPendingActions, markExecuted, proposeAction };
-export type { Action, ActionStatus, DecideActionInput, DecisionOutcome, ProposeActionInput };
+// Any-status list, newest-first. The "no query filter" branch of the
+// backoffice /actions endpoint.
+const listActions = async (
+  db: D1Database,
+  options: { companyId: string; limit?: number },
+): Promise<ReadonlyArray<Action>> => {
+  const limit = Math.min(options.limit ?? 200, 500);
+  const { results } = await db
+    .prepare("SELECT * FROM action WHERE company_id = ? ORDER BY created_at DESC LIMIT ?")
+    .bind(options.companyId, limit)
+    .all<ActionRow>();
+  return results.map(mapAction);
+};
+
+// All actions tied to a ticket, oldest-first — the ticket-detail drill-down.
+const listActionsForTicket = async (
+  db: D1Database,
+  ticketId: string,
+): Promise<ReadonlyArray<Action>> => {
+  const { results } = await db
+    .prepare("SELECT * FROM action WHERE ticket_id = ? ORDER BY created_at ASC")
+    .bind(ticketId)
+    .all<ActionRow>();
+  return results.map(mapAction);
+};
+
+export {
+  decideAction,
+  getAction,
+  listActions,
+  listActionsForTicket,
+  listPendingActions,
+  mapAction,
+  markExecuted,
+  proposeAction,
+};
+export type {
+  Action,
+  ActionRow,
+  ActionStatus,
+  DecideActionInput,
+  DecisionOutcome,
+  ProposeActionInput,
+};

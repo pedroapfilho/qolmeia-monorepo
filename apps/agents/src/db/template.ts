@@ -1,3 +1,5 @@
+import { safeJson } from "@/db/mappers";
+
 // Typed shapes + queries for the catalog (template, skill). Skills here are
 // the operator-tunable D1 overlay over the code skill registry — the code
 // owns `execute` and the input schema; D1 owns the LLM-facing description,
@@ -59,17 +61,6 @@ type SkillRow = {
   id: string;
   param_hints: string | null;
   updated_at: number;
-};
-
-const safeJson = <T>(value: string | null, fallback: T): T => {
-  if (!value) {
-    return fallback;
-  }
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 };
 
 const toTemplateStatus = (value: string): TemplateStatus =>
