@@ -1,12 +1,14 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   generateText,
+  type ModelMessage,
   stepCountIs,
   streamText,
   type StreamTextOnFinishCallback,
   type ToolSet,
 } from "ai";
 
+import { resolveImagesToDataUrls } from "@/agents/asset-url-resolver";
 import {
   type AttachedImage,
   buildModelMessages,
@@ -26,92 +28,48 @@ import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema
 import { getModel } from "@/lib/ai-gateway";
 import type { CompanyBriefPartial } from "@/lib/company-brief";
 import { getConnectorSecrets } from "@/lib/connector-secrets";
-import { logError, logInfo, logWarn } from "@/lib/logger";
+import { logError, logInfo } from "@/lib/logger";
 import { getMemoryAdapter } from "@/lib/memory";
-import { fetchAsset } from "@/lib/r2";
 import { buildSkillTools } from "@/skills/registry";
 
-// Pulls the asset id segment out of `…/assets/<id>?token=…`. Accepts both
-// absolute http(s) URLs and bare paths. Returns null when the shape doesn't
-// match — callers should drop the attachment in that case.
-const extractAssetIdFromUrl = (url: string): string | null => {
-  let path: string;
-  try {
-    path = url.startsWith("http") ? new URL(url).pathname : (url.split("?")[0] ?? "");
-  } catch {
-    return null;
-  }
-  const segments = path.split("/").filter(Boolean);
-  const idx = segments.indexOf("assets");
-  if (idx === -1 || idx !== segments.length - 2) {
-    return null;
-  }
-  return segments.at(-1) ?? null;
-};
+const CORRESPONDENT_SKILLS = [
+  "rememberFact",
+  "recallMemory",
+  "delegateToWorker",
+  "decideAction",
+] as const;
 
-const arrayBufferToDataUrl = (buf: ArrayBuffer, mime: string): string => {
-  const bytes = new Uint8Array(buf);
-  let s = "";
-  for (const b of bytes) {
-    s += String.fromCodePoint(b);
-  }
-  return `data:${mime};base64,${btoa(s)}`;
+// 3 steps: model emits a tool call → tool result feeds back → final reply.
+const CORRESPONDENT_STOP_STEPS = 3;
+
+// What `prepareConversationTurn` hands back to the two model-calling paths
+// (web stream, connector reply). The caller decides whether to streamText or
+// generateText; everything else — memory, messages, system prompt, tools,
+// and the recorder closure for the eventual reply — is wired here.
+type PreparedTurn = {
+  messages: Array<ModelMessage>;
+  recordAgentReply: (reply: string) => Promise<void>;
+  system: string;
+  tools: ToolSet;
 };
 
 // The Correspondent. Keyed by company id (`this.name`). Memory plumbing:
 // recent-turns buffer in DO SQLite (always-in-context) + vector recall from
 // the memory adapter (top-K facts injected into the system prompt). Both
 // channels write on each turn so the next turn sees them.
+//
+// Three model-using surfaces compose with `prepareConversationTurn`:
+//   - onChatMessage: web-chat streaming reply
+//   - handleInboundFromConnector: external-channel non-streaming reply
+// Two model-less surfaces stay direct:
+//   - presentAction: Workflow-side RPC injecting a 🟡 message into chat
+//   - seedMemory: team-confirm hook seeding the brief into memory
 class CorrespondentAgent extends AIChatAgent<Env> {
   // Model resolution is a seam: the DO runs inside the bundled worker, out
   // of reach of module mocks, so tests inject a scripted model by reassigning
   // this method on the instance.
   resolveModel() {
     return getModel(this.env);
-  }
-
-  // Rewrites each attached image's signed http(s) URL to a data: URL by
-  // reading bytes from R2 directly. The AI SDK's built-in downloader rejects
-  // localhost/private-IP hosts (SSRF guard), which makes signed dev URLs
-  // unfetchable; data: bypasses the validator and also avoids a redundant
-  // HTTP roundtrip in prod (Worker → its own /assets endpoint → R2). Scoped
-  // to the current company so a pasted asset id from elsewhere can't leak.
-  private async resolveImagesToDataUrls(
-    images: ReadonlyArray<AttachedImage>,
-  ): Promise<ReadonlyArray<AttachedImage>> {
-    if (images.length === 0) {
-      return images;
-    }
-    const companyId = this.name;
-    const resolved = await Promise.all(
-      images.map(async (image) => {
-        if (image.url.startsWith("data:")) {
-          return image;
-        }
-        const assetId = extractAssetIdFromUrl(image.url);
-        if (!assetId) {
-          logWarn("agent.attachment.skip", { companyId, reason: "url-not-asset", url: image.url });
-          return null;
-        }
-        const row = await this.env.DB.prepare(
-          "SELECT r2_key, mime FROM asset WHERE id = ? AND company_id = ?",
-        )
-          .bind(assetId, companyId)
-          .first<{ mime: string; r2_key: string }>();
-        if (!row) {
-          logWarn("agent.attachment.skip", { assetId, companyId, reason: "asset-not-found" });
-          return null;
-        }
-        const object = await fetchAsset({ ASSETS: this.env.ASSETS }, row.r2_key);
-        if (!object) {
-          logWarn("agent.attachment.skip", { assetId, companyId, reason: "r2-miss" });
-          return null;
-        }
-        const buf = await object.arrayBuffer();
-        return { mediaType: row.mime, url: arrayBufferToDataUrl(buf, row.mime) };
-      }),
-    );
-    return resolved.filter((value): value is AttachedImage => value !== null);
   }
 
   // Persists a turn everywhere a future turn looks: D1 (system of record),
@@ -145,6 +103,70 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     if (role === "agent") {
       pruneOldTurns(this, RECENT_TURNS_KEEP);
     }
+  }
+
+  // The shared turn prelude. Given the inbound text + optional images +
+  // conversation/message ids, persist the user turn, retrieve memory,
+  // build the model messages, resolve images, build the skill tools, and
+  // hand the caller back everything streamText/generateText needs plus a
+  // recorder closure to call with the eventual reply.
+  //
+  // This is the deep module — the only place where "what is a Correspondent
+  // turn?" is answered. The two callers (web chat + connector inbound)
+  // differ only in transport (stream vs await) and how the reply is sent
+  // back to the user.
+  private async prepareConversationTurn(input: {
+    conversationId: string;
+    userImages: ReadonlyArray<AttachedImage>;
+    userMessageId: string;
+    userText: string;
+  }): Promise<PreparedTurn> {
+    const companyId = this.name;
+    const agentInstanceId = `corr-${companyId}`;
+    const memory = getMemoryAdapter(this.env);
+
+    // Persist the user turn (the buffer is text-only — images are noted in
+    // the persisted text marker; the multimodal payload below is what the
+    // model actually sees).
+    const persistedText =
+      input.userImages.length > 0
+        ? `${input.userText}\n[Imagem anexada: ${input.userImages.length}]`.trim()
+        : input.userText;
+    if (persistedText.length > 0) {
+      await this.recordTurn("user", input.conversationId, input.userMessageId, persistedText);
+    }
+
+    const retrieved =
+      input.userText.length > 0
+        ? await memory.retrieve({
+            agentInstanceId,
+            minScore: MEMORY_MIN_SCORE,
+            query: input.userText,
+            topK: MEMORY_TOP_K,
+          })
+        : [];
+    const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
+    const resolvedImages = await resolveImagesToDataUrls(
+      { ASSETS: this.env.ASSETS, DB: this.env.DB },
+      companyId,
+      input.userImages,
+    );
+    const messages = buildModelMessages(turns, {
+      userImages: resolvedImages,
+      userText: input.userText,
+    });
+    const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
+      ...CORRESPONDENT_SKILLS,
+    ]);
+
+    return {
+      messages,
+      recordAgentReply: async (reply: string) => {
+        await this.recordTurn("agent", input.conversationId, crypto.randomUUID(), reply);
+      },
+      system: buildSystemPrompt(retrieved),
+      tools,
+    };
   }
 
   // Called by the WorkerJob Workflow when a Worker proposes a gated action.
@@ -203,8 +225,8 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
   }
 
   // Called by the webhooks route when a NormalizedMessage arrives from an
-  // external channel (Telegram, etc.). Mirrors the chat-loop logic in
-  // onChatMessage but uses generateText (non-streaming) and sends the reply
+  // external channel (Telegram, etc.). Same prepared-turn primitive as the
+  // web-chat path but uses generateText (non-streaming) and sends the reply
   // out via the channel adapter — there's no WebSocket client on this path.
   async handleInboundFromConnector(input: {
     connectorId: string;
@@ -215,7 +237,6 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     const connectorStart = Date.now();
     const companyId = this.name;
     const agentInstanceId = `corr-${companyId}`;
-    const memory = getMemoryAdapter(this.env);
     const text = input.message.text;
     if (!text) {
       logInfo("agent.connector.skip", {
@@ -236,33 +257,23 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       userText: text,
     });
 
-    await this.recordTurn("user", input.conversationId, input.message.externalId, text);
-
-    const retrieved = await memory.retrieve({
-      agentInstanceId,
-      minScore: MEMORY_MIN_SCORE,
-      query: text,
-      topK: MEMORY_TOP_K,
+    const turn = await this.prepareConversationTurn({
+      conversationId: input.conversationId,
+      userImages: [],
+      userMessageId: input.message.externalId,
+      userText: text,
     });
-    const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
-    const messages = buildModelMessages(turns, { userImages: [], userText: text });
-    const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
-      "rememberFact",
-      "recallMemory",
-      "delegateToWorker",
-      "decideAction",
-    ]);
 
     let reply: string;
     let toolCallNames: Array<string> = [];
     let usage: unknown = null;
     try {
       const result = await generateText({
-        messages,
+        messages: turn.messages,
         model: this.resolveModel(),
-        stopWhen: stepCountIs(3),
-        system: buildSystemPrompt(retrieved),
-        tools,
+        stopWhen: stepCountIs(CORRESPONDENT_STOP_STEPS),
+        system: turn.system,
+        tools: turn.tools,
       });
       reply = result.text.trim();
       toolCallNames = (result.steps ?? []).flatMap((s) =>
@@ -290,7 +301,7 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       return;
     }
 
-    await this.recordTurn("agent", input.conversationId, crypto.randomUUID(), reply);
+    await turn.recordAgentReply(reply);
 
     // Send the reply back out through the channel. Failure here is logged
     // but doesn't blow up — the reply still lives in D1; operator can
@@ -397,7 +408,6 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     const companyId = this.name;
     const agentInstanceId = `corr-${companyId}`;
     const conversationId = `web-${companyId}`;
-    const memory = getMemoryAdapter(this.env);
 
     await upsertConversation(this.env.DB, {
       companyId,
@@ -405,68 +415,38 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       id: conversationId,
     });
 
-    // Persist user turn to D1 + recent-turns buffer + memory adapter. Images
-    // are stored as a text marker (the buffer is text-only); the live multimodal
-    // payload for the model is built separately below.
     const lastMessage = this.messages.at(-1);
     const userText = lastMessage?.role === "user" ? extractText(lastMessage) : "";
     const userImages = lastMessage?.role === "user" ? extractImages(lastMessage) : [];
-    const persistedText =
-      userImages.length > 0
-        ? `${userText}\n[Imagem anexada: ${userImages.length}]`.trim()
-        : userText;
-    if (lastMessage?.role === "user" && persistedText.length > 0) {
-      await this.recordTurn("user", conversationId, lastMessage.id, persistedText);
-    }
 
-    // Build the model context from our buffers — NOT this.messages. The SDK's
-    // history is for the client; we own what the model sees.
-    const retrieved =
-      userText.length > 0
-        ? await memory.retrieve({
-            agentInstanceId,
-            minScore: MEMORY_MIN_SCORE,
-            query: userText,
-            topK: MEMORY_TOP_K,
-          })
-        : [];
-    const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
-    const resolvedImages = await this.resolveImagesToDataUrls(userImages);
-    const messages = buildModelMessages(turns, { userImages: resolvedImages, userText });
+    const turn = await this.prepareConversationTurn({
+      conversationId,
+      userImages,
+      userMessageId: lastMessage?.id ?? crypto.randomUUID(),
+      userText,
+    });
 
     logInfo("agent.turn.start", {
       agent: "correspondent",
       agentInstanceId,
       companyId,
-      memoryFactCount: retrieved.length,
-      memoryFactKinds: retrieved.map((r) => r.kind),
-      turnCount: turns.length,
+      hasImages: userImages.length > 0,
+      turnCount: turn.messages.length,
       userText,
     });
 
-    // Correspondent's skill set is fixed for P4 — the role='correspondent'
-    // agent_instance has no template binding (templates are for Workers).
-    // decideAction lets it interpret User replies to pending Actions.
-    const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
-      "rememberFact",
-      "recallMemory",
-      "delegateToWorker",
-      "decideAction",
-    ]);
-
     const result = streamText({
-      messages,
+      messages: turn.messages,
       model: this.resolveModel(),
       onFinish: async (event) => {
-        const agentText = event.text;
-        await this.recordTurn("agent", conversationId, crypto.randomUUID(), agentText);
+        await turn.recordAgentReply(event.text);
         logInfo("agent.turn.ok", {
           agent: "correspondent",
           agentInstanceId,
           companyId,
           durationMs: Date.now() - turnStart,
           finishReason: event.finishReason,
-          replyText: agentText,
+          replyText: event.text,
           stepCount: event.steps?.length ?? 0,
           toolCallNames: (event.steps ?? []).flatMap((s) =>
             (s.toolCalls ?? []).map((tc) => tc.toolName),
@@ -475,10 +455,9 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
         });
         await onFinish(event);
       },
-      // 3 steps: model emits a tool call → tool result feeds back → final reply.
-      stopWhen: stepCountIs(3),
-      system: buildSystemPrompt(retrieved),
-      tools,
+      stopWhen: stepCountIs(CORRESPONDENT_STOP_STEPS),
+      system: turn.system,
+      tools: turn.tools,
     });
 
     return result.toUIMessageStreamResponse();
