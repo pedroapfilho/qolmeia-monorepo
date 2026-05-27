@@ -5,8 +5,9 @@ import { safeJson } from "@/db/mappers";
 import { listActiveTemplates } from "@/db/template";
 import { validateSession, type ValidatedSession } from "@/lib/auth";
 import { parseBrief } from "@/lib/company-brief";
-import { logError, logWarn } from "@/lib/logger";
+import { logError } from "@/lib/logger";
 import { buildSignedAssetUrl, uploadAsset } from "@/lib/r2";
+import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 
 // Authenticated-user introspection endpoints — what the client needs to
 // route between the Planner and the Correspondent. The auth service still
@@ -20,59 +21,32 @@ import { buildSignedAssetUrl, uploadAsset } from "@/lib/r2";
 // Auth's per-IP rate limit (100/15min on /api/v1/me).
 
 const RELAY_CACHE_TTL_SECONDS = 60;
+const RELAY_CACHE_NAMESPACE = "me-relay";
 
 type Vars = { session: ValidatedSession };
 
 const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-const sha256Hex = async (input: string): Promise<string> => {
-  const bytes = new TextEncoder().encode(input);
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  const view = new Uint8Array(hash);
-  let out = "";
-  for (const byte of view) {
-    out += byte.toString(16).padStart(2, "0");
-  }
-  return out;
-};
-
-const buildRelayCacheKey = async (
-  token: string | null,
-  cookie: string | null,
-): Promise<string | null> => {
-  if (token) {
-    return `me-relay:tok:${token}`;
-  }
-  if (cookie) {
-    return `me-relay:cookie:${await sha256Hex(cookie)}`;
-  }
-  return null;
-};
-
 // Public relay — registered before the gating middleware so it handles its
 // own auth (a pass-through, not a parsed-and-rebuilt response).
 meRoutes.get("/", async (c) => {
   const tokenParam = new URL(c.req.url).searchParams.get("cf_session");
-  const cookieHeader = c.req.header("Cookie");
+  const cookieHeader = c.req.header("Cookie") ?? null;
   if (!tokenParam && !cookieHeader) {
     return c.text("Unauthorized", 401);
   }
 
-  const cacheKey = await buildRelayCacheKey(tokenParam, cookieHeader ?? null);
-  if (cacheKey && c.env.SESSIONS) {
-    try {
-      const cached = await c.env.SESSIONS.get(cacheKey);
-      if (cached) {
-        return new Response(cached, {
-          headers: { "Content-Type": "application/json", "X-Cache": "hit" },
-          status: 200,
-        });
-      }
-    } catch (error) {
-      logWarn("me.relay.cache.read.err", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+  const cacheKey = await buildCacheKey({
+    cookie: cookieHeader,
+    namespace: RELAY_CACHE_NAMESPACE,
+    token: tokenParam,
+  });
+  const cached = await readCachedString(c.env, cacheKey);
+  if (cached) {
+    return new Response(cached, {
+      headers: { "Content-Type": "application/json", "X-Cache": "hit" },
+      status: 200,
+    });
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -92,14 +66,8 @@ meRoutes.get("/", async (c) => {
   }
 
   const body = await response.text();
-  if (response.ok && cacheKey && c.env.SESSIONS) {
-    try {
-      await c.env.SESSIONS.put(cacheKey, body, { expirationTtl: RELAY_CACHE_TTL_SECONDS });
-    } catch (error) {
-      logWarn("me.relay.cache.write.err", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+  if (response.ok) {
+    await writeCachedString(c.env, cacheKey, body, RELAY_CACHE_TTL_SECONDS);
   }
 
   return new Response(body, {

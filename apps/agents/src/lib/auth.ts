@@ -1,4 +1,5 @@
 import { parseMeResponse, type Role } from "@/lib/membership";
+import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 
 type ValidatedSession = {
   companyId: string;
@@ -14,79 +15,11 @@ type ValidatedSession = {
 // "who is this and which company are they in."
 //
 // Cache: when the SESSIONS KV binding is configured, successful lookups are
-// memoised for SESSION_CACHE_TTL_SECONDS. The cache key is keyed on the
-// bearer token (or a hash of the cookie header) so the same browser tab
-// stops hammering the auth service. Misses fall through and refill the
-// cache; failures don't cache.
+// memoised for SESSION_CACHE_TTL_SECONDS via the shared session-cache
+// helpers. Misses fall through and refill the cache; failures don't cache.
 
-// Cloudflare KV enforces a 60-second minimum on expirationTtl. Bumping the
-// session cache below this throws at PUT time with a 400. 60s is still well
-// inside the human reaction window for "I changed roles in Postgres and
-// expect it to take effect."
 const SESSION_CACHE_TTL_SECONDS = 60;
-
-const sha256Hex = async (input: string): Promise<string> => {
-  const bytes = new TextEncoder().encode(input);
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  const view = new Uint8Array(hash);
-  let out = "";
-  for (const byte of view) {
-    out += byte.toString(16).padStart(2, "0");
-  }
-  return out;
-};
-
-const buildCacheKey = async (
-  token: string | null,
-  cookie: string | null,
-): Promise<string | null> => {
-  if (token) {
-    return `session:tok:${token}`;
-  }
-  if (cookie) {
-    return `session:cookie:${await sha256Hex(cookie)}`;
-  }
-  return null;
-};
-
-const readCached = async (env: Env, cacheKey: string | null): Promise<ValidatedSession | null> => {
-  if (!cacheKey || !env.SESSIONS) {
-    return null;
-  }
-  try {
-    const raw = await env.SESSIONS.get(cacheKey);
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw) as ValidatedSession;
-    if (parsed.companyId && parsed.role && parsed.userId) {
-      return parsed;
-    }
-    return null;
-  } catch (error) {
-    // oxlint-disable-next-line no-console
-    console.error("[auth] session cache read failed", { error });
-    return null;
-  }
-};
-
-const writeCached = async (
-  env: Env,
-  cacheKey: string | null,
-  session: ValidatedSession,
-): Promise<void> => {
-  if (!cacheKey || !env.SESSIONS) {
-    return;
-  }
-  try {
-    await env.SESSIONS.put(cacheKey, JSON.stringify(session), {
-      expirationTtl: SESSION_CACHE_TTL_SECONDS,
-    });
-  } catch (error) {
-    // oxlint-disable-next-line no-console
-    console.error("[auth] session cache write failed", { error });
-  }
-};
+const SESSION_CACHE_NAMESPACE = "session";
 
 const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
@@ -101,10 +34,21 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     return null;
   }
 
-  const cacheKey = await buildCacheKey(tokenParam, cookieHeader);
-  const cached = await readCached(env, cacheKey);
-  if (cached) {
-    return cached;
+  const cacheKey = await buildCacheKey({
+    cookie: cookieHeader,
+    namespace: SESSION_CACHE_NAMESPACE,
+    token: tokenParam,
+  });
+  const cachedRaw = await readCachedString(env, cacheKey);
+  if (cachedRaw) {
+    try {
+      const parsed = JSON.parse(cachedRaw) as ValidatedSession;
+      if (parsed.companyId && parsed.role && parsed.userId) {
+        return parsed;
+      }
+    } catch {
+      // Corrupt cache entry — fall through to refresh.
+    }
   }
 
   let response: Response;
@@ -128,7 +72,7 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     role: me.currentOrg.role,
     userId: me.userId,
   };
-  await writeCached(env, cacheKey, validated);
+  await writeCachedString(env, cacheKey, JSON.stringify(validated), SESSION_CACHE_TTL_SECONDS);
   return validated;
 };
 
