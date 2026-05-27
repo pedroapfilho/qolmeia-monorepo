@@ -15,6 +15,7 @@
 ## Task 2.1: Add AI SDK deps + promote `AI_GATEWAY_API_KEY`
 
 **Files:**
+
 - Modify: `apps/api/package.json`
 - Modify: `apps/api/src/lib/env.ts`
 - Modify: `apps/api/src/lib/env.test.ts`
@@ -30,10 +31,13 @@ Expected: both packages added to `apps/api/package.json` dependencies, install s
 - [ ] **Step 2: Promote `AI_GATEWAY_API_KEY` to required in `apps/api/src/lib/env.ts`**
 
 Find the line:
+
 ```ts
   AI_GATEWAY_API_KEY: z.string().optional(),
 ```
+
 Replace with:
+
 ```ts
   AI_GATEWAY_API_KEY: z.string().min(1),
 ```
@@ -41,6 +45,7 @@ Replace with:
 - [ ] **Step 3: Add `AI_GATEWAY_API_KEY` stub to `apps/api/src/lib/vitest-setup.ts`**
 
 Append a line after the existing stubs:
+
 ```ts
 vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
 ```
@@ -48,6 +53,7 @@ vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
 - [ ] **Step 4: Extend env.test.ts base object**
 
 In `apps/api/src/lib/env.test.ts`, the `base` object must include `AI_GATEWAY_API_KEY: "test-key"` so the "parses a valid minimal env" test still parses. Edit the `base` to:
+
 ```ts
 const base = {
   AI_GATEWAY_API_KEY: "test-key",
@@ -76,6 +82,7 @@ git commit -m "feat(api): add Vercel AI SDK + @ai-sdk/google; promote AI_GATEWAY
 ## Task 2.2: `lib/ai.ts` — `extractSoul` wrapper (TDD)
 
 **Files:**
+
 - Create: `apps/api/src/lib/ai.ts`
 - Test: `apps/api/src/lib/ai.test.ts`
 
@@ -259,6 +266,7 @@ git commit -m "feat(api): lib/ai extractSoul (Gemini 2.5-flash via Gateway)"
 ## Task 2.3: `soul/labels.ts` — pt-BR field labels
 
 **Files:**
+
 - Create: `apps/api/src/soul/labels.ts`
 - Test: `apps/api/src/soul/labels.test.ts`
 
@@ -318,6 +326,7 @@ git commit -m "feat(api): pt-BR soul field labels"
 ## Task 2.4: `soul/reply.ts` — deterministic pt-BR reply (TDD)
 
 **Files:**
+
 - Create: `apps/api/src/soul/reply.ts`
 - Test: `apps/api/src/soul/reply.test.ts`
 
@@ -341,10 +350,7 @@ const populated: SoulProfile = {
 
 describe("buildReply", () => {
   it("joins captured + missing when both non-empty", () => {
-    const reply = buildReply(
-      { whatYouDo: "salão" },
-      ["whatYouDo"],
-    );
+    const reply = buildReply({ whatYouDo: "salão" }, ["whatYouDo"]);
     expect(reply).toBe(
       "Anotei: o que vocês fazem. Ainda preciso saber: seu público-alvo, o que vocês entregam, seus concorrentes e links sobre o negócio.",
     );
@@ -435,6 +441,7 @@ git commit -m "feat(api): pt-BR reply builder (captured + missing branches)"
 ## Task 2.5: `soul/apply.ts` — patch-merge writer (TDD)
 
 **Files:**
+
 - Create: `apps/api/src/soul/apply.ts`
 - Test: `apps/api/src/soul/apply.test.ts`
 
@@ -452,9 +459,9 @@ const makePrisma = (existing: unknown) => {
     updated.businessProfile = data.businessProfile;
     return Promise.resolve(updated);
   });
-  const findUnique = vi.fn().mockResolvedValue(
-    existing === undefined ? null : { businessProfile: existing },
-  );
+  const findUnique = vi
+    .fn()
+    .mockResolvedValue(existing === undefined ? null : { businessProfile: existing });
   const tx = { organization: { findUnique, update } };
   return {
     $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
@@ -628,6 +635,7 @@ git commit -m "feat(api): applySoulUpdate (patch-merge soul writer in Prisma tx)
 ## Task 2.6: `soul/extract.ts` — orchestrator (TDD)
 
 **Files:**
+
 - Create: `apps/api/src/soul/extract.ts`
 - Test: `apps/api/src/soul/extract.test.ts`
 
@@ -676,10 +684,7 @@ describe("extractFromMessage", () => {
   it("builds an audio input and forwards bytes + mediaType", async () => {
     stubReturn();
     const bytes = new Uint8Array([9, 9]);
-    await extractFromMessage(
-      { bytes, kind: "audio", mediaType: "audio/ogg" },
-      "(perfil vazio)",
-    );
+    await extractFromMessage({ bytes, kind: "audio", mediaType: "audio/ogg" }, "(perfil vazio)");
     expect(mocked).toHaveBeenCalledWith(
       { bytes, kind: "audio", mediaType: "audio/ogg" },
       "(perfil vazio)",
@@ -726,6 +731,7 @@ git commit -m "feat(api): extractFromMessage orchestrator seam"
 ## Task 2.7: Wire `handler.ts` to extract → apply → reply (TDD)
 
 **Files:**
+
 - Modify: `apps/api/src/telegram/handler.ts`
 - Modify: `apps/api/src/telegram/handler.test.ts`
 
@@ -770,17 +776,21 @@ const makePrisma = () => {
   } as never;
 };
 
-const makeDeps = (over: Partial<{
-  applySoulUpdate: ReturnType<typeof vi.fn>;
-  extractFromMessage: ReturnType<typeof vi.fn>;
-  getBusinessContext: ReturnType<typeof vi.fn>;
-  prisma: ReturnType<typeof makePrisma>;
-}> = {}) => {
+const makeDeps = (
+  over: Partial<{
+    applySoulUpdate: ReturnType<typeof vi.fn>;
+    extractFromMessage: ReturnType<typeof vi.fn>;
+    getBusinessContext: ReturnType<typeof vi.fn>;
+    prisma: ReturnType<typeof makePrisma>;
+  }> = {},
+) => {
   const prisma = over.prisma ?? makePrisma();
   return {
     applySoulUpdate:
       over.applySoulUpdate ??
-      vi.fn().mockResolvedValue({ capturedFields: ["whatYouDo"], newProfile: { whatYouDo: "salão" } }),
+      vi
+        .fn()
+        .mockResolvedValue({ capturedFields: ["whatYouDo"], newProfile: { whatYouDo: "salão" } }),
     extractFromMessage:
       over.extractFromMessage ??
       vi.fn().mockResolvedValue({
@@ -799,8 +809,13 @@ describe("handleIncomingMessage", () => {
 
     await handleIncomingMessage(deps, thread, makeMessage({ text: "sou um salão" }));
 
-    expect((deps.prisma as never as { organization: { create: ReturnType<typeof vi.fn> } }).organization.create).toHaveBeenCalledOnce();
-    expect((deps.prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create).toHaveBeenCalledOnce();
+    expect(
+      (deps.prisma as never as { organization: { create: ReturnType<typeof vi.fn> } }).organization
+        .create,
+    ).toHaveBeenCalledOnce();
+    expect(
+      (deps.prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create,
+    ).toHaveBeenCalledOnce();
     expect(deps.extractFromMessage).toHaveBeenCalledOnce();
     expect(deps.applySoulUpdate).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledOnce();
@@ -811,7 +826,9 @@ describe("handleIncomingMessage", () => {
 
   it("is idempotent — duplicate message id is a no-op", async () => {
     const prisma = makePrisma();
-    (prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
+    (
+      prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }
+    ).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
     const deps = makeDeps({ prisma });
     const thread = makeThread();
 
@@ -867,7 +884,9 @@ describe("handleIncomingMessage", () => {
       deps,
       thread,
       makeMessage({
-        attachments: [{ fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" }],
+        attachments: [
+          { fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" },
+        ],
         text: "",
       }),
     );
@@ -930,7 +949,10 @@ type HandlerDeps = {
   applySoulUpdate?: typeof applySoulUpdateDefault;
   extractFromMessage?: typeof extractFromMessageDefault;
   getBusinessContext?: typeof getBusinessContextDefault;
-  prisma: Pick<PrismaClient, "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
+  prisma: Pick<
+    PrismaClient,
+    "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"
+  >;
 };
 
 const DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?";
@@ -1018,10 +1040,7 @@ const handleIncomingMessage = async (
       if (!audio.fetchData) throw new Error("attachment has no fetchData");
       bytes = await audio.fetchData();
     } catch (error) {
-      logger.error(
-        { chatId: thread.id, error, messageId: message.id },
-        "audio.download_failed",
-      );
+      logger.error({ chatId: thread.id, error, messageId: message.id }, "audio.download_failed");
       await thread.post(DOWNLOAD_FAILED_REPLY);
       return;
     }
@@ -1045,11 +1064,7 @@ const handleIncomingMessage = async (
     return;
   }
 
-  const { capturedFields, newProfile } = await applySoulUpdate(
-    link.orgId,
-    result.partial,
-    prisma,
-  );
+  const { capturedFields, newProfile } = await applySoulUpdate(link.orgId, result.partial, prisma);
 
   const reply = buildReply(newProfile, capturedFields);
   await thread.post(reply);
@@ -1093,11 +1108,13 @@ git commit -m "feat(api): handler runs soul extract pipeline + pt-BR reply with 
 ## Task 2.8: `bot.ts` — explicit `concurrency: "queue"`
 
 **Files:**
+
 - Modify: `apps/api/src/telegram/bot.ts`
 
 - [ ] **Step 1: Add `concurrency: "queue"` to the `new Chat({…})` config and reference `env.AI_GATEWAY_API_KEY` for fail-fast**
 
 Current config (lines ~16–21):
+
 ```ts
 const bot = new Chat({
   adapters: { telegram: createTelegramAdapter({ mode: "webhook" }) },
@@ -1108,6 +1125,7 @@ const bot = new Chat({
 ```
 
 Replace with:
+
 ```ts
 const bot = new Chat({
   adapters: { telegram: createTelegramAdapter({ mode: "webhook" }) },
@@ -1146,10 +1164,12 @@ Expected: all green. Test count grew by 2 (env) + 2 (ai) + 1 (labels) + 5 (reply
 - [ ] **Step 2: `acme` grep clean + `portless` grep clean**
 
 Run:
+
 ```bash
 grep -rniI acme . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=.turbo | grep -v docs/superpowers
 grep -rniI portless . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=.turbo | grep -v docs/superpowers
 ```
+
 Expected: both empty.
 
 - [ ] **Step 3: Boot smoke (no live AI call required)**
@@ -1165,7 +1185,9 @@ grep -i 'poll' /tmp/qolmeia-phase2-smoke.log || echo "(no poll lines — webhook
 # kill the spawned node process (find its pid):
 kill %1 2>/dev/null || true
 ```
+
 Expected:
+
 - `/healthz` returns healthy JSON.
 - Webhook POST → **401** (adapter rejects unsigned body — proves the route + adapter are wired).
 - No "Telegram polling started" lines (webhook-only mode preserved from Phase 1).

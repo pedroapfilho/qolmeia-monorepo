@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@repo/ui/lib/utils";
-import { Activity, Image, MessageCircle } from "lucide-react";
+import { Activity, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -16,7 +16,7 @@ type NavItem = {
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/", icon: <MessageCircle aria-hidden />, label: "Chat" },
-  { href: "/assets", icon: <Image aria-hidden />, label: "Assets" },
+  { href: "/assets", icon: <ImageIcon aria-hidden />, label: "Assets" },
   { href: "/activity", icon: <Activity aria-hidden />, label: "Atividade" },
 ];
 
@@ -39,11 +39,20 @@ const Nav = ({ orgName }: NavProps) => {
   return (
     <header
       aria-label="Navegação principal"
-      className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4"
+      className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4"
     >
-      <div className="flex items-center gap-6">
-        <Link className="text-base font-semibold tracking-tight" href="/">
-          {orgName ?? "Qolmeia"}
+      <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+        <Link
+          className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+          href="/"
+        >
+          <span
+            aria-hidden
+            className="flex size-6 items-center justify-center rounded-md bg-foreground text-[10px] font-bold text-background"
+          >
+            Q
+          </span>
+          <span className="truncate">{orgName ?? "Qolmeia"}</span>
         </Link>
         <nav>
           <ul className="flex items-center gap-1">
@@ -55,13 +64,21 @@ const Nav = ({ orgName }: NavProps) => {
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                      "hover:bg-muted hover:text-foreground",
-                      active ? "bg-muted text-foreground" : "text-muted-foreground",
+                      active
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
                     href={item.href}
                   >
-                    <span className="[&_svg]:size-4">{item.icon}</span>
-                    {item.label}
+                    <span
+                      className={cn(
+                        "[&_svg]:size-4",
+                        active ? "text-foreground" : "text-muted-foreground/70",
+                      )}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="hidden sm:inline">{item.label}</span>
                   </Link>
                 </li>
               );

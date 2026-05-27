@@ -29,6 +29,9 @@ type WebChatAsset = {
   metadata: unknown;
   mimeType: string;
   size: number;
+  // Pre-signed URL for fetching the bytes. Short-lived (15min default) —
+  // refetch the list to renew. Built server-side via buildSignedAssetUrl.
+  url: string;
 };
 
 type PostMessageResponse = {

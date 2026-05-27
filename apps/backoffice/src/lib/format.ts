@@ -1,22 +1,13 @@
 // Locale-bound formatters. Centralised so currency/relative-time rules
-// don't drift across pages.
-
-const brl = new Intl.NumberFormat("pt-BR", {
-  currency: "BRL",
-  style: "currency",
-});
-
-const formatBRL = (cents: number): string => brl.format(cents / 100);
+// don't drift across pages. Inputs are millisecond epoch timestamps —
+// the agents Worker (the operator-facing API) returns those everywhere.
 
 const RTF = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
 
-// Returns a pt-BR relative-time string ("há 2 min", "ontem"). Falls back
-// to the absolute date when the gap exceeds ~30 days — relative time gets
-// noisy past that threshold.
-const formatRelative = (iso: string, now: Date = new Date()): string => {
-  const then = new Date(iso);
+const formatRelative = (epochMs: number, now: Date = new Date()): string => {
+  const then = new Date(epochMs);
   if (Number.isNaN(then.getTime())) {
-    return iso;
+    return String(epochMs);
   }
   const diffMs = then.getTime() - now.getTime();
   const diffMin = Math.round(diffMs / 60_000);
@@ -42,10 +33,10 @@ const formatRelative = (iso: string, now: Date = new Date()): string => {
   }).format(then);
 };
 
-const formatDateTime = (iso: string): string => {
-  const date = new Date(iso);
+const formatDateTime = (epochMs: number): string => {
+  const date = new Date(epochMs);
   if (Number.isNaN(date.getTime())) {
-    return iso;
+    return String(epochMs);
   }
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -56,6 +47,19 @@ const formatDateTime = (iso: string): string => {
   }).format(date);
 };
 
+const formatDurationSeconds = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem === 0 ? `${hours}h` : `${hours}h${rem}min`;
+};
+
 const truncate = (value: string, limit = 120): string => {
   if (value.length <= limit) {
     return value;
@@ -63,4 +67,4 @@ const truncate = (value: string, limit = 120): string => {
   return `${value.slice(0, limit - 1).trimEnd()}…`;
 };
 
-export { formatBRL, formatDateTime, formatRelative, truncate };
+export { formatDateTime, formatDurationSeconds, formatRelative, truncate };

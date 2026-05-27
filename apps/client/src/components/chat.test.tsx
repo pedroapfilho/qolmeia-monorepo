@@ -70,7 +70,7 @@ describe("Chat", () => {
     const textarea = screen.getByLabelText("Mensagem");
     fireEvent.change(textarea, { target: { value: "preciso de ajuda" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
-    expect(sendMessage).toHaveBeenCalledWith({ text: "preciso de ajuda" });
+    expect(sendMessage).toHaveBeenCalledWith({ files: [], text: "preciso de ajuda" });
   });
 
   it("does not send while a reply is streaming", () => {

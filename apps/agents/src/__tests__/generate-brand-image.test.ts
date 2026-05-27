@@ -8,9 +8,30 @@ const COMPANY_ID = "co_img_test";
 const AGENT_INSTANCE_ID = "agent_img_test";
 const originalFetch = globalThis.fetch;
 
-// A 1x1 red PNG, base64-encoded. Small enough to ship inline.
+// A 1x1 red PNG, base64-encoded.
 const RED_PIXEL_B64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+// OpenRouter's chat-completions image response shape — see
+// apps/agents/src/skills/generate-brand-image.ts. The image is delivered
+// as a `data:image/png;base64,…` URL on choices[0].message.images[0].image_url.url.
+const buildChatImageResponse = (b64: string) =>
+  Response.json({
+    choices: [
+      {
+        message: {
+          content: "",
+          images: [
+            {
+              image_url: { url: `data:image/png;base64,${b64}` },
+              type: "image_url",
+            },
+          ],
+          role: "assistant",
+        },
+      },
+    ],
+  });
 
 const ctx: SkillContext = {
   agentInstanceId: AGENT_INSTANCE_ID,
@@ -36,9 +57,7 @@ afterEach(() => {
 
 describe("generateBrandImage", () => {
   it("uploads to R2, writes an asset row, returns a signed URL", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve(Response.json({ data: [{ b64_json: RED_PIXEL_B64 }] })),
-    );
+    globalThis.fetch = vi.fn(() => Promise.resolve(buildChatImageResponse(RED_PIXEL_B64)));
 
     const result = (await generateBrandImageSkill.execute(
       { aspectRatio: "1:1", prompt: "uma onça pintada estilizada" },
@@ -70,18 +89,22 @@ describe("generateBrandImage", () => {
     expect(result.error).toContain("429");
   });
 
-  it("returns an error when the response is missing b64_json", async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json({ data: [{}] })));
+  it("returns an error when the response has no image content", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          choices: [{ message: { content: "no image here", images: [], role: "assistant" } }],
+        }),
+      ),
+    );
     const result = (await generateBrandImageSkill.execute({ prompt: "x" }, ctx)) as {
       error: string;
     };
-    expect(result.error).toContain("b64_json");
+    expect(result.error).toContain("image_url");
   });
 
   it("dedups on (company_id, sha256) — same bytes return the same asset id", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve(Response.json({ data: [{ b64_json: RED_PIXEL_B64 }] })),
-    );
+    globalThis.fetch = vi.fn(() => Promise.resolve(buildChatImageResponse(RED_PIXEL_B64)));
     const first = (await generateBrandImageSkill.execute({ prompt: "a" }, ctx)) as {
       assetId: string;
     };

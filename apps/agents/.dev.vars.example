@@ -5,3 +5,8 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 # HMAC secret for /assets/:id signed URLs. Generate any 32+ byte hex string:
 #   openssl rand -hex 32
 ASSETS_SIGNING_KEY=replace-me-with-a-random-32-byte-hex-string
+
+# Shared secret with apps/auth for the /api/internal/companies relay.
+# Must match apps/auth INTERNAL_SHARED_SECRET. Rotating breaks org create
+# until both sides are redeployed.
+INTERNAL_SHARED_SECRET=replace-me-with-the-same-value-as-apps-auth

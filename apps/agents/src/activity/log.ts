@@ -93,26 +93,37 @@ const mapActivity = (row: ActivityRow): ActivityEntry => ({
 });
 
 type ListActivityOptions = {
+  before?: number;
   companyId: string;
   limit?: number;
   since?: number;
 };
 
+// Two-axis paging. `since` returns entries at-or-after a floor (the
+// "what's new" subscription) while `before` returns entries strictly older
+// than a ceiling (the "load older" pagination button). Both axes default
+// to absent → unbounded.
 const listActivity = async (
   db: D1Database,
   options: ListActivityOptions,
 ): Promise<ReadonlyArray<ActivityEntry>> => {
   const limit = options.limit ?? 100;
-  const cursor = options.since
-    ? db
-        .prepare(
-          "SELECT * FROM activity_log WHERE company_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT ?",
-        )
-        .bind(options.companyId, options.since, limit)
-    : db
-        .prepare("SELECT * FROM activity_log WHERE company_id = ? ORDER BY created_at DESC LIMIT ?")
-        .bind(options.companyId, limit);
-  const { results } = await cursor.all<ActivityRow>();
+  const clauses: Array<string> = ["company_id = ?"];
+  const params: Array<number | string> = [options.companyId];
+  if (options.since !== undefined) {
+    clauses.push("created_at >= ?");
+    params.push(options.since);
+  }
+  if (options.before !== undefined) {
+    clauses.push("created_at < ?");
+    params.push(options.before);
+  }
+  params.push(limit);
+  const where = clauses.join(" AND ");
+  const { results } = await db
+    .prepare(`SELECT * FROM activity_log WHERE ${where} ORDER BY created_at DESC LIMIT ?`)
+    .bind(...params)
+    .all<ActivityRow>();
   return results.map(mapActivity);
 };
 

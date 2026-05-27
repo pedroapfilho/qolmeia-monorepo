@@ -3,25 +3,15 @@
   "workspaces": {
     "packages": ["apps/*", "packages/*"]
   },
-  "entry": [
-    "oxlint.config.ts",
-    "**/prisma.config.ts",
-    "apps/api/src/lib/vitest-setup.ts",
-    "apps/api/src/soul/soul.ts"
-  ],
+  "entry": ["oxlint.config.ts", "**/prisma.config.ts", "apps/auth/src/lib/vitest-setup.ts"],
   "ignorePatterns": [],
   "ignoreExports": [
     {
-      "file": "apps/api/src/middleware/error-handler.ts",
+      "file": "apps/auth/src/middleware/error-handler.ts",
       "exports": ["isPrismaKnownError"]
     }
   ],
-  "ignoreDependencies": [
-    "pino-pretty",
-    "@prisma/client",
-    "@vitest/coverage-v8",
-    "jsdom"
-  ],
+  "ignoreDependencies": ["pino-pretty", "@prisma/client", "@vitest/coverage-v8", "jsdom"],
   "rules": {
     "unused-dependencies": "warn"
   }

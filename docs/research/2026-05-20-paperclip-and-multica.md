@@ -26,7 +26,7 @@ Both have shipped working systems with thoughtful primitives. Reading their code
 
 ### 2.1 Product positioning
 
-> *"The human control plane for AI labor."*
+> _"The human control plane for AI labor."_
 
 Paperclip lets you build and run autonomous companies. You define a goal ("Build the #1 AI note-taking app to $1M MRR"), hire AI employees (CEO, CTO, engineer, designer, marketer), set per-agent budgets, and the platform runs the company. You sit at the top as a board chair: approve hires, override strategy, pause or terminate any agent.
 
@@ -43,22 +43,22 @@ Self-hosted Node.js. MIT licensed. Embedded Postgres for local dev. One install 
 
 ### 2.3 Core primitives
 
-| Primitive | What it is |
-|---|---|
-| **Company** | A tenant. One Paperclip install runs many. All other data scopes by `companyId`. |
-| **Agent (managed)** | An AI employee with a `role`, `agentKey`, a configured CLI adapter, and a budget. Created either by the operator or by a plugin's `agents.managed` declaration. |
-| **Adapter** | The thing that actually executes an agent run. Spawns the CLI as a child process. Each adapter has `timeoutSec` and `graceSec`. |
-| **Skill** | A capability bundle attached to an agent. Plugins can install skills via `skills.managed`. |
-| **Tool** | Function callable from inside an agent's CLI loop. Plugins declare their tools; the host wires them into the adapter's tool surface. |
-| **Issue** | A unit of work. Plugins create Issues to track operations (e.g. wiki ingest, query session). Has comments and a status. |
-| **Run (`heartbeatRuns`)** | A single execution of an agent. Each Run corresponds to one CLI subprocess invocation. |
-| **Wakeup request (`agentWakeupRequest`)** | A queued ask for the agent to run. Sources: `timer | assignment | on_demand | automation`. |
-| **Heartbeat** | The scheduler that picks up wakeup requests and dispatches Runs. |
-| **Routine** | A scheduled job tied to an agent. Plugins ship them paused; operator enables. |
-| **Project** | Managed by plugins. Groups Issues. (Wiki plugin's "LLM Wiki" project.) |
-| **Folder (mount)** | A local-disk directory the plugin owns. `access: readWrite`. Path-containment + symlink checks enforced by host. |
-| **Database namespace** | Plugin-scoped SQL schema. Migrations applied through host; host rejects migrations that escape the namespace. |
-| **Session (`agentTaskSessions`)** | Conversation continuity for an agent. Keyed by `taskKey` (e.g. `plugin:telegram:session:<chatId>`). Adapters with session support resume across Runs. |
+| Primitive                                 | What it is                                                                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------- | ------------ |
+| **Company**                               | A tenant. One Paperclip install runs many. All other data scopes by `companyId`.                                                                                |
+| **Agent (managed)**                       | An AI employee with a `role`, `agentKey`, a configured CLI adapter, and a budget. Created either by the operator or by a plugin's `agents.managed` declaration. |
+| **Adapter**                               | The thing that actually executes an agent run. Spawns the CLI as a child process. Each adapter has `timeoutSec` and `graceSec`.                                 |
+| **Skill**                                 | A capability bundle attached to an agent. Plugins can install skills via `skills.managed`.                                                                      |
+| **Tool**                                  | Function callable from inside an agent's CLI loop. Plugins declare their tools; the host wires them into the adapter's tool surface.                            |
+| **Issue**                                 | A unit of work. Plugins create Issues to track operations (e.g. wiki ingest, query session). Has comments and a status.                                         |
+| **Run (`heartbeatRuns`)**                 | A single execution of an agent. Each Run corresponds to one CLI subprocess invocation.                                                                          |
+| **Wakeup request (`agentWakeupRequest`)** | A queued ask for the agent to run. Sources: `timer                                                                                                              | assignment | on_demand | automation`. |
+| **Heartbeat**                             | The scheduler that picks up wakeup requests and dispatches Runs.                                                                                                |
+| **Routine**                               | A scheduled job tied to an agent. Plugins ship them paused; operator enables.                                                                                   |
+| **Project**                               | Managed by plugins. Groups Issues. (Wiki plugin's "LLM Wiki" project.)                                                                                          |
+| **Folder (mount)**                        | A local-disk directory the plugin owns. `access: readWrite`. Path-containment + symlink checks enforced by host.                                                |
+| **Database namespace**                    | Plugin-scoped SQL schema. Migrations applied through host; host rejects migrations that escape the namespace.                                                   |
+| **Session (`agentTaskSessions`)**         | Conversation continuity for an agent. Keyed by `taskKey` (e.g. `plugin:telegram:session:<chatId>`). Adapters with session support resume across Runs.           |
 
 ### 2.4 Plugin system
 
@@ -104,6 +104,7 @@ automation  — programmatic, e.g. plugin calling ctx.agents.sessions.sendMessag
 ```
 
 **The on-demand path is real.** `ctx.agents.sessions.sendMessage` from a plugin webhook handler:
+
 1. Creates a session if missing (or resumes existing).
 2. Calls `heartbeat.wakeup` (`heartbeat.ts:8663`).
 3. Inserts an `agentWakeupRequest` + a queued `heartbeatRuns` row.
@@ -122,8 +123,9 @@ automation  — programmatic, e.g. plugin calling ctx.agents.sessions.sendMessag
 Concrete plugin to study. Lives at `packages/plugins/plugin-llm-wiki/`.
 
 **Declares:**
-- A managed agent — *Wiki Maintainer* (`agentKey: wiki-maintainer`, role `knowledge-maintainer`).
-- A managed project — *LLM Wiki* (`projectKey: llm-wiki`) — collects ingest/query operation Issues.
+
+- A managed agent — _Wiki Maintainer_ (`agentKey: wiki-maintainer`, role `knowledge-maintainer`).
+- A managed project — _LLM Wiki_ (`projectKey: llm-wiki`) — collects ingest/query operation Issues.
 - Three paused routines: `cursor-window-processing`, `nightly-wiki-lint`, `index-refresh`.
 - Six managed skills installed on the maintainer: `wiki-maintainer`, `wiki-ingest`, `wiki-query`, `wiki-lint`, `paperclip-distill`, `index-refresh`.
 - A folder mount (`folderKey: wiki-root`, access `readWrite`).
@@ -176,7 +178,7 @@ Per-agent monthly budget. Hard stop on budget hit (Paperclip) vs. soft-warn (our
 
 ### 3.1 Product positioning
 
-> *"The open-source managed agents platform. Turn coding agents into real teammates — assign tasks, track progress, compound skills."*
+> _"The open-source managed agents platform. Turn coding agents into real teammates — assign tasks, track progress, compound skills."_
 
 Multica is Linear, but the assignee dropdown includes AI agents. Issues get assigned to either a human or an agent CLI; agents stream progress in real time, raise blockers, and ship code. Apache 2.0. Self-hosted via `docker compose up`.
 
@@ -197,26 +199,26 @@ Target users: 2–10 person engineering teams adding coding agents as teammates.
 
 ### 3.3 Core primitives
 
-| Primitive | What it is |
-|---|---|
-| **Workspace** | The tenant. Every other row carries `workspace_id`. Multi-tenancy is enforced at the column level, not the schema level. |
-| **Member** | A human or agent participant in a workspace. Authors, assignees, and actors all reference Members. |
-| **Issue** | The unit of work. Title, description, status, assignee, comments, related issues, acceptance criteria. Linear-shaped. |
-| **Agent** | A configured AI worker. Has a CLI binding (Claude Code, Codex, Cursor, Copilot, Gemini, OpenClaw, OpenCode, Hermes, Pi, Kimi, Kiro). |
-| **Runtime** | A compute environment that executes agent tasks. Daemon (local machine) or cloud. Each Runtime reports which agent CLIs are available so Multica knows where to route work. |
-| **Task** | A scheduled execution of an Agent against an Issue. Lifecycle: `queued → claimed → running → completed/failed`. |
-| **Skill** | A reusable capability bundle (code, config, context). Attached to agents explicitly via the `agent_skill` join. |
-| **Squad** | A group of agents (and humans) under a leader. Work assigned to the squad; the leader routes. Keeps assignment stable as the team grows. |
-| **Inbox** | A per-member notification queue. |
-| **Activity log** | Append-only audit trail of who did what. |
-| **Comment** | Threaded working memory on an Issue during execution. |
-| **Workspace context** | A shared prompt every agent inherits at the workspace level. |
+| Primitive             | What it is                                                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Workspace**         | The tenant. Every other row carries `workspace_id`. Multi-tenancy is enforced at the column level, not the schema level.                                                    |
+| **Member**            | A human or agent participant in a workspace. Authors, assignees, and actors all reference Members.                                                                          |
+| **Issue**             | The unit of work. Title, description, status, assignee, comments, related issues, acceptance criteria. Linear-shaped.                                                       |
+| **Agent**             | A configured AI worker. Has a CLI binding (Claude Code, Codex, Cursor, Copilot, Gemini, OpenClaw, OpenCode, Hermes, Pi, Kimi, Kiro).                                        |
+| **Runtime**           | A compute environment that executes agent tasks. Daemon (local machine) or cloud. Each Runtime reports which agent CLIs are available so Multica knows where to route work. |
+| **Task**              | A scheduled execution of an Agent against an Issue. Lifecycle: `queued → claimed → running → completed/failed`.                                                             |
+| **Skill**             | A reusable capability bundle (code, config, context). Attached to agents explicitly via the `agent_skill` join.                                                             |
+| **Squad**             | A group of agents (and humans) under a leader. Work assigned to the squad; the leader routes. Keeps assignment stable as the team grows.                                    |
+| **Inbox**             | A per-member notification queue.                                                                                                                                            |
+| **Activity log**      | Append-only audit trail of who did what.                                                                                                                                    |
+| **Comment**           | Threaded working memory on an Issue during execution.                                                                                                                       |
+| **Workspace context** | A shared prompt every agent inherits at the workspace level.                                                                                                                |
 
 ### 3.4 Memory model
 
 This is the part worth pulling carefully. Multica deliberately chose **explicit attachment over vector retrieval** for skills:
 
-> *"Skills aren't retrieved by similarity. They're attached to agents explicitly through `agent_skill` rows."*
+> _"Skills aren't retrieved by similarity. They're attached to agents explicitly through `agent_skill` rows."_
 
 Six tables form the memory architecture:
 
@@ -263,24 +265,24 @@ WebSocket-driven. Tasks stream progress as they run. The web frontend uses React
 
 ## 4. Side-by-side comparison
 
-| Axis | Paperclip | Multica | Qolmeia (current spec) |
-|---|---|---|---|
-| Tagline | Human control plane for AI labor | Coding agents as teammates | AI agency that talks to businesses |
-| Tenant | Company | Workspace | Organization |
-| Worker | Managed Agent | Agent | AgentInstance |
-| Work unit | Issue + Run | Issue + Task | AgentAction |
-| Skill model | Bundled per agent via `skills.managed` | Joined via `agent_skill` | `Skill` table, attached via Template / per-instance overrides |
-| Hierarchy | Org chart (role + reporting) | Squad with leader | `canDelegateTo` DAG |
-| Trigger | Timer, assignment, on_demand, automation | Issue assignment | Inbound webhook → `AgentAction.draftAction` |
-| Execution | CLI subprocess (host-spawned) | Daemon claim (user-machine-spawned) | In-process AI SDK `generateText` |
-| Streaming | Host event bus → `onEvent` | WebSocket | None yet (would be Phase 6+) |
-| Memory | Sessions per `taskKey`, project Issues | `agent_task_queue.context` JSONB snapshots | `Organization.businessProfile` + `AgentInstance.mission` |
-| Cost | Per-agent budget, hard stop | Not foregrounded | Per-AgentAction tokens, soft-warn at 80/100% |
-| Governance | Board approves hires + overrides | None foregrounded | `AgentAction.DRAFTED` approval queue |
-| Plugin system | First-class | None | None |
-| Channels | None | None | First-class (`ConnectorInstance`, `AgentConnectorBinding`) |
-| Stack | Node.js | Go + Next.js + Electron | Node.js (Hono) + Next.js (future) |
-| License | MIT | Apache 2.0 | Proprietary |
+| Axis          | Paperclip                                | Multica                                    | Qolmeia (current spec)                                        |
+| ------------- | ---------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| Tagline       | Human control plane for AI labor         | Coding agents as teammates                 | AI agency that talks to businesses                            |
+| Tenant        | Company                                  | Workspace                                  | Organization                                                  |
+| Worker        | Managed Agent                            | Agent                                      | AgentInstance                                                 |
+| Work unit     | Issue + Run                              | Issue + Task                               | AgentAction                                                   |
+| Skill model   | Bundled per agent via `skills.managed`   | Joined via `agent_skill`                   | `Skill` table, attached via Template / per-instance overrides |
+| Hierarchy     | Org chart (role + reporting)             | Squad with leader                          | `canDelegateTo` DAG                                           |
+| Trigger       | Timer, assignment, on_demand, automation | Issue assignment                           | Inbound webhook → `AgentAction.draftAction`                   |
+| Execution     | CLI subprocess (host-spawned)            | Daemon claim (user-machine-spawned)        | In-process AI SDK `generateText`                              |
+| Streaming     | Host event bus → `onEvent`               | WebSocket                                  | None yet (would be Phase 6+)                                  |
+| Memory        | Sessions per `taskKey`, project Issues   | `agent_task_queue.context` JSONB snapshots | `Organization.businessProfile` + `AgentInstance.mission`      |
+| Cost          | Per-agent budget, hard stop              | Not foregrounded                           | Per-AgentAction tokens, soft-warn at 80/100%                  |
+| Governance    | Board approves hires + overrides         | None foregrounded                          | `AgentAction.DRAFTED` approval queue                          |
+| Plugin system | First-class                              | None                                       | None                                                          |
+| Channels      | None                                     | None                                       | First-class (`ConnectorInstance`, `AgentConnectorBinding`)    |
+| Stack         | Node.js                                  | Go + Next.js + Electron                    | Node.js (Hono) + Next.js (future)                             |
+| License       | MIT                                      | Apache 2.0                                 | Proprietary                                                   |
 
 ---
 
@@ -298,16 +300,16 @@ Five buckets:
 
 These are present; nothing to do.
 
-| Concept | Where in Phase 5 spec |
-|---|---|
-| Multi-tenant by tenant ID | `Organization` is the tenant; every other table carries `orgId`. Same shape as Multica's `workspace_id`. |
-| Managed agent + skill model | `AgentTemplate` + `AgentInstance` + `Skill` + per-template skill attachment. |
-| Per-agent budget | `AgentInstance.budgetCents` + soft-warn rollup. |
-| Approval queue | `AgentAction.DRAFTED → APPROVED/REJECTED/EDITED`. |
-| Delegation DAG | `AgentTemplate.canDelegateTo` with cycle check. |
-| Per-action provenance | `AgentAction.proposedInput`, `proposedSummary`, `triggerMessageId`, `parentActionId`. |
-| Approval rule with sender role | `ConnectorInstance.senderRole` × `Skill.requiresApprovalDefault`. |
-| Cost per action | `AgentAction.costCents/costInputTokens/costOutputTokens`. |
+| Concept                        | Where in Phase 5 spec                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Multi-tenant by tenant ID      | `Organization` is the tenant; every other table carries `orgId`. Same shape as Multica's `workspace_id`. |
+| Managed agent + skill model    | `AgentTemplate` + `AgentInstance` + `Skill` + per-template skill attachment.                             |
+| Per-agent budget               | `AgentInstance.budgetCents` + soft-warn rollup.                                                          |
+| Approval queue                 | `AgentAction.DRAFTED → APPROVED/REJECTED/EDITED`.                                                        |
+| Delegation DAG                 | `AgentTemplate.canDelegateTo` with cycle check.                                                          |
+| Per-action provenance          | `AgentAction.proposedInput`, `proposedSummary`, `triggerMessageId`, `parentActionId`.                    |
+| Approval rule with sender role | `ConnectorInstance.senderRole` × `Skill.requiresApprovalDefault`.                                        |
+| Cost per action                | `AgentAction.costCents/costInputTokens/costOutputTokens`.                                                |
 
 ### 5.2 Pull into Phase 5b–5i (no new spec needed)
 

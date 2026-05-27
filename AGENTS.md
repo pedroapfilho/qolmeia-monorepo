@@ -5,80 +5,131 @@ This file provides guidance to AI coding agents when working with code in this r
 ## Commands
 
 ```bash
-# Development (runs the API via Turborepo)
-pnpm dev                          # start the api
-pnpm dev --filter=api             # explicit filter (same result)
+# Development
+pnpm dev                                 # turbo runs all four apps in parallel
+pnpm dev --filter=auth                   # auth service (Hono, :4000)
+pnpm dev --filter=qolmeia-agents         # Cloudflare Worker (wrangler dev, :8787)
+pnpm dev --filter=client                 # customer app (Next.js, :3001)
+pnpm dev --filter=backoffice             # operator panel (Next.js, :3000)
 
 # Build / Lint / Typecheck
-pnpm build                        # all packages + app (turbo cached)
-pnpm lint                         # oxlint across all packages
-pnpm typecheck                    # tsc --noEmit across all packages
+pnpm build                        # all packages + apps (turbo cached)
+pnpm lint                         # oxlint
+pnpm typecheck                    # tsc --noEmit + wrangler types for agents
 pnpm format                       # oxfmt (write)
 pnpm format:check                 # oxfmt (check only, used in CI)
 
 # Testing
-pnpm test                         # vitest unit tests
+pnpm test                         # vitest unit tests across all packages
 
-# Database (Prisma, schema in packages/db/prisma/schema.prisma)
+# Database (Prisma — used only by the auth service; agents Worker uses D1)
 pnpm db:generate                  # generate Prisma client
-pnpm db:push                      # push schema to database
+pnpm db:push                      # push schema to Postgres
 ```
 
 ## Architecture
 
-**Monorepo** managed by pnpm workspaces + Turborepo. Node 24, pnpm 10.
+Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration from a Node/Postgres/Redis monolith to a Cloudflare-native runtime — current state below.
 
 ### Apps
 
-| App   | Framework                | Dev URL                         | Purpose                               |
-| ----- | ------------------------ | ------------------------------- | ------------------------------------- |
-| `api` | Hono on Node.js (tsdown) | `http://localhost:4000` | Backend API, Telegram webhook + soul pipeline |
+| Folder            | Package name     | Framework         | Dev URL                 | Audience                                                                                                                            |
+| ----------------- | ---------------- | ----------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/auth`       | `auth`           | Hono on Node 24   | `http://localhost:4000` | Auth service — `/api/auth/*` (Better Auth) + `/api/v1/me` (relay target).                                                           |
+| `apps/agents`     | `qolmeia-agents` | Cloudflare Worker | `http://localhost:8787` | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`). |
+| `apps/client`     | `client`         | Next.js 16        | `http://localhost:3001` | End-customer chat surface — CUSTOMER role.                                                                                          |
+| `apps/backoffice` | `backoffice`     | Next.js 16        | `http://localhost:3000` | Operator panel — OWNER/STAFF roles.                                                                                                 |
+
+### Key runtime moves (P1–P7)
+
+- **Per-tenant agents are Durable Objects**: `CorrespondentAgent`, `WorkerAgent`, `PlannerAgent` (one DO instance per company id).
+- **Approvals run on Workflows**: every Worker job spawns a `WorkerJobWorkflow`; gated actions pause on `waitForEvent("decision:<actionId>")` until an operator decides via `/api/backoffice/actions/:id/decide`.
+- **D1 is the system of record for product data**: `company`, `ticket`, `action`, `activity_log`, `agent_instance`, `template`, `skill`, `team`, `team_member`, `memory_fact`, `connector`, `webhook_event`, `asset`. Schema in `apps/agents/migrations/*.sql`.
+- **R2 holds binary assets** (`ASSETS` binding), served via HMAC-signed URLs from `/assets/:id`.
+- **KV holds connector secrets** (`CONNECTOR_SECRETS` binding) so Telegram/etc. configs don't sit in env vars.
+- **Postgres remains** for Better Auth's tables only. Legacy product models still exist in `packages/db/prisma/schema.prisma` but are unused by `agents`.
 
 ### Packages
 
-| Package                   | Purpose                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `@repo/db`                | Prisma client singleton + schema.                                         |
-| `@repo/config-vitest`     | Shared Vitest config. Exports `node.ts` config.                           |
-| `@repo/typescript-config` | Shared tsconfig bases: `server.json`.                                     |
+| Package                   | Purpose                                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `@repo/auth`              | `createAuth` factory wrapping Better Auth (magic-link + email/password). Consumed by `auth`, `backoffice`, `client`. |
+| `@repo/db`                | Prisma client singleton + schema (auth-only domain).                                                                 |
+| `@repo/transactional`     | React Email templates + Resend sender.                                                                               |
+| `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps.                                        |
+| `@repo/config-vitest`     | Shared Vitest config.                                                                                                |
+| `@repo/typescript-config` | Shared tsconfig bases.                                                                                               |
 
-### Key Relationships
+### The canonical E2E flow
 
-- **API structure**: Hono app with versioned routes (`/api/v1/*`), health at `/healthz` and `/readyz`, OpenAPI at `/openapi.json`, Scalar UI at `/docs`, LLM text at `/llms.txt`.
-- **Build order**: Turborepo handles `^build` dependencies — packages build before the app.
+1. **Sign-up / magic-link** — Better Auth on `apps/auth` issues a cookie scoped to `localhost`.
+2. **Client opens** — `requireCustomer` → `apps/agents/api/me` (relays to `apps/auth/api/v1/me` for membership).
+3. **status === "onboarding"** — chat against `/agents/planner/<companyId>`. Planner calls `extractBrief` and `proposeTeam`, then surfaces a "Confirmar Time" button.
+4. **Customer confirms** — `POST /api/teams/:companyId/confirm` materialises `team` + `team_member`, flips `company.status = 'active'`, and seeds Correspondent memory.
+5. **status === "active"** — chat against `/agents/correspondent/<companyId>`. Correspondent uses `delegateToWorker` to spawn child tickets; Worker DO instantiates a `WorkerJobWorkflow`.
+6. **Workflow proposes a `require-approval` action** — injects a 🟡 message via Correspondent, then `waitForEvent("decision:<actionId>")`.
+7. **Operator on `apps/backoffice`** — `requireStaff` → `/approvals` lists pending oldest-first → `/approvals/:id` shows the decide form → POST `/api/backoffice/actions/:id/decide` resumes the Workflow.
+8. **Workflow executes** — side-effect (e.g. `generateBrandImage` → R2 → signed URL) → marks the action `executed` and ticket `done` → Correspondent renders the result in chat (markdown, so images appear inline).
 
 ## Tooling
 
-- **Linter**: oxlint (NOT ESLint). Config in `.oxlintrc.json`. Uses `oxlint-config-awesomeness`.
+- **Linter**: oxlint (NOT ESLint). Config in `.oxlintrc.json`.
 - **Formatter**: oxfmt (NOT Prettier). Config in `.oxfmtrc.json`. Sorts imports.
-- **Pre-commit**: Husky + lint-staged runs `oxlint` (on `.ts,.tsx,.js,.jsx` files) and `oxfmt` (on `.ts,.tsx,.js,.jsx,.json,.md` files).
-- **Testing**: Vitest for unit tests. `@repo/config-vitest` exports `node.ts` config.
-- **Bundler (api)**: tsdown (not tsc). Outputs to `dist/`.
-
-## CI
-
-GitHub Actions workflows are not yet set up. Run `pnpm test`, `pnpm lint`, `pnpm format:check`, and `pnpm fallow:dead` locally before merging.
-
-## Prisma
-
-`prisma.config.ts` uses `process.env.DATABASE_URL ?? ""` (not `env("DATABASE_URL")`) so `prisma generate` works in CI without database credentials.
+- **Pre-commit**: Husky + lint-staged runs `oxlint` + `oxfmt`.
+- **Testing**: Vitest. `apps/agents` uses `@cloudflare/vitest-pool-workers` against Miniflare.
+- **Bundler (auth)**: tsdown. **Bundler (agents)**: wrangler.
 
 ## Environment
 
-Copy `apps/api/.env.example` to `apps/api/.env`. The API is the only app with env vars. Key variables:
+Each app has its own `.env.example`:
 
-- `DATABASE_URL` — PostgreSQL connection string
-- `NODE_ENV` / `PORT` / `HOST` — server config
-- `CORS_ORIGINS` — comma-separated allowed origins (defaults to `*`)
-- `REDIS_URL` — Redis connection string
-- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / `TELEGRAM_WEBHOOK_SECRET_TOKEN` — Telegram bot
-- `AI_GATEWAY_API_KEY` — Vercel AI Gateway key
-- `R2_ACCOUNT_ID` / `R2_BUCKET` / `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_REGION` — Cloudflare R2 (Phase 3)
+- **apps/auth** — `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit — Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
+- **apps/agents** — `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
+- **apps/client** — `NEXT_PUBLIC_AGENTS_URL`, `NEXT_PUBLIC_AUTH_URL`, `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma).
+- **apps/backoffice** — same as client.
 
-`.env` files are git-ignored; only `.env.example` is committed.
+`.env` files are git-ignored; `.env.example` is committed.
+
+## Local development
+
+Bring the stack up (assumes envs are copied from each `.env.example`):
+
+```bash
+# 1. Postgres on :5436 (Redis on :6382 is unused but still in compose)
+docker compose up -d
+
+# 2. Push the auth-only Prisma schema
+DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
+  pnpm --filter=@repo/db db:push
+
+# 3. Seed Postgres — creates the dev org + OWNER + CUSTOMER users (idempotent)
+pnpm --filter=auth exec tsx src/scripts/seed-dev.ts
+
+# 4. Apply D1 migrations + seed the company row, Correspondent + Designer worker
+cd apps/agents
+pnpm wrangler d1 migrations apply qolmeia-agents --local
+pnpm wrangler d1 execute qolmeia-agents --local --file scripts/seed-p2.sql
+pnpm wrangler d1 execute qolmeia-agents --local --file scripts/seed-p3-team.sql
+cd -
+
+# 5. Run all four apps (or one per terminal with --filter)
+pnpm dev
+```
+
+**Seeded dev credentials** (created by `apps/auth/src/scripts/seed-dev.ts`):
+
+| Surface                              | Role     | Email                  | Password                    |
+| ------------------------------------ | -------- | ---------------------- | --------------------------- |
+| Backoffice — `http://localhost:3000` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
+| Client — `http://localhost:3001`     | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
+
+The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`) so it matches the D1 seed in `apps/agents/scripts/seed-p2.sql`. The client login is magic-link only; the password above only works on the backoffice. Watch `apps/auth` logs for the magic link in dev.
 
 ## Conventions
 
-- Path aliases: `@/*` maps to `src/*` in the api and packages.
-- API routes are versioned under `/api/v1/`.
-- Turbo caches are sensitive to `DATABASE_URL`, `REDIS_URL`, `TELEGRAM_BOT_TOKEN`, and `NODE_ENV`.
+- Path aliases: `@/*` → `src/*` in every app + package.
+- pt-BR is the user-facing locale across agents, backoffice, and client.
+- Activity-log `type` strings are stable and free-form; the backoffice categorises by prefix (`ACTION_*`, `TICKET_*`, `WORKER_*`, `TEAM_*`, `MEMBER_*`).
+- Operator REST lives at `apps/agents/api/backoffice/*` (OWNER/STAFF only). Customer REST at `apps/agents/api/me/*` and `apps/agents/api/teams/*`.
+- Agent paths at `/agents/<name>/<companyId>` are gated to CUSTOMER role. Operators don't open WebSockets to a DO; they call REST.
+- Turbo caches: be conscious that `apps/agents` reads `wrangler.jsonc` vars at build time.

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Lift the P1 walking skeleton to be (1) **multi-tenant-ready** in the code path — the Correspondent DO is keyed by the customer's real org id resolved from session membership, not a hard-coded `p1-demo-company`; (2) **properly gated** — the Worker enforces CUSTOMER role/membership against the auth service, not just "is a logged-in user"; (3) **memory-bearing** — every turn assembles context from a recent-turns buffer (always-in-context) plus semantic recall (top-K from a vector store), and two skills (`rememberFact`, `recallMemory`) let the model write and search durable facts. P5's onboarding then adds *new* companies to a code path that is already multi-tenant — no refactor.
+**Goal:** Lift the P1 walking skeleton to be (1) **multi-tenant-ready** in the code path — the Correspondent DO is keyed by the customer's real org id resolved from session membership, not a hard-coded `p1-demo-company`; (2) **properly gated** — the Worker enforces CUSTOMER role/membership against the auth service, not just "is a logged-in user"; (3) **memory-bearing** — every turn assembles context from a recent-turns buffer (always-in-context) plus semantic recall (top-K from a vector store), and two skills (`rememberFact`, `recallMemory`) let the model write and search durable facts. P5's onboarding then adds _new_ companies to a code path that is already multi-tenant — no refactor.
 
 **Architecture:** The full §5.1 schema lands in D1 (catalog and ticket/action tables remain unused until P3/P4 but the shape is in place). The session validator hits `apps/api`'s `/api/v1/me` with a Bearer token, resolves `{ userId, companyId, role }`, and rejects anything that isn't CUSTOMER on agent paths. The memory layer is a `MemoryAdapter` interface with two implementations: **production** (Workers AI `@cf/baai/bge-m3` for embeddings + Vectorize for storage/recall) and **local-dev** (an in-memory cosine-similarity store), selected by env. Each agent gets a recent-turns buffer in its DO SQLite — the always-in-context window the SDK reads on reconnect — plus a semantic recall step that fires at turn start. `MemoryAdapter` mirrors `getModel`'s "Cloudflare prod / local dev" split (P1's spine for the "Cloudflare-first, not only" principle).
 
@@ -13,6 +13,7 @@
 **Out of scope:** the catalog/skills D1 overlay (P3 — code registry is in scope here, the D1 `skill` table is not), Worker agents and delegation (P3), Workflows + approval loop (P4), onboarding (P5), more connectors (P6).
 
 **Two architectural calls baked into this plan** (open for review before T1):
+
 1. **Memory uses an adapter with a dev backend** — local dev stays Cloudflare-account-free. Same shape as `getModel`'s OpenRouter-direct fallback.
 2. **Multi-tenant code path, single-tenant data** — DO name resolves from real membership; we seed one company whose id equals the auth org id.
 
@@ -20,27 +21,27 @@
 
 ## File map (what every task touches)
 
-| File | Tasks | Responsibility |
-|------|-------|----------------|
-| `apps/agents/migrations/0002_p2_full_schema.sql` (new) | 2 | Extend D1 with team / agent_instance / connector / conversation extensions / ticket / action / asset / memory_fact / activity_log (per §5.1) — catalog tables included; left unused until P3 |
-| `apps/agents/scripts/seed-p2.sql` (new) | 3 | Re-seed company with the real auth org id; supersedes `seed-p1.sql` |
-| `apps/agents/src/db/schema.ts` | 2, 11 | Typed row shapes + query helpers for the new tables and `memory_fact` |
-| `apps/agents/src/lib/auth.ts` | 4 | Validator returns `{ userId, companyId, role }` from `/api/v1/me`; not just "is a logged-in user" |
-| `apps/agents/src/lib/membership.ts` (new) | 4 | Typed parse of the `/api/v1/me` response (zod) |
-| `apps/agents/src/index.ts` | 5 | CUSTOMER role guard on agent paths; resolved company id put on request context |
-| `apps/agents/src/agents/correspondent.ts` | 6, 8, 10 | DO no longer references `P1_COMPANY_ID`; reads its company id from `this.name` (set by `routeAgentRequest`); memory wired into `onChatMessage` |
-| `apps/agents/src/lib/memory/adapter.ts` (new) | 7 | `MemoryAdapter` interface — `embed`, `upsert`, `retrieve` |
-| `apps/agents/src/lib/memory/in-memory.ts` (new) | 7 | Cosine-similarity dev/test backend |
-| `apps/agents/src/lib/memory/vectorize.ts` (new) | 8 | Workers AI embed + Vectorize upsert/query backend |
-| `apps/agents/src/lib/memory/index.ts` (new) | 7, 8 | `getMemoryAdapter(env)` — selects backend based on bindings |
-| `apps/agents/src/agents/recent-turns.ts` (new) | 9 | DO-SQLite-backed recent-turns buffer (the always-in-context window) |
-| `apps/agents/src/skills/registry.ts` (new) | 11 | Typed skill module pattern; export `ALL_SKILLS` |
-| `apps/agents/src/skills/remember-fact.ts` (new) | 11 | `rememberFact` skill — writes a structured fact (D1 + memory adapter) |
-| `apps/agents/src/skills/recall-memory.ts` (new) | 11 | `recallMemory` skill — semantic search over the agent's memory |
-| `apps/agents/wrangler.jsonc` | 2, 8 | New bindings: `AI` (Workers AI), `VECTORIZE` (Vectorize index) |
-| `apps/agents/src/__tests__/*.test.ts` (new) | 12 | Schema migrations · session validator · role guard · in-memory adapter · DO with memory · skills |
-| `apps/client/src/components/chat.tsx` | 5 | `name` prop on `useAgent` becomes the real org id (passed from server) |
-| `apps/client/src/app/(client)/page.tsx` | 5 | Server component passes the user's membership company id alongside the session token |
+| File                                                   | Tasks    | Responsibility                                                                                                                                                                               |
+| ------------------------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/agents/migrations/0002_p2_full_schema.sql` (new) | 2        | Extend D1 with team / agent_instance / connector / conversation extensions / ticket / action / asset / memory_fact / activity_log (per §5.1) — catalog tables included; left unused until P3 |
+| `apps/agents/scripts/seed-p2.sql` (new)                | 3        | Re-seed company with the real auth org id; supersedes `seed-p1.sql`                                                                                                                          |
+| `apps/agents/src/db/schema.ts`                         | 2, 11    | Typed row shapes + query helpers for the new tables and `memory_fact`                                                                                                                        |
+| `apps/agents/src/lib/auth.ts`                          | 4        | Validator returns `{ userId, companyId, role }` from `/api/v1/me`; not just "is a logged-in user"                                                                                            |
+| `apps/agents/src/lib/membership.ts` (new)              | 4        | Typed parse of the `/api/v1/me` response (zod)                                                                                                                                               |
+| `apps/agents/src/index.ts`                             | 5        | CUSTOMER role guard on agent paths; resolved company id put on request context                                                                                                               |
+| `apps/agents/src/agents/correspondent.ts`              | 6, 8, 10 | DO no longer references `P1_COMPANY_ID`; reads its company id from `this.name` (set by `routeAgentRequest`); memory wired into `onChatMessage`                                               |
+| `apps/agents/src/lib/memory/adapter.ts` (new)          | 7        | `MemoryAdapter` interface — `embed`, `upsert`, `retrieve`                                                                                                                                    |
+| `apps/agents/src/lib/memory/in-memory.ts` (new)        | 7        | Cosine-similarity dev/test backend                                                                                                                                                           |
+| `apps/agents/src/lib/memory/vectorize.ts` (new)        | 8        | Workers AI embed + Vectorize upsert/query backend                                                                                                                                            |
+| `apps/agents/src/lib/memory/index.ts` (new)            | 7, 8     | `getMemoryAdapter(env)` — selects backend based on bindings                                                                                                                                  |
+| `apps/agents/src/agents/recent-turns.ts` (new)         | 9        | DO-SQLite-backed recent-turns buffer (the always-in-context window)                                                                                                                          |
+| `apps/agents/src/skills/registry.ts` (new)             | 11       | Typed skill module pattern; export `ALL_SKILLS`                                                                                                                                              |
+| `apps/agents/src/skills/remember-fact.ts` (new)        | 11       | `rememberFact` skill — writes a structured fact (D1 + memory adapter)                                                                                                                        |
+| `apps/agents/src/skills/recall-memory.ts` (new)        | 11       | `recallMemory` skill — semantic search over the agent's memory                                                                                                                               |
+| `apps/agents/wrangler.jsonc`                           | 2, 8     | New bindings: `AI` (Workers AI), `VECTORIZE` (Vectorize index)                                                                                                                               |
+| `apps/agents/src/__tests__/*.test.ts` (new)            | 12       | Schema migrations · session validator · role guard · in-memory adapter · DO with memory · skills                                                                                             |
+| `apps/client/src/components/chat.tsx`                  | 5        | `name` prop on `useAgent` becomes the real org id (passed from server)                                                                                                                       |
+| `apps/client/src/app/(client)/page.tsx`                | 5        | Server component passes the user's membership company id alongside the session token                                                                                                         |
 
 ---
 
@@ -70,6 +71,7 @@ Record the id (the org `qolmeia-dev` is the existing dev tenant — its id becom
 - [ ] **Step 4: Confirm the two baked-in architectural calls**
 
 Either proceed (calls in §intro stand) or amend the plan before T2. Specifically:
+
 - Memory uses an adapter with a dev backend (no Cloudflare account required for local dev).
 - DO name = real membership company id in the code path; data still single-tenant.
 
@@ -136,7 +138,7 @@ Zod schema for the `/api/v1/me` response (`{ user: {...}, currentOrg: { id, slug
 
 - [ ] **Step 2: Rewrite `validateSession` to return `{ userId, companyId, role }`**
 
-It still takes the `cf_session` token (Bearer) or forwarded cookie, but now hits `/api/v1/me` (not `/api/auth/get-session`) — `/api/v1/me` is the project's resolved-membership endpoint and the *one* shape the Worker should depend on. Returns `null` for unauthenticated, network error, or non-CUSTOMER role.
+It still takes the `cf_session` token (Bearer) or forwarded cookie, but now hits `/api/v1/me` (not `/api/auth/get-session`) — `/api/v1/me` is the project's resolved-membership endpoint and the _one_ shape the Worker should depend on. Returns `null` for unauthenticated, network error, or non-CUSTOMER role.
 
 > **Note:** `/api/v1/me` currently uses `requireAnyMember` (cookie-based). Verify it also accepts Bearer auth (Better Auth's bearer plugin is loaded — should work out of the box). If it doesn't, the smallest unblock is to add an explicit Bearer header pass-through in this T4 step rather than touch `apps/api`.
 
@@ -207,7 +209,7 @@ The adapter owns the embedding call so callers don't care which embedding model 
 
 - [ ] **Step 2: Implement `in-memory.ts`**
 
-A simple class holding `Map<agentInstanceId, MemoryRecord[]>` with cosine similarity over a small deterministic embedding (e.g. character n-grams or a tiny hash-based bag-of-words). The point isn't recall *quality* in dev — it's running the *code path* without a Cloudflare account. Tests use this same adapter.
+A simple class holding `Map<agentInstanceId, MemoryRecord[]>` with cosine similarity over a small deterministic embedding (e.g. character n-grams or a tiny hash-based bag-of-words). The point isn't recall _quality_ in dev — it's running the _code path_ without a Cloudflare account. Tests use this same adapter.
 
 - [ ] **Step 3: Implement `index.ts` — selector**
 
@@ -264,6 +266,7 @@ A small module that reads/writes a `recent_turns` table on `this.sql` (per-agent
 - [ ] **Step 2: Wire `onChatMessage` to memory**
 
 In `CorrespondentAgent.onChatMessage`, before calling `streamText`:
+
 - Persist the inbound user turn to D1 (already does this) + `appendTurn` + `memory.upsert({ kind: "message", ... })`.
 - Build the model `messages` array as: system prompt + retrieved facts (top-K from `memory.retrieve(query=latestUserText)`) as a context block + last N recent turns (`getRecentTurns`). Do **not** feed all of `this.messages` — that's the dual-storage trap; the SDK persists for client history, but the model context is now built by us.
 - After the stream completes (in `onFinish`), append the assistant turn to D1 + recent-turns + `memory.upsert({ kind: "message", ... })`.
@@ -356,7 +359,7 @@ Push `feat/p2-schema-auth-memory`. Title: `P2 — Schema, Auth, Memory`. Body li
 
 - [ ] **Step 4: Cloudflare-account checklist for deploy** (analogous to P1's T9, not blocking the PR)
 
-To run with the *production* memory backend later, the operator will need to (from `apps/agents/`):
+To run with the _production_ memory backend later, the operator will need to (from `apps/agents/`):
 
 ```
 ! wrangler vectorize create qolmeia-memory --dimensions=1024 --metric=cosine
@@ -372,8 +375,8 @@ To run with the *production* memory backend later, the operator will need to (fr
 ## Risks + things to watch in P2
 
 - **Bearer auth at `/api/v1/me`** — the route was built for cookies. If the bearer plugin doesn't cover it out of the box, T4 grows by one step (Worker forwards Bearer to a dedicated lightweight endpoint, OR `apps/api` middleware is widened to accept Bearer). Sanity-test this in T1 by curl'ing `/api/v1/me` with `Authorization: Bearer <token>`.
-- **Local-dev embedding model quality** — the in-memory backend's "embedding" is intentionally crude. Recall *quality* in dev is bad; recall *plumbing* works. Don't read into bad dev recall — verify recall on a deploy.
+- **Local-dev embedding model quality** — the in-memory backend's "embedding" is intentionally crude. Recall _quality_ in dev is bad; recall _plumbing_ works. Don't read into bad dev recall — verify recall on a deploy.
 - **Per-agent isolation in Vectorize** — metadata filter on `agentInstanceId`. Get the metadata schema right at upsert time; queries that forget the filter would leak across agents. T7 Step 2 must include the filter.
-- **`recent-turns` table on DO SQLite vs `AIChatAgent.messages`** — both store turns. They serve different purposes: `AIChatAgent.messages` is the SDK's history for the client (reconnect, history-on-mount); our `recent_turns` is the *model-context window*. Keep them in sync but don't conflate them.
-- **The seed tenancy choice locks the local D1 to the *current* auth org** — if the local Postgres is wiped and reseeded with a new org id, the local D1 needs the same reseed. P5 makes both dynamic; until then this is a manual co-dependency worth flagging in `LOCAL_DEV.md`.
+- **`recent-turns` table on DO SQLite vs `AIChatAgent.messages`** — both store turns. They serve different purposes: `AIChatAgent.messages` is the SDK's history for the client (reconnect, history-on-mount); our `recent_turns` is the _model-context window_. Keep them in sync but don't conflate them.
+- **The seed tenancy choice locks the local D1 to the _current_ auth org** — if the local Postgres is wiped and reseeded with a new org id, the local D1 needs the same reseed. P5 makes both dynamic; until then this is a manual co-dependency worth flagging in `LOCAL_DEV.md`.
 - **Vectorize index dimensions** — `bge-m3` is 1024-dim. The `vectorize create` command in the deploy checklist hard-codes that; if the embedding model changes later, the index has to be recreated.

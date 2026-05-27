@@ -55,4 +55,35 @@ describe("GET /api/me (P7.0 relay)", () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer THE_TOKEN");
   });
+
+  it("serves the second call from KV cache (X-Cache: hit, no second fetch)", async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve(Response.json(fullMe)));
+    globalThis.fetch = fetchSpy as typeof globalThis.fetch;
+
+    const first = await SELF.fetch("https://agents.test/api/me?cf_session=CACHE_TOK");
+    expect(first.status).toBe(200);
+    expect(first.headers.get("X-Cache")).toBe("miss");
+
+    const second = await SELF.fetch("https://agents.test/api/me?cf_session=CACHE_TOK");
+    expect(second.status).toBe(200);
+    expect(second.headers.get("X-Cache")).toBe("hit");
+    const body = (await second.json()) as typeof fullMe;
+    expect(body.user.email).toBe("u@x.com");
+
+    // Cache hit must NOT re-invoke fetch — Better Auth's rate-limit hot path
+    // is exactly what the KV cache exists to protect.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT cache non-OK responses (401 from auth service, second call refetches)", async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response("Unauthorized", { status: 401 })));
+    globalThis.fetch = fetchSpy as typeof globalThis.fetch;
+
+    const first = await SELF.fetch("https://agents.test/api/me?cf_session=NO_CACHE");
+    expect(first.status).toBe(401);
+    const second = await SELF.fetch("https://agents.test/api/me?cf_session=NO_CACHE");
+    expect(second.status).toBe(401);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });

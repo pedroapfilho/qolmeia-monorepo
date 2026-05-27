@@ -2,7 +2,7 @@
 
 import { cn } from "@repo/ui/lib/utils";
 import type { UIMessage } from "ai";
-import type { ComponentProps, HTMLAttributes } from "react";
+import type { ComponentProps, HTMLAttributes, ImgHTMLAttributes } from "react";
 import { memo } from "react";
 import { Streamdown } from "streamdown";
 
@@ -42,15 +42,36 @@ const MessageContent = ({ children, className, ...props }: MessageContentProps) 
   </div>
 );
 
+// Streamdown's default <img> renders inside a <div data-streamdown="image-wrapper">
+// (for a hover overlay). When the LLM emits `![alt](url)` inline inside a
+// paragraph — the canonical way to embed an image in markdown — the resulting
+// DOM is `<p><div><img/></div></p>`, which is invalid HTML and triggers a
+// hydration error. Overriding the `img` component returns the bare element,
+// which IS legal phrasing content inside <p>. The asset URLs we serve are
+// already HMAC-signed; the overlay is decorative and not load-bearing.
+// react-markdown's per-element override receives the element's native props
+// plus an `ExtraProps`-shaped `node` field. We only read `src`, `alt`, and
+// `className`, so a tolerant signature is fine.
+type ImgOverrideProps = ImgHTMLAttributes<HTMLImageElement> & { node?: unknown };
+
+const PlainImage = ({ alt, className, src }: ImgOverrideProps) => (
+  // oxlint-disable-next-line next/no-img-element
+  <img alt={alt ?? ""} className={cn("max-h-80 rounded-md object-contain", className)} src={src} />
+);
+
+type StreamdownComponents = NonNullable<ComponentProps<typeof Streamdown>["components"]>;
+const STREAMDOWN_COMPONENTS = { img: PlainImage } as unknown as StreamdownComponents;
+
 type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
 // Markdown renderer — a real upgrade over the previous plain-text bubble.
 // Memoised on `children` so a re-render of the message list doesn't re-parse
 // every markdown body.
 const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
+  ({ className, components, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+      components={{ ...STREAMDOWN_COMPONENTS, ...components }}
       {...props}
     />
   ),

@@ -1,164 +1,106 @@
-// Shapes returned by apps/api /api/v1/* — duplicated here on purpose: the
-// API and backoffice are deployed independently, so a runtime type contract
-// is healthier than a build-time import that couples them.
+// Shapes returned by apps/agents /api/backoffice/* — duplicated here on
+// purpose: the agents Worker and the backoffice are deployed independently,
+// so a runtime contract is healthier than a build-time import that couples
+// them.
 
-type Paginated<T> = {
-  items: ReadonlyArray<T>;
-  nextCursor: string | null;
-};
+type TicketStatus =
+  | "awaiting_approval"
+  | "blocked"
+  | "cancelled"
+  | "done"
+  | "in_progress"
+  | "open"
+  | "rejected";
 
-type AgentSummary = {
-  budgetCents: number;
-  createdAt: string;
-  displayName: string;
-  id: string;
-  isActive: boolean;
-  lastRunAt: string | null;
-  mission: string;
-  skillCount: number;
-  status: "ACTIVE" | "PAUSED";
-  template: { displayName: string; slug: string };
-  templateSlug: string;
-  updatedAt: string;
-};
-
-type AgentRunSummary = {
-  costCents: number;
-  costInputTokens: number;
-  costOutputTokens: number;
-  finishedAt: string | null;
-  id: string;
-  startedAt: string;
-  status: "RUNNING" | "SUCCEEDED" | "FAILED";
-};
-
-type AgentDetail = AgentSummary & {
-  recentRuns: ReadonlyArray<AgentRunSummary>;
-};
-
-type ApprovalRow = {
+type Ticket = {
   agentInstanceId: string;
-  agentTemplateDisplayName: string;
-  createdAt: string;
+  brief: string;
+  companyId: string;
   id: string;
-  proposedInput: unknown;
-  proposedSummary: string;
-  skill: { displayName: string; id: string };
-  skillId: string;
+  result: Record<string, unknown> | null;
+  status: TicketStatus;
+  workflowId: string | null;
 };
 
-type ApprovalDetail = {
-  agentInstance: { displayName: string; id: string; templateSlug: string };
-  agentInstanceId: string;
-  createdAt: string;
-  id: string;
-  proposedInput: unknown;
-  proposedSummary: string;
-  skill: {
-    description: string;
-    displayName: string;
-    id: string;
-    parametersJsonSchema: unknown;
-  };
-  skillId: string;
-  status: string;
+type TicketListRow = Ticket & {
+  createdAt: number;
+  origin: string;
+  title: string;
+  updatedAt: number;
 };
 
-type ActivityLogType =
-  | "MESSAGE_INBOUND"
-  | "MESSAGE_OUTBOUND"
-  | "AGENT_RUN_STARTED"
-  | "AGENT_RUN_FINISHED"
-  | "AGENT_RUN_FAILED"
-  | "ACTION_EXECUTED"
-  | "ACTION_FAILED"
-  | "ACTION_DRAFTED"
-  | "ACTION_APPROVED"
-  | "ACTION_REJECTED"
-  | "BUDGET_WARN_80"
-  | "BUDGET_WARN_100"
-  | "INSTRUCTIONS_UPDATED"
-  | "BUSINESS_IDEA_UPDATED"
-  | "OWNER_COMMAND"
-  | "ROUTINE_TRIGGERED"
-  | "ROUTINE_ENABLED"
-  | "ROUTINE_DISABLED"
-  | "MEMBER_INVITED"
-  | "MEMBER_JOINED";
+type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | "rejected";
 
-type ActivityLogRefType =
-  | "MESSAGE"
-  | "AGENT_RUN"
-  | "AGENT_ACTION"
-  | "ORGANIZATION"
-  | "ROUTINE"
-  | "NONE";
+type ActionPolicy = "auto-execute" | "notify-only" | "require-approval";
 
-type ActivityRow = {
+type Action = {
+  actionType: string;
+  companyId: string;
+  createdAt: number;
+  decidedAt: number | null;
+  decidedByUserId: string | null;
+  feedback: string | null;
+  id: string;
+  policy: ActionPolicy;
+  proposed: Record<string, unknown>;
+  status: ActionStatus;
+  ticketId: string;
+};
+
+type ActionListRow = Action & {
+  ageSeconds?: number;
+};
+
+type ActivityEntry = {
   actorId: string | null;
-  createdAt: string;
+  companyId: string;
+  createdAt: number;
   id: string;
-  orgId: string;
-  payload: unknown;
+  payload: Record<string, unknown> | null;
   refId: string | null;
-  refType: ActivityLogRefType;
+  refType: string | null;
   summary: string;
-  type: ActivityLogType;
+  type: string;
 };
 
-type SoulPayload = {
-  agentInstructions: string | null;
-  businessIdea: string | null;
-  businessProfile: unknown;
-};
+type TicketsResponse = { items: ReadonlyArray<TicketListRow> };
+type ActionsResponse = { items: ReadonlyArray<ActionListRow> };
+type ActivityResponse = { items: ReadonlyArray<ActivityEntry> };
+type TicketDetailResponse = { actions: ReadonlyArray<Action>; ticket: Ticket };
+type ActionDetailResponse = { action: Action; ticket: Ticket | null };
 
-type RunRow = {
-  agentInstanceId: string;
-  costCents: number;
-  costInputTokens: number;
-  costOutputTokens: number;
-  createdAt: string;
-  errorMessage: string | null;
-  finishedAt: string | null;
-  id: string;
-  parentRunId: string | null;
-  startedAt: string;
-  status: "RUNNING" | "SUCCEEDED" | "FAILED";
-  triggerMessageId: string | null;
-};
+type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
-type TeamRole = "OWNER" | "STAFF" | "CUSTOMER";
-
-type TeamMemberRow = {
-  createdAt: string;
-  id: string;
-  role: TeamRole;
+type MeResponse = {
+  currentOrg: {
+    id: string;
+    name: string;
+    role: "OWNER" | "STAFF" | "CUSTOMER";
+    slug: string;
+  } | null;
+  role: "OWNER" | "STAFF" | "CUSTOMER";
   user: {
     displayName: string | null;
     email: string;
     id: string;
-    image: string | null;
     name: string;
   };
 };
 
-type TeamMembersResponse = {
-  items: ReadonlyArray<TeamMemberRow>;
-};
-
 export type {
-  ActivityLogRefType,
-  ActivityLogType,
-  ActivityRow,
-  AgentDetail,
-  AgentRunSummary,
-  AgentSummary,
-  ApprovalDetail,
-  ApprovalRow,
-  Paginated,
-  RunRow,
-  SoulPayload,
-  TeamMemberRow,
-  TeamMembersResponse,
-  TeamRole,
+  Action,
+  ActionDetailResponse,
+  ActionListRow,
+  ActionPolicy,
+  ActionsResponse,
+  ActionStatus,
+  ActivityEntry,
+  ActivityResponse,
+  DecisionOutcome,
+  MeResponse,
+  Ticket,
+  TicketDetailResponse,
+  TicketListRow,
+  TicketsResponse,
+  TicketStatus,
 };

@@ -67,11 +67,29 @@ describe("backoffice auth gate", () => {
 });
 
 describe("backoffice listing endpoints", () => {
-  it("lists tickets scoped to the staff's company", async () => {
+  it("lists tickets scoped to the staff's company (camelCase shape)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await SELF.fetch("https://agents.test/api/backoffice/tickets?cf_session=tok");
-    const body = (await res.json()) as { items: Array<{ id: string }> };
-    expect(body.items.some((t) => t.id === "tkt-bo-test")).toBe(true);
+    const body = (await res.json()) as {
+      items: Array<{
+        agentInstanceId: string;
+        companyId: string;
+        createdAt: number;
+        id: string;
+        origin: string;
+        title: string;
+      }>;
+    };
+    const ticket = body.items.find((t) => t.id === "tkt-bo-test");
+    expect(ticket).toBeTruthy();
+    // The list endpoint MUST return camelCase — every other route does, and
+    // the backoffice UI consumes the typed shape directly.
+    expect(ticket?.agentInstanceId).toBe("agent-bo-test");
+    expect(ticket?.companyId).toBe(COMPANY_ID);
+    expect(ticket?.origin).toBe("delegation");
+    expect(typeof ticket?.createdAt).toBe("number");
+    expect(ticket).not.toHaveProperty("agent_instance_id");
+    expect(ticket).not.toHaveProperty("created_at");
   });
 
   it("lists pending actions sorted by age (oldest first)", async () => {
@@ -86,9 +104,42 @@ describe("backoffice listing endpoints", () => {
     const res = await SELF.fetch(
       "https://agents.test/api/backoffice/actions?status=pending&sort=age&cf_session=tok",
     );
-    const body = (await res.json()) as { items: Array<{ ageSeconds: number }> };
+    const body = (await res.json()) as {
+      items: Array<{ actionType: string; ageSeconds: number }>;
+    };
     expect(body.items.length).toBeGreaterThan(0);
     expect(body.items[0]).toHaveProperty("ageSeconds");
+    expect(body.items[0]?.actionType).toBe("worker_deliverable");
+  });
+
+  it("lists ALL actions (no status filter) in camelCase", async () => {
+    await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      policy: "require-approval",
+      proposed: { summary: "y" },
+      ticketId: "tkt-bo-test",
+    });
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch("https://agents.test/api/backoffice/actions?cf_session=tok");
+    const body = (await res.json()) as {
+      items: Array<{
+        actionType: string;
+        companyId: string;
+        createdAt: number;
+        id: string;
+        ticketId: string;
+      }>;
+    };
+    expect(body.items.length).toBeGreaterThan(0);
+    const item = body.items[0];
+    expect(item?.actionType).toBeTruthy();
+    expect(item?.companyId).toBe(COMPANY_ID);
+    expect(typeof item?.createdAt).toBe("number");
+    // Regression: this branch used to leak raw snake_case rows.
+    expect(item).not.toHaveProperty("action_type");
+    expect(item).not.toHaveProperty("company_id");
+    expect(item).not.toHaveProperty("ticket_id");
   });
 });
 

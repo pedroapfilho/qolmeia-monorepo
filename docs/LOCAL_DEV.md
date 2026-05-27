@@ -8,11 +8,11 @@ For the architecture itself, see `docs/ARCHITECTURE.md`. For the system overview
 
 ## 1. Prerequisites
 
-| Tool | Version | Check |
-|---|---|---|
-| Node.js | ≥ 24 | `node --version` |
-| pnpm | 10.x | `pnpm --version` |
-| Docker | any recent | `docker --version` |
+| Tool    | Version    | Check              |
+| ------- | ---------- | ------------------ |
+| Node.js | ≥ 24       | `node --version`   |
+| pnpm    | 10.x       | `pnpm --version`   |
+| Docker  | any recent | `docker --version` |
 
 Optional, only for testing the live Telegram bot: `cloudflared` (`brew install cloudflared`).
 
@@ -30,6 +30,7 @@ pnpm db:generate            # generate the Prisma client
 ```
 
 `docker compose up -d` starts:
+
 - **Postgres 18** on host port `5436` (container user/pass/db: `qolmeia` / `qolmeia123` / `qolmeia`)
 - **Redis 7** on host port `6382`
 
@@ -57,22 +58,22 @@ openssl rand -base64 48      # generate once, paste the same value into all 3 fi
 
 ### 3.2 `apps/api/.env` — the only file needing real external service keys
 
-| Variable | Purpose | Notes |
-|---|---|---|
-| `DATABASE_URL` | Postgres connection | Pre-filled for docker; leave as-is locally |
-| `REDIS_URL` | BullMQ queues + Chat SDK state | Pre-filled for docker (`redis://localhost:6382`) |
-| `BETTER_AUTH_SECRET` | Cookie + token signing | The `openssl rand -base64 48` value (same in all 3 files) |
-| `OPENROUTER_API_KEY` | All LLM + image-gen calls | Required for real agent runs. Get one at https://openrouter.ai/keys |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot auth | From BotFather. Placeholder OK if not testing Telegram |
-| `TELEGRAM_BOT_USERNAME` | Mention detection | From BotFather |
-| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Inbound webhook auth | `openssl rand -hex 32` |
+| Variable                                                                                                  | Purpose                                       | Notes                                                                                 |
+| --------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                                            | Postgres connection                           | Pre-filled for docker; leave as-is locally                                            |
+| `REDIS_URL`                                                                                               | BullMQ queues + Chat SDK state                | Pre-filled for docker (`redis://localhost:6382`)                                      |
+| `BETTER_AUTH_SECRET`                                                                                      | Cookie + token signing                        | The `openssl rand -base64 48` value (same in all 3 files)                             |
+| `OPENROUTER_API_KEY`                                                                                      | All LLM + image-gen calls                     | Required for real agent runs. Get one at https://openrouter.ai/keys                   |
+| `TELEGRAM_BOT_TOKEN`                                                                                      | Telegram bot auth                             | From BotFather. Placeholder OK if not testing Telegram                                |
+| `TELEGRAM_BOT_USERNAME`                                                                                   | Mention detection                             | From BotFather                                                                        |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN`                                                                           | Inbound webhook auth                          | `openssl rand -hex 32`                                                                |
 | `R2_ACCOUNT_ID` / `R2_BUCKET` / `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_REGION` | Cloudflare R2 (brand assets + knowledge docs) | Required for image-gen results + knowledge docs. Placeholders OK if not testing those |
-| `RESEND_API_KEY` | Transactional email | Optional — when empty, auth email hooks become silent no-ops |
-| `DISPATCH_MODE` | `serial` or `queue` | Default `serial` (agent loop runs inline). See §6.1 |
-| `IMAGE_GEN_MODEL` | OpenRouter image model id | Optional; defaults to `google/gemini-3-pro-image-preview` (Nano Banana Pro) |
-| `CORS_ORIGINS` | Allowed cross-origin callers | Pre-filled with the backoffice + client dev URLs |
-| `AUTH_FROM_EMAIL` | From: address for auth emails | Optional; defaults to `noreply@qolmeia.ai` |
-| `WEB_APP_URL` / `AUTH_ALLOWED_HOSTS` / `TRUSTED_ORIGINS` | Production hostnames | Leave unset locally |
+| `RESEND_API_KEY`                                                                                          | Transactional email                           | Optional — when empty, auth email hooks become silent no-ops                          |
+| `DISPATCH_MODE`                                                                                           | `serial` or `queue`                           | Default `serial` (agent loop runs inline). See §6.1                                   |
+| `IMAGE_GEN_MODEL`                                                                                         | OpenRouter image model id                     | Optional; defaults to `google/gemini-3-pro-image-preview` (Nano Banana Pro)           |
+| `CORS_ORIGINS`                                                                                            | Allowed cross-origin callers                  | Pre-filled with the backoffice + client dev URLs                                      |
+| `AUTH_FROM_EMAIL`                                                                                         | From: address for auth emails                 | Optional; defaults to `noreply@qolmeia.ai`                                            |
+| `WEB_APP_URL` / `AUTH_ALLOWED_HOSTS` / `TRUSTED_ORIGINS`                                                  | Production hostnames                          | Leave unset locally                                                                   |
 
 ### 3.3 `apps/backoffice/.env`
 
@@ -204,14 +205,14 @@ You **cannot** actually message an agent or generate an image without `OPENROUTE
 
 ## 9. Common pitfalls
 
-| Symptom | Fix |
-|---|---|
-| `Cannot find module '@tanstack/react-query'` during typecheck | `pnpm install` — lockfile drift after a fresh checkout or branch switch |
-| `BETTER_AUTH_SECRET environment variable is required` | The three `.env` files don't all carry the same secret value |
-| Logins don't persist between apps | Mismatched `BETTER_AUTH_SECRET`, or wrong `NEXT_PUBLIC_API_URL` |
-| BullMQ connects to `localhost:6379` and fails | `REDIS_URL` is empty — our docker Redis is on `:6382`, not the default `:6379` |
-| Prisma client errors after pulling new schema | `pnpm db:push && pnpm db:generate` |
-| Postgres/Redis connection refused | `docker compose up -d` — containers not running |
+| Symptom                                                       | Fix                                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `Cannot find module '@tanstack/react-query'` during typecheck | `pnpm install` — lockfile drift after a fresh checkout or branch switch        |
+| `BETTER_AUTH_SECRET environment variable is required`         | The three `.env` files don't all carry the same secret value                   |
+| Logins don't persist between apps                             | Mismatched `BETTER_AUTH_SECRET`, or wrong `NEXT_PUBLIC_API_URL`                |
+| BullMQ connects to `localhost:6379` and fails                 | `REDIS_URL` is empty — our docker Redis is on `:6382`, not the default `:6379` |
+| Prisma client errors after pulling new schema                 | `pnpm db:push && pnpm db:generate`                                             |
+| Postgres/Redis connection refused                             | `docker compose up -d` — containers not running                                |
 
 ---
 
@@ -235,10 +236,10 @@ docker compose down -v                       # stop + wipe data volumes
 
 ## 11. Port map
 
-| Port | Service |
-|---|---|
-| 4000 | `apps/api` (Hono backend) |
-| 3000 | `apps/backoffice` (operator UI) |
+| Port | Service                          |
+| ---- | -------------------------------- |
+| 4000 | `apps/api` (Hono backend)        |
+| 3000 | `apps/backoffice` (operator UI)  |
 | 3001 | `apps/client` (customer chat UI) |
-| 5436 | Postgres (docker) |
-| 6382 | Redis (docker) |
+| 5436 | Postgres (docker)                |
+| 6382 | Redis (docker)                   |

@@ -16,25 +16,25 @@
 
 ## File map (what every task touches)
 
-| File | Tasks | Responsibility |
-|------|-------|----------------|
-| `apps/agents/package.json` (new) | 2 | Worker package — deps, scripts |
-| `apps/agents/wrangler.jsonc` (new) | 2, 3, 4, 5 | Worker config — DO binding + migration, D1, AI Gateway vars |
-| `apps/agents/tsconfig.json` (new) | 2 | Extends `@repo/typescript-config` |
-| `apps/agents/worker-configuration.d.ts` (generated) | 2, 3 | `wrangler types` output — never hand-edit |
-| `apps/agents/migrations/0001_p1_minimal.sql` (new) | 3 | `company` · `conversation` · `message` |
-| `apps/agents/src/index.ts` (new) | 6 | Worker `fetch` entry — Hono router, `routeAgentRequest`, CORS, session check |
-| `apps/agents/src/agents/correspondent.ts` (new) | 5 | `CorrespondentAgent extends AIChatAgent` |
-| `apps/agents/src/lib/ai-gateway.ts` (new) | 4 | AI SDK provider pointed at the AI Gateway endpoint |
-| `apps/agents/src/lib/auth.ts` (new) | 6 | Minimal session validation against the existing auth service |
-| `apps/agents/src/db/schema.ts` (new) | 3 | Typed D1 row shapes + query helpers |
-| `apps/agents/src/__tests__/*.test.ts` (new) | 8 | `vitest-pool-workers` integration tests |
-| `apps/agents/vitest.config.ts` (new) | 8 | `@cloudflare/vitest-pool-workers` config |
-| `turbo.json` | 2 | Register `apps/agents` task pipeline |
-| `apps/client/src/components/chat.tsx` | 7 | Swap `useChat` + custom transport for `useAgentChat` |
-| `apps/client/src/lib/web-chat-transport.ts` | 7 | Deleted — replaced by the SDK hook |
-| `apps/client/package.json` | 7 | Add `agents` + `@cloudflare/ai-chat` |
-| `apps/client/.env` | 7, 9 | `NEXT_PUBLIC_AGENTS_URL` |
+| File                                                | Tasks      | Responsibility                                                               |
+| --------------------------------------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `apps/agents/package.json` (new)                    | 2          | Worker package — deps, scripts                                               |
+| `apps/agents/wrangler.jsonc` (new)                  | 2, 3, 4, 5 | Worker config — DO binding + migration, D1, AI Gateway vars                  |
+| `apps/agents/tsconfig.json` (new)                   | 2          | Extends `@repo/typescript-config`                                            |
+| `apps/agents/worker-configuration.d.ts` (generated) | 2, 3       | `wrangler types` output — never hand-edit                                    |
+| `apps/agents/migrations/0001_p1_minimal.sql` (new)  | 3          | `company` · `conversation` · `message`                                       |
+| `apps/agents/src/index.ts` (new)                    | 6          | Worker `fetch` entry — Hono router, `routeAgentRequest`, CORS, session check |
+| `apps/agents/src/agents/correspondent.ts` (new)     | 5          | `CorrespondentAgent extends AIChatAgent`                                     |
+| `apps/agents/src/lib/ai-gateway.ts` (new)           | 4          | AI SDK provider pointed at the AI Gateway endpoint                           |
+| `apps/agents/src/lib/auth.ts` (new)                 | 6          | Minimal session validation against the existing auth service                 |
+| `apps/agents/src/db/schema.ts` (new)                | 3          | Typed D1 row shapes + query helpers                                          |
+| `apps/agents/src/__tests__/*.test.ts` (new)         | 8          | `vitest-pool-workers` integration tests                                      |
+| `apps/agents/vitest.config.ts` (new)                | 8          | `@cloudflare/vitest-pool-workers` config                                     |
+| `turbo.json`                                        | 2          | Register `apps/agents` task pipeline                                         |
+| `apps/client/src/components/chat.tsx`               | 7          | Swap `useChat` + custom transport for `useAgentChat`                         |
+| `apps/client/src/lib/web-chat-transport.ts`         | 7          | Deleted — replaced by the SDK hook                                           |
+| `apps/client/package.json`                          | 7          | Add `agents` + `@cloudflare/ai-chat`                                         |
+| `apps/client/.env`                                  | 7, 9       | `NEXT_PUBLIC_AGENTS_URL`                                                     |
 
 ---
 
@@ -93,7 +93,7 @@ Extend `@repo/typescript-config/server.json`. Add `"types": ["@cloudflare/worker
   "main": "src/index.ts",
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 }
 ```
 
@@ -200,6 +200,7 @@ Export `getModel(env)` — an AI SDK provider (`createOpenAI` from `@ai-sdk/open
 - [ ] **Step 2: Implement `CorrespondentAgent extends AIChatAgent`**
 
 In `src/agents/correspondent.ts`. Confirm the exact base class + import against current docs (`@cloudflare/ai-chat` vs `agents`) — verify before coding. The class:
+
 - Implements the `AIChatAgent` chat handler: on an incoming user message, run the AI SDK chat loop (`streamText`) with `getModel(this.env)`, a fixed P1 system prompt (a pt-BR Correspondent persona — friendly account manager, no tools yet), and the conversation history.
 - Persists each user + agent message to D1 (`insertMessage`) keyed by a conversation id derived from the DO name.
 - Streams the reply back over the WebSocket the SDK manages.

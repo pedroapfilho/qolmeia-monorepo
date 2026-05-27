@@ -12,7 +12,9 @@ services:
     ports:
       - "5436:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18 expects the mount at /var/lib/postgresql (major-version
+      # subdir lives inside). See docker-library/postgres#1259.
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U qolmeia -d qolmeia"]
       interval: 10s
@@ -20,23 +22,6 @@ services:
       retries: 5
       start_period: 30s
 
-  redis:
-    image: redis:7-alpine
-    container_name: qolmeia-redis
-    restart: unless-stopped
-    ports:
-      - "6382:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local

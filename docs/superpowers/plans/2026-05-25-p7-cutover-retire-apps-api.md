@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wind down the legacy `apps/api`. The auth service stays — it's the deliberate "Cloudflare-first, not only" exception. Everything else in `apps/api` (the old REST under `/api/v1/*`, the BullMQ workers, the OpenRouter wiring, the Prisma platform models) is migrated to or deleted by `apps/agents`. Drop Redis. Drop the BullMQ runner. Slim Postgres down to *only* the Better Auth tables. Re-point both Next apps. Update docs.
+**Goal:** Wind down the legacy `apps/api`. The auth service stays — it's the deliberate "Cloudflare-first, not only" exception. Everything else in `apps/api` (the old REST under `/api/v1/*`, the BullMQ workers, the OpenRouter wiring, the Prisma platform models) is migrated to or deleted by `apps/agents`. Drop Redis. Drop the BullMQ runner. Slim Postgres down to _only_ the Better Auth tables. Re-point both Next apps. Update docs.
 
-**Architecture:** By P7 every customer-facing path already lives in `apps/agents`. The remaining `apps/api` surface that *isn't* `/api/auth/*` is:
+**Architecture:** By P7 every customer-facing path already lives in `apps/agents`. The remaining `apps/api` surface that _isn't_ `/api/auth/*` is:
 
 - `/api/v1/me` — moves to `apps/agents` (the Worker already calls it; we just relocate the handler). Auth service still owns identity; the Worker resolves company + role from the Better Auth user → org membership via a Better Auth `organization` plugin API call.
 - `/api/v1/web-chat/*` — already dead in P1 (client moved to `useAgentChat`). Delete.
@@ -17,9 +17,10 @@ Auth service: Postgres slimmed to Better Auth's own tables (`user`, `session`, `
 
 **Tech stack:** mostly deletions. Some Better Auth handler-mounting refinements. No new libraries.
 
-**Builds on:** `main` after P6 merged. Practically, **acceptance for P7 also requires P2–P6 are not just merged but** ***deployed*** **and verified live** — you can't retire the old service before the new one is the proven path.
+**Builds on:** `main` after P6 merged. Practically, **acceptance for P7 also requires P2–P6 are not just merged but** **_deployed_** **and verified live** — you can't retire the old service before the new one is the proven path.
 
 **Architectural calls baked in** (T1.4 override):
+
 1. **Cutover happens in a single PR, not incrementally.** The new surfaces are already live; the old surfaces are dead code by P6. One PR removes them atomically with the env re-point. Half-state is worse than either state.
 2. **Slim Postgres in place, don't migrate to a new database.** Auth keeps the same instance; we just `prisma migrate` away the platform models. Lower risk than spinning up a fresh Postgres for auth-only.
 3. **The `apps/api` directory disappears entirely.** Auth lives in a new `apps/auth` (or stays as `apps/api` renamed). Picking a new clean name removes the cognitive overhang of "the old api" — and forces every consumer's config to update through one explicit cut.
@@ -28,23 +29,23 @@ Auth service: Postgres slimmed to Better Auth's own tables (`user`, `session`, `
 
 ## File map
 
-| File / path | Tasks | Responsibility |
-|---|---|---|
-| `apps/auth/` (renamed from `apps/api`) | 3 | The lean auth-only service |
-| `apps/api/src/routes/v1/web-chat.ts` | 4 | Deleted — superseded by P1 |
-| `apps/api/src/routes/v1/{agents,approvals,activity,runs,soul,team}.ts` | 4 | Deleted — superseded by P4/P5 backoffice routes |
-| `apps/api/src/connectors/**`, `apps/api/src/inbox/**` | 4 | Deleted — superseded by P6 |
-| `apps/api/src/agents/**`, `apps/api/src/workers/**`, `apps/api/src/agent-runtime` | 4 | Deleted — superseded by P3/P4 |
-| `apps/api/src/lib/ai.ts`, `apps/api/src/lib/image-gen.ts` | 4 | Deleted — superseded by `apps/agents/src/lib/ai-gateway.ts` |
-| `apps/api/src/scripts/**` | 4 | Audited: anything still useful for auth → moved to `apps/auth/scripts/`; the rest deleted |
-| `packages/db/prisma/schema.prisma` | 5 | Pruned to Better Auth + Organization tables only |
-| `apps/agents/src/routes/me.ts` (new) | 6 | The `/me` shape the Worker (and the client's `requireCustomer`) need — resolves user → currentOrg → role from Better Auth's organization plugin |
-| `apps/client/.env` · `apps/backoffice/.env` | 7 | Re-point — `NEXT_PUBLIC_AGENTS_URL` already in client; backoffice gets one too |
-| `apps/client/src/lib/api-server.ts` · `apps/client/src/lib/api-client.ts` · `apps/client/src/lib/auth-helpers.ts` | 7 | `apiGetServer` and `requireCustomer` re-point to `apps/agents` instead of `apps/api` |
-| `apps/backoffice/src/...` | 8 | Same re-point; if backoffice was already migrated route-by-route in P4/P5, this just deletes the legacy adapter |
-| `docker-compose.yml` | 9 | Drop the `redis` service; keep `postgres` for auth |
-| `CLAUDE.md`, `docs/LOCAL_DEV.md`, `docs/ARCHITECTURE.md`, root `package.json` | 10 | Reflect the new world — three apps (auth, agents, backoffice + client), no Redis, no BullMQ, no Prisma platform models |
-| `pnpm-lock.yaml`, root `package.json` | 10 | Drop unused deps |
+| File / path                                                                                                       | Tasks | Responsibility                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/auth/` (renamed from `apps/api`)                                                                            | 3     | The lean auth-only service                                                                                                                      |
+| `apps/api/src/routes/v1/web-chat.ts`                                                                              | 4     | Deleted — superseded by P1                                                                                                                      |
+| `apps/api/src/routes/v1/{agents,approvals,activity,runs,soul,team}.ts`                                            | 4     | Deleted — superseded by P4/P5 backoffice routes                                                                                                 |
+| `apps/api/src/connectors/**`, `apps/api/src/inbox/**`                                                             | 4     | Deleted — superseded by P6                                                                                                                      |
+| `apps/api/src/agents/**`, `apps/api/src/workers/**`, `apps/api/src/agent-runtime`                                 | 4     | Deleted — superseded by P3/P4                                                                                                                   |
+| `apps/api/src/lib/ai.ts`, `apps/api/src/lib/image-gen.ts`                                                         | 4     | Deleted — superseded by `apps/agents/src/lib/ai-gateway.ts`                                                                                     |
+| `apps/api/src/scripts/**`                                                                                         | 4     | Audited: anything still useful for auth → moved to `apps/auth/scripts/`; the rest deleted                                                       |
+| `packages/db/prisma/schema.prisma`                                                                                | 5     | Pruned to Better Auth + Organization tables only                                                                                                |
+| `apps/agents/src/routes/me.ts` (new)                                                                              | 6     | The `/me` shape the Worker (and the client's `requireCustomer`) need — resolves user → currentOrg → role from Better Auth's organization plugin |
+| `apps/client/.env` · `apps/backoffice/.env`                                                                       | 7     | Re-point — `NEXT_PUBLIC_AGENTS_URL` already in client; backoffice gets one too                                                                  |
+| `apps/client/src/lib/api-server.ts` · `apps/client/src/lib/api-client.ts` · `apps/client/src/lib/auth-helpers.ts` | 7     | `apiGetServer` and `requireCustomer` re-point to `apps/agents` instead of `apps/api`                                                            |
+| `apps/backoffice/src/...`                                                                                         | 8     | Same re-point; if backoffice was already migrated route-by-route in P4/P5, this just deletes the legacy adapter                                 |
+| `docker-compose.yml`                                                                                              | 9     | Drop the `redis` service; keep `postgres` for auth                                                                                              |
+| `CLAUDE.md`, `docs/LOCAL_DEV.md`, `docs/ARCHITECTURE.md`, root `package.json`                                     | 10    | Reflect the new world — three apps (auth, agents, backoffice + client), no Redis, no BullMQ, no Prisma platform models                          |
+| `pnpm-lock.yaml`, root `package.json`                                                                             | 10    | Drop unused deps                                                                                                                                |
 
 ---
 
@@ -53,12 +54,12 @@ Auth service: Postgres slimmed to Better Auth's own tables (`user`, `session`, `
 ### T1: Setup + readiness check
 
 - [ ] Branch from `main` → `feat/p7-cutover`. Baseline gates green.
-- [ ] **Readiness gate:** P2–P6 are merged AND a deployed `apps/agents` has run a real customer end-to-end (the P6 acceptance bullets). If not, *don't run P7*. Document the gate explicitly here so the future-you doesn't bypass.
+- [ ] **Readiness gate:** P2–P6 are merged AND a deployed `apps/agents` has run a real customer end-to-end (the P6 acceptance bullets). If not, _don't run P7_. Document the gate explicitly here so the future-you doesn't bypass.
 - [ ] Confirm baked-in calls (single-PR cutover, slim Postgres in place, rename `apps/api` → `apps/auth`).
 
 ### T2: Inventory of remaining `apps/api` consumers
 
-- [ ] Greppable inventory: which paths under `/api/*` does the client still call? `apps/client/src/**` + `apps/backoffice/src/**`. Capture in a one-table doc inside the PR description. If any path lives in `apps/api` but not in `apps/agents`, that's a P7 *migration* task; if everything lives in `apps/agents`, the cutover is pure deletion.
+- [ ] Greppable inventory: which paths under `/api/*` does the client still call? `apps/client/src/**` + `apps/backoffice/src/**`. Capture in a one-table doc inside the PR description. If any path lives in `apps/api` but not in `apps/agents`, that's a P7 _migration_ task; if everything lives in `apps/agents`, the cutover is pure deletion.
 - [ ] Expected after P6: only `/api/auth/*` and possibly `/api/v1/me` remain in `apps/api`. Anything else is a P4/P5/P6 oversight to be back-filled.
 
 ### T3: Rename `apps/api` → `apps/auth`
@@ -97,7 +98,7 @@ Auth service: Postgres slimmed to Better Auth's own tables (`user`, `session`, `
 ### T8: Re-point backoffice
 
 - [ ] Same exercise for `apps/backoffice/.env` + its `api-server`/`api-client`.
-- [ ] If backoffice still consumes any `apps/api` route that wasn't migrated in P4/P5, *that* is a back-fill task — pause P7 and complete the migration first. Don't ship a half-cutover.
+- [ ] If backoffice still consumes any `apps/api` route that wasn't migrated in P4/P5, _that_ is a back-fill task — pause P7 and complete the migration first. Don't ship a half-cutover.
 
 ### T9: Drop Redis
 
@@ -109,7 +110,7 @@ Auth service: Postgres slimmed to Better Auth's own tables (`user`, `session`, `
 
 - [ ] Root `package.json` / `pnpm-lock.yaml` — `pnpm install` after the deletions to prune the lockfile.
 - [ ] `CLAUDE.md` — update the apps table: now `auth`, `agents`, `backoffice`, `client`. Update commands. Note that Postgres is auth-only.
-- [ ] `docs/ARCHITECTURE.md` (or whatever the architecture doc became) — final post-cutover topology diagram. The "P1 walking skeleton" topology section from earlier docs is now the *only* topology.
+- [ ] `docs/ARCHITECTURE.md` (or whatever the architecture doc became) — final post-cutover topology diagram. The "P1 walking skeleton" topology section from earlier docs is now the _only_ topology.
 - [ ] `MEMORY.md` (the project memory file) — update `qolmeia-mvp-decisions.md` to reflect that the system has finished cutover; the file moves to a "post-cutover decisions" or is retired entirely in favor of `cloudflare-rebuild-decisions.md`.
 - [ ] Re-issue Telegram / WhatsApp / Slack / Discord webhook URLs at each provider to the new `apps/agents` endpoints (the legacy `apps/api` URLs go dead with this PR).
 
@@ -127,8 +128,8 @@ Auth service: Postgres slimmed to Better Auth's own tables (`user`, `session`, `
 
 ## Risks
 
-- **The single-PR cutover is also the single-PR rollback risk.** If something the legacy `apps/api` *did* was load-bearing in a non-obvious way (a cron, a side-effecting startup hook, a one-off script someone runs by hand), deleting it surfaces in production. Mitigation: T2's inventory is the gate. If the inventory shows anything you don't recognize, *don't delete*; understand it first.
-- **The Prisma model deletion is irreversible without a backup.** `prisma db push` against a schema with no `AgentInstance` will *drop* the table. Snapshot Postgres before T5. Or skip the `DROP TABLE` step and let the orphans sit forever (they cost nothing).
+- **The single-PR cutover is also the single-PR rollback risk.** If something the legacy `apps/api` _did_ was load-bearing in a non-obvious way (a cron, a side-effecting startup hook, a one-off script someone runs by hand), deleting it surfaces in production. Mitigation: T2's inventory is the gate. If the inventory shows anything you don't recognize, _don't delete_; understand it first.
+- **The Prisma model deletion is irreversible without a backup.** `prisma db push` against a schema with no `AgentInstance` will _drop_ the table. Snapshot Postgres before T5. Or skip the `DROP TABLE` step and let the orphans sit forever (they cost nothing).
 - **Webhook URL re-issue at providers is a coordinated, time-bound act.** Telegram's `setWebhook` is one API call but other providers (WhatsApp, Slack) involve dashboard navigation. Plan the window; communicate to anyone who might message a bot in that minute.
 - **`NEXT_PUBLIC_API_URL` going away affects browser caches.** Service workers / browser caches on the client app may hold stale references. Bump a cache-buster in the client's build to invalidate.
 - **Auth-domain Postgres is still a single point of failure.** Surviving the cutover only narrows what depends on it. P7 doesn't redundancy that out — that's a separate ops concern (read replicas, backups). Document the new dependency map post-cutover so the failure modes are visible.

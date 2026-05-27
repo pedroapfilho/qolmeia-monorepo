@@ -11,6 +11,7 @@
 **Builds on:** `main` after P2 merged.
 
 **Architectural calls baked in** (T1.4 is the override point):
+
 1. **One parameterized `WorkerAgent` class, not one per kind.** Marketing/Designer/Sales differ by their `template` row — system prompt, model, skill set, policy defaults. Adding a kind = one D1 row, not a deploy + DO migration. Matches §4.1 of the spec.
 2. **Image bytes flow R2 → URL → message part.** The Correspondent's chat response includes a `file` UIMessage part pointing at a Worker-served R2 URL with a short-lived signed token. Asset metadata in D1 carries `r2_key + sha256` for dedup; the Worker streams bytes back on `/assets/:id`.
 
@@ -18,21 +19,21 @@
 
 ## File map
 
-| File | Tasks | Responsibility |
-|---|---|---|
-| `apps/agents/migrations/0003_p3_seed_designer.sql` (new) | 3 | Seed Designer template + skill overlay rows |
-| `apps/agents/src/db/template.ts` (new) | 3 | Typed shapes for `template`, `skill`; helpers `getTemplate`, `listSkillsForTemplate` |
-| `apps/agents/src/db/team.ts` (new) | 6 | `agent_instance`, `team`, `team_member` helpers + acyclic graph check |
-| `apps/agents/src/db/asset.ts` (new) | 8 | `asset` row helpers + `(company_id, sha256)` dedup |
-| `apps/agents/src/skills/registry.ts` (extend) | 4 | Join `execute` (code) + D1 overlay (description/config/enabled) at agent boot; per-DO cache |
-| `apps/agents/src/skills/generate-brand-image.ts` (new) | 8 | OpenRouter image call → R2 upload → asset row |
-| `apps/agents/src/skills/delegate-to-worker.ts` (new) | 7 | Graph check → resolve worker DO → RPC `handleTicket` |
-| `apps/agents/src/agents/worker.ts` (new) | 5 | `WorkerAgent extends Agent` — parameterized by template |
-| `apps/agents/src/agents/correspondent.ts` (extend) | 9 | Add `delegateToWorker` to the tool set |
-| `apps/agents/src/lib/r2.ts` (new) | 2 | R2 upload / signed-URL helpers |
-| `apps/agents/src/routes/assets.ts` (new) | 8 | `/assets/:id` serves R2 bytes (auth-gated) |
-| `apps/agents/wrangler.jsonc` | 2, 5 | R2 binding · `WorkerAgent` DO binding + migration tag |
-| `apps/agents/src/__tests__/*.test.ts` (new) | 10 | Template overlay · delegation graph · R2 upload · image-gen skill (mocked) |
+| File                                                     | Tasks | Responsibility                                                                              |
+| -------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
+| `apps/agents/migrations/0003_p3_seed_designer.sql` (new) | 3     | Seed Designer template + skill overlay rows                                                 |
+| `apps/agents/src/db/template.ts` (new)                   | 3     | Typed shapes for `template`, `skill`; helpers `getTemplate`, `listSkillsForTemplate`        |
+| `apps/agents/src/db/team.ts` (new)                       | 6     | `agent_instance`, `team`, `team_member` helpers + acyclic graph check                       |
+| `apps/agents/src/db/asset.ts` (new)                      | 8     | `asset` row helpers + `(company_id, sha256)` dedup                                          |
+| `apps/agents/src/skills/registry.ts` (extend)            | 4     | Join `execute` (code) + D1 overlay (description/config/enabled) at agent boot; per-DO cache |
+| `apps/agents/src/skills/generate-brand-image.ts` (new)   | 8     | OpenRouter image call → R2 upload → asset row                                               |
+| `apps/agents/src/skills/delegate-to-worker.ts` (new)     | 7     | Graph check → resolve worker DO → RPC `handleTicket`                                        |
+| `apps/agents/src/agents/worker.ts` (new)                 | 5     | `WorkerAgent extends Agent` — parameterized by template                                     |
+| `apps/agents/src/agents/correspondent.ts` (extend)       | 9     | Add `delegateToWorker` to the tool set                                                      |
+| `apps/agents/src/lib/r2.ts` (new)                        | 2     | R2 upload / signed-URL helpers                                                              |
+| `apps/agents/src/routes/assets.ts` (new)                 | 8     | `/assets/:id` serves R2 bytes (auth-gated)                                                  |
+| `apps/agents/wrangler.jsonc`                             | 2, 5  | R2 binding · `WorkerAgent` DO binding + migration tag                                       |
+| `apps/agents/src/__tests__/*.test.ts` (new)              | 10    | Template overlay · delegation graph · R2 upload · image-gen skill (mocked)                  |
 
 ---
 

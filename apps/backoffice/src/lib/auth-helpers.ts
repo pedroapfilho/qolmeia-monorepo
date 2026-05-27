@@ -4,6 +4,8 @@ import { cache } from "react";
 
 import { getAuth } from "@/lib/auth";
 
+import type { MeResponse } from "./api-types";
+
 // Returns the current Better Auth session, or null if the cookie is missing
 // or invalid. Cached per-request via React `cache` so multiple RSCs reading
 // the session within the same render don't trigger duplicate DB hits.
@@ -17,8 +19,6 @@ export const getSession = cache(async () => {
 
     return session;
   } catch (error) {
-    // Auth failures (DB down, misconfiguration) must not be silent — they
-    // look identical to "logged out" without a log entry to diagnose.
     console.error("[auth-helpers] getSession failed", { error });
     return null;
   }
@@ -34,33 +34,43 @@ export const requireSession = async () => {
   return session;
 };
 
-// Guards an RSC that requires OWNER or STAFF role in the current org. Role
-// resolution lives in apps/api's require-staff middleware; the backoffice
-// just trusts /api/v1/me's response. If the API rejects (non-staff), we
-// bounce to /login. Future work: surface a "no access" page instead.
-export const requireStaff = async () => {
-  const session = await requireSession();
+// Guards an RSC that requires OWNER or STAFF role in the current org. Asks
+// apps/agents' /api/me (which relays to the auth service for membership).
+// Genuine auth failures (401/403) redirect; transient failures (429, 5xx,
+// network errors) throw so Next renders the error boundary.
+//
+// Why we don't catch-and-redirect on transient failures: proxy.ts already
+// validated the session locally and allowed the request through. Bouncing
+// to /login here, while the cookie is valid, makes proxy.ts redirect back
+// to / (auth-route-with-session rule), which loops forever — ERR_TOO_MANY_
+// REDIRECTS. Throwing surfaces the underlying issue (rate limit, outage)
+// instead of hiding it behind a spinning redirect.
+export const requireStaff = async (): Promise<MeResponse> => {
+  await requireSession();
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const agentsUrl = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
 
-  try {
-    const res = await fetch(`${apiUrl}/api/v1/me`, {
-      cache: "no-store",
-      headers: { Accept: "application/json", Cookie: cookie },
-    });
+  const res = await fetch(`${agentsUrl}/api/me`, {
+    cache: "no-store",
+    headers: { Accept: "application/json", Cookie: cookie },
+  });
 
-    if (res.status === 401 || res.status === 403) {
-      redirect("/login");
-    }
-
-    if (!res.ok) {
-      throw new Error(`/api/v1/me responded ${res.status}`);
-    }
-
-    return { me: await res.json(), session };
-  } catch (error) {
-    console.error("[auth-helpers] requireStaff failed", { error });
+  if (res.status === 401) {
     redirect("/login");
   }
+  if (res.status === 403) {
+    redirect("/no-access");
+  }
+  if (!res.ok) {
+    // 429 / 5xx / etc. — surface the failure rather than redirect.
+    console.error("[auth-helpers] /api/me transient failure", { status: res.status });
+    throw new Error(`/api/me responded ${res.status}`);
+  }
+
+  const me = (await res.json()) as MeResponse;
+  if (me.role !== "OWNER" && me.role !== "STAFF") {
+    redirect("/no-access");
+  }
+  return me;
 };

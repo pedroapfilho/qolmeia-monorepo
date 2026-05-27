@@ -17,6 +17,7 @@
 Add `@aws-sdk/client-s3` dependency, promote 6 `R2_*` env vars from optional to required, add Prisma `BrandAsset` model + back-relation, `db:push` to local docker. All groundwork before any feature code — gates stay green because nothing references the new model yet.
 
 **Files:**
+
 - Modify: `apps/api/package.json` (add dep)
 - Modify: `apps/api/src/lib/env.ts`
 - Modify: `apps/api/src/lib/env.test.ts`
@@ -35,7 +36,8 @@ Verify `npm view @aws-sdk/client-s3 repository` shows `github.com/aws/aws-sdk-js
 
 - [ ] **Step 2: Promote `R2_*` to required in `apps/api/src/lib/env.ts`**
 
-Replace lines for each R2_* var:
+Replace lines for each R2\_\* var:
+
 ```ts
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_ACCOUNT_ID: z.string().min(1),
@@ -50,6 +52,7 @@ Replace lines for each R2_* var:
 - [ ] **Step 3: Update `apps/api/src/lib/vitest-setup.ts`**
 
 Append:
+
 ```ts
 vi.stubEnv("R2_ACCESS_KEY_ID", "test-r2-key");
 vi.stubEnv("R2_ACCOUNT_ID", "test-account");
@@ -62,6 +65,7 @@ vi.stubEnv("R2_SECRET_ACCESS_KEY", "test-r2-secret");
 - [ ] **Step 4: Update `apps/api/src/lib/env.test.ts` base**
 
 Add the 6 keys to the `base` object so the "valid minimal env" test parses:
+
 ```ts
 const base = {
   AI_GATEWAY_API_KEY: "test-key",
@@ -84,6 +88,7 @@ If the existing "rejects when required var missing" test destructures `REDIS_URL
 - [ ] **Step 5: Add `BrandAsset` to `packages/db/prisma/schema.prisma`**
 
 Append the model (after `WebhookEvent`):
+
 ```prisma
 model BrandAsset {
   id        String   @id @default(cuid())
@@ -137,6 +142,7 @@ Verify: `git branch --show-current` returns `qolmeia-phase-3-r2-brand-assets`. `
 Thin wrapper around `@aws-sdk/client-s3` configured for Cloudflare R2. Exports `uploadAsset`, `assetKey`, `fetchAsset`.
 
 **Files:**
+
 - Create: `apps/api/src/lib/storage.ts`
 - Test: `apps/api/src/lib/storage.test.ts`
 
@@ -174,7 +180,10 @@ describe("uploadAsset", () => {
     await uploadAsset({ bytes, key: "org_1/abc.jpg", mimeType: "image/jpeg" });
 
     expect(sendMock).toHaveBeenCalledOnce();
-    const cmd = sendMock.mock.calls[0]![0] as { args: { Body: Uint8Array; Bucket: string; ContentType: string; Key: string }; type: string };
+    const cmd = sendMock.mock.calls[0]![0] as {
+      args: { Body: Uint8Array; Bucket: string; ContentType: string; Key: string };
+      type: string;
+    };
     expect(cmd.type).toBe("PUT");
     expect(cmd.args.Bucket).toBe("test-bucket");
     expect(cmd.args.Key).toBe("org_1/abc.jpg");
@@ -192,7 +201,10 @@ describe("fetchAsset", () => {
 
     const result = await fetchAsset("org_1/abc.jpg");
 
-    const cmd = sendMock.mock.calls.at(-1)![0] as { args: { Bucket: string; Key: string }; type: string };
+    const cmd = sendMock.mock.calls.at(-1)![0] as {
+      args: { Bucket: string; Key: string };
+      type: string;
+    };
     expect(cmd.type).toBe("GET");
     expect(cmd.args.Bucket).toBe("test-bucket");
     expect(cmd.args.Key).toBe("org_1/abc.jpg");
@@ -206,6 +218,7 @@ describe("fetchAsset", () => {
 ```bash
 pnpm --filter api exec vitest run src/lib/storage.test.ts
 ```
+
 Expected: FAIL `Cannot find module './storage'`.
 
 - [ ] **Step 3: Implement `apps/api/src/lib/storage.ts`**
@@ -245,9 +258,9 @@ const uploadAsset = async (args: {
 };
 
 const fetchAsset = async (key: string): Promise<Uint8Array> => {
-  const result = (await client.send(
-    new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: key }),
-  )) as { Body?: { transformToByteArray: () => Promise<Uint8Array> } };
+  const result = (await client.send(new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: key }))) as {
+    Body?: { transformToByteArray: () => Promise<Uint8Array> };
+  };
   if (!result.Body) {
     throw new Error(`R2 fetch returned no body for key ${key}`);
   }
@@ -262,6 +275,7 @@ export { assetKey, fetchAsset, uploadAsset };
 ```bash
 pnpm --filter api exec vitest run src/lib/storage.test.ts
 ```
+
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Full gates**
@@ -286,6 +300,7 @@ git commit -m "feat(api): lib/storage R2 client (uploadAsset, assetKey, fetchAss
 Deterministic asset ingest: SHA-256 → dedup check → R2 upload (skip if dup) → `BrandAsset` row creation with empty metadata. Returns `{ assetId, deduped }`.
 
 **Files:**
+
 - Create: `apps/api/src/soul/brand-asset.ts`
 - Test: `apps/api/src/soul/brand-asset.test.ts`
 
@@ -304,7 +319,11 @@ const makeStorage = (): IngestStorage => ({
 const makePrisma = (existing: { id: string; r2Key: string; sha256: string } | null) => ({
   brandAsset: {
     create: vi.fn().mockImplementation(({ data }: { data: { sha256: string } }) =>
-      Promise.resolve({ id: "asset_new", r2Key: `org_org_1/${data.sha256}.jpg`, sha256: data.sha256 }),
+      Promise.resolve({
+        id: "asset_new",
+        r2Key: `org_org_1/${data.sha256}.jpg`,
+        sha256: data.sha256,
+      }),
     ),
     findUnique: vi.fn().mockResolvedValue(existing),
   },
@@ -381,6 +400,7 @@ describe("ingestBrandAsset", () => {
 ```bash
 pnpm --filter api exec vitest run src/soul/brand-asset.test.ts
 ```
+
 Expected: FAIL `Cannot find module './brand-asset'`.
 
 - [ ] **Step 3: Implement `apps/api/src/soul/brand-asset.ts`**
@@ -408,8 +428,7 @@ const mimeToExt = (mimeType: string): string => {
   return "bin";
 };
 
-const sha256Hex = (bytes: Uint8Array): string =>
-  createHash("sha256").update(bytes).digest("hex");
+const sha256Hex = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 
 const ingestBrandAsset = async (args: {
   bytes: Uint8Array;
@@ -459,6 +478,7 @@ export type { IngestPrisma, IngestStorage };
 ```bash
 pnpm --filter api exec vitest run src/soul/brand-asset.test.ts
 ```
+
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Full gates**
@@ -479,6 +499,7 @@ git commit -m "feat(api): ingestBrandAsset (sha256 dedup + R2 upload + row creat
 Add a NEW `runAgent` function alongside the existing Phase 2.5 `extractSoul`. Uses `generateText({ tools, stopWhen: stepCountIs(5) })`. Defines `extractSoul`/`labelBrandAsset` as tools that close over `orgId`/`prisma`. Keeps Phase 2.5's `extractSoul` function alive (handler will swap in Task 3.5).
 
 **Files:**
+
 - Modify: `apps/api/src/lib/ai.ts`
 - Modify: `apps/api/src/lib/ai.test.ts`
 - Modify: `apps/api/src/soul/extract.ts`
@@ -511,9 +532,7 @@ describe("runAgent", () => {
       input: {
         audioBytes: undefined,
         audioMime: undefined,
-        imageBytes: [
-          { assetId: "asset_1", bytes: new Uint8Array([7, 7]), mimeType: "image/jpeg" },
-        ],
+        imageBytes: [{ assetId: "asset_1", bytes: new Uint8Array([7, 7]), mimeType: "image/jpeg" }],
         text: "Aqui está minha logo",
       },
       newAssets: [{ assetId: "asset_1", deduped: false, mimeType: "image/jpeg" }],
@@ -525,7 +544,10 @@ describe("runAgent", () => {
 
     expect(generateTextMock).toHaveBeenCalledOnce();
     const args = generateTextMock.mock.calls[0]![0] as {
-      messages: Array<{ content: Array<{ data?: Uint8Array; mediaType?: string; text?: string; type: string }>; role: string }>;
+      messages: Array<{
+        content: Array<{ data?: Uint8Array; mediaType?: string; text?: string; type: string }>;
+        role: string;
+      }>;
       system: string;
       tools: Record<string, unknown>;
     };
@@ -534,7 +556,9 @@ describe("runAgent", () => {
     expect(args.system).toContain("asset_1");
     expect(args.system).toContain("whatYouDo: salão");
     const userContent = args.messages[0]!.content;
-    expect(userContent.some((p) => p.type === "text" && p.text === "Aqui está minha logo")).toBe(true);
+    expect(userContent.some((p) => p.type === "text" && p.text === "Aqui está minha logo")).toBe(
+      true,
+    );
     expect(userContent.some((p) => p.type === "file" && p.mediaType === "image/jpeg")).toBe(true);
     expect(result.text).toBe("Recebi sua logo! Cores principais: #112233.");
     expect(result.usage.inputTokens).toBe(50);
@@ -584,6 +608,7 @@ vi.mock("ai", () => ({
 ```bash
 pnpm --filter api exec vitest run src/lib/ai.test.ts
 ```
+
 Expected: FAIL with `runAgent is not exported`.
 
 - [ ] **Step 3: Add `runAgent` to `apps/api/src/lib/ai.ts`** (alongside the existing `extractSoul`)
@@ -630,7 +655,10 @@ const extractSoulToolInput = z.object({
 
 const labelBrandAssetToolInput = z.object({
   assetId: z.string().min(1),
-  palette: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/i)).min(1).max(8),
+  palette: z
+    .array(z.string().regex(/^#[0-9A-Fa-f]{6}$/i))
+    .min(1)
+    .max(8),
   styleDescriptors: z.array(z.string().min(1)).min(1).max(6),
   typography: z.enum(["serif", "sans", "script", "handwritten", "decorative", "unknown"]),
 });
@@ -664,14 +692,20 @@ Depois de chamar as ferramentas necessárias, escreva UMA resposta em pt-BR (1-3
 const renderAssetsBlock = (assets: ReadonlyArray<AssetSummary>): string => {
   if (assets.length === 0) return "(nenhum)";
   return assets
-    .map((a) => `- assetId: ${a.assetId}, mimeType: ${a.mimeType}${a.deduped ? " (já estava no perfil — NÃO labelar)" : ""}`)
+    .map(
+      (a) =>
+        `- assetId: ${a.assetId}, mimeType: ${a.mimeType}${a.deduped ? " (já estava no perfil — NÃO labelar)" : ""}`,
+    )
     .join("\n");
 };
 
 const renderExistingBlock = (assets: ReadonlyArray<ExistingAssetSummary>): string => {
   if (assets.length === 0) return "(nenhum)";
   return assets
-    .map((a) => `- assetId: ${a.assetId}, mimeType: ${a.mimeType}, metadata: ${JSON.stringify(a.metadata)}`)
+    .map(
+      (a) =>
+        `- assetId: ${a.assetId}, mimeType: ${a.mimeType}, metadata: ${JSON.stringify(a.metadata)}`,
+    )
     .join("\n");
 };
 
@@ -691,8 +725,7 @@ const renderAgentSystem = (args: {
 
 const buildAgentUserContent = (input: AgentInput) => {
   const parts: Array<
-    | { data: Uint8Array; mediaType: string; type: "file" }
-    | { text: string; type: "text" }
+    { data: Uint8Array; mediaType: string; type: "file" } | { text: string; type: "text" }
   > = [];
   if (input.audioBytes) {
     parts.push({ data: input.audioBytes, mediaType: input.audioMime ?? "audio/ogg", type: "file" });
@@ -825,6 +858,7 @@ git commit -m "feat(api): lib/ai adds runAgent (generateText + tools: extractSou
 The big handler refactor. Pre-process image attachments via `ingestBrandAsset`, query existing brand assets, call `runAgent`, post `result.text`. Drop the now-dead `extractSoul`/`extractFromMessage` functions (Phase 2.5 leftovers).
 
 **Files:**
+
 - Modify: `apps/api/src/telegram/handler.ts`
 - Modify: `apps/api/src/telegram/handler.test.ts`
 - Modify: `apps/api/src/lib/ai.ts` (delete dead `extractSoul`)
@@ -876,24 +910,25 @@ const makePrisma = () => {
   } as never;
 };
 
-const makeDeps = (over: Partial<{
-  getBusinessContext: ReturnType<typeof vi.fn>;
-  ingestBrandAsset: ReturnType<typeof vi.fn>;
-  prisma: ReturnType<typeof makePrisma>;
-  runAgent: ReturnType<typeof vi.fn>;
-}> = {}): HandlerDeps => {
+const makeDeps = (
+  over: Partial<{
+    getBusinessContext: ReturnType<typeof vi.fn>;
+    ingestBrandAsset: ReturnType<typeof vi.fn>;
+    prisma: ReturnType<typeof makePrisma>;
+    runAgent: ReturnType<typeof vi.fn>;
+  }> = {},
+): HandlerDeps => {
   const prisma = over.prisma ?? makePrisma();
   return {
-    getBusinessContext: (over.getBusinessContext ?? vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
-    ingestBrandAsset:
-      (over.ingestBrandAsset ??
+    getBusinessContext: (over.getBusinessContext ??
+      vi.fn().mockResolvedValue("")) as unknown as HandlerDeps["getBusinessContext"],
+    ingestBrandAsset: (over.ingestBrandAsset ??
       vi.fn().mockImplementation(async (a: { mimeType: string }) => ({
         assetId: `asset_${a.mimeType}`,
         deduped: false,
       }))) as unknown as HandlerDeps["ingestBrandAsset"],
     prisma: prisma as unknown as HandlerDeps["prisma"],
-    runAgent:
-      (over.runAgent ??
+    runAgent: (over.runAgent ??
       vi.fn().mockResolvedValue({
         text: "Anotei!",
         toolCallSummary: { extractSoul: 1, labelBrandAsset: 0 },
@@ -915,7 +950,9 @@ describe("handleIncomingMessage", () => {
 
   it("is idempotent — duplicate message id is a no-op", async () => {
     const prisma = makePrisma();
-    (prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
+    (
+      prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }
+    ).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
     const deps = makeDeps({ prisma });
     const thread = makeThread();
 
@@ -941,7 +978,9 @@ describe("handleIncomingMessage", () => {
     );
 
     expect(fetchData).toHaveBeenCalledOnce();
-    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { input: { audioBytes?: Uint8Array; audioMime?: string } };
+    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      input: { audioBytes?: Uint8Array; audioMime?: string };
+    };
     expect(call.input.audioBytes).toBe(bytes);
     expect(call.input.audioMime).toBe("audio/ogg");
   });
@@ -970,7 +1009,9 @@ describe("handleIncomingMessage", () => {
       input: { imageBytes: Array<{ assetId: string; bytes: Uint8Array; mimeType: string }> };
       newAssets: Array<{ assetId: string; deduped: boolean; mimeType: string }>;
     };
-    expect(call.newAssets).toEqual([{ assetId: "asset_logo", deduped: false, mimeType: "image/png" }]);
+    expect(call.newAssets).toEqual([
+      { assetId: "asset_logo", deduped: false, mimeType: "image/png" },
+    ]);
     expect(call.input.imageBytes).toEqual([
       { assetId: "asset_logo", bytes: imageBytes, mimeType: "image/png" },
     ]);
@@ -979,7 +1020,9 @@ describe("handleIncomingMessage", () => {
   it("on dedup hit does NOT include bytes in input.imageBytes but does flag in newAssets", async () => {
     const bytes = new Uint8Array([5]);
     const fetchData = vi.fn().mockResolvedValue(bytes);
-    const ingestBrandAsset = vi.fn().mockResolvedValue({ assetId: "asset_existing", deduped: true });
+    const ingestBrandAsset = vi
+      .fn()
+      .mockResolvedValue({ assetId: "asset_existing", deduped: true });
     const deps = makeDeps({ ingestBrandAsset });
     const thread = makeThread();
 
@@ -1017,7 +1060,9 @@ describe("handleIncomingMessage", () => {
     );
 
     expect(ingestBrandAsset).not.toHaveBeenCalled();
-    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { oversizeCount: number };
+    const call = (deps.runAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      oversizeCount: number;
+    };
     expect(call.oversizeCount).toBe(1);
   });
 
@@ -1041,7 +1086,9 @@ describe("handleIncomingMessage", () => {
       deps,
       thread,
       makeMessage({
-        attachments: [{ fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" }],
+        attachments: [
+          { fetchData: () => Promise.reject(new Error("boom")), mimeType: "audio/ogg" },
+        ],
         text: "",
       }),
     );
@@ -1070,6 +1117,7 @@ describe("handleIncomingMessage", () => {
 ```bash
 pnpm --filter api exec vitest run src/telegram/handler.test.ts
 ```
+
 Expected: FAIL — `HandlerDeps` doesn't have the new keys; mock shape mismatches.
 
 - [ ] **Step 3: Replace `apps/api/src/telegram/handler.ts`** entirely
@@ -1104,7 +1152,13 @@ type HandlerDeps = {
   ingestBrandAsset?: typeof ingestBrandAssetDefault;
   prisma: Pick<
     PrismaClient,
-    "$transaction" | "brandAsset" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"
+    | "$transaction"
+    | "brandAsset"
+    | "conversation"
+    | "message"
+    | "organization"
+    | "telegramLink"
+    | "webhookEvent"
   >;
   runAgent?: typeof runAgentDefault;
 };
@@ -1221,10 +1275,7 @@ const handleIncomingMessage = async (
       try {
         bytes = await img.fetchData();
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "image.download_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "image.download_failed");
         continue;
       }
       if (bytes.byteLength > MAX_IMAGE_BYTES) {
@@ -1244,10 +1295,7 @@ const handleIncomingMessage = async (
           imageBytes.push({ assetId, bytes, mimeType });
         }
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "image.ingest_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "image.ingest_failed");
       }
     }
 
@@ -1265,10 +1313,7 @@ const handleIncomingMessage = async (
         }
         audioBytes = await audio.fetchData();
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "audio.download_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "audio.download_failed");
         await thread.post(DOWNLOAD_FAILED_REPLY);
         return;
       }
@@ -1291,7 +1336,12 @@ const handleIncomingMessage = async (
     const result = await runAgent({
       currentContext,
       existingAssets,
-      input: { audioBytes, audioMime: audio?.mimeType, imageBytes, text: text.length > 0 ? text : undefined },
+      input: {
+        audioBytes,
+        audioMime: audio?.mimeType,
+        imageBytes,
+        text: text.length > 0 ? text : undefined,
+      },
       newAssets,
       orgId: link.orgId,
       oversizeCount,
@@ -1335,6 +1385,7 @@ export type { HandlerDeps, IncomingMessage, IncomingThread };
 ```bash
 pnpm --filter api exec vitest run src/telegram/handler.test.ts
 ```
+
 Expected: PASS (9 tests).
 
 - [ ] **Step 5: Delete dead `extractSoul` from `apps/api/src/lib/ai.ts`**
@@ -1348,6 +1399,7 @@ Remove the two `describe("extractSoul", …)` blocks. Keep the `runAgent` tests 
 - [ ] **Step 7: Delete dead `extractFromMessage` from `apps/api/src/soul/extract.ts`**
 
 Replace the file with:
+
 ```ts
 export { runAgent } from "../lib/ai";
 export type { AgentInput, AgentResult, AssetSummary, ExistingAssetSummary } from "../lib/ai";
@@ -1385,6 +1437,7 @@ Lint must be 0/0 (drop unused imports, alphabetize). If oxlint flags any leftove
 git branch --show-current   # qolmeia-phase-3-r2-brand-assets
 grep -rn "extractSoul\|extractFromMessage" apps/api/src
 ```
+
 The grep should be empty (all references gone — the tool is named `extractSoul` inside the `tools` object in `lib/ai.ts`, that's fine and expected; what we want gone is the standalone function `extractSoul` and `extractFromMessage`).
 
 If the grep returns lines from `lib/ai.ts` matching the tool key `extractSoul:` — that's acceptable; the tool's named that. Just confirm no standalone exported function `extractSoul` survives.
@@ -1416,6 +1469,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 ```
+
 All green. Test count ~48.
 
 - [ ] **Step 2: Cleanliness greps**
@@ -1425,6 +1479,7 @@ grep -rniI acme . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=di
 grep -rniI portless . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=.turbo | grep -v docs/superpowers
 grep -rn "extractFromMessage" apps/api/src
 ```
+
 All empty.
 
 - [ ] **Step 3: Seam audit — businessProfile + brandAsset writers**

@@ -1,14 +1,23 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   generateText,
-  type ModelMessage,
   stepCountIs,
   streamText,
   type StreamTextOnFinishCallback,
   type ToolSet,
-  type UIMessage,
 } from "ai";
 
+import {
+  type AttachedImage,
+  buildModelMessages,
+  buildSystemPrompt,
+  extractImages,
+  extractText,
+  MEMORY_MIN_SCORE,
+  MEMORY_TOP_K,
+  RECENT_TURNS_KEEP,
+  RECENT_TURNS_WINDOW,
+} from "@/agents/correspondent-context";
 import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
 import { getAdapter } from "@/connectors/registry";
 import type { ConnectorType, NormalizedMessage } from "@/connectors/types";
@@ -17,34 +26,36 @@ import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema
 import { getModel } from "@/lib/ai-gateway";
 import type { CompanyBriefPartial } from "@/lib/company-brief";
 import { getConnectorSecrets } from "@/lib/connector-secrets";
-import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
+import { logError, logInfo, logWarn } from "@/lib/logger";
+import { getMemoryAdapter } from "@/lib/memory";
+import { fetchAsset } from "@/lib/r2";
 import { buildSkillTools } from "@/skills/registry";
 
-const BASE_SYSTEM_PROMPT = `Você é o Correspondente da Qolmeia, o ponto único de contato de uma agência de IA para negócios. Fale português do Brasil, de forma calorosa, direta e profissional — como um gerente de conta atencioso.
-
-Você tem um Time de especialistas. Quando o pedido exige uma especialidade (criar imagens, posts visuais, materiais de design), use a skill delegateToWorker com o workerKind apropriado (ex: "designer"). O especialista trabalha em segundo plano e a proposta chega depois — diga ao cliente que está sendo preparado.
-
-Quando uma ação pendente aparecer no histórico (mensagem marcada com 🟡 e um id), o cliente pode responder com aprovação, pedido de ajuste, ou rejeição. Interprete a resposta e use a skill decideAction com o actionId correto. Se o cliente pedir ajustes, inclua o que ele quer no campo feedback.
-
-Ao mostrar imagens geradas, inclua a URL no formato markdown ![descrição curta](URL) para que apareça inline no chat.`;
-
-const RECENT_TURNS_WINDOW = 12;
-const MEMORY_TOP_K = 4;
-const MEMORY_MIN_SCORE = 0.3;
-const RECENT_TURNS_KEEP = 100;
-
-const extractText = (message: UIMessage): string =>
-  message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("")
-    .trim();
-
-const buildSystemPrompt = (facts: ReadonlyArray<ScoredRecord>): string => {
-  if (facts.length === 0) {
-    return BASE_SYSTEM_PROMPT;
+// Pulls the asset id segment out of `…/assets/<id>?token=…`. Accepts both
+// absolute http(s) URLs and bare paths. Returns null when the shape doesn't
+// match — callers should drop the attachment in that case.
+const extractAssetIdFromUrl = (url: string): string | null => {
+  let path: string;
+  try {
+    path = url.startsWith("http") ? new URL(url).pathname : (url.split("?")[0] ?? "");
+  } catch {
+    return null;
   }
-  const block = facts.map((fact) => `- [${fact.kind}] ${fact.content}`).join("\n");
-  return `${BASE_SYSTEM_PROMPT}\n\nFatos relevantes lembrados:\n${block}`;
+  const segments = path.split("/").filter(Boolean);
+  const idx = segments.indexOf("assets");
+  if (idx === -1 || idx !== segments.length - 2) {
+    return null;
+  }
+  return segments.at(-1) ?? null;
+};
+
+const arrayBufferToDataUrl = (buf: ArrayBuffer, mime: string): string => {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (const b of bytes) {
+    s += String.fromCodePoint(b);
+  }
+  return `data:${mime};base64,${btoa(s)}`;
 };
 
 // The Correspondent. Keyed by company id (`this.name`). Memory plumbing:
@@ -59,6 +70,83 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     return getModel(this.env);
   }
 
+  // Rewrites each attached image's signed http(s) URL to a data: URL by
+  // reading bytes from R2 directly. The AI SDK's built-in downloader rejects
+  // localhost/private-IP hosts (SSRF guard), which makes signed dev URLs
+  // unfetchable; data: bypasses the validator and also avoids a redundant
+  // HTTP roundtrip in prod (Worker → its own /assets endpoint → R2). Scoped
+  // to the current company so a pasted asset id from elsewhere can't leak.
+  private async resolveImagesToDataUrls(
+    images: ReadonlyArray<AttachedImage>,
+  ): Promise<ReadonlyArray<AttachedImage>> {
+    if (images.length === 0) {
+      return images;
+    }
+    const companyId = this.name;
+    const resolved = await Promise.all(
+      images.map(async (image) => {
+        if (image.url.startsWith("data:")) {
+          return image;
+        }
+        const assetId = extractAssetIdFromUrl(image.url);
+        if (!assetId) {
+          logWarn("agent.attachment.skip", { companyId, reason: "url-not-asset", url: image.url });
+          return null;
+        }
+        const row = await this.env.DB.prepare(
+          "SELECT r2_key, mime FROM asset WHERE id = ? AND company_id = ?",
+        )
+          .bind(assetId, companyId)
+          .first<{ mime: string; r2_key: string }>();
+        if (!row) {
+          logWarn("agent.attachment.skip", { assetId, companyId, reason: "asset-not-found" });
+          return null;
+        }
+        const object = await fetchAsset({ ASSETS: this.env.ASSETS }, row.r2_key);
+        if (!object) {
+          logWarn("agent.attachment.skip", { assetId, companyId, reason: "r2-miss" });
+          return null;
+        }
+        const buf = await object.arrayBuffer();
+        return { mediaType: row.mime, url: arrayBufferToDataUrl(buf, row.mime) };
+      }),
+    );
+    return resolved.filter((value): value is AttachedImage => value !== null);
+  }
+
+  // Persists a turn everywhere a future turn looks: D1 (system of record),
+  // recent-turns buffer (model context), memory adapter (recall). Used for
+  // both inbound user messages and outbound agent replies.
+  private async recordTurn(
+    role: "agent" | "user",
+    conversationId: string,
+    messageId: string,
+    content: string,
+  ): Promise<void> {
+    const companyId = this.name;
+    const agentInstanceId = `corr-${companyId}`;
+    await insertMessage(this.env.DB, {
+      agentInstanceId: role === "agent" ? agentInstanceId : undefined,
+      companyId,
+      content,
+      conversationId,
+      id: messageId,
+      role,
+    });
+    appendTurn(this, role, content);
+    await getMemoryAdapter(this.env).upsert({
+      agentInstanceId,
+      companyId,
+      content,
+      createdAt: Date.now(),
+      id: messageId,
+      kind: "message",
+    });
+    if (role === "agent") {
+      pruneOldTurns(this, RECENT_TURNS_KEEP);
+    }
+  }
+
   // Called by the WorkerJob Workflow when a Worker proposes a gated action.
   // Formats the proposal as an assistant message + persists it everywhere
   // the next chat turn looks: D1 (system of record), the SDK's message list
@@ -68,6 +156,7 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   async presentAction(actionId: string): Promise<void> {
     const action = await getAction(this.env.DB, actionId);
     if (!action) {
+      logInfo("agent.presentAction.skip", { actionId, reason: "action not found" });
       return;
     }
     const proposedSummary =
@@ -84,6 +173,14 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     const agentInstanceId = `corr-${companyId}`;
     const conversationId = `web-${companyId}`;
     const messageId = crypto.randomUUID();
+
+    logInfo("agent.presentAction", {
+      actionId,
+      actionType: action.actionType,
+      agentInstanceId,
+      companyId,
+      proposedSummary,
+    });
 
     await upsertConversation(this.env.DB, {
       companyId,
@@ -115,30 +212,31 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     conversationId: string;
     message: NormalizedMessage;
   }): Promise<void> {
+    const connectorStart = Date.now();
     const companyId = this.name;
     const agentInstanceId = `corr-${companyId}`;
     const memory = getMemoryAdapter(this.env);
     const text = input.message.text;
     if (!text) {
+      logInfo("agent.connector.skip", {
+        companyId,
+        connectorId: input.connectorId,
+        connectorType: input.connectorType,
+        reason: "empty inbound text",
+      });
       return;
     }
 
-    await insertMessage(this.env.DB, {
-      companyId,
-      content: text,
-      conversationId: input.conversationId,
-      id: input.message.externalId,
-      role: "user",
-    });
-    appendTurn(this, "user", text);
-    await memory.upsert({
+    logInfo("agent.connector.start", {
       agentInstanceId,
       companyId,
-      content: text,
-      createdAt: Date.now(),
-      id: input.message.externalId,
-      kind: "message",
+      connectorId: input.connectorId,
+      connectorType: input.connectorType,
+      externalThreadId: input.message.externalThreadId,
+      userText: text,
     });
+
+    await this.recordTurn("user", input.conversationId, input.message.externalId, text);
 
     const retrieved = await memory.retrieve({
       agentInstanceId,
@@ -147,10 +245,7 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       topK: MEMORY_TOP_K,
     });
     const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
-    const messages: Array<ModelMessage> = turns.map((turn) => ({
-      content: turn.content,
-      role: turn.role === "user" ? "user" : "assistant",
-    }));
+    const messages = buildModelMessages(turns, { userImages: [], userText: text });
     const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
       "rememberFact",
       "recallMemory",
@@ -159,6 +254,8 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     ]);
 
     let reply: string;
+    let toolCallNames: Array<string> = [];
+    let usage: unknown = null;
     try {
       const result = await generateText({
         messages,
@@ -168,34 +265,32 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
         tools,
       });
       reply = result.text.trim();
+      toolCallNames = (result.steps ?? []).flatMap((s) =>
+        (s.toolCalls ?? []).map((tc) => tc.toolName),
+      );
+      usage = result.usage;
     } catch (error) {
-      // oxlint-disable-next-line no-console
-      console.error("[correspondent] generateText failed for inbound connector message", { error });
+      const message = error instanceof Error ? error.message : String(error);
+      logError("agent.connector.err", {
+        agentInstanceId,
+        companyId,
+        connectorId: input.connectorId,
+        connectorType: input.connectorType,
+        error: message,
+      });
       return;
     }
     if (!reply) {
+      logInfo("agent.connector.skip", {
+        agentInstanceId,
+        companyId,
+        connectorId: input.connectorId,
+        reason: "empty model reply",
+      });
       return;
     }
 
-    const agentMessageId = crypto.randomUUID();
-    await insertMessage(this.env.DB, {
-      agentInstanceId,
-      companyId,
-      content: reply,
-      conversationId: input.conversationId,
-      id: agentMessageId,
-      role: "agent",
-    });
-    appendTurn(this, "agent", reply);
-    await memory.upsert({
-      agentInstanceId,
-      companyId,
-      content: reply,
-      createdAt: Date.now(),
-      id: agentMessageId,
-      kind: "message",
-    });
-    pruneOldTurns(this, RECENT_TURNS_KEEP);
+    await this.recordTurn("agent", input.conversationId, crypto.randomUUID(), reply);
 
     // Send the reply back out through the channel. Failure here is logged
     // but doesn't blow up — the reply still lives in D1; operator can
@@ -203,10 +298,12 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     const adapter = getAdapter(input.connectorType);
     const config = await getConnectorSecrets(this.env, input.connectorId);
     if (!adapter || !config) {
-      // oxlint-disable-next-line no-console
-      console.error("[correspondent] missing adapter/config for outbound reply", {
+      logError("agent.connector.outbound.err", {
+        agentInstanceId,
+        companyId,
         connectorId: input.connectorId,
         connectorType: input.connectorType,
+        reason: "missing adapter or config",
       });
       return;
     }
@@ -216,11 +313,24 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
         externalThreadId: input.message.externalThreadId,
         text: reply,
       });
-    } catch (error) {
-      // oxlint-disable-next-line no-console
-      console.error("[correspondent] sendOutbound failed", {
+      logInfo("agent.connector.ok", {
+        agentInstanceId,
+        companyId,
+        connectorId: input.connectorId,
         connectorType: input.connectorType,
-        error,
+        durationMs: Date.now() - connectorStart,
+        replyText: reply,
+        toolCallNames,
+        usage,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logError("agent.connector.outbound.err", {
+        agentInstanceId,
+        companyId,
+        connectorId: input.connectorId,
+        connectorType: input.connectorType,
+        error: message,
       });
     }
   }
@@ -236,31 +346,27 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
     const agentInstanceId = `corr-${companyId}`;
     const memory = getMemoryAdapter(this.env);
 
-    const facts: Array<{ content: string; kind: string }> = [];
-    if (input.brief.industry) {
-      facts.push({ content: `Setor: ${input.brief.industry}`, kind: "industry" });
-    }
-    if (input.brief.primaryGoal) {
-      facts.push({ content: `Objetivo principal: ${input.brief.primaryGoal}`, kind: "goal" });
-    }
-    if (input.brief.audience) {
-      facts.push({ content: `Público: ${input.brief.audience}`, kind: "audience" });
-    }
-    if (input.brief.channels && input.brief.channels.length > 0) {
-      facts.push({
+    const facts: Array<{ content: string; kind: string }> = [
+      input.brief.industry && { content: `Setor: ${input.brief.industry}`, kind: "industry" },
+      input.brief.primaryGoal && {
+        content: `Objetivo principal: ${input.brief.primaryGoal}`,
+        kind: "goal",
+      },
+      input.brief.audience && { content: `Público: ${input.brief.audience}`, kind: "audience" },
+      input.brief.channels?.length && {
         content: `Canais ativos: ${input.brief.channels.join(", ")}`,
         kind: "channels",
-      });
-    }
-    if (input.brief.brand?.voice) {
-      facts.push({ content: `Tom da marca: ${input.brief.brand.voice}`, kind: "brand_voice" });
-    }
-    if (input.brief.brand?.palette) {
-      facts.push({ content: `Paleta: ${input.brief.brand.palette}`, kind: "brand_palette" });
-    }
-    if (input.debriefSummary) {
-      facts.push({ content: input.debriefSummary, kind: "onboarding_summary" });
-    }
+      },
+      input.brief.brand?.voice && {
+        content: `Tom da marca: ${input.brief.brand.voice}`,
+        kind: "brand_voice",
+      },
+      input.brief.brand?.palette && {
+        content: `Paleta: ${input.brief.brand.palette}`,
+        kind: "brand_palette",
+      },
+      input.debriefSummary && { content: input.debriefSummary, kind: "onboarding_summary" },
+    ].filter(Boolean) as Array<{ content: string; kind: string }>;
 
     await Promise.all(
       facts.map(async (fact) => {
@@ -287,6 +393,7 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
   ): Promise<Response | undefined> {
+    const turnStart = Date.now();
     const companyId = this.name;
     const agentInstanceId = `corr-${companyId}`;
     const conversationId = `web-${companyId}`;
@@ -298,27 +405,18 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       id: conversationId,
     });
 
-    // Persist the incoming user turn: D1 (system of record), the
-    // recent-turns buffer (model context), and the memory adapter (recall).
+    // Persist user turn to D1 + recent-turns buffer + memory adapter. Images
+    // are stored as a text marker (the buffer is text-only); the live multimodal
+    // payload for the model is built separately below.
     const lastMessage = this.messages.at(-1);
     const userText = lastMessage?.role === "user" ? extractText(lastMessage) : "";
-    if (lastMessage?.role === "user" && userText.length > 0) {
-      await insertMessage(this.env.DB, {
-        companyId,
-        content: userText,
-        conversationId,
-        id: lastMessage.id,
-        role: "user",
-      });
-      appendTurn(this, "user", userText);
-      await memory.upsert({
-        agentInstanceId,
-        companyId,
-        content: userText,
-        createdAt: Date.now(),
-        id: lastMessage.id,
-        kind: "message",
-      });
+    const userImages = lastMessage?.role === "user" ? extractImages(lastMessage) : [];
+    const persistedText =
+      userImages.length > 0
+        ? `${userText}\n[Imagem anexada: ${userImages.length}]`.trim()
+        : userText;
+    if (lastMessage?.role === "user" && persistedText.length > 0) {
+      await this.recordTurn("user", conversationId, lastMessage.id, persistedText);
     }
 
     // Build the model context from our buffers — NOT this.messages. The SDK's
@@ -333,10 +431,18 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
           })
         : [];
     const turns = getRecentTurns(this, RECENT_TURNS_WINDOW);
-    const messages: Array<ModelMessage> = turns.map((turn) => ({
-      content: turn.content,
-      role: turn.role === "user" ? "user" : "assistant",
-    }));
+    const resolvedImages = await this.resolveImagesToDataUrls(userImages);
+    const messages = buildModelMessages(turns, { userImages: resolvedImages, userText });
+
+    logInfo("agent.turn.start", {
+      agent: "correspondent",
+      agentInstanceId,
+      companyId,
+      memoryFactCount: retrieved.length,
+      memoryFactKinds: retrieved.map((r) => r.kind),
+      turnCount: turns.length,
+      userText,
+    });
 
     // Correspondent's skill set is fixed for P4 — the role='correspondent'
     // agent_instance has no template binding (templates are for Workers).
@@ -353,25 +459,20 @@ Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
       model: this.resolveModel(),
       onFinish: async (event) => {
         const agentText = event.text;
-        const agentMessageId = crypto.randomUUID();
-        await insertMessage(this.env.DB, {
+        await this.recordTurn("agent", conversationId, crypto.randomUUID(), agentText);
+        logInfo("agent.turn.ok", {
+          agent: "correspondent",
           agentInstanceId,
           companyId,
-          content: agentText,
-          conversationId,
-          id: agentMessageId,
-          role: "agent",
+          durationMs: Date.now() - turnStart,
+          finishReason: event.finishReason,
+          replyText: agentText,
+          stepCount: event.steps?.length ?? 0,
+          toolCallNames: (event.steps ?? []).flatMap((s) =>
+            (s.toolCalls ?? []).map((tc) => tc.toolName),
+          ),
+          usage: event.usage,
         });
-        appendTurn(this, "agent", agentText);
-        await memory.upsert({
-          agentInstanceId,
-          companyId,
-          content: agentText,
-          createdAt: Date.now(),
-          id: agentMessageId,
-          kind: "message",
-        });
-        pruneOldTurns(this, RECENT_TURNS_KEEP);
         await onFinish(event);
       },
       // 3 steps: model emits a tool call → tool result feeds back → final reply.

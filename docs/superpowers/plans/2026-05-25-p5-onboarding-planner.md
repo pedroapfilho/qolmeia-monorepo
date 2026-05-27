@@ -11,6 +11,7 @@
 **Builds on:** `main` after P4 merged.
 
 **Architectural calls baked in** (T1.4 override):
+
 1. **Planner is persistent (spec decision 4).** Kept dormant after team confirmation; the customer returns to re-plan (add/remove Workers) without re-debrief. The same DO instance, addressable by `planner:{companyId}`.
 2. **`CompanyBrief` is a single typed artifact.** One zod schema, one D1 column (`company.brief` JSON). Versioned via `brief_schema_version` so a future schema change has a migration path.
 3. **Re-planning is the same skill set as onboarding.** No separate "edit team" surface — the customer chats the Planner again, the Planner reads the existing brief + team, proposes deltas, runs the same confirm endpoint with the new template set.
@@ -19,19 +20,19 @@
 
 ## File map
 
-| File | Tasks | Responsibility |
-|---|---|---|
-| `apps/agents/src/agents/planner.ts` (new) | 3 | `PlannerAgent extends AIChatAgent` |
-| `apps/agents/src/lib/company-brief.ts` (new) | 4 | `CompanyBrief` zod schema (industry, goals, audience, channels, brand, locale) + version |
-| `apps/agents/src/skills/extract-brief.ts` (new) | 4 | `extractBrief` — `generateObject` on the brief schema; writes to `company.brief` |
-| `apps/agents/src/skills/propose-team.ts` (new) | 5 | Reads live `template` catalog; returns recommended template ids + rationale |
-| `apps/agents/src/routes/companies.ts` (new) | 6 | `POST /api/companies` (auth-create) · `POST /api/teams/:companyId/confirm` |
-| `apps/agents/src/agents/correspondent.ts` (extend) | 8 | `seedMemory({ brief, debriefSummary })` RPC method |
-| `apps/agents/src/agents/team-materialize.ts` (new) | 7 | The D1 `batch()` materializer + acyclic graph check |
-| `apps/agents/src/routes/backoffice-catalog.ts` (new) | 9 | CRUD for `template` + `skill` overlay (OWNER/STAFF gated); bumps `template.version` on edit |
-| `apps/client/src/app/(client)/page.tsx` (extend) | 8 | Route to Planner page if `company.status='onboarding'`, Correspondent otherwise |
-| `apps/client/src/app/onboarding/page.tsx` (new) | 8 | Renders `<Chat agent="planner" name={companyId}>` with a "Confirm Team" CTA driven by Planner state events |
-| `apps/agents/src/__tests__/*.test.ts` (new) | 10 | extractBrief schema · proposeTeam against seeded catalog · confirm batch atomicity · acyclic check · seedMemory · re-plan flow |
+| File                                                 | Tasks | Responsibility                                                                                                                 |
+| ---------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/agents/src/agents/planner.ts` (new)            | 3     | `PlannerAgent extends AIChatAgent`                                                                                             |
+| `apps/agents/src/lib/company-brief.ts` (new)         | 4     | `CompanyBrief` zod schema (industry, goals, audience, channels, brand, locale) + version                                       |
+| `apps/agents/src/skills/extract-brief.ts` (new)      | 4     | `extractBrief` — `generateObject` on the brief schema; writes to `company.brief`                                               |
+| `apps/agents/src/skills/propose-team.ts` (new)       | 5     | Reads live `template` catalog; returns recommended template ids + rationale                                                    |
+| `apps/agents/src/routes/companies.ts` (new)          | 6     | `POST /api/companies` (auth-create) · `POST /api/teams/:companyId/confirm`                                                     |
+| `apps/agents/src/agents/correspondent.ts` (extend)   | 8     | `seedMemory({ brief, debriefSummary })` RPC method                                                                             |
+| `apps/agents/src/agents/team-materialize.ts` (new)   | 7     | The D1 `batch()` materializer + acyclic graph check                                                                            |
+| `apps/agents/src/routes/backoffice-catalog.ts` (new) | 9     | CRUD for `template` + `skill` overlay (OWNER/STAFF gated); bumps `template.version` on edit                                    |
+| `apps/client/src/app/(client)/page.tsx` (extend)     | 8     | Route to Planner page if `company.status='onboarding'`, Correspondent otherwise                                                |
+| `apps/client/src/app/onboarding/page.tsx` (new)      | 8     | Renders `<Chat agent="planner" name={companyId}>` with a "Confirm Team" CTA driven by Planner state events                     |
+| `apps/agents/src/__tests__/*.test.ts` (new)          | 10    | extractBrief schema · proposeTeam against seeded catalog · confirm batch atomicity · acyclic check · seedMemory · re-plan flow |
 
 ---
 
@@ -90,7 +91,7 @@
 - [ ] `propose-team.test.ts` — against a seeded catalog with three templates; assert deterministic-match cases + at least one model-call branch (scripted).
 - [ ] `team-materialize.test.ts` — happy path + acyclic-violation path + a partial-failure path (assert nothing committed).
 - [ ] `seed-memory.test.ts` — Correspondent reads its seeded brief in the first turn's retrieval.
-- [ ] `replan.test.ts` — second confirm call with a *different* `templateIds` set: add a Worker, remove one, no errors; team_member graph updated correctly.
+- [ ] `replan.test.ts` — second confirm call with a _different_ `templateIds` set: add a Worker, remove one, no errors; team_member graph updated correctly.
 - [ ] All exit 0.
 
 ### T11: Wrap
@@ -104,7 +105,7 @@
 
 ## Risks
 
-- **Org creation across two stores.** The auth org id must equal the D1 company id, and *both* writes must succeed atomically across two databases. If Postgres write succeeds and D1 write fails, you have a half-onboarded company. Mitigation: D1 write first (D1 has `batch()`, idempotent on PK), then auth org. If auth fails after D1, GC the orphan `company` row from a periodic sweeper (or just let the operator see + delete).
+- **Org creation across two stores.** The auth org id must equal the D1 company id, and _both_ writes must succeed atomically across two databases. If Postgres write succeeds and D1 write fails, you have a half-onboarded company. Mitigation: D1 write first (D1 has `batch()`, idempotent on PK), then auth org. If auth fails after D1, GC the orphan `company` row from a periodic sweeper (or just let the operator see + delete).
 - **`generateObject` reliability for partial briefs.** Early in the debrief, the model may emit a brief missing fields. zod's `.partial()` covers the schema; the Planner re-runs `extractBrief` as context grows. Final `proposeTeam` requires the brief to validate against the full schema.
 - **Cycle-creation on re-plan.** A second confirm with different templates rewrites `team_member.can_delegate_to`. Re-validate acyclic on every confirm, not just first.
 - **Per-DO catalog cache invalidation on re-plan.** When a Worker's template changes (catalog edit), the Worker DO's cache must invalidate. P3's `template.version` bump handles edits; a `force-refresh` RPC on `WorkerAgent` is a useful escape hatch for emergency operator actions.

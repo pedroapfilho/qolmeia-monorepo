@@ -6,16 +6,88 @@ type ValidatedSession = {
   userId: string;
 };
 
-// P2 session gate. The validator hits /api/v1/me — the single shape the
-// Worker should depend on — and returns the resolved membership: who is
-// this, which company are they currently in, what role do they have. Path-
-// level role enforcement (CUSTOMER on agent paths, OWNER/STAFF on backoffice)
-// is the caller's job.
+// Session gate. Validates a Better Auth session via `/api/v1/me` on the
+// auth service and returns the resolved membership.
 //
-// The client passes its session token as a `cf_session` query param; the
-// Worker forwards it via the Bearer header to Better Auth's bearer plugin.
-// Request cookies are forwarded as a fallback for a future shared-domain
-// deployment. Caching is a P3+ concern.
+// Path-level role enforcement (CUSTOMER on agent paths, OWNER/STAFF on
+// backoffice routes) is the caller's job — this function only resolves
+// "who is this and which company are they in."
+//
+// Cache: when the SESSIONS KV binding is configured, successful lookups are
+// memoised for SESSION_CACHE_TTL_SECONDS. The cache key is keyed on the
+// bearer token (or a hash of the cookie header) so the same browser tab
+// stops hammering the auth service. Misses fall through and refill the
+// cache; failures don't cache.
+
+// Cloudflare KV enforces a 60-second minimum on expirationTtl. Bumping the
+// session cache below this throws at PUT time with a 400. 60s is still well
+// inside the human reaction window for "I changed roles in Postgres and
+// expect it to take effect."
+const SESSION_CACHE_TTL_SECONDS = 60;
+
+const sha256Hex = async (input: string): Promise<string> => {
+  const bytes = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  const view = new Uint8Array(hash);
+  let out = "";
+  for (const byte of view) {
+    out += byte.toString(16).padStart(2, "0");
+  }
+  return out;
+};
+
+const buildCacheKey = async (
+  token: string | null,
+  cookie: string | null,
+): Promise<string | null> => {
+  if (token) {
+    return `session:tok:${token}`;
+  }
+  if (cookie) {
+    return `session:cookie:${await sha256Hex(cookie)}`;
+  }
+  return null;
+};
+
+const readCached = async (env: Env, cacheKey: string | null): Promise<ValidatedSession | null> => {
+  if (!cacheKey || !env.SESSIONS) {
+    return null;
+  }
+  try {
+    const raw = await env.SESSIONS.get(cacheKey);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as ValidatedSession;
+    if (parsed.companyId && parsed.role && parsed.userId) {
+      return parsed;
+    }
+    return null;
+  } catch (error) {
+    // oxlint-disable-next-line no-console
+    console.error("[auth] session cache read failed", { error });
+    return null;
+  }
+};
+
+const writeCached = async (
+  env: Env,
+  cacheKey: string | null,
+  session: ValidatedSession,
+): Promise<void> => {
+  if (!cacheKey || !env.SESSIONS) {
+    return;
+  }
+  try {
+    await env.SESSIONS.put(cacheKey, JSON.stringify(session), {
+      expirationTtl: SESSION_CACHE_TTL_SECONDS,
+    });
+  } catch (error) {
+    // oxlint-disable-next-line no-console
+    console.error("[auth] session cache write failed", { error });
+  }
+};
+
 const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
   const cookieHeader = request.headers.get("Cookie");
@@ -29,13 +101,16 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     return null;
   }
 
+  const cacheKey = await buildCacheKey(tokenParam, cookieHeader);
+  const cached = await readCached(env, cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   let response: Response;
   try {
     response = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/me`, { headers });
   } catch (error) {
-    // The auth service being unreachable is an outage, not an invalid
-    // session — surface it rather than letting it look like a normal 401.
-    // console is the Worker's logging channel (wrangler tail / observability).
     // oxlint-disable-next-line no-console
     console.error("[auth] /api/v1/me request failed", { error });
     return null;
@@ -48,11 +123,13 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   if (!me?.currentOrg) {
     return null;
   }
-  return {
+  const validated: ValidatedSession = {
     companyId: me.currentOrg.id,
     role: me.currentOrg.role,
     userId: me.userId,
   };
+  await writeCached(env, cacheKey, validated);
+  return validated;
 };
 
 export { validateSession };

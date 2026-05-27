@@ -1,0 +1,172 @@
+import type { PrismaClient } from "@repo/db";
+import { prisma as defaultPrisma } from "@repo/db";
+import { Hono } from "hono";
+import { z } from "zod";
+
+import { auth as defaultAuth } from "@/lib/auth";
+import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
+
+// POST /api/v1/orgs — create an Organization + OWNER OrgMembership for the
+// signed-in user, then relay the new company id to apps/agents to provision
+// the matching D1 `company` row.
+//
+// This is the org-create hook called out in P7.2: today seeds are hand-rolled
+// with the Prisma row and the D1 row created out-of-band; production needs
+// the relay so signing up just-works without a one-shot script.
+//
+// The relay uses INTERNAL_SHARED_SECRET as a Bearer token against the agents
+// Worker. If unset (dev default), the call still goes out and the receiver
+// can decide to accept-anything in dev. If the relay fails, the route still
+// returns 201 — the operator can run `wrangler d1 execute` manually to
+// reconcile. (D1 rows are cheap; the user-facing failure mode is bad UX, not
+// data corruption.)
+
+type OrgsPrisma = Pick<PrismaClient, "organization" | "orgMembership">;
+
+type AuthLike = {
+  api: {
+    getSession: (args: { headers: Headers }) => Promise<{
+      session: { id: string; userId: string };
+      user: { email: string; id: string; name: string };
+    } | null>;
+  };
+};
+
+type OrgsRouteDeps = {
+  auth?: AuthLike;
+  fetch?: typeof fetch;
+  prisma?: OrgsPrisma;
+};
+
+// Slug validator. Not a regex because oxlint's /v parser and V8's /v parser
+// disagree on where `-` is legal inside a character class — every shape that
+// satisfied one rejected the other. Not a charCode range (the earlier
+// approach) because oxlint and oxfmt fight over hex-digit case. A string
+// membership check is unambiguous in every parser and tool.
+const SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-";
+
+const isValidSlug = (slug: string): boolean => {
+  if (slug.length === 0) {
+    return false;
+  }
+  for (const char of slug) {
+    if (!SLUG_CHARS.includes(char)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const createOrgSchema = z.object({
+  name: z.string().min(1).max(120),
+  slug: z
+    .string()
+    .min(1)
+    .max(80)
+    .refine(isValidSlug, "slug must be lowercase alphanumeric or dashes"),
+});
+
+const provisionD1Company = async (args: {
+  companyId: string;
+  fetchImpl: typeof fetch;
+  name: string;
+  slug: string;
+}): Promise<{ ok: true } | { error: string; ok: false }> => {
+  // Fail closed when the shared secret is missing on this side. The agents
+  // Worker also fails closed (returns 503), so sending unsigned would just
+  // log a confusing "agents responded 503" with no clue that the local
+  // config is the problem. Surfacing it here is more useful in dev.
+  if (!env.INTERNAL_SHARED_SECRET) {
+    return {
+      error:
+        "INTERNAL_SHARED_SECRET not configured on apps/auth — set it and apps/agents to the same value",
+      ok: false,
+    };
+  }
+  const base = env.AGENTS_INTERNAL_URL.endsWith("/")
+    ? env.AGENTS_INTERNAL_URL.slice(0, -1)
+    : env.AGENTS_INTERNAL_URL;
+  const url = `${base}/api/internal/companies`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.INTERNAL_SHARED_SECRET}`,
+    "Content-Type": "application/json",
+  };
+  try {
+    const res = await args.fetchImpl(url, {
+      body: JSON.stringify({ id: args.companyId, name: args.name, slug: args.slug }),
+      headers,
+      method: "POST",
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      return { error: `agents responded ${res.status}: ${detail.slice(0, 200)}`, ok: false };
+    }
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "unknown error", ok: false };
+  }
+};
+
+const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
+  const prisma = deps.prisma ?? defaultPrisma;
+  const auth = deps.auth ?? (defaultAuth as unknown as AuthLike);
+  const fetchImpl = deps.fetch ?? fetch;
+  const app = new Hono();
+
+  app.post("/", async (c) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json({ error: { code: "UNAUTHORIZED", message: "Sign in first" } }, 401);
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: { code: "INVALID_JSON", message: "Invalid JSON body" } }, 400);
+    }
+    const parsed = createOrgSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: { code: "INVALID_BODY", issues: parsed.error.issues, message: "Invalid body" } },
+        400,
+      );
+    }
+
+    const existing = await prisma.organization.findUnique({ where: { slug: parsed.data.slug } });
+    if (existing) {
+      return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
+    }
+
+    const org = await prisma.organization.create({
+      data: { name: parsed.data.name, slug: parsed.data.slug },
+    });
+    await prisma.orgMembership.create({
+      data: { orgId: org.id, role: "OWNER", userId: session.user.id },
+    });
+
+    const relay = await provisionD1Company({
+      companyId: org.id,
+      fetchImpl,
+      name: org.name,
+      slug: org.slug,
+    });
+    if (!relay.ok) {
+      logger.error({ companyId: org.id, error: relay.error }, "[orgs] D1 relay failed");
+    }
+
+    return c.json(
+      {
+        currentOrg: { id: org.id, name: org.name, role: "OWNER" as const, slug: org.slug },
+        d1Provisioned: relay.ok,
+      },
+      201,
+    );
+  });
+
+  return app;
+};
+
+export { buildOrgsRoutes };
+export type { OrgsRouteDeps };

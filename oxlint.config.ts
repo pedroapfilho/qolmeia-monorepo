@@ -52,10 +52,19 @@ export default defineConfig({
     // CLI seed scripts are run via tsx directly — they're not production code.
     // `no-console` and `no-process-exit` are inapplicable in this context.
     {
-      files: ["apps/api/src/scripts/**/*.ts"],
+      files: ["apps/auth/src/scripts/**/*.ts"],
       rules: {
         "no-console": "off",
         "unicorn/no-process-exit": "off",
+      },
+    },
+    // The Correspondent DO concentrates three coherent code paths (web-chat
+    // streaming, connector webhook, memory seed). Splitting them across files
+    // hurts readability more than the line count does — the class is the unit.
+    {
+      files: ["apps/agents/src/agents/correspondent.ts"],
+      rules: {
+        "max-lines": ["error", 500],
       },
     },
   ],

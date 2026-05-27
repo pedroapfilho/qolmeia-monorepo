@@ -2,8 +2,10 @@ import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
 import { listSkillOverlays, type SkillOverlay } from "@/db/template";
+import { logError, logInfo } from "@/lib/logger";
 import { decideActionSkill } from "@/skills/decide-action";
 import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
+import { draftSocialPostSkill } from "@/skills/draft-social-post";
 import { extractBriefSkill } from "@/skills/extract-brief";
 import { generateBrandImageSkill } from "@/skills/generate-brand-image";
 import { proposeTeamSkill } from "@/skills/propose-team";
@@ -34,6 +36,7 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
   recallMemorySkill,
   delegateToWorkerSkill,
   generateBrandImageSkill,
+  draftSocialPostSkill,
   decideActionSkill,
   extractBriefSkill,
   proposeTeamSkill,
@@ -41,10 +44,27 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
 
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));
 
+// Trim a result preview so the log line stays bounded. The full result
+// goes back to the model regardless; this is only for observability.
+const previewResult = (result: unknown): unknown => {
+  if (result === null || result === undefined) {
+    return result;
+  }
+  if (typeof result === "object") {
+    return result;
+  }
+  return String(result).slice(0, 200);
+};
+
 // Resolves a skill set: joins code (execute + schema) with D1 overlay
 // (description / config / enabled). An unknown skill id raises — templates
 // can't reference skills that don't exist in code. A disabled overlay is
 // silently skipped — that's the operator kill-switch.
+//
+// Every tool call emits `agent.tool.start` + `agent.tool.ok|err` so the
+// trace is visible in `wrangler tail` / Workers Observability. Inputs +
+// results land truncated by the logger so a chat that generates a 2KB
+// image-prompt doesn't bloat the log line.
 const buildSkillTools = async (
   ctx: SkillContext,
   skillIds: ReadonlyArray<string>,
@@ -67,7 +87,33 @@ const buildSkillTools = async (
     }
     tools[id] = tool({
       description: overlay?.description ?? code.description,
-      execute: (input) => code.execute(input, ctx),
+      execute: async (input) => {
+        const start = Date.now();
+        const baseFields = {
+          agentInstanceId: ctx.agentInstanceId,
+          companyId: ctx.companyId,
+          input: JSON.stringify(input),
+          skillId: id,
+        };
+        logInfo("agent.tool.start", baseFields);
+        try {
+          const result = await code.execute(input, ctx);
+          logInfo("agent.tool.ok", {
+            ...baseFields,
+            durationMs: Date.now() - start,
+            result: JSON.stringify(previewResult(result)),
+          });
+          return result;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logError("agent.tool.err", {
+            ...baseFields,
+            durationMs: Date.now() - start,
+            error: message,
+          });
+          throw error;
+        }
+      },
       inputSchema: code.inputSchema,
     });
   }

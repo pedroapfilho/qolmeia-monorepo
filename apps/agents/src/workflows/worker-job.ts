@@ -10,6 +10,7 @@ import { getCompany } from "@/db/schema";
 import { getTemplate } from "@/db/template";
 import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "@/db/ticket";
 import { getModel } from "@/lib/ai-gateway";
+import { logError, logInfo } from "@/lib/logger";
 import { buildSkillTools } from "@/skills/registry";
 
 // One generic Workflow class for every Worker job (decision 1 in the P4 plan).
@@ -28,7 +29,22 @@ type WorkerJobParams = {
   ticketId: string;
 };
 
-type GenerateResult = { summary: string };
+type GenerateResult = {
+  // Tool-call outputs the Worker produced during generation, keyed by skill
+  // id. The Workflow attaches these to the proposed action payload so per-
+  // action-type renderers in the backoffice can show structured fields
+  // (e.g. publish_post → draftSocialPost result with platform/body/CTA).
+  // Last-write-wins on duplicate skill ids — Workers should call each
+  // skill at most once per ticket anyway.
+  //
+  // Typed as `string` blobs (JSON-stringified) for the step.do boundary —
+  // Cloudflare Workflows' Serializable check rejects `unknown` even though
+  // the runtime values are JSON-safe. Stringifying at the boundary makes
+  // the type contract honest without a recursive JsonValue alias (which
+  // crashes the compiler with "instantiation excessively deep").
+  skillResultsJson: string;
+  summary: string;
+};
 
 type ProposeResult = { actionId: string | null; policy: string };
 
@@ -41,8 +57,12 @@ type DecisionEvent = {
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
   async run(event: Readonly<WorkflowEvent<WorkerJobParams>>, step: WorkflowStep): Promise<unknown> {
     const { agentInstanceId, companyId, ticketId } = event.payload;
+    const workflowStart = Date.now();
+
+    logInfo("workflow.start", { agentInstanceId, companyId, ticketId });
 
     const generated = await step.do("generate", async (): Promise<GenerateResult> => {
+      const stepStart = Date.now();
       const ticket = await loadTicket(this.env.DB, ticketId);
       const agentInstance = await loadAgentInstance(this.env.DB, agentInstanceId);
       if (!ticket || !agentInstance?.templateId) {
@@ -52,6 +72,15 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (!template) {
         throw new Error(`template ${agentInstance.templateId} not found`);
       }
+      logInfo("workflow.generate.start", {
+        agentInstanceId,
+        brief: ticket.brief,
+        companyId,
+        model: template.model,
+        skillIds: template.skillIds,
+        templateId: template.id,
+        ticketId,
+      });
       const tools = await buildSkillTools(
         { agentInstanceId: agentInstance.id, companyId, env: this.env },
         template.skillIds,
@@ -63,7 +92,39 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         system: template.systemPrompt,
         tools,
       });
-      return { summary: result.text.trim() };
+      const summary = result.text.trim();
+      // Collect tool-call outputs so the propose-deliverable step can
+      // attach structured fields to the action payload. The AI SDK exposes
+      // tool results on `step.toolResults[i].result` (last-write-wins per
+      // skill id — Workers should call each skill at most once per ticket).
+      // The AI SDK emits tool outputs as already-JSON values; we collect
+      // them keyed by skill id, then JSON.stringify at the step boundary
+      // (see GenerateResult.skillResultsJson for the typing rationale).
+      const skillResults: Record<string, unknown> = {};
+      for (const stepResult of result.steps ?? []) {
+        for (const toolResult of stepResult.toolResults ?? []) {
+          const name = (toolResult as { toolName?: string }).toolName;
+          const output =
+            (toolResult as { output?: unknown }).output ??
+            (toolResult as { result?: unknown }).result;
+          if (typeof name === "string" && output !== undefined) {
+            skillResults[name] = output;
+          }
+        }
+      }
+      logInfo("workflow.generate.ok", {
+        agentInstanceId,
+        companyId,
+        durationMs: Date.now() - stepStart,
+        replyText: summary,
+        skillResultNames: Object.keys(skillResults),
+        ticketId,
+        toolCallNames: (result.steps ?? []).flatMap((s) =>
+          (s.toolCalls ?? []).map((tc) => tc.toolName),
+        ),
+        usage: result.usage,
+      });
+      return { skillResultsJson: JSON.stringify(skillResults), summary };
     });
 
     const proposed = await step.do("propose-deliverable", async (): Promise<ProposeResult> => {
@@ -76,7 +137,8 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (!template || !company) {
         throw new Error("template or company vanished mid-workflow");
       }
-      const policy = resolvePolicy("worker_deliverable", template);
+      const actionType = template.defaultActionType;
+      const policy = resolvePolicy(actionType, template);
 
       if (policy === "auto-execute") {
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
@@ -90,11 +152,25 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         return { actionId: null, policy };
       }
 
+      // Action-type-specific structured payload. publish_post pulls the
+      // draftSocialPost tool result so the backoffice renderer can show
+      // platform/body/CTA/hashtags. Other action types fall back to the
+      // text summary; adding a new structured renderer is one branch here
+      // plus a backoffice renderer in `components/action-renderers/`.
+      const skillResults = JSON.parse(generated.skillResultsJson) as Record<string, unknown>;
+      const draft = skillResults.draftSocialPost;
+      const proposedPayload: Record<string, unknown> = {
+        summary: generated.summary,
+        ticketId,
+      };
+      if (actionType === "publish_post" && draft !== undefined) {
+        proposedPayload.draft = draft;
+      }
       const { id: actionId } = await proposeAction(this.env.DB, {
-        actionType: "worker_deliverable",
+        actionType,
         companyId,
         policy,
-        proposed: { summary: generated.summary, ticketId },
+        proposed: proposedPayload,
         ticketId,
       });
       await setTicketStatus(this.env.DB, ticketId, "awaiting_approval");
@@ -114,16 +190,37 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         const corr = await getAgentByName(this.env.CORRESPONDENT, companyId);
         await corr.presentAction(actionId);
       } catch (error) {
-        // oxlint-disable-next-line no-console
-        console.error("[workflow] presentAction RPC failed", { actionId, error });
+        const message = error instanceof Error ? error.message : String(error);
+        logError("workflow.presentAction.err", { actionId, companyId, error: message });
       }
+
+      logInfo("workflow.propose.ok", {
+        actionId,
+        agentInstanceId,
+        companyId,
+        policy,
+        ticketId,
+      });
 
       return { actionId, policy };
     });
 
     if (!proposed.actionId) {
+      logInfo("workflow.auto-execute", {
+        agentInstanceId,
+        companyId,
+        durationMs: Date.now() - workflowStart,
+        ticketId,
+      });
       return { ok: true, summary: generated.summary };
     }
+
+    logInfo("workflow.waiting", {
+      actionId: proposed.actionId,
+      agentInstanceId,
+      companyId,
+      ticketId,
+    });
 
     const evt = await step.waitForEvent<DecisionEvent>(`wait-${proposed.actionId}`, {
       timeout: "60 days",
@@ -135,6 +232,15 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (!actionId) {
         return;
       }
+      logInfo("workflow.decision.received", {
+        actionId,
+        agentInstanceId,
+        companyId,
+        decidedByUserId: evt.payload.decidedByUserId,
+        decision: evt.payload.decision,
+        feedback: evt.payload.feedback ?? null,
+        ticketId,
+      });
       await decideAction(this.env.DB, {
         actionId,
         decidedByUserId: evt.payload.decidedByUserId,
@@ -179,6 +285,13 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       }
     });
 
+    logInfo("workflow.ok", {
+      agentInstanceId,
+      companyId,
+      decision: evt.payload.decision,
+      durationMs: Date.now() - workflowStart,
+      ticketId,
+    });
     return { decision: evt.payload.decision, summary: generated.summary };
   }
 }

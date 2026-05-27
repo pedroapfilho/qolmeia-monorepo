@@ -1,16 +1,20 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Browser fetch helper for the backoffice. Targets the agents Worker's
+// /api/backoffice/* surface. Auth flows through the same Better Auth cookie
+// the auth service issued (forwarded via `credentials: "include"`).
+
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
 
 type FetchInit = Omit<RequestInit, "body" | "method">;
 
 class ApiError extends Error {
-  status: number;
   body: string;
+  status: number;
 
   constructor(status: number, body: string) {
     super(`API request failed (${status}): ${body}`);
+    this.body = body;
     this.name = "ApiError";
     this.status = status;
-    this.body = body;
   }
 }
 
@@ -28,7 +32,6 @@ const handleResponse = async <T>(res: Response): Promise<T> => {
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, body);
   }
-  // Empty 204 responses can't be JSON-parsed; treat them as null.
   if (res.status === 204) {
     return null as T;
   }
@@ -36,7 +39,7 @@ const handleResponse = async <T>(res: Response): Promise<T> => {
 };
 
 const apiGet = async <T>(path: string, init?: FetchInit): Promise<T> => {
-  const res = await fetch(`${API_URL}/api/v1${path}`, {
+  const res = await fetch(`${AGENTS_URL}/api/backoffice${path}`, {
     ...init,
     credentials: "include",
     headers: buildHeaders(init),
@@ -46,13 +49,13 @@ const apiGet = async <T>(path: string, init?: FetchInit): Promise<T> => {
 };
 
 const apiSend = async <T>(
-  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  method: "DELETE" | "PATCH" | "POST" | "PUT",
   path: string,
   body?: unknown,
   init?: FetchInit,
 ): Promise<T> => {
   const serialized = body === undefined ? undefined : JSON.stringify(body);
-  const res = await fetch(`${API_URL}/api/v1${path}`, {
+  const res = await fetch(`${AGENTS_URL}/api/backoffice${path}`, {
     ...init,
     body: serialized,
     credentials: "include",
@@ -62,5 +65,5 @@ const apiSend = async <T>(
   return handleResponse<T>(res);
 };
 
-export { apiGet, ApiError, apiSend, API_URL };
+export { AGENTS_URL, apiGet, ApiError, apiSend };
 export type { FetchInit };

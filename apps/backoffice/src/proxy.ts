@@ -3,20 +3,11 @@ import type { NextRequest } from "next/server";
 
 import { getAuth } from "@/lib/auth";
 
-// Protected: every backoffice route lives behind a session. The dashboard
-// "/" is included, plus the operator-facing surfaces that B.3+ will build out.
-const protectedRoutes = [
-  "/",
-  "/agents",
-  "/approvals",
-  "/activity",
-  "/soul",
-  "/runs",
-  "/team",
-  "/settings",
-];
+// Protected: every backoffice route lives behind a session. The dashboard "/"
+// is included plus the operator-facing surfaces. Role check (OWNER/STAFF
+// vs CUSTOMER) happens in the dashboard layout via requireStaff.
+const protectedRoutes = ["/", "/approvals", "/activity", "/tickets"];
 
-// Auth routes redirect away when the user is already signed in.
 const authRoutes = ["/login", "/register", "/recover", "/reset-password"];
 
 const matchesRoute = (pathname: string, route: string): boolean => {
@@ -41,11 +32,6 @@ export const proxy = async (request: NextRequest) => {
       headers: request.headers,
     })
     .catch((error) => {
-      // Auth service failure (DB down, misconfiguration, etc.) — log so outages
-      // are observable, then treat as unauthenticated to keep the pipeline moving.
-      // Role enforcement happens at apps/api (require-staff middleware); the
-      // backoffice trusts the cookie + API responses, so this check is intentionally
-      // shallow.
       console.error("[proxy] getSession failed — treating as unauthenticated", {
         error,
         pathname,

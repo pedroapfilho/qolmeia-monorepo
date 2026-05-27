@@ -19,6 +19,7 @@
 ### Task 0.1: Delete unneeded apps, packages, and files
 
 **Files:**
+
 - Delete dirs: `apps/web/`, `apps/landing/`, `packages/ui/`, `packages/tailwind-config/`, `packages/auth/`, `packages/transactional/`, `tests/`
 - Delete files: `apps/api/src/lib/auth.ts`, `apps/api/src/middleware/auth.ts`, `apps/api/src/middleware/auth.test.ts`, `apps/api/src/routes/v1/users.ts`, `apps/api/src/services/user.service.ts`, `apps/api/src/services/user.service.test.ts`, `playwright.config.ts`, `verify-auth.js`
 
@@ -41,6 +42,7 @@ Expected: `apps/` = `api`; `packages/` = `config-vitest db typescript-config`; `
 ### Task 0.2: Fix `apps/api` to drop auth/users
 
 **Files:**
+
 - Modify: `apps/api/src/index.ts`
 - Modify: `apps/api/src/lib/env.ts`
 - Modify: `apps/api/src/lib/env.test.ts`
@@ -317,6 +319,7 @@ Expected: no output.
 ### Task 0.3: Trim root `package.json`, `turbo.json`, `pnpm` build deps
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `turbo.json`
 
@@ -358,12 +361,8 @@ Expected: no output.
     "turbo": "^2.9.12"
   },
   "lint-staged": {
-    "!(*.d).{ts,tsx,mts,cts,js,jsx,mjs,cjs}": [
-      "oxlint"
-    ],
-    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,md}": [
-      "oxfmt"
-    ]
+    "!(*.d).{ts,tsx,mts,cts,js,jsx,mjs,cjs}": ["oxlint"],
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,md}": ["oxfmt"]
   },
   "engines": {
     "node": ">=24"
@@ -427,6 +426,7 @@ Expected: no output.
 ### Task 0.4: Rewrite `docker-compose.yml` (qolmeia + Redis)
 
 **Files:**
+
 - Modify: `docker-compose.yml`
 
 - [ ] **Step 1: Replace `docker-compose.yml`**
@@ -536,14 +536,17 @@ Add local Redis to docker-compose."
 ### Task 1.1: Add Chat SDK dependencies
 
 **Files:**
+
 - Modify: `apps/api/package.json`
 
 - [ ] **Step 1: Add dependencies**
 
 Run:
+
 ```bash
 pnpm --filter api add chat @chat-adapter/telegram @chat-adapter/state-redis
 ```
+
 Expected: three packages added to `apps/api/package.json` `dependencies`; install succeeds.
 
 - [ ] **Step 2: Commit**
@@ -556,6 +559,7 @@ git commit -m "feat(api): add Chat SDK + telegram + redis-state deps"
 ### Task 1.2: Prisma schema — Phase 1 models
 
 **Files:**
+
 - Modify: `packages/db/prisma/schema.prisma`
 
 - [ ] **Step 1: Replace `packages/db/prisma/schema.prisma`**
@@ -703,6 +707,7 @@ git commit -m "feat(db): Phase 1 schema (Organization, TelegramLink, Customer, C
 ### Task 1.3: KnowledgeProvider seam
 
 **Files:**
+
 - Create: `apps/api/src/soul/knowledge-provider.ts`
 - Test: `apps/api/src/soul/knowledge-provider.test.ts`
 
@@ -716,9 +721,9 @@ import { getBusinessContext } from "./knowledge-provider";
 const makePrisma = (businessProfile: unknown) =>
   ({
     organization: {
-      findUnique: vi.fn().mockResolvedValue(
-        businessProfile === undefined ? null : { businessProfile },
-      ),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue(businessProfile === undefined ? null : { businessProfile }),
     },
   }) as never;
 
@@ -790,6 +795,7 @@ git commit -m "feat(api): KnowledgeProvider.getBusinessContext seam"
 ### Task 1.4: Soul types (interface only)
 
 **Files:**
+
 - Create: `apps/api/src/soul/soul.ts`
 
 - [ ] **Step 1: Create `apps/api/src/soul/soul.ts`** (types only — write path lands in Phase 2)
@@ -837,6 +843,7 @@ git commit -m "feat(api): SoulProfile types + missingSoulFields"
 ### Task 1.5: Telegram message handler
 
 **Files:**
+
 - Create: `apps/api/src/telegram/handler.ts`
 - Test: `apps/api/src/telegram/handler.test.ts`
 
@@ -880,19 +887,28 @@ describe("handleIncomingMessage", () => {
 
     await handleIncomingMessage({ prisma }, thread, makeMessage());
 
-    expect((prisma as never as { organization: { create: ReturnType<typeof vi.fn> } }).organization.create).toHaveBeenCalledOnce();
-    expect((prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create).toHaveBeenCalledOnce();
+    expect(
+      (prisma as never as { organization: { create: ReturnType<typeof vi.fn> } }).organization
+        .create,
+    ).toHaveBeenCalledOnce();
+    expect(
+      (prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create,
+    ).toHaveBeenCalledOnce();
     expect(thread.post).toHaveBeenCalledOnce();
   });
 
   it("is idempotent — duplicate message id is a no-op", async () => {
     const prisma = makePrisma();
-    (prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
+    (
+      prisma as never as { webhookEvent: { findUnique: ReturnType<typeof vi.fn> } }
+    ).webhookEvent.findUnique.mockResolvedValue({ id: "wh_1" });
     const thread = makeThread();
 
     await handleIncomingMessage({ prisma }, thread, makeMessage());
 
-    expect((prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create).not.toHaveBeenCalled();
+    expect(
+      (prisma as never as { message: { create: ReturnType<typeof vi.fn> } }).message.create,
+    ).not.toHaveBeenCalled();
     expect(thread.post).not.toHaveBeenCalled();
   });
 });
@@ -923,7 +939,12 @@ type IncomingMessage = {
   attachments?: Array<IncomingAttachment>;
 };
 
-type HandlerDeps = { prisma: Pick<PrismaClient, "webhookEvent" | "telegramLink" | "organization" | "conversation" | "message"> };
+type HandlerDeps = {
+  prisma: Pick<
+    PrismaClient,
+    "webhookEvent" | "telegramLink" | "organization" | "conversation" | "message"
+  >;
+};
 
 const ACK_REPLY =
   "Recebi sua mensagem 👋 Em breve vou transformar seus áudios no perfil do seu negócio.";
@@ -977,9 +998,7 @@ const handleIncomingMessage = async (
       select: { id: true },
     }));
 
-  const hasAudio = (message.attachments ?? []).some((a) =>
-    (a.mimeType ?? "").startsWith("audio"),
-  );
+  const hasAudio = (message.attachments ?? []).some((a) => (a.mimeType ?? "").startsWith("audio"));
 
   await prisma.message.create({
     data: {
@@ -1015,6 +1034,7 @@ git commit -m "feat(api): telegram message handler (org/conversation/message + a
 ### Task 1.6: Chat SDK bot singleton
 
 **Files:**
+
 - Create: `apps/api/src/telegram/bot.ts`
 
 - [ ] **Step 1: Create `apps/api/src/telegram/bot.ts`**
@@ -1068,6 +1088,7 @@ git commit -m "feat(api): Chat SDK telegram bot singleton wired to handler"
 ### Task 1.7: Webhook route + mount
 
 **Files:**
+
 - Create: `apps/api/src/routes/telegram/webhook.ts`
 - Modify: `apps/api/src/index.ts`
 
@@ -1108,6 +1129,7 @@ Expected: PASS; `apps/api/dist/index.mjs` produced.
 - [ ] **Step 4: Boot smoke test**
 
 Run (with `docker compose up -d` already running):
+
 ```bash
 node apps/api/dist/index.mjs &
 sleep 3
@@ -1115,6 +1137,7 @@ curl -s localhost:4000/healthz
 curl -s -o /dev/null -w "%{http_code}" -X POST localhost:4000/telegram/webhook -H 'content-type: application/json' -d '{}'
 kill %1
 ```
+
 Expected: `/healthz` returns the healthy JSON; the webhook POST returns a non-5xx status (the adapter rejects an unsigned/empty body — a 4xx is correct and proves the route + adapter are wired).
 
 - [ ] **Step 5: Commit**
@@ -1127,11 +1150,12 @@ git commit -m "feat(api): mount POST /telegram/webhook"
 ### Task 1.8: README local-dev section
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Append a "Telegram (local dev)" section to `README.md`**
 
-```markdown
+````markdown
 ## Telegram bot (local dev)
 
 The bot (`@qolmeia_mvp_v0_bot`) receives updates via webhook. Telegram needs a
@@ -1147,16 +1171,18 @@ public HTTPS URL, so tunnel the local API:
      -d "url=https://<your-tunnel-host>/telegram/webhook" \
      -d "secret_token=<TELEGRAM_WEBHOOK_SECRET_TOKEN>"
    ```
+````
 
 5. Message the bot on Telegram — it persists the message and replies.
-```
+
+````
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add README.md
 git commit -m "docs: Telegram local-dev webhook setup"
-```
+````
 
 ### Task 1.9: Full verification
 
@@ -1177,4 +1203,7 @@ Expected: no output.
 - **Spec coverage:** Phase 0 prune (§2.1) → Task 0.1; api de-auth (§2.3) → 0.2; root/turbo (§2) → 0.3; docker+redis (§2.4) → 0.4; rename (§2.5) → 0.5; env cleanup (§2.5) → 0.2 step 1. Phase 1: deps → 1.1; schema (§3.4) → 1.2; KnowledgeProvider seam #1 (§3.2) → 1.3; soul types (§3.2) → 1.4; handler+idempotency+flow (§3.5/3.6) → 1.5; bot/adapter (§3.2) → 1.6; webhook route (§3.5 step 1) → 1.7; local-dev doc (§3.7) → 1.8; testing (§3.7) → 1.3/1.5; verification → 1.9. `lib/ai.ts`/`lib/storage.ts`/`lib/redis.ts` are explicitly Phase 2+ per the updated spec — no Phase 1 task, by design.
 - **Placeholder scan:** none — every code step has full content.
 - **Type consistency:** `getBusinessContext(orgId, client?)`, `handleIncomingMessage(deps, thread, message)`, `HandlerDeps.prisma`, `SoulProfile` used consistently across tasks 1.3–1.7.
+
+```
+
 ```

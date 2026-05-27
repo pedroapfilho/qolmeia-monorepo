@@ -11,6 +11,7 @@
 **Builds on:** `main` after P3 merged.
 
 **Architectural calls baked in** (T1.4 override):
+
 1. **One generic `WorkerJob` Workflow class, dispatched by ticket payload.** Not one Workflow per skill. The Workflow's steps come from `template.workflow_definition` (a JSON spec of step ids) so a new Worker kind doesn't need a new Workflow class.
 2. **Decision interpretation by the Correspondent's model.** A dedicated tool `decideAction` is exposed to the model — it takes the User's reply text + the open Action and emits `{ decision: 'approve'|'reject'|'changes'; feedback?: string }`. Keeps natural-language flexibility ("manda ver", "publica aí") without parsing brittle keywords.
 3. **`waitForEvent` event names are namespaced by ticket id.** `decision:{ticketId}` so a single Worker DO can have many in-flight Workflows without collision.
@@ -19,21 +20,21 @@
 
 ## File map
 
-| File | Tasks | Responsibility |
-|---|---|---|
-| `apps/agents/migrations/0004_p4_policy_columns.sql` (new) | 3 | `action.action_type` index; `ticket.workflow_id` already exists |
-| `apps/agents/src/workflows/worker-job.ts` (new) | 4 | `WorkerJobWorkflow extends WorkflowEntrypoint` — the one generic class |
-| `apps/agents/src/workflows/steps/index.ts` (new) | 4 | Step registry — id → handler (research, generate, propose, execute, …) |
-| `apps/agents/src/workflows/steps/propose-action.ts` (new) | 5 | Files the action row + emits `step.waitForEvent("decision:<ticketId>")` |
-| `apps/agents/src/db/policy.ts` (new) | 3 | `resolvePolicy(actionType, template, company)` — `require-approval` / `auto-execute` / `notify-only` |
-| `apps/agents/src/db/action.ts` (new) | 3 | `action` row helpers — status transitions, decided-by stamping |
-| `apps/agents/src/agents/worker.ts` (extend) | 4 | `handleTicket` no longer runs streamText inline — it creates a Workflow |
-| `apps/agents/src/agents/correspondent.ts` (extend) | 6 | New `decideAction` tool · presents pending action · sends decision event back |
-| `apps/agents/src/routes/backoffice.ts` (new) | 7, 8 | `/api/tickets` · `/api/actions` · `/api/activity` · operator override · stale backlog |
-| `apps/agents/src/activity/log.ts` (new) | 5 | `activity_log` writer — best-effort, never fails the request |
-| `apps/agents/wrangler.jsonc` | 4 | `workflows: [{ binding: "WORKER_JOB", class_name: "WorkerJobWorkflow", name: "qolmeia-worker-job" }]` |
-| `apps/agents/src/__tests__/*.test.ts` (new) | 9 | Workflow checkpoint resume · approval round-trip · request-changes loop · policy resolution · operator override |
-| `apps/backoffice/src/...` | 8 | Pending-actions view + decision controls (added later if the backoffice surface migrates here in P7) |
+| File                                                      | Tasks | Responsibility                                                                                                  |
+| --------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------- |
+| `apps/agents/migrations/0004_p4_policy_columns.sql` (new) | 3     | `action.action_type` index; `ticket.workflow_id` already exists                                                 |
+| `apps/agents/src/workflows/worker-job.ts` (new)           | 4     | `WorkerJobWorkflow extends WorkflowEntrypoint` — the one generic class                                          |
+| `apps/agents/src/workflows/steps/index.ts` (new)          | 4     | Step registry — id → handler (research, generate, propose, execute, …)                                          |
+| `apps/agents/src/workflows/steps/propose-action.ts` (new) | 5     | Files the action row + emits `step.waitForEvent("decision:<ticketId>")`                                         |
+| `apps/agents/src/db/policy.ts` (new)                      | 3     | `resolvePolicy(actionType, template, company)` — `require-approval` / `auto-execute` / `notify-only`            |
+| `apps/agents/src/db/action.ts` (new)                      | 3     | `action` row helpers — status transitions, decided-by stamping                                                  |
+| `apps/agents/src/agents/worker.ts` (extend)               | 4     | `handleTicket` no longer runs streamText inline — it creates a Workflow                                         |
+| `apps/agents/src/agents/correspondent.ts` (extend)        | 6     | New `decideAction` tool · presents pending action · sends decision event back                                   |
+| `apps/agents/src/routes/backoffice.ts` (new)              | 7, 8  | `/api/tickets` · `/api/actions` · `/api/activity` · operator override · stale backlog                           |
+| `apps/agents/src/activity/log.ts` (new)                   | 5     | `activity_log` writer — best-effort, never fails the request                                                    |
+| `apps/agents/wrangler.jsonc`                              | 4     | `workflows: [{ binding: "WORKER_JOB", class_name: "WorkerJobWorkflow", name: "qolmeia-worker-job" }]`           |
+| `apps/agents/src/__tests__/*.test.ts` (new)               | 9     | Workflow checkpoint resume · approval round-trip · request-changes loop · policy resolution · operator override |
+| `apps/backoffice/src/...`                                 | 8     | Pending-actions view + decision controls (added later if the backoffice surface migrates here in P7)            |
 
 ---
 
@@ -79,7 +80,7 @@
 
 ### T8: Stale-backlog view
 
-- [ ] `GET /actions?status=pending&sort=age` returns pending actions oldest-first with `{ ageSeconds, companyId, ticketTitle, proposedSummary }`. Backoffice UI consumes this; the *implementation* of the UI is its own slice (likely landing alongside P5's Planner UI work in the backoffice).
+- [ ] `GET /actions?status=pending&sort=age` returns pending actions oldest-first with `{ ageSeconds, companyId, ticketTitle, proposedSummary }`. Backoffice UI consumes this; the _implementation_ of the UI is its own slice (likely landing alongside P5's Planner UI work in the backoffice).
 
 ### T9: Tests
 
@@ -103,5 +104,5 @@
 - **Miniflare Workflows emulation.** Cloudflare Workflows in `vitest-pool-workers` may be partial or absent on the installed version. T1 step 3 verifies. Fallback: a queue-based stand-in for tests + real Workflows on deploy.
 - **`waitForEvent` semantics.** Long-duration pauses are checkpointed but the Workflow consumes some platform allowance; verify behaviour for multi-day waits on a deploy before promising customers.
 - **Decision-interpretation false positives.** The model interpreting "manda ver" as approve is fine; interpreting "talvez" as approve is dangerous. Mitigation: `decideAction` tool requires the model to also include a short justification field — surfaced in the activity log so misinterpretations are auditable.
-- **Step re-entry on `request-changes`.** The Workflow design must support jumping back to a prior step with new input. If Cloudflare Workflows' API doesn't support backward step jumps, the alternative is to start a *new* Workflow instance with feedback in the params and close the old one. T4 verifies which the SDK supports.
+- **Step re-entry on `request-changes`.** The Workflow design must support jumping back to a prior step with new input. If Cloudflare Workflows' API doesn't support backward step jumps, the alternative is to start a _new_ Workflow instance with feedback in the params and close the old one. T4 verifies which the SDK supports.
 - **`stopWhen: stepCountIs(5)` from P3** caps the model loop, but the Correspondent's new `decideAction` interaction extends the loop. Bump to `stepCountIs(8)` and document the budget.

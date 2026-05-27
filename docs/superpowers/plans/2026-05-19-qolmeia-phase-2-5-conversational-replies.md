@@ -17,6 +17,7 @@
 This task does the big-coordinated-refactor in one commit so gates stay green. After it: soul has the new 5 fields, deterministic reply infrastructure is gone, handler posts a single temporary inline string on happy path (`"Recebi sua mensagem 👋"`). Subsequent tasks introduce the real LLM-built reply.
 
 **Files:**
+
 - Modify: `apps/api/src/soul/soul.ts`
 - Modify: `apps/api/src/soul/apply.ts`
 - Modify: `apps/api/src/soul/apply.test.ts`
@@ -80,9 +81,9 @@ const makePrisma = (existing: unknown) => {
     updated.businessProfile = data.businessProfile;
     return Promise.resolve(updated);
   });
-  const findUnique = vi.fn().mockResolvedValue(
-    existing === undefined ? null : { businessProfile: existing },
-  );
+  const findUnique = vi
+    .fn()
+    .mockResolvedValue(existing === undefined ? null : { businessProfile: existing });
   const tx = { organization: { findUnique, update } };
   return {
     _tx: tx,
@@ -337,7 +338,10 @@ type HandlerDeps = {
   applySoulUpdate?: typeof applySoulUpdateDefault;
   extractFromMessage?: typeof extractFromMessageDefault;
   getBusinessContext?: typeof getBusinessContextDefault;
-  prisma: Pick<PrismaClient, "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
+  prisma: Pick<
+    PrismaClient,
+    "$transaction" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent"
+  >;
 };
 
 // Temporary inline reply for the happy path in Task 2.5.1; replaced by the
@@ -463,10 +467,7 @@ const handleIncomingMessage = async (
         }
         bytes = await audio.fetchData();
       } catch (error) {
-        logger.error(
-          { chatId: thread.id, error, messageId: message.id },
-          "audio.download_failed",
-        );
+        logger.error({ chatId: thread.id, error, messageId: message.id }, "audio.download_failed");
         await thread.post(DOWNLOAD_FAILED_REPLY);
         return;
       }
@@ -527,6 +528,7 @@ export type { HandlerDeps, IncomingMessage, IncomingThread };
 Change three things in the file:
 
 (a) `makeDeps` default `extractFromMessage` mock partial — replace `{ partial: { whatYouDo: "salão" } }` with the new shape:
+
 ```ts
 partial: {
   brandVoice: null,
@@ -538,24 +540,32 @@ partial: {
 ```
 
 (b) The "captured/missing summary" test currently asserts:
+
 ```ts
 const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
 expect(reply).toContain("Anotei: o que vocês fazem.");
 expect(reply).toContain("Ainda preciso saber:");
 ```
+
 Replace with:
+
 ```ts
 expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem 👋");
 ```
 
 (c) The "empty text" test currently asserts:
+
 ```ts
 const reply = (thread.post as ReturnType<typeof vi.fn>).mock.calls[0]![0];
 expect(reply).toContain("Não consegui captar nada útil");
 ```
+
 Replace with:
+
 ```ts
-expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem, mas não entendi. Pode tentar de novo?");
+expect(thread.post).toHaveBeenCalledWith(
+  "Recebi sua mensagem, mas não entendi. Pode tentar de novo?",
+);
 ```
 
 - [ ] **Step 10: Run gates — expect green**
@@ -576,6 +586,7 @@ If oxlint complains about object-key ordering or unused-imports, apply alphabeti
 grep -rniI acme . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=.turbo | grep -v docs/superpowers
 git branch --show-current   # must print qolmeia-phase-2-5-conversational-replies
 ```
+
 Both must be: empty grep + correct branch.
 
 - [ ] **Step 12: Commit**
@@ -600,6 +611,7 @@ Verify: `git log --oneline -2` shows this commit on top of `e49853a` (main).
 This task adds the `reply` field to the schema, rewrites the system prompt for capture + answer + deflect + brand-voice mirroring, and propagates `reply` through `extract.ts`. Handler is unchanged — it still posts the temp inline string from Task 2.5.1. Gates stay green because the new `reply` field is unused at the call site (additive change).
 
 **Files:**
+
 - Modify: `apps/api/src/lib/ai.ts`
 - Modify: `apps/api/src/lib/ai.test.ts`
 - Modify: `apps/api/src/soul/extract.ts`
@@ -796,7 +808,8 @@ import { extractSoul, type Input, type PartialSoul, type Usage } from "../lib/ai
 const extractFromMessage = (
   input: Input,
   currentContext: string,
-): Promise<{ partial: PartialSoul; reply: string; usage: Usage }> => extractSoul(input, currentContext);
+): Promise<{ partial: PartialSoul; reply: string; usage: Usage }> =>
+  extractSoul(input, currentContext);
 
 export { extractFromMessage };
 export type { Input, PartialSoul };
@@ -889,6 +902,7 @@ flipped in Task 2.5.3."
 Flip the handler from the temporary inline string to `result.reply`. Update tests to assert the propagated reply.
 
 **Files:**
+
 - Modify: `apps/api/src/telegram/handler.ts`
 - Modify: `apps/api/src/telegram/handler.test.ts`
 
@@ -913,10 +927,13 @@ extractFromMessage:
 ```
 
 (b) The "captured/missing summary" test currently asserts:
+
 ```ts
 expect(thread.post).toHaveBeenCalledWith("Recebi sua mensagem 👋");
 ```
+
 Replace with:
+
 ```ts
 expect(thread.post).toHaveBeenCalledWith("Anotei que vocês são um salão! Qual seu público-alvo?");
 ```
@@ -938,42 +955,42 @@ const TEMP_HAPPY_REPLY = "Recebi sua mensagem 👋";
 Find this block on the happy path:
 
 ```ts
-    const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
+const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
 
-    await thread.post(TEMP_HAPPY_REPLY);
+await thread.post(TEMP_HAPPY_REPLY);
 
-    logger.info(
-      {
-        capturedFields,
-        chatId: thread.id,
-        kind: hasAudio ? "audio" : "text",
-        messageId: message.id,
-        tokensIn: result.usage.inputTokens,
-        tokensOut: result.usage.outputTokens,
-      },
-      "telegram message handled",
-    );
+logger.info(
+  {
+    capturedFields,
+    chatId: thread.id,
+    kind: hasAudio ? "audio" : "text",
+    messageId: message.id,
+    tokensIn: result.usage.inputTokens,
+    tokensOut: result.usage.outputTokens,
+  },
+  "telegram message handled",
+);
 ```
 
 Replace it with:
 
 ```ts
-    const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
+const { capturedFields } = await applySoulUpdate(link.orgId, result.partial, prisma);
 
-    await thread.post(result.reply);
+await thread.post(result.reply);
 
-    logger.info(
-      {
-        capturedFields,
-        chatId: thread.id,
-        kind: hasAudio ? "audio" : "text",
-        messageId: message.id,
-        replyLength: result.reply.length,
-        tokensIn: result.usage.inputTokens,
-        tokensOut: result.usage.outputTokens,
-      },
-      "telegram message handled",
-    );
+logger.info(
+  {
+    capturedFields,
+    chatId: thread.id,
+    kind: hasAudio ? "audio" : "text",
+    messageId: message.id,
+    replyLength: result.reply.length,
+    tokensIn: result.usage.inputTokens,
+    tokensOut: result.usage.outputTokens,
+  },
+  "telegram message handled",
+);
 ```
 
 - [ ] **Step 4: Run tests — expect green**
@@ -1066,6 +1083,7 @@ pkill -f "node dist/index.mjs" 2>/dev/null || true
 ```
 
 Expected:
+
 - `/healthz` returns healthy JSON.
 - `POST /telegram/webhook` returns **401** (adapter rejecting unsigned body — proves the route + adapter are wired with the new code).
 - No "Telegram polling started" log lines (webhook-only mode preserved).
@@ -1073,6 +1091,7 @@ Expected:
 - [ ] **Step 5: Dispatch final whole-implementation review**
 
 Dispatch the most-capable model (opus) to review Phase 2.5 end-to-end:
+
 - Spec coverage (every spec section maps to a task).
 - Module deletions actually happened (reply.ts, labels.ts and tests).
 - `SoulProfile` is exactly the 5 new fields, no old field names anywhere.

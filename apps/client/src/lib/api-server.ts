@@ -1,15 +1,16 @@
 import { headers } from "next/headers";
 
-import { ApiError, API_URL } from "@/lib/api-client";
+import { AGENTS_URL, ApiError } from "@/lib/api-client";
 
-// RSC fetch helper. Browser apiGet uses `credentials: "include"` which is
-// meaningless in Node — server components must forward the Cookie header
-// manually so the API's Better Auth middleware can see the session.
+// RSC fetch helper targeting apps/agents. Browser fetch uses
+// `credentials: "include"` which is meaningless in Node — server components
+// must forward the Cookie header manually so the Worker's validateSession
+// middleware can see the session.
 const apiGetServer = async <T>(path: string): Promise<T> => {
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
 
-  const res = await fetch(`${API_URL}/api/v1${path}`, {
+  const res = await fetch(`${AGENTS_URL}${path}`, {
     cache: "no-store",
     headers: {
       Accept: "application/json",

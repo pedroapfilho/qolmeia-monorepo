@@ -3,8 +3,50 @@ import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
 import { getAction, listPendingActions } from "@/db/action";
-import { loadTicket } from "@/db/ticket";
+import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
+
+type ActionRow = {
+  action_type: string;
+  company_id: string;
+  created_at: number;
+  decided_at: number | null;
+  decided_by_user_id: string | null;
+  feedback: string | null;
+  id: string;
+  policy: string;
+  proposed: string;
+  status: string;
+  ticket_id: string;
+};
+
+const safeJson = (value: string | null): Record<string, unknown> | null => {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const mapActionRow = (row: ActionRow) => ({
+  actionType: row.action_type,
+  companyId: row.company_id,
+  createdAt: row.created_at,
+  decidedAt: row.decided_at,
+  decidedByUserId: row.decided_by_user_id,
+  feedback: row.feedback,
+  id: row.id,
+  policy: row.policy,
+  proposed: safeJson(row.proposed),
+  status: row.status,
+  ticketId: row.ticket_id,
+});
 
 // Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
 // agent paths, just with a different role guard. Every write — including the
@@ -36,20 +78,9 @@ backofficeRoutes.use("*", async (c, next) => {
 backofficeRoutes.get("/tickets", async (c) => {
   const companyId = c.req.query("companyId") ?? c.get("companyId");
   const status = c.req.query("status");
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
-
-  const { results } = status
-    ? await c.env.DB.prepare(
-        "SELECT id, company_id, agent_instance_id, title, brief, status, origin, workflow_id, created_at, updated_at FROM ticket WHERE company_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?",
-      )
-        .bind(companyId, status, limit)
-        .all<Record<string, unknown>>()
-    : await c.env.DB.prepare(
-        "SELECT id, company_id, agent_instance_id, title, brief, status, origin, workflow_id, created_at, updated_at FROM ticket WHERE company_id = ? ORDER BY created_at DESC LIMIT ?",
-      )
-        .bind(companyId, limit)
-        .all<Record<string, unknown>>();
-  return c.json({ items: results });
+  const limitParam = Number(c.req.query("limit") ?? 50);
+  const items = await listTickets(c.env.DB, { companyId, limit: limitParam, status });
+  return c.json({ items });
 });
 
 // Stale-backlog view (T8): `?status=pending&sort=age` returns pending actions
@@ -81,13 +112,15 @@ backofficeRoutes.get("/actions", async (c) => {
     return c.json({ items: sorted });
   }
 
-  // Any status — recent first
+  // Any status — recent first. Same mapper as the ticket-detail branch and
+  // the `?status=pending` branch so every list returns camelCase (the
+  // backoffice never sees raw snake_case columns).
   const { results } = await c.env.DB.prepare(
     "SELECT * FROM action WHERE company_id = ? ORDER BY created_at DESC LIMIT 200",
   )
     .bind(companyId)
-    .all<Record<string, unknown>>();
-  return c.json({ items: results });
+    .all<ActionRow>();
+  return c.json({ items: results.map(mapActionRow) });
 });
 
 const decideBodySchema = z.object({
@@ -140,10 +173,48 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
 backofficeRoutes.get("/activity", async (c) => {
   const companyId = c.req.query("companyId") ?? c.get("companyId");
   const sinceRaw = c.req.query("since");
+  const beforeRaw = c.req.query("before");
   const since = sinceRaw ? Number(sinceRaw) : undefined;
+  const before = beforeRaw ? Number(beforeRaw) : undefined;
   const limit = Math.min(Number(c.req.query("limit") ?? 100), 500);
-  const items = await listActivity(c.env.DB, { companyId, limit, since });
+  const items = await listActivity(c.env.DB, { before, companyId, limit, since });
   return c.json({ items });
+});
+
+// Ticket detail — the operator drill-down. Includes the actions associated
+// with this ticket so they can decide without an extra round-trip.
+backofficeRoutes.get("/tickets/:id", async (c) => {
+  const id = c.req.param("id");
+  const ticket = await loadTicket(c.env.DB, id);
+  if (!ticket) {
+    return c.text("Not found", 404);
+  }
+  if (ticket.companyId !== c.get("companyId")) {
+    return c.text("Forbidden", 403);
+  }
+  const { results } = await c.env.DB.prepare(
+    "SELECT * FROM action WHERE ticket_id = ? ORDER BY created_at ASC",
+  )
+    .bind(id)
+    .all<ActionRow>();
+  return c.json({
+    actions: results.map(mapActionRow),
+    ticket,
+  });
+});
+
+// Action detail — used by /approvals/:id to render the proposal + decide form.
+backofficeRoutes.get("/actions/:id", async (c) => {
+  const id = c.req.param("id");
+  const action = await getAction(c.env.DB, id);
+  if (!action) {
+    return c.text("Not found", 404);
+  }
+  if (action.companyId !== c.get("companyId")) {
+    return c.text("Forbidden", 403);
+  }
+  const ticket = await loadTicket(c.env.DB, action.ticketId);
+  return c.json({ action, ticket });
 });
 
 export { backofficeRoutes };

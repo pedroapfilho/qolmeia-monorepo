@@ -30,11 +30,8 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     expect(screen.getByRole("link", { name: /Início/v })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Aprovações/v })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Tickets/v })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Atividade/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Agentes/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Soul/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Execuções/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Equipe/v })).toBeInTheDocument();
   });
 
   it("marks the active route with aria-current", () => {

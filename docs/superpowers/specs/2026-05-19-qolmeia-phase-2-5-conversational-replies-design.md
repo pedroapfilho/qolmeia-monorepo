@@ -9,9 +9,10 @@
 
 ## 1. Context & Goal
 
-Phase 2 shipped extraction + 4 deterministic pt-BR reply templates. In live testing the limit surfaced fast: the bot can only ever say *"Anotei: …"*, *"Tudo capturado!"*, *"Não consegui captar nada útil…"*, or *"Tudo certo, nada novo por aqui."* — feels rigid, can't answer questions, can't hold small talk, can't reflect the owner's brand tone.
+Phase 2 shipped extraction + 4 deterministic pt-BR reply templates. In live testing the limit surfaced fast: the bot can only ever say _"Anotei: …"_, _"Tudo capturado!"_, _"Não consegui captar nada útil…"_, or _"Tudo certo, nada novo por aqui."_ — feels rigid, can't answer questions, can't hold small talk, can't reflect the owner's brand tone.
 
 Phase 2.5 makes the bot **conversational**:
+
 - LLM writes every happy-path reply (fused with extraction in one Gateway call).
 - Answers questions about the captured soul, with polite deflection of off-topic.
 - Mirrors the owner's `brandVoice` in its tone once that field is captured.
@@ -19,26 +20,26 @@ Phase 2.5 makes the bot **conversational**:
 
 ### Decisions locked (from brainstorming)
 
-| Question | Decision |
-|---|---|
-| Scope | Small-talk + Q&A about the captured soul + polite deflection of off-topic (jokes, news, code, general knowledge). |
-| Reply path | LLM writes every reply on the happy path via a **single fused `generateObject` call** returning `{ partial, reply }`. Deterministic copy retained only for error/edge branches (empty-text short-circuit, audio-download-fail, extract-fail, top-level catch). |
-| Model | `gemini-2.5-flash` via Vercel AI Gateway (unchanged). |
-| Reply length | Zod `z.string().min(1).max(500)`; system prompt asks for 1–3 sentences pt-BR. |
-| Persona | Warm, profissional, breve. No bot name. Brand-voice mirroring **on by default** once `brandVoice` is captured. |
-| Hallucination guard | "Nunca invente fatos sobre o negócio. Se não souber, pergunte." |
-| Soul fields | **5, all strings**: `whatYouDo` (merged in `whatYouDeliver`), `targetAudience`, `differentiator` (replaces `competitors`), `brandVoice` (new), `location` (new). `contextLinks` removed. |
-| DB migration | None. `Organization.businessProfile` is a Json blob; old keys from the live test row will be silently ignored by the new code. Wipe via Prisma Studio if desired. |
+| Question            | Decision                                                                                                                                                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope               | Small-talk + Q&A about the captured soul + polite deflection of off-topic (jokes, news, code, general knowledge).                                                                                                                                              |
+| Reply path          | LLM writes every reply on the happy path via a **single fused `generateObject` call** returning `{ partial, reply }`. Deterministic copy retained only for error/edge branches (empty-text short-circuit, audio-download-fail, extract-fail, top-level catch). |
+| Model               | `gemini-2.5-flash` via Vercel AI Gateway (unchanged).                                                                                                                                                                                                          |
+| Reply length        | Zod `z.string().min(1).max(500)`; system prompt asks for 1–3 sentences pt-BR.                                                                                                                                                                                  |
+| Persona             | Warm, profissional, breve. No bot name. Brand-voice mirroring **on by default** once `brandVoice` is captured.                                                                                                                                                 |
+| Hallucination guard | "Nunca invente fatos sobre o negócio. Se não souber, pergunte."                                                                                                                                                                                                |
+| Soul fields         | **5, all strings**: `whatYouDo` (merged in `whatYouDeliver`), `targetAudience`, `differentiator` (replaces `competitors`), `brandVoice` (new), `location` (new). `contextLinks` removed.                                                                       |
+| DB migration        | None. `Organization.businessProfile` is a Json blob; old keys from the live test row will be silently ignored by the new code. Wipe via Prisma Studio if desired.                                                                                              |
 
 ### Final soul fields (pt-BR labels inlined in system prompt)
 
-| Field | pt-BR phrasing |
-|---|---|
-| `whatYouDo` | o que vocês fazem e entregam |
-| `targetAudience` | seu público-alvo |
+| Field            | pt-BR phrasing                          |
+| ---------------- | --------------------------------------- |
+| `whatYouDo`      | o que vocês fazem e entregam            |
+| `targetAudience` | seu público-alvo                        |
 | `differentiator` | o que diferencia vocês dos concorrentes |
-| `brandVoice` | tom de voz / personalidade da marca |
-| `location` | cidade / região de atuação |
+| `brandVoice`     | tom de voz / personalidade da marca     |
+| `location`       | cidade / região de atuação              |
 
 ---
 
@@ -126,22 +127,18 @@ type PartialSoul = z.infer<typeof interactionSchema>["partial"];
 
 ## 5. Flow (per inbound message)
 
-1-6 (unchanged from Phase 2): idempotency via `WebhookEvent` → identity (Organization + TelegramLink + Conversation) → persist `Message` → empty-text short-circuit (now with the inline static reply above) → audio download with apology on fail.
-7. `result = await extractFromMessage(input, currentContext)` returns `{ partial, reply, usage }`.
-8. `{ newProfile, capturedFields } = await applySoulUpdate(orgId, result.partial, prisma)` — scalar-only patch-merge.
-9. **`await thread.post(result.reply)`** (the LLM reply).
-10. `logger.info` with `capturedFields`, `replyLength`, `tokensIn`, `tokensOut`, `kind`.
+1-6 (unchanged from Phase 2): idempotency via `WebhookEvent` → identity (Organization + TelegramLink + Conversation) → persist `Message` → empty-text short-circuit (now with the inline static reply above) → audio download with apology on fail. 7. `result = await extractFromMessage(input, currentContext)` returns `{ partial, reply, usage }`. 8. `{ newProfile, capturedFields } = await applySoulUpdate(orgId, result.partial, prisma)` — scalar-only patch-merge. 9. **`await thread.post(result.reply)`** (the LLM reply). 10. `logger.info` with `capturedFields`, `replyLength`, `tokensIn`, `tokensOut`, `kind`.
 
 ---
 
 ## 6. Error / edge branches (deterministic, unchanged from Phase 2)
 
-| Branch | Reply |
-|---|---|
-| Empty text + no audio | `"Recebi sua mensagem, mas não entendi. Pode tentar de novo?"` (inline static, replacing the Phase 2 `buildReply({}, [])` call which is no longer applicable) |
-| `audio.download_failed` | `DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?"` |
-| `extract.failed` | `EXTRACT_FAILED_REPLY = "Tive um problema processando sua mensagem, pode tentar de novo?"` |
-| Top-level catch (DB, applySoulUpdate, anything else) | `EXTRACT_FAILED_REPLY` |
+| Branch                                               | Reply                                                                                                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty text + no audio                                | `"Recebi sua mensagem, mas não entendi. Pode tentar de novo?"` (inline static, replacing the Phase 2 `buildReply({}, [])` call which is no longer applicable) |
+| `audio.download_failed`                              | `DOWNLOAD_FAILED_REPLY = "Não consegui baixar seu áudio, pode reenviar?"`                                                                                     |
+| `extract.failed`                                     | `EXTRACT_FAILED_REPLY = "Tive um problema processando sua mensagem, pode tentar de novo?"`                                                                    |
+| Top-level catch (DB, applySoulUpdate, anything else) | `EXTRACT_FAILED_REPLY`                                                                                                                                        |
 
 The Phase 2 "never silent-fail" wrap stays in handler.ts.
 
@@ -167,23 +164,23 @@ None. `Organization.businessProfile` is a Json blob; the schema doesn't constrai
 
 The four items previously listed as "out of scope" are explicitly phased now:
 
-- **Tool / function calling** → **Phase 3** (R2 brand assets). Needed because Phase 3 wants the model to *call* something (`store_brand_asset`, `extract_palette`) rather than have the handler imperatively route. Phase 3's brainstorm must decide whether to extend `generateObject` with tools or split into a separate "agent mode" handler using `generateText({ tools })`. This is the natural moment because Phase 3 is the first phase with more than one possible action the model could choose.
-- **Multi-turn transcript memory** → **Phase 5** (customer-facing chat — bot replies to the *salon's* customers, not just the owner). For owner-onboarding (Phase 2.5), the soul IS the memory. The `Conversation`/`Message` tables already exist in the schema; Phase 5 adds a memory provider that injects last-N messages into the prompt alongside `getBusinessContext`.
+- **Tool / function calling** → **Phase 3** (R2 brand assets). Needed because Phase 3 wants the model to _call_ something (`store_brand_asset`, `extract_palette`) rather than have the handler imperatively route. Phase 3's brainstorm must decide whether to extend `generateObject` with tools or split into a separate "agent mode" handler using `generateText({ tools })`. This is the natural moment because Phase 3 is the first phase with more than one possible action the model could choose.
+- **Multi-turn transcript memory** → **Phase 5** (customer-facing chat — bot replies to the _salon's_ customers, not just the owner). For owner-onboarding (Phase 2.5), the soul IS the memory. The `Conversation`/`Message` tables already exist in the schema; Phase 5 adds a memory provider that injects last-N messages into the prompt alongside `getBusinessContext`.
 - **Streaming replies** → **Phase 6+** (web UI / canvas). Telegram has no partial-message UI; streaming is wasted there. Light up when there's a frontend that can render token-by-token (the Approval Queue / dashboard from the canonical briefing).
 - **Per-user persona** → **landed in Phase 2.5** via `brandVoice` + the brand-voice-mirroring prompt rule. No further phase needed unless we want overrides beyond `brandVoice` (e.g. per-channel tone, per-customer-segment tone), which can wait.
 
 The canonical phase roadmap (running tally):
 
-| Phase | Scope | Status |
-|---|---|---|
-| 0 | Prune `acme` template + rename | ✅ |
-| 1 | Telegram + Soul foundation (no AI) | ✅ |
-| 2 | Audio→Soul extraction | ✅ |
-| **2.5** | **Conversational replies + sharpen soul fields + brand-voice mirroring** | **this spec** |
-| 3 | R2 brand assets (introduces tool calling) | next brainstorm |
-| 4 | Image generation (NanoBanana Pro via Gateway, uses Phase 3 tools) | later |
-| 5 | Customer-facing chat (introduces multi-turn transcript memory) | later |
-| 6+ | Web UI / canvas (introduces streaming, Approval Queue) | later |
+| Phase   | Scope                                                                    | Status          |
+| ------- | ------------------------------------------------------------------------ | --------------- |
+| 0       | Prune `acme` template + rename                                           | ✅              |
+| 1       | Telegram + Soul foundation (no AI)                                       | ✅              |
+| 2       | Audio→Soul extraction                                                    | ✅              |
+| **2.5** | **Conversational replies + sharpen soul fields + brand-voice mirroring** | **this spec**   |
+| 3       | R2 brand assets (introduces tool calling)                                | next brainstorm |
+| 4       | Image generation (NanoBanana Pro via Gateway, uses Phase 3 tools)        | later           |
+| 5       | Customer-facing chat (introduces multi-turn transcript memory)           | later           |
+| 6+      | Web UI / canvas (introduces streaming, Approval Queue)                   | later           |
 
 ---
 

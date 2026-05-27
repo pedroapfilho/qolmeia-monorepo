@@ -21,6 +21,16 @@ type Ticket = {
   workflowId: string | null;
 };
 
+// Extra fields surfaced by the list endpoint (title / origin / timestamps)
+// that the loadTicket-by-id path doesn't read. Kept as a superset of Ticket
+// so the list and detail responses share the typed mapper.
+type TicketListItem = Ticket & {
+  createdAt: number;
+  origin: string;
+  title: string;
+  updatedAt: number;
+};
+
 type TicketRow = {
   agent_instance_id: string;
   brief: string;
@@ -29,6 +39,13 @@ type TicketRow = {
   result: string | null;
   status: string;
   workflow_id: string | null;
+};
+
+type TicketListRow = TicketRow & {
+  created_at: number;
+  origin: string;
+  title: string;
+  updated_at: number;
 };
 
 type AgentInstanceRow = { id: string; template_id: string | null };
@@ -80,6 +97,43 @@ const loadTicket = async (db: D1Database, id: string): Promise<Ticket | null> =>
   return row ? mapTicket(row) : null;
 };
 
+const mapTicketListItem = (row: TicketListRow): TicketListItem => ({
+  ...mapTicket(row),
+  createdAt: row.created_at,
+  origin: row.origin,
+  title: row.title,
+  updatedAt: row.updated_at,
+});
+
+type ListTicketsOptions = {
+  companyId: string;
+  limit?: number;
+  status?: string;
+};
+
+// Operator-facing ticket list. Returns the typed shape (camelCase) — the
+// raw snake_case columns are mapped at the DB boundary so the backoffice
+// only ever deals with one casing convention.
+const listTickets = async (
+  db: D1Database,
+  options: ListTicketsOptions,
+): Promise<ReadonlyArray<TicketListItem>> => {
+  const limit = Math.min(options.limit ?? 50, 200);
+  const baseSelect =
+    "SELECT id, company_id, agent_instance_id, title, brief, status, origin, workflow_id, result, created_at, updated_at FROM ticket";
+  const cursor = options.status
+    ? db
+        .prepare(
+          `${baseSelect} WHERE company_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?`,
+        )
+        .bind(options.companyId, options.status, limit)
+    : db
+        .prepare(`${baseSelect} WHERE company_id = ? ORDER BY created_at DESC LIMIT ?`)
+        .bind(options.companyId, limit);
+  const { results } = await cursor.all<TicketListRow>();
+  return results.map(mapTicketListItem);
+};
+
 const loadAgentInstance = async (
   db: D1Database,
   id: string,
@@ -126,5 +180,12 @@ const markTicketDone = async (
     .run();
 };
 
-export { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus, setTicketWorkflowId };
-export type { Ticket, TicketStatus };
+export {
+  listTickets,
+  loadAgentInstance,
+  loadTicket,
+  markTicketDone,
+  setTicketStatus,
+  setTicketWorkflowId,
+};
+export type { Ticket, TicketListItem, TicketStatus };

@@ -15,6 +15,7 @@
 ## Task 4.1: `lib/image-gen.ts` — Gemini image generation (TDD)
 
 **Files:**
+
 - Create: `apps/api/src/lib/image-gen.ts`
 - Test: `apps/api/src/lib/image-gen.test.ts`
 
@@ -67,7 +68,11 @@ describe("generateBrandImageBytes", () => {
     };
     expect(args.model.modelId).toBe("google/gemini-2.5-flash-image");
     expect(args.providerOptions?.google?.responseModalities).toEqual(["IMAGE", "TEXT"]);
-    expect(args.messages[0]!.content.some((p) => p.type === "text" && p.text === "Salão de cabelo moderno, paleta minimalista")).toBe(true);
+    expect(
+      args.messages[0]!.content.some(
+        (p) => p.type === "text" && p.text === "Salão de cabelo moderno, paleta minimalista",
+      ),
+    ).toBe(true);
   });
 
   it("forwards reference images as file content parts before the prompt text", async () => {
@@ -86,7 +91,9 @@ describe("generateBrandImageBytes", () => {
     });
 
     const args = mockedGenerateText.mock.calls.at(-1)![0] as {
-      messages: Array<{ content: Array<{ data?: Uint8Array; mediaType?: string; text?: string; type: string }> }>;
+      messages: Array<{
+        content: Array<{ data?: Uint8Array; mediaType?: string; text?: string; type: string }>;
+      }>;
     };
     const parts = args.messages[0]!.content;
     expect(parts[0]!.type).toBe("file");
@@ -117,9 +124,9 @@ describe("generateBrandImageBytes", () => {
       usage: { inputTokens: 1, outputTokens: 1 },
     } as never);
 
-    await expect(
-      generateBrandImageBytes({ aspectRatio: "1:1", prompt: "x" }),
-    ).rejects.toThrow(/no image/i);
+    await expect(generateBrandImageBytes({ aspectRatio: "1:1", prompt: "x" })).rejects.toThrow(
+      /no image/i,
+    );
   });
 });
 ```
@@ -129,6 +136,7 @@ describe("generateBrandImageBytes", () => {
 ```bash
 pnpm --filter api exec vitest run src/lib/image-gen.test.ts
 ```
+
 Expected: FAIL `Cannot find module './image-gen'`.
 
 - [ ] **Step 3: Implement `apps/api/src/lib/image-gen.ts`**
@@ -150,8 +158,7 @@ type GenerateImageArgs = {
 
 const generateBrandImageBytes = async (args: GenerateImageArgs): Promise<Uint8Array> => {
   const contentParts: Array<
-    | { data: Uint8Array; mediaType: string; type: "file" }
-    | { text: string; type: "text" }
+    { data: Uint8Array; mediaType: string; type: "file" } | { text: string; type: "text" }
   > = [];
   for (const ref of args.referenceImages ?? []) {
     contentParts.push({ data: ref.bytes, mediaType: ref.mimeType, type: "file" });
@@ -213,6 +220,7 @@ Verify branch + `git log --oneline -2`.
 Add a second exported function alongside `ingestBrandAsset`. Same sha256 + R2 + row pattern; row's `metadata` includes `source: "generated"`, `prompt`, `generatedAt`.
 
 **Files:**
+
 - Modify: `apps/api/src/soul/brand-asset.ts`
 - Modify: `apps/api/src/soul/brand-asset.test.ts`
 
@@ -236,7 +244,9 @@ describe("ingestGeneratedAsset", () => {
 
     expect(result.assetId).toBe("asset_new");
     expect(prisma.brandAsset.create).toHaveBeenCalledOnce();
-    const createArgs = prisma.brandAsset.create.mock.calls[0]![0] as { data: { metadata: { generatedAt: string; prompt: string; source: string } } };
+    const createArgs = prisma.brandAsset.create.mock.calls[0]![0] as {
+      data: { metadata: { generatedAt: string; prompt: string; source: string } };
+    };
     expect(createArgs.data.metadata.source).toBe("generated");
     expect(createArgs.data.metadata.prompt).toBe("Logo moderno minimalista");
     expect(createArgs.data.metadata.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -273,6 +283,7 @@ The test imports need to add `ingestGeneratedAsset` to the existing imports from
 ```bash
 pnpm --filter api exec vitest run src/soul/brand-asset.test.ts
 ```
+
 Expected: FAIL `ingestGeneratedAsset is not exported`.
 
 - [ ] **Step 3: Add `ingestGeneratedAsset` to `apps/api/src/soul/brand-asset.ts`**
@@ -334,6 +345,7 @@ Keep the existing `ingestBrandAsset` export.
 ```bash
 pnpm --filter api exec vitest run src/soul/brand-asset.test.ts
 ```
+
 Expected: 5 tests pass (3 existing + 2 new).
 
 - [ ] **Step 5: Full gates, commit**
@@ -352,6 +364,7 @@ git commit -m "feat(api): ingestGeneratedAsset (BrandAsset row with metadata.sou
 Add the third tool to `runAgent`. Update return type. Update system prompt. Update tests.
 
 **Files:**
+
 - Modify: `apps/api/src/lib/ai.ts`
 - Modify: `apps/api/src/lib/ai.test.ts`
 
@@ -398,6 +411,7 @@ Also update the existing tests' expected `tools` keys to be `["extractSoul", "ge
 ```bash
 pnpm --filter api exec vitest run src/lib/ai.test.ts
 ```
+
 Expected: FAIL — tools list and result.generatedAssetIds don't match.
 
 - [ ] **Step 3: Update `apps/api/src/lib/ai.ts`**
@@ -405,6 +419,7 @@ Expected: FAIL — tools list and result.generatedAssetIds don't match.
 Add the new tool inside `runAgent`. The full updates (incremental, applied in place):
 
 1. Add import at top (with existing imports, alphabetised):
+
    ```ts
    import { generateBrandImageBytes } from "./image-gen";
    import { fetchAsset } from "./storage";
@@ -412,6 +427,7 @@ Add the new tool inside `runAgent`. The full updates (incremental, applied in pl
    ```
 
 2. Extend `AgentResult` type:
+
    ```ts
    type AgentResult = {
      generatedAssetIds: Array<string>;
@@ -426,6 +442,7 @@ Add the new tool inside `runAgent`. The full updates (incremental, applied in pl
    ```
 
 3. Add the new tool input schema near the existing ones:
+
    ```ts
    const generateBrandImageToolInput = z.object({
      aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3"]).default("1:1"),
@@ -488,6 +505,7 @@ Add the new tool inside `runAgent`. The full updates (incremental, applied in pl
    ```
 
 7. Update the `toolCallSummary` aggregation to count the new tool too:
+
    ```ts
    const summary = { extractSoul: 0, generateBrandImage: 0, labelBrandAsset: 0 };
    for (const call of result.toolCalls ?? []) {
@@ -504,7 +522,10 @@ Add the new tool inside `runAgent`. The full updates (incremental, applied in pl
      generatedAssetIds,
      text: result.text,
      toolCallSummary: summary,
-     usage: { inputTokens: result.usage.inputTokens ?? 0, outputTokens: result.usage.outputTokens ?? 0 },
+     usage: {
+       inputTokens: result.usage.inputTokens ?? 0,
+       outputTokens: result.usage.outputTokens ?? 0,
+     },
    };
    ```
 
@@ -533,6 +554,7 @@ git commit -m "feat(api): runAgent adds generateBrandImage tool + generatedAsset
 Handler queries the rows for `generatedAssetIds`, fetches bytes from R2, sends to Telegram via the Chat SDK image API, then posts the agent text reply.
 
 **Files:**
+
 - Modify: `apps/api/src/telegram/handler.ts`
 - Modify: `apps/api/src/telegram/handler.test.ts`
 
@@ -574,7 +596,11 @@ it("posts generated image bytes when runAgent returns generatedAssetIds", async 
     }) as never,
   };
 
-  const thread = { id: "tg_chat_42", post: vi.fn().mockResolvedValue(undefined), postImage: postImageMock };
+  const thread = {
+    id: "tg_chat_42",
+    post: vi.fn().mockResolvedValue(undefined),
+    postImage: postImageMock,
+  };
 
   await handleIncomingMessage(deps, thread as never, makeMessage({ text: "gera uma imagem" }));
 
@@ -594,11 +620,13 @@ Also update existing test's `runAgent` default mock to include `generatedAssetId
 ```bash
 pnpm --filter api exec vitest run src/telegram/handler.test.ts
 ```
+
 Expected: FAIL.
 
 - [ ] **Step 4: Update `apps/api/src/telegram/handler.ts`**
 
 1. Add `fetchAsset` to `HandlerDeps` (optional, defaults to `fetchAssetDefault` imported from `../lib/storage`):
+
    ```ts
    import { fetchAsset as fetchAssetDefault } from "../lib/storage";
    // ...
@@ -606,21 +634,36 @@ Expected: FAIL.
      fetchAsset?: typeof fetchAssetDefault;
      getBusinessContext?: typeof getBusinessContextDefault;
      ingestBrandAsset?: typeof ingestBrandAssetDefault;
-     prisma: Pick<PrismaClient, "$transaction" | "brandAsset" | "conversation" | "message" | "organization" | "telegramLink" | "webhookEvent">;
+     prisma: Pick<
+       PrismaClient,
+       | "$transaction"
+       | "brandAsset"
+       | "conversation"
+       | "message"
+       | "organization"
+       | "telegramLink"
+       | "webhookEvent"
+     >;
      runAgent?: typeof runAgentDefault;
    };
    ```
 
 2. Add `IncomingThread.postImage` to the structural type (or extend to use an optional method):
+
    ```ts
    type IncomingThread = {
      id: string;
      post: (text: string) => Promise<unknown>;
-     postImage?: (args: { bytes: Uint8Array; caption?: string; mimeType?: string }) => Promise<unknown>;
+     postImage?: (args: {
+       bytes: Uint8Array;
+       caption?: string;
+       mimeType?: string;
+     }) => Promise<unknown>;
    };
    ```
 
 3. After the `result = await runAgent(...)` line, before the existing `await thread.post(result.text)`, add the image-posting block:
+
    ```ts
    const { fetchAsset: doFetch = fetchAssetDefault } = deps;
    if (result.generatedAssetIds.length > 0 && thread.postImage) {
@@ -644,6 +687,7 @@ Expected: FAIL.
 4. Update the success-log payload to include `generatedAssetIds: result.generatedAssetIds`.
 
 If the Chat SDK doesn't expose `postImage` on `Thread`, replace the `await thread.postImage(...)` with a direct Telegram Bot API call:
+
 ```ts
 import FormData from "node:undici" /* or similar */;
 // (Skipping if Chat SDK actually has the method — verify Step 1 results first.)
@@ -676,6 +720,7 @@ git commit -m "feat(api): handler posts generated images to Telegram + text repl
 ```bash
 pnpm install && pnpm build && pnpm lint && pnpm typecheck && pnpm test
 ```
+
 All green; ~56 tests.
 
 - [ ] **Step 2: Greps clean**
@@ -684,6 +729,7 @@ All green; ~56 tests.
 grep -rniI acme . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=.turbo | grep -v docs/superpowers
 grep -rniI portless . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.turbo | grep -v docs/superpowers
 ```
+
 Both empty.
 
 - [ ] **Step 3: Seam audit (production code only)**
@@ -697,6 +743,7 @@ grep -rn "brandAsset.findMany" apps/api/src | grep -v test
 ```
 
 Expected:
+
 - `businessProfile` only in `soul/apply.ts` + `soul/knowledge-provider.ts`.
 - `brandAsset.create` only in `soul/brand-asset.ts` (both ingestBrandAsset + ingestGeneratedAsset).
 - `brandAsset.update` only in `lib/ai.ts`.

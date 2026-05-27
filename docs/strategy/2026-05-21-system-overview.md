@@ -14,31 +14,31 @@ Qolmeia is a multi-tenant AI agency platform. Each tenant (an `Organization`) hi
 
 ## 1.2 The 3 apps
 
-| App | Runtime | Port | Audience | What it does |
-|---|---|---|---|---|
-| `apps/api` | Hono on Node 24 | 4000 | All clients (machine + UI) | Inbound webhooks, REST `/api/v1/*`, Better Auth `/api/auth/*`, BullMQ workers (agent runner + routine scheduler) |
-| `apps/backoffice` | Next.js 16 App Router | 3000 | Operators (OWNER + STAFF) | Dashboard for agents, approvals, activity, soul (org-curated context), runs, team management |
-| `apps/client` | Next.js 16 App Router | 3001 | Customers (CUSTOMER role) | Magic-link login, chat home, assets gallery, activity timeline |
+| App               | Runtime               | Port | Audience                   | What it does                                                                                                     |
+| ----------------- | --------------------- | ---- | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `apps/api`        | Hono on Node 24       | 4000 | All clients (machine + UI) | Inbound webhooks, REST `/api/v1/*`, Better Auth `/api/auth/*`, BullMQ workers (agent runner + routine scheduler) |
+| `apps/backoffice` | Next.js 16 App Router | 3000 | Operators (OWNER + STAFF)  | Dashboard for agents, approvals, activity, soul (org-curated context), runs, team management                     |
+| `apps/client`     | Next.js 16 App Router | 3001 | Customers (CUSTOMER role)  | Magic-link login, chat home, assets gallery, activity timeline                                                   |
 
 ## 1.3 The 6 packages
 
-| Package | Purpose |
-|---|---|
-| `@repo/auth` | Better Auth wrapper exporting `createAuth({prisma, secret, resendApiKey})`. Plugins: `username`, `bearer`, `magicLink`. Client at `@repo/auth/client`. |
-| `@repo/ui` | shadcn `base-nova/neutral` + Tailwind v4. Components: button, card, field, input, skeleton, sonner. Hooks: `use-is-mobile`. |
-| `@repo/transactional` | React Email templates + Resend senders. Templates: welcome, password reset, sign-up attempt, change email, magic link. |
-| `@repo/db` | Prisma 7 schema (23 models) + singleton client with `@prisma/adapter-pg`. |
-| `@repo/config-vitest` | Shared Vitest configs. |
-| `@repo/typescript-config` | Shared tsconfig bases. |
+| Package                   | Purpose                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@repo/auth`              | Better Auth wrapper exporting `createAuth({prisma, secret, resendApiKey})`. Plugins: `username`, `bearer`, `magicLink`. Client at `@repo/auth/client`. |
+| `@repo/ui`                | shadcn `base-nova/neutral` + Tailwind v4. Components: button, card, field, input, skeleton, sonner. Hooks: `use-is-mobile`.                            |
+| `@repo/transactional`     | React Email templates + Resend senders. Templates: welcome, password reset, sign-up attempt, change email, magic link.                                 |
+| `@repo/db`                | Prisma 7 schema (23 models) + singleton client with `@prisma/adapter-pg`.                                                                              |
+| `@repo/config-vitest`     | Shared Vitest configs.                                                                                                                                 |
+| `@repo/typescript-config` | Shared tsconfig bases.                                                                                                                                 |
 
 ## 1.4 The data plane
 
-| Service | Where | What it stores |
-|---|---|---|
-| Postgres | Local: docker on `:5436`. Prod: Railway. | All durable data — 23 Prisma models |
-| Redis | Local: docker on `:6382`. Prod: Railway. | BullMQ queues for agent runs + routine scheduler |
-| Cloudflare R2 | `qolmeia` bucket, S3-compatible | `BrandAsset` binaries + `KnowledgeDoc` markdown |
-| OpenRouter | https://openrouter.ai/api/v1 | All LLM + image-gen calls, single API key |
+| Service       | Where                                    | What it stores                                   |
+| ------------- | ---------------------------------------- | ------------------------------------------------ |
+| Postgres      | Local: docker on `:5436`. Prod: Railway. | All durable data — 23 Prisma models              |
+| Redis         | Local: docker on `:6382`. Prod: Railway. | BullMQ queues for agent runs + routine scheduler |
+| Cloudflare R2 | `qolmeia` bucket, S3-compatible          | `BrandAsset` binaries + `KnowledgeDoc` markdown  |
+| OpenRouter    | https://openrouter.ai/api/v1             | All LLM + image-gen calls, single API key        |
 
 ## 1.5 The Prisma schema (23 models, 3 logical groups)
 
@@ -111,6 +111,7 @@ inbox/pipeline.handleInbound({ connectorInstance, normalizedMessage })
 ```
 
 **Key seams:**
+
 - `ConnectorAdapter` interface — every channel is just an implementation
 - `runAgentInstance` is the only place the agent loop runs (one entry, many tools)
 - `AgentRun.contextSnapshot` is the replayable artifact
@@ -120,11 +121,11 @@ inbox/pipeline.handleInbound({ connectorInstance, normalizedMessage })
 
 Three templates ship today, each with a different OpenRouter model:
 
-| Template | `defaultModel` | Role | Skills |
-|---|---|---|---|
-| `controller` | `openai/gpt-5.3-chat` | Talks to owner; routes work; briefing-gatherer | `delegateToSpecialist`, `extractSoul`, `searchKnowledge`, `readKnowledgeDoc` |
-| `marketing-strategist` | `openai/gpt-5.4-mini` | Drafts campaigns; can delegate down | `delegateToSpecialist`, `draftMarketingStrategy`, `searchKnowledge`, `readKnowledgeDoc` |
-| `designer` | `openai/gpt-5.4-nano` | Tool dispatcher for visual work | `extractSoul`, `labelBrandAsset`, `generateBrandImage`, `searchKnowledge`, `readKnowledgeDoc` |
+| Template               | `defaultModel`        | Role                                           | Skills                                                                                        |
+| ---------------------- | --------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `controller`           | `openai/gpt-5.3-chat` | Talks to owner; routes work; briefing-gatherer | `delegateToSpecialist`, `extractSoul`, `searchKnowledge`, `readKnowledgeDoc`                  |
+| `marketing-strategist` | `openai/gpt-5.4-mini` | Drafts campaigns; can delegate down            | `delegateToSpecialist`, `draftMarketingStrategy`, `searchKnowledge`, `readKnowledgeDoc`       |
+| `designer`             | `openai/gpt-5.4-nano` | Tool dispatcher for visual work                | `extractSoul`, `labelBrandAsset`, `generateBrandImage`, `searchKnowledge`, `readKnowledgeDoc` |
 
 Image generation: `lib/image-gen.ts` POSTs to OpenRouter's images endpoint with `IMAGE_GEN_MODEL` env var (default: `google/gemini-3-pro-image-preview` — Nano Banana Pro). Env-overridable so ops can swap model IDs without redeploy.
 
@@ -155,27 +156,27 @@ Programmatic helpers in `apps/api/src/agents/approvals.ts`: `approveAction`, `re
 
 20 event types across 6 ref types. Best-effort writes via `apps/api/src/activity/log.ts logActivity`. Pino remains source-of-truth for ops; ActivityLog is the durable counterpart for UIs.
 
-| Category | Types |
-|---|---|
-| Message lifecycle | `MESSAGE_INBOUND`, `MESSAGE_OUTBOUND` |
-| Run lifecycle | `AGENT_RUN_STARTED`, `AGENT_RUN_FINISHED`, `AGENT_RUN_FAILED` |
-| Action lifecycle | `ACTION_DRAFTED`, `ACTION_APPROVED`, `ACTION_REJECTED`, `ACTION_EDITED`, `ACTION_EXECUTED`, `ACTION_FAILED` |
-| Budget | `BUDGET_WARN_80`, `BUDGET_WARN_100` |
-| Org curation | `INSTRUCTIONS_UPDATED`, `BUSINESS_IDEA_UPDATED`, `OWNER_COMMAND` |
-| Routine lifecycle | `ROUTINE_TRIGGERED`, `ROUTINE_ENABLED`, `ROUTINE_DISABLED` |
-| Membership | `MEMBER_INVITED`, `MEMBER_JOINED` |
+| Category          | Types                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| Message lifecycle | `MESSAGE_INBOUND`, `MESSAGE_OUTBOUND`                                                                       |
+| Run lifecycle     | `AGENT_RUN_STARTED`, `AGENT_RUN_FINISHED`, `AGENT_RUN_FAILED`                                               |
+| Action lifecycle  | `ACTION_DRAFTED`, `ACTION_APPROVED`, `ACTION_REJECTED`, `ACTION_EDITED`, `ACTION_EXECUTED`, `ACTION_FAILED` |
+| Budget            | `BUDGET_WARN_80`, `BUDGET_WARN_100`                                                                         |
+| Org curation      | `INSTRUCTIONS_UPDATED`, `BUSINESS_IDEA_UPDATED`, `OWNER_COMMAND`                                            |
+| Routine lifecycle | `ROUTINE_TRIGGERED`, `ROUTINE_ENABLED`, `ROUTINE_DISABLED`                                                  |
+| Membership        | `MEMBER_INVITED`, `MEMBER_JOINED`                                                                           |
 
 ## 1.11 What's missing vs. the agency vision
 
-| Gap | What it'd cost |
-|---|---|
-| Onboarding planner (debriefs new Organizations) | New `planner` template + `suggestTeam` skill + backoffice wizard — ~3 days |
-| Correspondent persistent memory | New `AgentMemory` model + `recallMemory`/`rememberFact` skills — ~3 days |
-| Customer-chosen team builder | `AgentTemplate.kind` field + backoffice toggle UI + 3-5 more optional templates — ~4 days |
-| Cross-agent connector sharing (any agent can send on any connector) | New `messageOnConnector` skill — ~2 days |
-| Slack + Discord adapters | `connectors/{slack,discord}/adapter.ts` — ~5 days |
-| Audio input via multimodal Gemini | Attach bytes to OpenRouter call — ~2 days |
-| Event-triggered routines | Extend `Routine.trigger` enum — ~2 days |
+| Gap                                                                 | What it'd cost                                                                            |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Onboarding planner (debriefs new Organizations)                     | New `planner` template + `suggestTeam` skill + backoffice wizard — ~3 days                |
+| Correspondent persistent memory                                     | New `AgentMemory` model + `recallMemory`/`rememberFact` skills — ~3 days                  |
+| Customer-chosen team builder                                        | `AgentTemplate.kind` field + backoffice toggle UI + 3-5 more optional templates — ~4 days |
+| Cross-agent connector sharing (any agent can send on any connector) | New `messageOnConnector` skill — ~2 days                                                  |
+| Slack + Discord adapters                                            | `connectors/{slack,discord}/adapter.ts` — ~5 days                                         |
+| Audio input via multimodal Gemini                                   | Attach bytes to OpenRouter call — ~2 days                                                 |
+| Event-triggered routines                                            | Extend `Routine.trigger` enum — ~2 days                                                   |
 
 **Total to fill the gap: ~3 weeks of additive work.**
 
@@ -203,25 +204,25 @@ Cost-wise: a fraction of a real agency. Always-on, never sleeps, remembers every
 
 Think of the platform as an **office**. The office has:
 
-| Office part | Plain-language description | Internal name |
-|---|---|---|
-| The **front door** | How customers reach the office — Telegram, WhatsApp, web app, soon Slack and Discord | Connectors |
-| The **account manager** | The one person each customer talks to. Knows the customer; routes work to specialists | Correspondent / Controller |
-| The **specialists** | The marketing strategist, the designer, future support agent, sales agent, etc. | Agent Templates |
-| The **memory** | What the office remembers about each customer's business — brand, voice, past work | `businessProfile`, `BrandAsset`, `KnowledgeDoc`, `AgentMemory` (planned) |
-| The **task list** | What the AI is doing right now | `AgentRun`, `AgentAction` |
-| The **approval drawer** | Things the AI wants to do but is waiting for the human to say yes | `AgentAction.status = DRAFTED` |
-| The **activity feed** | A live log of everything the office is doing | `ActivityLog` |
-| The **scheduled work** | Recurring things the office does on its own (nightly summary, weekly report) | `Routine` |
-| The **owner's office** (you, Pedro + team) | Where the operator sees what's happening, approves the risky stuff, edits memory | apps/backoffice |
-| The **customer's lobby** | Where the business owner sees what's being done for them and chats with their account manager | apps/client |
-| The **machinery** | The behind-the-scenes engine that runs everything | apps/api |
+| Office part                                | Plain-language description                                                                    | Internal name                                                            |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| The **front door**                         | How customers reach the office — Telegram, WhatsApp, web app, soon Slack and Discord          | Connectors                                                               |
+| The **account manager**                    | The one person each customer talks to. Knows the customer; routes work to specialists         | Correspondent / Controller                                               |
+| The **specialists**                        | The marketing strategist, the designer, future support agent, sales agent, etc.               | Agent Templates                                                          |
+| The **memory**                             | What the office remembers about each customer's business — brand, voice, past work            | `businessProfile`, `BrandAsset`, `KnowledgeDoc`, `AgentMemory` (planned) |
+| The **task list**                          | What the AI is doing right now                                                                | `AgentRun`, `AgentAction`                                                |
+| The **approval drawer**                    | Things the AI wants to do but is waiting for the human to say yes                             | `AgentAction.status = DRAFTED`                                           |
+| The **activity feed**                      | A live log of everything the office is doing                                                  | `ActivityLog`                                                            |
+| The **scheduled work**                     | Recurring things the office does on its own (nightly summary, weekly report)                  | `Routine`                                                                |
+| The **owner's office** (you, Pedro + team) | Where the operator sees what's happening, approves the risky stuff, edits memory              | apps/backoffice                                                          |
+| The **customer's lobby**                   | Where the business owner sees what's being done for them and chats with their account manager | apps/client                                                              |
+| The **machinery**                          | The behind-the-scenes engine that runs everything                                             | apps/api                                                                 |
 
 ## 2.4 A day in the life of a customer
 
 Marina runs a hair salon. She signed up for Qolmeia three weeks ago. Here's what a Wednesday looks like:
 
-**9:14 am.** Marina opens WhatsApp, taps her Qolmeia chat. *"Bom dia! Quero um post para a Black Friday."* (Good morning! I want a Black Friday post.)
+**9:14 am.** Marina opens WhatsApp, taps her Qolmeia chat. _"Bom dia! Quero um post para a Black Friday."_ (Good morning! I want a Black Friday post.)
 
 **9:14:03 am.** Her account manager (the Correspondent) gets the message. It knows Marina's salon: the brand is warm and welcoming, the colors are mauve and gold, last year's Black Friday post used the phrase "domingão de cabelo" — and it remembers that worked.
 
@@ -229,9 +230,9 @@ Marina runs a hair salon. She signed up for Qolmeia three weeks ago. Here's what
 
 **9:14:20 am.** The marketing AI drafts copy. The designer AI generates an image in Marina's brand colors using the most advanced image model available (Nano Banana Pro). The image and the caption come back.
 
-**9:14:35 am.** Because generating images costs money and posts get published, the system pauses and the account manager messages Marina: *"Pronto, Marina! Olha o post — quer que ajuste algo?"* (Here's the post — want me to tweak anything?) and shows the image + caption.
+**9:14:35 am.** Because generating images costs money and posts get published, the system pauses and the account manager messages Marina: _"Pronto, Marina! Olha o post — quer que ajuste algo?"_ (Here's the post — want me to tweak anything?) and shows the image + caption.
 
-**9:15.** Marina says *"adoro, pode postar amanhã às 9."* (love it, schedule for tomorrow at 9.)
+**9:15.** Marina says _"adoro, pode postar amanhã às 9."_ (love it, schedule for tomorrow at 9.)
 
 **The team logs everything**: Pedro (operator) can later open the backoffice and see exactly what was generated, what it cost, what tool was used. If Marina is unhappy, he can replay the exact context the AI saw.
 

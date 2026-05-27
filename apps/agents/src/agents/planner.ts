@@ -11,6 +11,7 @@ import {
 import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
 import { insertMessage, upsertConversation } from "@/db/schema";
 import { getModel } from "@/lib/ai-gateway";
+import { logInfo } from "@/lib/logger";
 import { buildSkillTools } from "@/skills/registry";
 
 const BASE_SYSTEM_PROMPT = `Você é o Planejador da Qolmeia — o agente que faz a entrevista inicial com um novo cliente para entender o negócio dele. Fale português do Brasil, de forma natural e curiosa, como uma conversa de descoberta de uma agência de marketing.
@@ -45,6 +46,7 @@ class PlannerAgent extends AIChatAgent<Env> {
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
   ): Promise<Response | undefined> {
+    const turnStart = Date.now();
     const companyId = this.name;
     const agentInstanceId = `planner-${companyId}`;
     const conversationId = `web-planner-${companyId}`;
@@ -74,6 +76,14 @@ class PlannerAgent extends AIChatAgent<Env> {
       role: turn.role === "user" ? "user" : "assistant",
     }));
 
+    logInfo("agent.turn.start", {
+      agent: "planner",
+      agentInstanceId,
+      companyId,
+      turnCount: turns.length,
+      userText,
+    });
+
     const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
       "extractBrief",
       "proposeTeam",
@@ -94,6 +104,19 @@ class PlannerAgent extends AIChatAgent<Env> {
         });
         appendTurn(this, "agent", event.text);
         pruneOldTurns(this, RECENT_TURNS_KEEP);
+        logInfo("agent.turn.ok", {
+          agent: "planner",
+          agentInstanceId,
+          companyId,
+          durationMs: Date.now() - turnStart,
+          finishReason: event.finishReason,
+          replyText: event.text,
+          stepCount: event.steps?.length ?? 0,
+          toolCallNames: (event.steps ?? []).flatMap((s) =>
+            (s.toolCalls ?? []).map((tc) => tc.toolName),
+          ),
+          usage: event.usage,
+        });
         await onFinish(event);
       },
       // 5 steps: model can interleave extractBrief + proposeTeam calls.

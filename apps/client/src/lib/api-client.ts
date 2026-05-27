@@ -1,4 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Client-side fetch helpers targeting apps/agents (the live product runtime).
+// All product data — company state, assets, activity, uploads — lives on the
+// agents Worker; the auth service (apps/auth) is reached only by Better Auth's
+// own client (see auth-client.ts).
+
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
 
 type FetchInit = Omit<RequestInit, "body" | "method">;
 
@@ -34,32 +39,19 @@ const handleResponse = async <T>(res: Response): Promise<T> => {
   return res.json() as Promise<T>;
 };
 
-const apiGet = async <T>(path: string, init?: FetchInit): Promise<T> => {
-  const res = await fetch(`${API_URL}/api/v1${path}`, {
+const apiSendForm = async <T>(path: string, formData: FormData, init?: FetchInit): Promise<T> => {
+  // FormData sets its own Content-Type with boundary — let the browser do it.
+  const headers = buildHeaders(init);
+  headers.delete("Content-Type");
+  const res = await fetch(`${AGENTS_URL}${path}`, {
     ...init,
+    body: formData,
     credentials: "include",
-    headers: buildHeaders(init),
-    method: "GET",
+    headers,
+    method: "POST",
   });
   return handleResponse<T>(res);
 };
 
-const apiSend = async <T>(
-  method: "POST" | "PUT" | "PATCH" | "DELETE",
-  path: string,
-  body?: unknown,
-  init?: FetchInit,
-): Promise<T> => {
-  const serialized = body === undefined ? undefined : JSON.stringify(body);
-  const res = await fetch(`${API_URL}/api/v1${path}`, {
-    ...init,
-    body: serialized,
-    credentials: "include",
-    headers: buildHeaders(init, serialized ? "application/json" : undefined),
-    method,
-  });
-  return handleResponse<T>(res);
-};
-
-export { apiGet, ApiError, apiSend, API_URL };
+export { AGENTS_URL, ApiError, apiSendForm };
 export type { FetchInit };

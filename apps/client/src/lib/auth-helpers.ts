@@ -49,39 +49,39 @@ type MeResponse = {
 };
 
 // Guards an RSC that requires CUSTOMER role. Bounces staff-only callers to
-// /no-access rather than letting them hit a customer page and see 403 toasts.
-// P7.0: this calls apps/agents' /api/me (which relays to the auth service)
-// instead of apps/api directly. Membership data still ultimately comes from
-// Postgres via the relay; full ownership moves to D1 in a later phase.
+// /no-access. Genuine auth failures (401/403) redirect; transient failures
+// (429, 5xx, network) throw so Next renders the error boundary.
+//
+// Why we don't catch-and-redirect on transient failures: proxy.ts already
+// validated the session locally and let us through. Bouncing to /login
+// while the cookie is valid makes proxy.ts redirect back to / (the auth-
+// route-with-session rule), looping until the browser bails with
+// ERR_TOO_MANY_REDIRECTS.
 export const requireCustomer = async (): Promise<MeResponse> => {
   await requireSession();
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
   const agentsUrl = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
 
-  try {
-    const res = await fetch(`${agentsUrl}/api/me`, {
-      cache: "no-store",
-      headers: { Accept: "application/json", Cookie: cookie },
-    });
+  const res = await fetch(`${agentsUrl}/api/me`, {
+    cache: "no-store",
+    headers: { Accept: "application/json", Cookie: cookie },
+  });
 
-    if (res.status === 401) {
-      redirect("/login");
-    }
-    if (res.status === 403) {
-      redirect("/no-access");
-    }
-    if (!res.ok) {
-      throw new Error(`/api/me responded ${res.status}`);
-    }
-
-    const me = (await res.json()) as MeResponse;
-    if (me.role !== "CUSTOMER") {
-      redirect("/no-access");
-    }
-    return me;
-  } catch (error) {
-    console.error("[auth-helpers] requireCustomer failed", { error });
+  if (res.status === 401) {
     redirect("/login");
   }
+  if (res.status === 403) {
+    redirect("/no-access");
+  }
+  if (!res.ok) {
+    console.error("[auth-helpers] /api/me transient failure", { status: res.status });
+    throw new Error(`/api/me responded ${res.status}`);
+  }
+
+  const me = (await res.json()) as MeResponse;
+  if (me.role !== "CUSTOMER") {
+    redirect("/no-access");
+  }
+  return me;
 };

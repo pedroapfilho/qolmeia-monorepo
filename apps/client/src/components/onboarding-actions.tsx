@@ -1,6 +1,9 @@
 "use client";
 
+import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
+import { cn } from "@repo/ui/lib/utils";
+import { Sparkles } from "lucide-react";
 import { useState } from "react";
 
 type Template = {
@@ -19,8 +22,7 @@ type OnboardingActionsProps = {
 
 // P5 minimum: a flat list of available templates with a "Confirmar Time"
 // button. The user toggles which specialists they want; one POST materializes
-// the Team. A nicer UX (Planner emitting the proposal via setState, the panel
-// highlighting recommended ones) is a future polish.
+// the Team.
 const OnboardingActions = ({
   agentsUrl,
   companyId,
@@ -72,40 +74,63 @@ const OnboardingActions = ({
   };
 
   return (
-    <div className="border-t border-border bg-card p-4">
-      <h2 className="mb-2 text-sm font-semibold">Especialistas disponíveis</h2>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Escolha quem você quer no seu Time e clique em Confirmar.
-      </p>
-      <ul className="mb-3 space-y-2">
-        {templates.map((t) => (
-          <li key={t.id}>
-            {/* Nested input is the implicit label-control association; spans
-                carry the visible text. */}
-            {/* oxlint-disable-next-line jsx-a11y/label-has-associated-control */}
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                checked={selected.has(t.id)}
-                className="mt-1"
-                onChange={() => toggle(t.id)}
-                type="checkbox"
-              />
-              <span>
-                <span className="font-medium">{t.displayName}</span>
-                <span className="block text-xs text-muted-foreground">{t.description}</span>
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
-      <button
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-        disabled={submitting || selected.size === 0}
-        onClick={handleConfirm}
-        type="button"
-      >
-        {submitting ? "Confirmando…" : "Confirmar Time"}
-      </button>
+    <div className="border-t border-border bg-card">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4">
+        <div className="flex items-center gap-2">
+          <Sparkles aria-hidden className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Especialistas disponíveis</h2>
+        </div>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Escolha quem você quer no seu Time e clique em Confirmar.
+        </p>
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {templates.map((t) => {
+            const checked = selected.has(t.id);
+            const inputId = `template-${t.id}`;
+            return (
+              <li key={t.id}>
+                <label
+                  aria-label={t.displayName}
+                  className={cn(
+                    "flex h-full cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors",
+                    checked
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/40"
+                      : "border-border hover:border-border/80 hover:bg-muted/40",
+                  )}
+                  htmlFor={inputId}
+                >
+                  <input
+                    checked={checked}
+                    className="mt-1 size-4 accent-primary"
+                    id={inputId}
+                    onChange={() => toggle(t.id)}
+                    type="checkbox"
+                  />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-foreground">{t.displayName}</span>
+                    <span className="text-xs leading-relaxed text-muted-foreground">
+                      {t.description}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {selected.size} de {templates.length} selecionado{templates.length === 1 ? "" : "s"}
+          </span>
+          <Button
+            disabled={submitting || selected.size === 0}
+            onClick={handleConfirm}
+            size="lg"
+            type="button"
+          >
+            {submitting ? "Confirmando…" : "Confirmar Time"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

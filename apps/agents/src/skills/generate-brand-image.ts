@@ -3,29 +3,49 @@ import { z } from "zod";
 import { buildSignedAssetUrl, uploadAsset } from "@/lib/r2";
 import type { SkillContext, UnknownSkill } from "@/skills/registry";
 
-// Image generation via OpenRouter's OpenAI-compatible images endpoint.
-// Nano Banana Pro (`google/gemini-3-pro-image-preview`) is the default; the
-// IMAGE_GEN_MODEL env var hot-swaps without a deploy.
+// Image generation via OpenRouter's chat-completions endpoint with the
+// `modalities: ["image","text"]` extension. OpenRouter does NOT expose
+// OpenAI's dedicated `/images/generations` endpoint — image generation on
+// every supported model (Google Gemini, OpenAI GPT-5 Image, etc.) routes
+// through chat completions and returns base64 data URLs on
+// `choices[0].message.images[i].image_url.url`.
+//
+// Default model: `google/gemini-2.5-flash-image` (Nano Banana). Hot-swap
+// via IMAGE_GEN_MODEL — `google/gemini-3-pro-image-preview` and
+// `google/gemini-3.1-flash-image-preview` are both valid alternates.
 //
 // Bytes flow R2 → signed URL → message file part (the client renders it as
 // an <img>). Asset metadata in D1 carries (company_id, sha256) for dedup.
-const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images/generations";
+const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const generateBrandImageInputSchema = z.object({
   aspectRatio: z.enum(["1:1", "16:9", "4:3", "9:16"]).optional(),
   prompt: z.string().min(1).max(2000),
 });
 
-type ImagesApiResponse = { data?: Array<{ b64_json?: string }> };
+type ImageContent = { image_url?: { url?: string }; type?: string };
+type ChatCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      images?: Array<ImageContent>;
+    };
+  }>;
+};
 
-const aspectToSize = (aspect: string): string => {
+const aspectHint = (aspect: string): string => {
+  // Gemini's image model honours aspect-ratio cues in the prompt itself
+  // (there's no `size` parameter on chat completions). We append a short
+  // pt-BR hint so the model picks the closest supported resolution.
   if (aspect === "16:9") {
-    return "1536x1024";
+    return " (proporção 16:9, formato horizontal)";
   }
   if (aspect === "9:16") {
-    return "1024x1536";
+    return " (proporção 9:16, formato vertical)";
   }
-  return "1024x1024";
+  if (aspect === "4:3") {
+    return " (proporção 4:3)";
+  }
+  return " (proporção 1:1, quadrado)";
 };
 
 const decodeBase64 = (b64: string): Uint8Array => {
@@ -37,9 +57,35 @@ const decodeBase64 = (b64: string): Uint8Array => {
   return out;
 };
 
+// Pulls the `data:image/png;base64,…` payload out of a data URL. Returns
+// null when the URL isn't a data URL we can decode locally (e.g. if a
+// future model returns an https://… link, the caller should fetch + upload
+// instead).
+const parseDataUrl = (url: string): { bytes: Uint8Array; mime: string } | null => {
+  const match = url.match(/^data:([^;]+);base64,(.+)$/v);
+  if (!match) {
+    return null;
+  }
+  const [, mime, b64] = match;
+  if (!mime || !b64) {
+    return null;
+  }
+  return { bytes: decodeBase64(b64), mime };
+};
+
 const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
   const hash = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+const extByMime = (mime: string): string => {
+  if (mime === "image/jpeg" || mime === "image/jpg") {
+    return "jpg";
+  }
+  if (mime === "image/webp") {
+    return "webp";
+  }
+  return "png";
 };
 
 type GenerateResult = { assetId: string; url: string } | { error: string };
@@ -49,15 +95,15 @@ const generateBrandImageSkill: UnknownSkill = {
     "Gera uma imagem alinhada à marca. Use quando o cliente pedir uma imagem, post visual, ou peça de design.",
   async execute(input: unknown, ctx: SkillContext): Promise<GenerateResult> {
     const { aspectRatio = "1:1", prompt } = generateBrandImageInputSchema.parse(input);
+    const fullPrompt = `${prompt}${aspectHint(aspectRatio)}`;
 
     let response: Response;
     try {
-      response = await fetch(OPENROUTER_IMAGES_URL, {
+      response = await fetch(OPENROUTER_CHAT_URL, {
         body: JSON.stringify({
+          messages: [{ content: fullPrompt, role: "user" }],
+          modalities: ["image", "text"],
           model: ctx.env.IMAGE_GEN_MODEL,
-          n: 1,
-          prompt,
-          size: aspectToSize(aspectRatio),
         }),
         headers: {
           Authorization: `Bearer ${ctx.env.OPENROUTER_API_KEY}`,
@@ -77,15 +123,19 @@ const generateBrandImageSkill: UnknownSkill = {
       return { error: `Image gen HTTP ${response.status}: ${body.slice(0, 200)}` };
     }
 
-    const json = (await response.json()) as ImagesApiResponse;
-    const b64 = json.data?.[0]?.b64_json;
-    if (!b64) {
-      return { error: "Image gen response missing data[0].b64_json" };
+    const json = (await response.json()) as ChatCompletionResponse;
+    const imageUrl = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!imageUrl) {
+      return { error: "Image gen response missing choices[0].message.images[0].image_url.url" };
     }
-    const bytes = decodeBase64(b64);
+
+    const decoded = parseDataUrl(imageUrl);
+    if (!decoded) {
+      return { error: `Image gen returned non-data URL we can't ingest: ${imageUrl.slice(0, 60)}` };
+    }
+    const { bytes, mime } = decoded;
     const sha = await sha256Hex(bytes);
-    const key = `org_${ctx.companyId}/${sha}.png`;
-    const mime = "image/png";
+    const key = `org_${ctx.companyId}/${sha}.${extByMime(mime)}`;
 
     await uploadAsset(
       { ASSETS: ctx.env.ASSETS },
@@ -119,10 +169,14 @@ const generateBrandImageSkill: UnknownSkill = {
       .first<{ id: string }>();
     const finalAssetId = row?.id ?? assetId;
 
+    // 7-day TTL: the URL goes into the model's reply as markdown and is then
+    // persisted in chat history, where bubbles re-render long after the
+    // generation. Default 15-min TTL would 401 well before the chat lifetime.
     const url = await buildSignedAssetUrl(
       { ASSETS_SIGNING_KEY: ctx.env.ASSETS_SIGNING_KEY },
       ctx.env.WORKER_PUBLIC_URL,
       finalAssetId,
+      7 * 24 * 60 * 60 * 1000,
     );
 
     return { assetId: finalAssetId, url };

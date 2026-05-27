@@ -1,35 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBRL, formatRelative, truncate } from "./format";
-
-describe("formatBRL", () => {
-  it("formats cents as a BRL currency string", () => {
-    // R$ 12,34 — the non-breaking space between symbol and number is what
-    // pt-BR uses; we assert with includes() so the exact whitespace flavour
-    // doesn't matter across ICU versions.
-    const out = formatBRL(1234);
-    expect(out).toContain("R$");
-    expect(out).toContain("12,34");
-  });
-
-  it("formats zero", () => {
-    const out = formatBRL(0);
-    expect(out).toContain("0,00");
-  });
-});
+import { formatDurationSeconds, formatRelative, truncate } from "./format";
 
 describe("formatRelative", () => {
   it("returns 'agora' for a timestamp under a minute old", () => {
     const now = new Date("2026-05-21T12:00:00.000Z");
-    const past = new Date(now.getTime() - 10_000).toISOString();
+    const past = now.getTime() - 10_000;
     expect(formatRelative(past, now)).toBe("agora");
   });
 
   it("returns a minutes-based string for recent timestamps", () => {
     const now = new Date("2026-05-21T12:00:00.000Z");
-    const past = new Date(now.getTime() - 5 * 60_000).toISOString();
-    // Intl normalises the output; we just confirm the unit is minutes.
+    const past = now.getTime() - 5 * 60_000;
     expect(formatRelative(past, now)).toMatch(/min/v);
+  });
+});
+
+describe("formatDurationSeconds", () => {
+  it("formats sub-minute durations in seconds", () => {
+    expect(formatDurationSeconds(30)).toBe("30s");
+  });
+  it("formats sub-hour durations in minutes", () => {
+    expect(formatDurationSeconds(120)).toBe("2min");
+  });
+  it("formats multi-hour durations as Hh[Mmin]", () => {
+    expect(formatDurationSeconds(3600)).toBe("1h");
+    expect(formatDurationSeconds(3 * 3600 + 5 * 60)).toBe("3h5min");
   });
 });
 

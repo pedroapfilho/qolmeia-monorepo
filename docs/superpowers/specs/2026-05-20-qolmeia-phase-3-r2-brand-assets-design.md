@@ -15,19 +15,19 @@ Phase 4 (next) builds on this: NanoBanana Pro reads the soul + brand assets to g
 
 ### Decisions locked
 
-| Question | Decision |
-|---|---|
-| Architecture | **Tool calling** via Vercel AI SDK `generateText({ tools, stopWhen })`. Two tools: `extractSoul` (Phase 2.5's schema, executes `applySoulUpdate`) and `labelBrandAsset` (new, executes `prisma.brandAsset.update`). Final agent text is the bot's reply. |
-| Vision metadata captured | `palette` (1-8 hex strings), `styleDescriptors` (1-6 free-form pt-BR), `typography` (`serif`/`sans`/`script`/`handwritten`/`decorative`/`unknown`). |
-| Storage model | New Prisma `BrandAsset` (1-to-many with `Organization`), `@@unique([orgId, sha256])`. |
-| Dedup | SHA-256 of bytes per org. Skip R2 PUT + vision call when a row already exists for that (`orgId`, `sha256`). |
-| R2 key | `org_<orgId>/<sha256>.<ext>` |
-| Allowed attachments | `mimeType.startsWith("image/")` only. Other attachment types persist as `Message` but are ignored by the asset pipeline (deferred). |
-| Multi-attachment | All image attachments processed in order; each becomes its own row. |
-| Oversize | Skip image if downloaded bytes > 20 MB (Gemini vision cap). The model is told in the system prompt so it can mention it in the reply. |
-| Reply | Free-text from the agent loop (`generateText` final text). Phase 2.5's deterministic error/edge apologies preserved. |
-| Phase 2.5 fused schema | **Removed.** `extractSoul` is now a tool with the same Zod shape, not a fused-call output field. The bot's reply is no longer schema-validated; it's the agent's `text`. Length still ~1-3 sentences per system prompt instruction. |
-| Naming | `extractFromMessage` → `runAgent`. Honest rename — the function is now an agent loop, not an extraction call. |
+| Question                 | Decision                                                                                                                                                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture             | **Tool calling** via Vercel AI SDK `generateText({ tools, stopWhen })`. Two tools: `extractSoul` (Phase 2.5's schema, executes `applySoulUpdate`) and `labelBrandAsset` (new, executes `prisma.brandAsset.update`). Final agent text is the bot's reply. |
+| Vision metadata captured | `palette` (1-8 hex strings), `styleDescriptors` (1-6 free-form pt-BR), `typography` (`serif`/`sans`/`script`/`handwritten`/`decorative`/`unknown`).                                                                                                      |
+| Storage model            | New Prisma `BrandAsset` (1-to-many with `Organization`), `@@unique([orgId, sha256])`.                                                                                                                                                                    |
+| Dedup                    | SHA-256 of bytes per org. Skip R2 PUT + vision call when a row already exists for that (`orgId`, `sha256`).                                                                                                                                              |
+| R2 key                   | `org_<orgId>/<sha256>.<ext>`                                                                                                                                                                                                                             |
+| Allowed attachments      | `mimeType.startsWith("image/")` only. Other attachment types persist as `Message` but are ignored by the asset pipeline (deferred).                                                                                                                      |
+| Multi-attachment         | All image attachments processed in order; each becomes its own row.                                                                                                                                                                                      |
+| Oversize                 | Skip image if downloaded bytes > 20 MB (Gemini vision cap). The model is told in the system prompt so it can mention it in the reply.                                                                                                                    |
+| Reply                    | Free-text from the agent loop (`generateText` final text). Phase 2.5's deterministic error/edge apologies preserved.                                                                                                                                     |
+| Phase 2.5 fused schema   | **Removed.** `extractSoul` is now a tool with the same Zod shape, not a fused-call output field. The bot's reply is no longer schema-validated; it's the agent's `text`. Length still ~1-3 sentences per system prompt instruction.                      |
+| Naming                   | `extractFromMessage` → `runAgent`. Honest rename — the function is now an agent loop, not an extraction call.                                                                                                                                            |
 
 ### R2 env vars
 
@@ -39,25 +39,25 @@ All 6 vars exist from Phase 1 (`R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_
 
 ### New files
 
-| Path | Responsibility |
-|---|---|
-| `apps/api/src/lib/storage.ts` | R2 (S3-compatible) client wrapper. Exports `uploadAsset({ key, bytes, mimeType })`, `assetKey(orgId, sha256, ext)`, `fetchAsset(key): Promise<Uint8Array>` (Phase 4 uses fetch). Uses `@aws-sdk/client-s3` against `R2_ENDPOINT`. |
-| `apps/api/src/soul/brand-asset.ts` | `ingestBrandAsset({ orgId, bytes, mimeType, prisma, storage }): Promise<{ assetId; deduped: boolean }>` — SHA-256 → dedup check → R2 upload (if new) → `BrandAsset` row creation with empty `metadata`. The deterministic side. |
+| Path                               | Responsibility                                                                                                                                                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/lib/storage.ts`      | R2 (S3-compatible) client wrapper. Exports `uploadAsset({ key, bytes, mimeType })`, `assetKey(orgId, sha256, ext)`, `fetchAsset(key): Promise<Uint8Array>` (Phase 4 uses fetch). Uses `@aws-sdk/client-s3` against `R2_ENDPOINT`. |
+| `apps/api/src/soul/brand-asset.ts` | `ingestBrandAsset({ orgId, bytes, mimeType, prisma, storage }): Promise<{ assetId; deduped: boolean }>` — SHA-256 → dedup check → R2 upload (if new) → `BrandAsset` row creation with empty `metadata`. The deterministic side.   |
 
 ### Modified files
 
-| Path | Change |
-|---|---|
-| `packages/db/prisma/schema.prisma` | Add `BrandAsset` model + back-relation on `Organization`. |
-| `apps/api/src/lib/env.ts` | Promote 6 `R2_*` vars from `.optional()` to `.string().min(1)`. |
-| `apps/api/src/lib/vitest-setup.ts` | Add `R2_*` stubs (6 lines). |
-| `apps/api/src/lib/ai.ts` | Replace `extractSoul(input, currentContext)` (the `generateObject` call) with `runAgent({ orgId, prisma, input, currentContext, newAssets, oversizeCount })` using `generateText({ tools, stopWhen: stepCountIs(5), system, messages })`. Defines `extractSoulTool` + `labelBrandAssetTool` closures over `orgId`/`prisma`. Returns `{ text, toolCallSummary, usage }`. |
-| `apps/api/src/lib/ai.test.ts` | Drop the `generateObject`-based call-shape tests; mock `generateText` to return scripted `toolCalls` + `text`; assert tool definitions reach the call, system prompt content, image file parts wire correctly. |
-| `apps/api/src/soul/extract.ts` | Rename `extractFromMessage` → `runAgent`. Thin pass-through to `lib/ai.runAgent`. Update type re-exports. |
-| `apps/api/src/soul/extract.test.ts` | Update tests to the new `runAgent` shape. |
-| `apps/api/src/soul/apply.ts` | **Unchanged.** Still the single `businessProfile` writer. Called by the `extractSoul` tool's `execute`. |
-| `apps/api/src/telegram/handler.ts` | Drop `extractFromMessage`/`applySoulUpdate`/`getBusinessContext` DI overrides → introduce `runAgent`/`ingestBrandAsset`/`getBusinessContext`/`storage` DI overrides. Image-attachment pre-processing pipeline (download → size-check → ingest). Agent input assembly (audio/text/image parts + `newAssets` metadata). Call `runAgent`. Post `result.text`. Error/edge branches preserved. |
-| `apps/api/src/telegram/handler.test.ts` | Update default mock to the `runAgent` shape (`{ text, toolCallSummary, usage }`). Existing tests reshape; new tests cover image ingest, dedup short-circuit, oversize skip, multi-attachment. |
+| Path                                    | Change                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db/prisma/schema.prisma`      | Add `BrandAsset` model + back-relation on `Organization`.                                                                                                                                                                                                                                                                                                                                 |
+| `apps/api/src/lib/env.ts`               | Promote 6 `R2_*` vars from `.optional()` to `.string().min(1)`.                                                                                                                                                                                                                                                                                                                           |
+| `apps/api/src/lib/vitest-setup.ts`      | Add `R2_*` stubs (6 lines).                                                                                                                                                                                                                                                                                                                                                               |
+| `apps/api/src/lib/ai.ts`                | Replace `extractSoul(input, currentContext)` (the `generateObject` call) with `runAgent({ orgId, prisma, input, currentContext, newAssets, oversizeCount })` using `generateText({ tools, stopWhen: stepCountIs(5), system, messages })`. Defines `extractSoulTool` + `labelBrandAssetTool` closures over `orgId`/`prisma`. Returns `{ text, toolCallSummary, usage }`.                   |
+| `apps/api/src/lib/ai.test.ts`           | Drop the `generateObject`-based call-shape tests; mock `generateText` to return scripted `toolCalls` + `text`; assert tool definitions reach the call, system prompt content, image file parts wire correctly.                                                                                                                                                                            |
+| `apps/api/src/soul/extract.ts`          | Rename `extractFromMessage` → `runAgent`. Thin pass-through to `lib/ai.runAgent`. Update type re-exports.                                                                                                                                                                                                                                                                                 |
+| `apps/api/src/soul/extract.test.ts`     | Update tests to the new `runAgent` shape.                                                                                                                                                                                                                                                                                                                                                 |
+| `apps/api/src/soul/apply.ts`            | **Unchanged.** Still the single `businessProfile` writer. Called by the `extractSoul` tool's `execute`.                                                                                                                                                                                                                                                                                   |
+| `apps/api/src/telegram/handler.ts`      | Drop `extractFromMessage`/`applySoulUpdate`/`getBusinessContext` DI overrides → introduce `runAgent`/`ingestBrandAsset`/`getBusinessContext`/`storage` DI overrides. Image-attachment pre-processing pipeline (download → size-check → ingest). Agent input assembly (audio/text/image parts + `newAssets` metadata). Call `runAgent`. Post `result.text`. Error/edge branches preserved. |
+| `apps/api/src/telegram/handler.test.ts` | Update default mock to the `runAgent` shape (`{ text, toolCallSummary, usage }`). Existing tests reshape; new tests cover image ingest, dedup short-circuit, oversize skip, multi-attachment.                                                                                                                                                                                             |
 
 ### New dependency
 
@@ -86,6 +86,7 @@ model BrandAsset {
 ```
 
 Add to `Organization`:
+
 ```prisma
   brandAssets BrandAsset[]
 ```
@@ -109,14 +110,18 @@ const extractSoulInput = z.object({
 
 const labelBrandAssetInput = z.object({
   assetId: z.string().min(1),
-  palette: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/i)).min(1).max(8),
+  palette: z
+    .array(z.string().regex(/^#[0-9A-Fa-f]{6}$/i))
+    .min(1)
+    .max(8),
   styleDescriptors: z.array(z.string().min(1)).min(1).max(6),
   typography: z.enum(["serif", "sans", "script", "handwritten", "decorative", "unknown"]),
 });
 
 const tools = {
   extractSoul: {
-    description: "Atualize os 5 campos do perfil de negócio do dono (whatYouDo, targetAudience, differentiator, brandVoice, location). Use SOMENTE quando a mensagem trouxer informação nova ou correção. Campos não mencionados ficam null.",
+    description:
+      "Atualize os 5 campos do perfil de negócio do dono (whatYouDo, targetAudience, differentiator, brandVoice, location). Use SOMENTE quando a mensagem trouxer informação nova ou correção. Campos não mencionados ficam null.",
     inputSchema: extractSoulInput,
     execute: async (partial: z.infer<typeof extractSoulInput>) => {
       const { capturedFields } = await applySoulUpdate(orgId, partial, prisma);
@@ -124,12 +129,19 @@ const tools = {
     },
   },
   labelBrandAsset: {
-    description: "Anote metadados visuais de UM asset de marca que o dono enviou. Use o assetId fornecido em 'Novos assets'. Extraia palette (até 8 cores hex), styleDescriptors (até 6, em pt-BR), e typography. Chame uma vez por novo assetId.",
+    description:
+      "Anote metadados visuais de UM asset de marca que o dono enviou. Use o assetId fornecido em 'Novos assets'. Extraia palette (até 8 cores hex), styleDescriptors (até 6, em pt-BR), e typography. Chame uma vez por novo assetId.",
     inputSchema: labelBrandAssetInput,
     execute: async (args: z.infer<typeof labelBrandAssetInput>) => {
       await prisma.brandAsset.update({
         where: { id: args.assetId },
-        data: { metadata: { palette: args.palette, styleDescriptors: args.styleDescriptors, typography: args.typography } },
+        data: {
+          metadata: {
+            palette: args.palette,
+            styleDescriptors: args.styleDescriptors,
+            typography: args.typography,
+          },
+        },
       });
       return { ok: true };
     },
@@ -170,6 +182,7 @@ Depois das ferramentas, escreva UMA resposta em pt-BR (1-3 frases, máx 500 cara
 ```
 
 `{{newAssetsBlock}}` is a rendered list:
+
 ```
 - assetId: clr_abc123, mimeType: image/jpeg
 - assetId: clr_def456, mimeType: image/png (já estava no perfil — não precisa labelar)
@@ -207,7 +220,7 @@ type AgentInput = {
   audioBytes?: Uint8Array;
   audioMime?: string;
   text?: string;
-  imageBytes: Array<{ assetId: string; bytes: Uint8Array; mimeType: string }>;  // new, non-dedup
+  imageBytes: Array<{ assetId: string; bytes: Uint8Array; mimeType: string }>; // new, non-dedup
 };
 
 type AgentSummary = {
@@ -223,7 +236,9 @@ const runAgent = async (args: {
   currentContext: string;
   newAssets: Array<{ assetId: string; mimeType: string; deduped: boolean }>;
   oversizeCount: number;
-}): Promise<AgentSummary> => { /* … */ };
+}): Promise<AgentSummary> => {
+  /* … */
+};
 ```
 
 Inside: build `messages` (single `user` message with mixed content parts), build tools closing over `orgId`/`prisma`, call `generateText({ model: gateway("google/gemini-2.5-flash"), system, messages, tools, stopWhen: stepCountIs(5) })`, return `{ text: result.text, toolCallSummary: aggregate(result.toolCalls), usage }`.

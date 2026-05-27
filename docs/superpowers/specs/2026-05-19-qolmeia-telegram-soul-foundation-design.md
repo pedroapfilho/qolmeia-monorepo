@@ -19,19 +19,19 @@ This spec covers only **Phase 0 + Phase 1**. Phases 2–4 each get their own spe
 
 ### Decisions locked (from brainstorming)
 
-| Question | Decision |
-|---|---|
-| Sequencing | Phase 0 = prune + rename in **one combined commit**, verified green; then Phase 1 |
-| Pruning | No frontend in MVP → remove `apps/web`, `apps/landing`, `@repo/ui`, `@repo/tailwind-config`. Identity = Telegram chat → remove **Better Auth** entirely (`@repo/auth`, api auth code, 5 auth models). No email → remove `@repo/transactional`. API-only → remove Playwright e2e. Keep: `apps/api`, `@repo/db`, `@repo/config-vitest`, `@repo/typescript-config`, repo tooling. |
-| Conversation model | Free-form accumulate (send audio anytime; fields updated/corrected incrementally) |
-| Identity | Telegram chat = one `Organization` being onboarded (owner is the tenant) |
-| Brand assets / image gen | In scope — but **Phases 3 & 4**, not Phase 1 |
-| AI access | **Single key.** Vercel AI Gateway (`AI_GATEWAY_API_KEY`) for everything — text/vision/image **and audio**. Transcription = Telegram voice file sent as an audio input part to a Gemini multimodal model via `generateText` through the Gateway (no `transcribe()`, no OpenAI key). Transcription + 5-field extraction can fuse into one Gateway call. |
-| Telegram I/O | Webhook only; local dev via tunnel (cloudflared/ngrok) |
-| Post-message UX | Acknowledge + list still-missing fields + accept corrections; no explicit "done" |
-| Spec split | Phase 0 + Phase 1 in this one spec; Phases 2–4 separate specs later |
-| Local dev infra | `docker-compose.yml` runs **local Postgres + local Redis**. Dev uses local URLs; production Railway `DATABASE_URL`/`REDIS_URL` kept **commented** in git-ignored `.env`. Prevents `db:push` hitting production. |
-| Resolved review points | `Customer` model kept in Phase 1 (avoids later FK migration); first contact auto-creates `Organization` with placeholder name; env var is `TELEGRAM_BOT_TOKEN` (not `_ID`). |
+| Question                 | Decision                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sequencing               | Phase 0 = prune + rename in **one combined commit**, verified green; then Phase 1                                                                                                                                                                                                                                                                                              |
+| Pruning                  | No frontend in MVP → remove `apps/web`, `apps/landing`, `@repo/ui`, `@repo/tailwind-config`. Identity = Telegram chat → remove **Better Auth** entirely (`@repo/auth`, api auth code, 5 auth models). No email → remove `@repo/transactional`. API-only → remove Playwright e2e. Keep: `apps/api`, `@repo/db`, `@repo/config-vitest`, `@repo/typescript-config`, repo tooling. |
+| Conversation model       | Free-form accumulate (send audio anytime; fields updated/corrected incrementally)                                                                                                                                                                                                                                                                                              |
+| Identity                 | Telegram chat = one `Organization` being onboarded (owner is the tenant)                                                                                                                                                                                                                                                                                                       |
+| Brand assets / image gen | In scope — but **Phases 3 & 4**, not Phase 1                                                                                                                                                                                                                                                                                                                                   |
+| AI access                | **Single key.** Vercel AI Gateway (`AI_GATEWAY_API_KEY`) for everything — text/vision/image **and audio**. Transcription = Telegram voice file sent as an audio input part to a Gemini multimodal model via `generateText` through the Gateway (no `transcribe()`, no OpenAI key). Transcription + 5-field extraction can fuse into one Gateway call.                          |
+| Telegram I/O             | Webhook only; local dev via tunnel (cloudflared/ngrok)                                                                                                                                                                                                                                                                                                                         |
+| Post-message UX          | Acknowledge + list still-missing fields + accept corrections; no explicit "done"                                                                                                                                                                                                                                                                                               |
+| Spec split               | Phase 0 + Phase 1 in this one spec; Phases 2–4 separate specs later                                                                                                                                                                                                                                                                                                            |
+| Local dev infra          | `docker-compose.yml` runs **local Postgres + local Redis**. Dev uses local URLs; production Railway `DATABASE_URL`/`REDIS_URL` kept **commented** in git-ignored `.env`. Prevents `db:push` hitting production.                                                                                                                                                                |
+| Resolved review points   | `Customer` model kept in Phase 1 (avoids later FK migration); first contact auto-creates `Organization` with placeholder name; env var is `TELEGRAM_BOT_TOKEN` (not `_ID`).                                                                                                                                                                                                    |
 
 ### The 5 soul fields
 
@@ -88,16 +88,16 @@ Inside `apps/api` (existing Hono app). Rationale: reuses env loader, Prisma sing
 
 ### 3.2 Module layout (`apps/api/src/`)
 
-| Path | Responsibility (Phase 1) |
-|---|---|
-| `telegram/bot.ts` | Chat SDK `Chat` singleton: `@chat-adapter/telegram` + `@chat-adapter/state-redis`. Adapter auto-validates the `X-Telegram-Bot-Api-Secret-Token` header (via `TELEGRAM_WEBHOOK_SECRET_TOKEN`) and dedups updates (`dedupeTtlMs`) — no hand-rolled verifier needed |
-| `telegram/handler.ts` | `onSubscribedMessage`/`onNewMention` logic: org/conversation resolution, durable `WebhookEvent` audit row (keyed by `message.id`), persist `Message`, `thread.post()` ack reply |
-| `routes/telegram/webhook.ts` | Thin Hono route at `POST /telegram/webhook` → `bot.webhooks.telegram(c.req.raw)` |
-| `soul/knowledge-provider.ts` | **Seam #1.** `getBusinessContext(orgId): Promise<string>` — serializes `Organization.businessProfile` JSON to a markdown block (returns "" when empty) |
-| `soul/soul.ts` | Soul field types + `applySoulUpdate()` write path through Prisma (used Phase 2; Phase 1 defines types + interface only) |
-| `lib/redis.ts` | Raw Redis client for the Phase 2 accumulation buffer — **deferred to Phase 2** (Phase 1 uses Chat SDK's `createRedisState()` which auto-detects `REDIS_URL`) |
-| `lib/ai.ts` | Vercel AI Gateway client wrapper — **stub/interface in Phase 1** |
-| `lib/storage.ts` | R2 (S3) client wrapper — **stub/interface in Phase 1** |
+| Path                         | Responsibility (Phase 1)                                                                                                                                                                                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `telegram/bot.ts`            | Chat SDK `Chat` singleton: `@chat-adapter/telegram` + `@chat-adapter/state-redis`. Adapter auto-validates the `X-Telegram-Bot-Api-Secret-Token` header (via `TELEGRAM_WEBHOOK_SECRET_TOKEN`) and dedups updates (`dedupeTtlMs`) — no hand-rolled verifier needed |
+| `telegram/handler.ts`        | `onSubscribedMessage`/`onNewMention` logic: org/conversation resolution, durable `WebhookEvent` audit row (keyed by `message.id`), persist `Message`, `thread.post()` ack reply                                                                                  |
+| `routes/telegram/webhook.ts` | Thin Hono route at `POST /telegram/webhook` → `bot.webhooks.telegram(c.req.raw)`                                                                                                                                                                                 |
+| `soul/knowledge-provider.ts` | **Seam #1.** `getBusinessContext(orgId): Promise<string>` — serializes `Organization.businessProfile` JSON to a markdown block (returns "" when empty)                                                                                                           |
+| `soul/soul.ts`               | Soul field types + `applySoulUpdate()` write path through Prisma (used Phase 2; Phase 1 defines types + interface only)                                                                                                                                          |
+| `lib/redis.ts`               | Raw Redis client for the Phase 2 accumulation buffer — **deferred to Phase 2** (Phase 1 uses Chat SDK's `createRedisState()` which auto-detects `REDIS_URL`)                                                                                                     |
+| `lib/ai.ts`                  | Vercel AI Gateway client wrapper — **stub/interface in Phase 1**                                                                                                                                                                                                 |
+| `lib/storage.ts`             | R2 (S3) client wrapper — **stub/interface in Phase 1**                                                                                                                                                                                                           |
 
 Callers depend only on `KnowledgeProvider`, `transcribeAudio()` (Phase 2), `storage`, `ai` interfaces — never on raw JSON, Redis keys, or provider SDKs directly.
 
@@ -105,13 +105,13 @@ Callers depend only on `KnowledgeProvider`, `transcribeAudio()` (Phase 2), `stor
 
 Added to `apps/api/src/lib/env.ts` Zod schema, `apps/api/.env.example`, and `turbo.json` `env` list:
 
-| Var | Notes |
-|---|---|
-| `REDIS_URL` | Chat SDK state + Phase 2 buffer. Dev = local docker (`redis://localhost:6379`); Railway production URL kept commented in git-ignored `.env`. |
-| `TELEGRAM_BOT_TOKEN` | Pedro said "TELEGRAM_BOT_ID" — Telegram bot auth is a **token**. Auto-detected by `@chat-adapter/telegram` |
-| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Secret-token registered with `setWebhook`; validated **by the adapter** per request. Exact name the adapter expects |
-| `TELEGRAM_BOT_USERNAME` | Bot @username; required by `@chat-adapter/telegram` |
-| `AI_GATEWAY_API_KEY` | Provided. Stored in git-ignored `apps/api/.env`; placeholder in `.env.example`. Used for text/vision/image **and audio** (Gemini audio part). The only AI key. |
+| Var                                                                                                  | Notes                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REDIS_URL`                                                                                          | Chat SDK state + Phase 2 buffer. Dev = local docker (`redis://localhost:6379`); Railway production URL kept commented in git-ignored `.env`.                                                                                        |
+| `TELEGRAM_BOT_TOKEN`                                                                                 | Pedro said "TELEGRAM_BOT_ID" — Telegram bot auth is a **token**. Auto-detected by `@chat-adapter/telegram`                                                                                                                          |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN`                                                                      | Secret-token registered with `setWebhook`; validated **by the adapter** per request. Exact name the adapter expects                                                                                                                 |
+| `TELEGRAM_BOT_USERNAME`                                                                              | Bot @username; required by `@chat-adapter/telegram`                                                                                                                                                                                 |
+| `AI_GATEWAY_API_KEY`                                                                                 | Provided. Stored in git-ignored `apps/api/.env`; placeholder in `.env.example`. Used for text/vision/image **and audio** (Gemini audio part). The only AI key.                                                                      |
 | `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION` | Cloudflare R2 / S3-compatible brand-asset storage (used Phase 3; vars defined Phase 1). All provided (account `6d4f…51ef`, bucket `qolmeia`, region `auto`). Stored in git-ignored `apps/api/.env`; placeholders in `.env.example`. |
 
 Optional vars (Phase 3+ usage: R2) are `.optional()` in Zod so Phase 1 boots without them; `REDIS_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET_TOKEN`, `TELEGRAM_BOT_USERNAME` are required. `AI_GATEWAY_API_KEY` is optional in Phase 1 (no AI yet), required from Phase 2.

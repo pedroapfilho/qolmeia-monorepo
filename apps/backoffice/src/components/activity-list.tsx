@@ -5,33 +5,40 @@ import { toast } from "@repo/ui/components/sonner";
 import { useState } from "react";
 
 import { ActivityRow } from "@/components/activity-row";
-import { ApiError, apiGet } from "@/lib/api-client";
-import type { ActivityRow as ActivityRowType, Paginated } from "@/lib/api-types";
+import { apiGet, ApiError } from "@/lib/api-client";
+import type { ActivityEntry, ActivityResponse } from "@/lib/api-types";
 
 type ActivityListProps = {
-  initial: ReadonlyArray<ActivityRowType>;
-  initialNextCursor: string | null;
+  initial: ReadonlyArray<ActivityEntry>;
   pageSize?: number;
 };
 
-const ActivityList = ({ initial, initialNextCursor, pageSize = 50 }: ActivityListProps) => {
-  const [rows, setRows] = useState<ReadonlyArray<ActivityRowType>>(initial);
-  const [cursor, setCursor] = useState<string | null>(initialNextCursor);
+// Time-based pagination: ask for entries strictly older than the last one
+// we have. The agents Worker returns descending by createdAt, so the tail
+// is the oldest; we paginate by `since=earliest-1`. Once a page comes back
+// empty we hide the button.
+const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
+  const [rows, setRows] = useState<ReadonlyArray<ActivityEntry>>(initial);
+  const [exhausted, setExhausted] = useState(initial.length < pageSize);
   const [loading, setLoading] = useState(false);
 
   const handleLoadMore = async () => {
-    if (!cursor || loading) {
+    if (exhausted || loading) {
       return;
     }
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        cursor,
-        limit: String(pageSize),
-      });
-      const next = await apiGet<Paginated<ActivityRowType>>(`/activity?${params.toString()}`);
-      setRows((prev) => [...prev, ...next.items]);
-      setCursor(next.nextCursor);
+      const earliest = rows.at(-1)?.createdAt;
+      const params = new URLSearchParams({ limit: String(pageSize) });
+      if (earliest !== undefined) {
+        params.set("before", String(earliest));
+      }
+      const next = await apiGet<ActivityResponse>(`/activity?${params.toString()}`);
+      const fresh = next.items.filter((item) => !rows.some((existing) => existing.id === item.id));
+      setRows((prev) => [...prev, ...fresh]);
+      if (fresh.length < pageSize) {
+        setExhausted(true);
+      }
     } catch (error) {
       const message =
         error instanceof ApiError
@@ -50,7 +57,7 @@ const ActivityList = ({ initial, initialNextCursor, pageSize = 50 }: ActivityLis
           <ActivityRow key={row.id} row={row} />
         ))}
       </ul>
-      {cursor && (
+      {!exhausted && (
         <div className="flex justify-center pt-4">
           <Button disabled={loading} onClick={handleLoadMore} type="button" variant="outline">
             {loading ? "Carregando..." : "Carregar mais"}

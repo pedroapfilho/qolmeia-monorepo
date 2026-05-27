@@ -7,6 +7,11 @@ type TemplateStatus = "active" | "retired";
 
 type Template = {
   createdAt: number;
+  // The action type the Worker's Workflow proposes for its single
+  // deliverable. Defaults to `worker_deliverable` for legacy templates;
+  // P8+ templates pin specific types (e.g. `publish_post`) so the
+  // backoffice can render a per-type approval card.
+  defaultActionType: string;
   defaultPolicies: Record<string, string>;
   description: string;
   displayName: string;
@@ -32,6 +37,7 @@ type SkillOverlay = {
 
 type TemplateRow = {
   created_at: number;
+  default_action_type: string | null;
   default_policies: string;
   description: string;
   display_name: string;
@@ -71,6 +77,7 @@ const toTemplateStatus = (value: string): TemplateStatus =>
 
 const mapTemplate = (row: TemplateRow): Template => ({
   createdAt: row.created_at,
+  defaultActionType: row.default_action_type ?? "worker_deliverable",
   defaultPolicies: safeJson<Record<string, string>>(row.default_policies, {}),
   description: row.description,
   displayName: row.display_name,

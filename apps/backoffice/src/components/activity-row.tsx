@@ -1,44 +1,34 @@
 import { cn } from "@repo/ui/lib/utils";
 
-import type { ActivityLogType, ActivityRow as ActivityRowType } from "@/lib/api-types";
+import type { ActivityEntry } from "@/lib/api-types";
 import { formatRelative } from "@/lib/format";
 
-// Map each ActivityLogType to a colour family. The categories track the
-// system's coarse pillars (run lifecycle / action lifecycle / budget /
-// owner) so the eye can scan the timeline by hue.
-const TYPE_CATEGORY: Record<ActivityLogType, "run" | "action" | "budget" | "owner" | "neutral"> = {
-  ACTION_APPROVED: "action",
-  ACTION_DRAFTED: "action",
-  ACTION_EXECUTED: "action",
-  ACTION_FAILED: "action",
-  ACTION_REJECTED: "action",
-  AGENT_RUN_FAILED: "run",
-  AGENT_RUN_FINISHED: "run",
-  AGENT_RUN_STARTED: "run",
-  BUDGET_WARN_100: "budget",
-  BUDGET_WARN_80: "budget",
-  BUSINESS_IDEA_UPDATED: "owner",
-  INSTRUCTIONS_UPDATED: "owner",
-  MEMBER_INVITED: "neutral",
-  MEMBER_JOINED: "neutral",
-  MESSAGE_INBOUND: "neutral",
-  MESSAGE_OUTBOUND: "neutral",
-  OWNER_COMMAND: "owner",
-  ROUTINE_DISABLED: "neutral",
-  ROUTINE_ENABLED: "neutral",
-  ROUTINE_TRIGGERED: "neutral",
+type Category = "action" | "neutral" | "team" | "ticket";
+
+const categoriseType = (type: string): Category => {
+  if (type.startsWith("ACTION_")) {
+    return "action";
+  }
+  if (type.startsWith("TICKET_") || type.startsWith("WORKER_")) {
+    return "ticket";
+  }
+  if (type.startsWith("TEAM_") || type.startsWith("MEMBER_")) {
+    return "team";
+  }
+  return "neutral";
 };
 
-const CATEGORY_CLASSES: Record<(typeof TYPE_CATEGORY)[ActivityLogType], string> = {
-  action: "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200",
-  budget: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  neutral: "bg-muted text-muted-foreground",
-  owner: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
-  run: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+const CATEGORY_CLASSES: Record<Category, string> = {
+  action:
+    "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-400/20",
+  neutral: "bg-muted text-muted-foreground ring-border",
+  team: "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-400/20",
+  ticket:
+    "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/20",
 };
 
 type ActivityRowProps = {
-  row: ActivityRowType;
+  row: ActivityEntry;
 };
 
 const hasPayload = (payload: unknown): boolean => {
@@ -52,29 +42,29 @@ const hasPayload = (payload: unknown): boolean => {
 };
 
 const ActivityRow = ({ row }: ActivityRowProps) => {
-  const category = TYPE_CATEGORY[row.type] ?? "neutral";
+  const category = categoriseType(row.type);
   const pillClass = CATEGORY_CLASSES[category];
 
   return (
-    <li className="flex flex-col gap-2 border-b border-border px-4 py-4 last:border-b-0">
-      <div className="flex items-center gap-3">
+    <li className="flex flex-col gap-2 border-b border-border px-6 py-4 last:border-b-0">
+      <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            "inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-medium tracking-tight ring-1 ring-inset",
             pillClass,
           )}
         >
           {row.type}
         </span>
-        <time className="text-xs text-muted-foreground" dateTime={row.createdAt}>
-          {formatRelative(row.createdAt)}
-        </time>
+        <time className="text-xs text-muted-foreground">{formatRelative(row.createdAt)}</time>
       </div>
-      <p className="text-sm text-foreground">{row.summary}</p>
+      <p className="text-sm leading-relaxed text-foreground">{row.summary}</p>
       {hasPayload(row.payload) && (
         <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none">payload</summary>
-          <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
+          <summary className="cursor-pointer text-xs font-medium select-none hover:text-foreground">
+            Ver payload
+          </summary>
+          <pre className="mt-2 max-h-48 overflow-auto rounded-md border border-border bg-muted/50 p-3 text-xs">
             {JSON.stringify(row.payload, null, 2)}
           </pre>
         </details>

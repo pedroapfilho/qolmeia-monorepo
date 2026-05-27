@@ -9,29 +9,30 @@
 
 ## 1. Context & Goal
 
-After Phase 3 the bot can: receive voice → extract soul; receive image → upload to R2 + extract brand metadata (palette, style descriptors, typography); answer Q&A about the captured soul + assets. The locked roadmap's last MVP piece: **the bot can *generate* an image when asked**, conditioned on the captured soul + brand assets, and post it back to Telegram. This closes the loop the user said they want working end-to-end.
+After Phase 3 the bot can: receive voice → extract soul; receive image → upload to R2 + extract brand metadata (palette, style descriptors, typography); answer Q&A about the captured soul + assets. The locked roadmap's last MVP piece: **the bot can _generate_ an image when asked**, conditioned on the captured soul + brand assets, and post it back to Telegram. This closes the loop the user said they want working end-to-end.
 
 ### The promise to the user (acceptance criteria)
-1. Owner sends a Telegram message like *"gere uma imagem para a minha promo de Black Friday"* (or voice/image with similar intent).
+
+1. Owner sends a Telegram message like _"gere uma imagem para a minha promo de Black Friday"_ (or voice/image with similar intent).
 2. Bot calls a `generateBrandImage` tool inside the agent loop.
 3. Generated image is posted to Telegram (as a real image, not a URL).
 4. Image visually reflects the captured soul (whatYouDo / brandVoice / location) and brand assets (palette / typography).
 
 ### Decisions locked
 
-| Question | Decision |
-|---|---|
-| Trigger | LLM-detected via the agent loop. The model decides when to call `generateBrandImage` based on the user message (no slash commands). |
-| Model | Gateway model id `"google/gemini-2.5-flash-image"` (NanoBanana family; image-output capable Gemini multimodal). |
-| Provider options | `providerOptions: { google: { responseModalities: ["TEXT", "IMAGE"] } }` to request image output. |
-| Reference images | Pull up to **3 most-recent** uploaded `BrandAsset` rows (source=`"uploaded"`) via `fetchAsset(r2Key)`; pass as `file` content parts in the image-gen call so the model can ground style. |
-| Brand context | Compose a prompt with: the user's natural-language request + the soul's `whatYouDo`/`brandVoice`/`location` + a brand-style block constructed from existing assets' palette / styleDescriptors. |
-| Aspect ratio | Default `"1:1"` (square 1024×1024). Tool input has optional `aspectRatio: "1:1" | "16:9" | "9:16" | "4:3"` (default `"1:1"`). Passed via prompt — Gemini's image output respects natural-language size hints. |
-| Generated asset storage | Each generated image becomes a new `BrandAsset` row, marked via `metadata.source = "generated"` + `metadata.prompt = <prompt>` + `metadata.generatedAt = <ISO timestamp>`. Same R2 key scheme. SHA-256 deduplication still applies (a deterministic regeneration of the same prompt + reference would dedup; acceptable). |
-| Schema migration | **None.** Use `metadata.source` as a JSON property; existing rows have no `source` key → treated as `"uploaded"` by default. Cheaper than adding a column. |
-| Per-message cap | The model is instructed to call `generateBrandImage` AT MOST once per message. The `stopWhen: stepCountIs(5)` already bounds total tool calls. |
-| Reply to user | After agent loop completes, handler inspects `result.generatedAssetIds` (a new return field). If non-empty, handler fetches the bytes via `fetchAsset(r2Key)` and posts via `thread.postImage({ bytes, caption? })` (Chat SDK image API — verified at implementation time). Then posts the agent's `result.text` as a separate message (or as the caption, if the Chat SDK image API accepts one). |
-| Error handling | Image-gen failure inside tool execute → tool returns `{ error: "..." }`; the model can still produce a text-only reply. R2 upload failure on the generated image → log + tool returns `{ error }`; same. The handler's top-level catch still posts the global apology if everything fails. |
+| Question                | Decision                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------- |
+| Trigger                 | LLM-detected via the agent loop. The model decides when to call `generateBrandImage` based on the user message (no slash commands).                                                                                                                                                                                                                                                                |
+| Model                   | Gateway model id `"google/gemini-2.5-flash-image"` (NanoBanana family; image-output capable Gemini multimodal).                                                                                                                                                                                                                                                                                    |
+| Provider options        | `providerOptions: { google: { responseModalities: ["TEXT", "IMAGE"] } }` to request image output.                                                                                                                                                                                                                                                                                                  |
+| Reference images        | Pull up to **3 most-recent** uploaded `BrandAsset` rows (source=`"uploaded"`) via `fetchAsset(r2Key)`; pass as `file` content parts in the image-gen call so the model can ground style.                                                                                                                                                                                                           |
+| Brand context           | Compose a prompt with: the user's natural-language request + the soul's `whatYouDo`/`brandVoice`/`location` + a brand-style block constructed from existing assets' palette / styleDescriptors.                                                                                                                                                                                                    |
+| Aspect ratio            | Default `"1:1"` (square 1024×1024). Tool input has optional `aspectRatio: "1:1"                                                                                                                                                                                                                                                                                                                    | "16:9" | "9:16" | "4:3"`(default`"1:1"`). Passed via prompt — Gemini's image output respects natural-language size hints. |
+| Generated asset storage | Each generated image becomes a new `BrandAsset` row, marked via `metadata.source = "generated"` + `metadata.prompt = <prompt>` + `metadata.generatedAt = <ISO timestamp>`. Same R2 key scheme. SHA-256 deduplication still applies (a deterministic regeneration of the same prompt + reference would dedup; acceptable).                                                                          |
+| Schema migration        | **None.** Use `metadata.source` as a JSON property; existing rows have no `source` key → treated as `"uploaded"` by default. Cheaper than adding a column.                                                                                                                                                                                                                                         |
+| Per-message cap         | The model is instructed to call `generateBrandImage` AT MOST once per message. The `stopWhen: stepCountIs(5)` already bounds total tool calls.                                                                                                                                                                                                                                                     |
+| Reply to user           | After agent loop completes, handler inspects `result.generatedAssetIds` (a new return field). If non-empty, handler fetches the bytes via `fetchAsset(r2Key)` and posts via `thread.postImage({ bytes, caption? })` (Chat SDK image API — verified at implementation time). Then posts the agent's `result.text` as a separate message (or as the caption, if the Chat SDK image API accepts one). |
+| Error handling          | Image-gen failure inside tool execute → tool returns `{ error: "..." }`; the model can still produce a text-only reply. R2 upload failure on the generated image → log + tool returns `{ error }`; same. The handler's top-level catch still posts the global apology if everything fails.                                                                                                         |
 
 ---
 
@@ -39,21 +40,21 @@ After Phase 3 the bot can: receive voice → extract soul; receive image → upl
 
 ### New file
 
-| Path | Responsibility |
-|---|---|
+| Path                            | Responsibility                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/api/src/lib/image-gen.ts` | `generateBrandImageBytes({ prompt, referenceImages, aspectRatio }): Promise<Uint8Array>`. Wraps `generateText({ model: gateway("google/gemini-2.5-flash-image"), messages, providerOptions: { google: { responseModalities: ["TEXT","IMAGE"] } } })`. Extracts generated image from `result.files` (the AI SDK exposes generated files there for multimodal-output models). Throws on no-image-returned. |
 
 ### Modified files
 
-| Path | Change |
-|---|---|
-| `apps/api/src/soul/brand-asset.ts` | Add `ingestGeneratedAsset({ orgId, bytes, mimeType, prisma, storage?, prompt }): Promise<{ assetId: string }>` — same dedup + R2 upload pipeline as `ingestBrandAsset`, but the row's `metadata` is `{ source: "generated", prompt, generatedAt }`. Reuses the existing flow. |
-| `apps/api/src/lib/ai.ts` | Add `generateBrandImage` tool to `runAgent`'s `tools` object. Closure captures `orgId`/`prisma`. Tool: (a) parses input `{ prompt, aspectRatio? }`; (b) loads up to 3 most-recent uploaded assets via `prisma.brandAsset.findMany({ where: { orgId, /* source not "generated" */ }, orderBy: { createdAt: "desc" }, take: 3 })`; (c) fetches bytes via `storage.fetchAsset(row.r2Key)`; (d) calls `generateBrandImageBytes`; (e) calls `ingestGeneratedAsset` to store result; (f) returns `{ assetId, r2Key }`. Update `runAgent` return type to include `generatedAssetIds: Array<string>` (collected from `generateBrandImage` tool returns). Update `AGENT_SYSTEM_TEMPLATE` to describe the third tool. |
-| `apps/api/src/telegram/handler.ts` | After `runAgent` completes: if `result.generatedAssetIds.length > 0`, for each id: `prisma.brandAsset.findUnique({ where: { id }, select: { r2Key, mimeType } })` → `storage.fetchAsset(r2Key)` → `thread.postImage({ bytes, mimeType, caption? })` (verify Chat SDK API at implementation time — fallback to `thread.post` with a URL if image-posting requires a different signature). Then `thread.post(result.text)` for the text reply (or fold into caption if supported). Log adds `generatedAssetIds`. |
-| `apps/api/src/lib/ai.test.ts` | Add `generateBrandImage` tool test; assert `result.generatedAssetIds` aggregation. |
-| `apps/api/src/lib/image-gen.test.ts` | New test file with `vi.mock("ai")`. Verify call shape + image extraction from `files`. |
-| `apps/api/src/soul/brand-asset.test.ts` | Add tests for `ingestGeneratedAsset` (sets `metadata.source="generated"` + `prompt` + `generatedAt`). |
-| `apps/api/src/telegram/handler.test.ts` | Add a test: when `runAgent` mock returns `generatedAssetIds`, handler queries the row, fetches bytes, calls `thread.postImage`. |
+| Path                                    | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/soul/brand-asset.ts`      | Add `ingestGeneratedAsset({ orgId, bytes, mimeType, prisma, storage?, prompt }): Promise<{ assetId: string }>` — same dedup + R2 upload pipeline as `ingestBrandAsset`, but the row's `metadata` is `{ source: "generated", prompt, generatedAt }`. Reuses the existing flow.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `apps/api/src/lib/ai.ts`                | Add `generateBrandImage` tool to `runAgent`'s `tools` object. Closure captures `orgId`/`prisma`. Tool: (a) parses input `{ prompt, aspectRatio? }`; (b) loads up to 3 most-recent uploaded assets via `prisma.brandAsset.findMany({ where: { orgId, /* source not "generated" */ }, orderBy: { createdAt: "desc" }, take: 3 })`; (c) fetches bytes via `storage.fetchAsset(row.r2Key)`; (d) calls `generateBrandImageBytes`; (e) calls `ingestGeneratedAsset` to store result; (f) returns `{ assetId, r2Key }`. Update `runAgent` return type to include `generatedAssetIds: Array<string>` (collected from `generateBrandImage` tool returns). Update `AGENT_SYSTEM_TEMPLATE` to describe the third tool. |
+| `apps/api/src/telegram/handler.ts`      | After `runAgent` completes: if `result.generatedAssetIds.length > 0`, for each id: `prisma.brandAsset.findUnique({ where: { id }, select: { r2Key, mimeType } })` → `storage.fetchAsset(r2Key)` → `thread.postImage({ bytes, mimeType, caption? })` (verify Chat SDK API at implementation time — fallback to `thread.post` with a URL if image-posting requires a different signature). Then `thread.post(result.text)` for the text reply (or fold into caption if supported). Log adds `generatedAssetIds`.                                                                                                                                                                                              |
+| `apps/api/src/lib/ai.test.ts`           | Add `generateBrandImage` tool test; assert `result.generatedAssetIds` aggregation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/api/src/lib/image-gen.test.ts`    | New test file with `vi.mock("ai")`. Verify call shape + image extraction from `files`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `apps/api/src/soul/brand-asset.test.ts` | Add tests for `ingestGeneratedAsset` (sets `metadata.source="generated"` + `prompt` + `generatedAt`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `apps/api/src/telegram/handler.test.ts` | Add a test: when `runAgent` mock returns `generatedAssetIds`, handler queries the row, fetches bytes, calls `thread.postImage`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### No Prisma migration
 
@@ -62,6 +63,7 @@ After Phase 3 the bot can: receive voice → extract soul; receive image → upl
 ### Dependency on Chat SDK image API
 
 `thread.post(text)` is verified working. For images, the Chat SDK Telegram adapter likely exposes one of:
+
 - `thread.postImage({ data, mimeType, caption? })` (rich-message API), OR
 - `thread.post({ attachments: [{ type: "image", data, mimeType }], caption? })`, OR
 - a method like `thread.sendPhoto(...)`.
@@ -150,7 +152,9 @@ type GenerateImageArgs = {
 };
 
 const generateBrandImageBytes = async (args: GenerateImageArgs): Promise<Uint8Array> => {
-  const contentParts: Array<{ data: Uint8Array; mediaType: string; type: "file" } | { text: string; type: "text" }> = [];
+  const contentParts: Array<
+    { data: Uint8Array; mediaType: string; type: "file" } | { text: string; type: "text" }
+  > = [];
   for (const ref of args.referenceImages ?? []) {
     contentParts.push({ data: ref.bytes, mediaType: ref.mimeType, type: "file" });
   }
@@ -163,7 +167,9 @@ const generateBrandImageBytes = async (args: GenerateImageArgs): Promise<Uint8Ar
   });
 
   // Gemini multimodal-output returns generated files in result.files.
-  const file = (result as { files?: Array<{ mediaType: string; uint8Array?: Uint8Array; base64?: string }> }).files?.[0];
+  const file = (
+    result as { files?: Array<{ mediaType: string; uint8Array?: Uint8Array; base64?: string }> }
+  ).files?.[0];
   if (!file) {
     throw new Error("Image generation returned no image file");
   }
@@ -214,11 +220,11 @@ If `postImage` fails (e.g., R2 fetch error, Telegram API error): log + post the 
 
 ```ts
 type AgentResult = {
-  generatedAssetIds: Array<string>;       // NEW in Phase 4
+  generatedAssetIds: Array<string>; // NEW in Phase 4
   text: string;
   toolCallSummary: {
     extractSoul: number;
-    generateBrandImage: number;            // NEW in Phase 4
+    generateBrandImage: number; // NEW in Phase 4
     labelBrandAsset: number;
   };
   usage: { inputTokens: number; outputTokens: number };
@@ -259,6 +265,7 @@ type AgentResult = {
 ## 11. Future roadmap (post-Phase-4)
 
 The MVP loop is complete after Phase 4. Future:
+
 - **Phase 5** — customer-facing chat (transcript memory).
 - **Phase 6+** — web UI / canvas (streaming, approval queue).
 

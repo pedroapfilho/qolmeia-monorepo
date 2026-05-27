@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make channel parity *real*. Add **Telegram, WhatsApp, Slack, Discord** connector adapters under the uniform `ConnectorAdapter` contract from the spec (no connector DO — all routing is the stateless Worker, decision 7). Add **`transcribeAudio`** so audio-in is just another input modality. Seed the catalog with **MarketingStrategist + Support + Sales** Worker templates so customers can hire a real Team. Wire **`this.schedule()` recurring agent work** so a Worker can run a weekly report or daily scan.
+**Goal:** Make channel parity _real_. Add **Telegram, WhatsApp, Slack, Discord** connector adapters under the uniform `ConnectorAdapter` contract from the spec (no connector DO — all routing is the stateless Worker, decision 7). Add **`transcribeAudio`** so audio-in is just another input modality. Seed the catalog with **MarketingStrategist + Support + Sales** Worker templates so customers can hire a real Team. Wire **`this.schedule()` recurring agent work** so a Worker can run a weekly report or daily scan.
 
 **Architecture:** Each channel is a pure module — `parseInbound`, `sendOutbound`, `verify`, `resolveIdentity` — registered in a typed `connectorRegistry`. Stateless Worker routes `/webhooks/:type/:connectorId` look up the `connector` row, verify the signature, idempotency-check via `webhook_event`, normalize to `NormalizedMessage`, resolve `companyId`, and RPC `corr:{companyId}`. Web chat keeps its first-class direct WebSocket path; everything else routes through the webhook adapter. Channels differ only below the `NormalizedMessage` line — streaming token-by-token on web, buffered + "digitando…" on Telegram, etc. — and that difference is fully encapsulated in each adapter's `sendOutbound`. `transcribeAudio` is a skill that the Correspondent calls when it receives an audio attachment; powered by Workers AI speech model. `this.schedule(cron, method, payload)` on a Worker DO runs a recurring tick — a heartbeat that scans the Worker's own tickets and decides actions.
 
@@ -11,6 +11,7 @@
 **Builds on:** `main` after P5 merged.
 
 **Architectural calls baked in** (T1.4 override):
+
 1. **No third-party SDK per channel.** Telegram/WhatsApp/Slack/Discord APIs are simple HTTP — use `fetch`. A bot-framework SDK is a heavy dep when the spec's `ConnectorAdapter` shape is already a thinner API. Less weight, fewer transitive deps, no version churn.
 2. **`transcribeAudio` runs on the Correspondent, not on a dedicated transcription Worker.** Audio-in is rare enough at launch that pinning a Worker for it adds latency and complexity; the Correspondent can call the skill inline.
 3. **Scheduled work is per-Worker, not platform-wide.** `Routine`-style recurring jobs live on the Worker that owns them. `template.schedule` (JSON: `{ cron, method }`) declares them; `this.schedule()` registers them on first boot (idempotent).
@@ -19,21 +20,21 @@
 
 ## File map
 
-| File | Tasks | Responsibility |
-|---|---|---|
-| `apps/agents/src/connectors/types.ts` (new) | 2 | `ConnectorAdapter` contract + `NormalizedMessage` type |
-| `apps/agents/src/connectors/registry.ts` (new) | 2 | `connectorRegistry: Record<ConnectorType, ConnectorAdapter>` (total over the enum) |
-| `apps/agents/src/connectors/telegram/adapter.ts` (new) | 3 | Telegram inbound/outbound + HMAC verify |
-| `apps/agents/src/connectors/whatsapp/adapter.ts` (new) | 4 | WhatsApp Meta Cloud + verify-token handshake + signature |
-| `apps/agents/src/connectors/slack/adapter.ts` (new) | 5 | Slack Events API + URL-verify + signing-secret |
-| `apps/agents/src/connectors/discord/adapter.ts` (new) | 6 | Discord interactions + Ed25519 verify |
-| `apps/agents/src/routes/webhooks.ts` (new) | 2 | `POST /webhooks/:type/:connectorId` — the one stateless webhook handler |
-| `apps/agents/src/skills/transcribe-audio.ts` (new) | 7 | Workers AI speech model; returns transcript text |
-| `apps/agents/src/agents/correspondent.ts` (extend) | 7 | Detects audio attachment in inbound `NormalizedMessage` → calls `transcribeAudio` first |
-| `apps/agents/src/agents/worker.ts` (extend) | 9 | `onStart` reads `template.schedule` and registers `this.schedule(cron, method)` |
-| `apps/agents/migrations/0006_p6_more_templates.sql` (new) | 8 | Seed MarketingStrategist, Support, Sales templates + their `skill` overlays |
-| `apps/agents/wrangler.jsonc` | 7 | `ai` binding for transcription (added in P2 already if Vectorize deployed) |
-| `apps/agents/src/__tests__/*.test.ts` (new) | 10 | Per-adapter parseInbound/sendOutbound · webhook handler dedup · transcribeAudio path · scheduled tick fires |
+| File                                                      | Tasks | Responsibility                                                                                              |
+| --------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
+| `apps/agents/src/connectors/types.ts` (new)               | 2     | `ConnectorAdapter` contract + `NormalizedMessage` type                                                      |
+| `apps/agents/src/connectors/registry.ts` (new)            | 2     | `connectorRegistry: Record<ConnectorType, ConnectorAdapter>` (total over the enum)                          |
+| `apps/agents/src/connectors/telegram/adapter.ts` (new)    | 3     | Telegram inbound/outbound + HMAC verify                                                                     |
+| `apps/agents/src/connectors/whatsapp/adapter.ts` (new)    | 4     | WhatsApp Meta Cloud + verify-token handshake + signature                                                    |
+| `apps/agents/src/connectors/slack/adapter.ts` (new)       | 5     | Slack Events API + URL-verify + signing-secret                                                              |
+| `apps/agents/src/connectors/discord/adapter.ts` (new)     | 6     | Discord interactions + Ed25519 verify                                                                       |
+| `apps/agents/src/routes/webhooks.ts` (new)                | 2     | `POST /webhooks/:type/:connectorId` — the one stateless webhook handler                                     |
+| `apps/agents/src/skills/transcribe-audio.ts` (new)        | 7     | Workers AI speech model; returns transcript text                                                            |
+| `apps/agents/src/agents/correspondent.ts` (extend)        | 7     | Detects audio attachment in inbound `NormalizedMessage` → calls `transcribeAudio` first                     |
+| `apps/agents/src/agents/worker.ts` (extend)               | 9     | `onStart` reads `template.schedule` and registers `this.schedule(cron, method)`                             |
+| `apps/agents/migrations/0006_p6_more_templates.sql` (new) | 8     | Seed MarketingStrategist, Support, Sales templates + their `skill` overlays                                 |
+| `apps/agents/wrangler.jsonc`                              | 7     | `ai` binding for transcription (added in P2 already if Vectorize deployed)                                  |
+| `apps/agents/src/__tests__/*.test.ts` (new)               | 10    | Per-adapter parseInbound/sendOutbound · webhook handler dedup · transcribeAudio path · scheduled tick fires |
 
 ---
 
@@ -105,9 +106,9 @@
 
 ## Risks
 
-- **Provider secret storage.** `connector.config_ref` points into a secret store rather than holding tokens in D1. P3 flagged this; P6 *must* solve it because there will be multiple companies × multiple channels × multiple secrets. Options: Workers Secrets per-company (binding explosion), or a dedicated `kv` namespace keyed by `connector.id`. Pick in T1; commit to one.
+- **Provider secret storage.** `connector.config_ref` points into a secret store rather than holding tokens in D1. P3 flagged this; P6 _must_ solve it because there will be multiple companies × multiple channels × multiple secrets. Options: Workers Secrets per-company (binding explosion), or a dedicated `kv` namespace keyed by `connector.id`. Pick in T1; commit to one.
 - **Webhook signature verification timing.** Each provider uses a different timing-tolerance window for replay-protection. Get the windows right per provider or risk silent rejection of legitimate requests under clock drift.
 - **WhatsApp Meta-Cloud onboarding friction.** Real WhatsApp requires Meta Business verification — local dev is impractical without a sandbox number. Document that in `LOCAL_DEV.md`; ship Telegram first for the live demo.
-- **Discord gateway vs webhook surface.** The interactions endpoint (webhook) covers slash commands + components but *not* free-form DM messages. If the customer expects free-form Discord DMs, the gateway is required — which adds a persistent connection (Worker can't hold one indefinitely; needs a separate process). Decide the Discord scope explicitly in T6.
+- **Discord gateway vs webhook surface.** The interactions endpoint (webhook) covers slash commands + components but _not_ free-form DM messages. If the customer expects free-form Discord DMs, the gateway is required — which adds a persistent connection (Worker can't hold one indefinitely; needs a separate process). Decide the Discord scope explicitly in T6.
 - **Scheduled-tick budget.** `this.schedule` ticks run inside the DO's 15-min wall-time / 30-sec CPU window. A `weeklyReport` that takes longer must dispatch to a Workflow (P4) and the tick just kicks it off. Don't let work creep inline.
 - **Audio file fetch.** Each provider's audio comes via a different mechanism (Telegram `file_id` → `getFile` → URL; WhatsApp `/media/<id>`; Slack `files.info`). `transcribeAudio` should accept either `assetId` (already-downloaded R2) or `{ providerType, externalId }` and resolve via the right adapter — keep the indirection in the skill, not the Correspondent.
