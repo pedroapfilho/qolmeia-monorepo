@@ -23,25 +23,27 @@ describe("logActivity + listActivity", () => {
   it("writes a row that listActivity returns", async () => {
     await logActivity(env, {
       companyId: COMPANY_ID,
-      refId: "ref-1",
+      refId: "ticket-roundtrip-1",
       refType: "ticket",
       summary: "Coisa aconteceu",
-      type: "TEST_EVENT",
+      type: "TICKET_DONE",
     });
     const items = await listActivity(env.DB, { companyId: COMPANY_ID });
     expect(
-      items.find((i) => i.summary === "Coisa aconteceu" && i.type === "TEST_EVENT"),
+      items.find((i) => i.summary === "Coisa aconteceu" && i.type === "TICKET_DONE"),
     ).toBeTruthy();
   });
 
   it("filters by since", async () => {
     await logActivity(env, {
       companyId: COMPANY_ID,
+      refId: "action-old",
+      refType: "action",
       summary: "antiga",
-      type: "OLD",
+      type: "ACTION_EXECUTED",
     });
-    // Sleep ensures cutoff is strictly after OLD's created_at (Date.now()
-    // resolution can collide on fast machines).
+    // Sleep ensures cutoff is strictly after the first row's created_at
+    // (Date.now() resolution can collide on fast machines).
     await new Promise<void>((r) => {
       setTimeout(r, 10);
     });
@@ -51,12 +53,15 @@ describe("logActivity + listActivity", () => {
     });
     await logActivity(env, {
       companyId: COMPANY_ID,
+      payload: { actionId: "a-new", summary: "draft" },
+      refId: "a-new",
+      refType: "action",
       summary: "nova",
-      type: "NEW",
+      type: "ACTION_PROPOSED",
     });
     const recent = await listActivity(env.DB, { companyId: COMPANY_ID, since: cutoff });
-    expect(recent.find((i) => i.type === "NEW")).toBeTruthy();
-    expect(recent.find((i) => i.type === "OLD")).toBeUndefined();
+    expect(recent.find((i) => i.type === "ACTION_PROPOSED")).toBeTruthy();
+    expect(recent.find((i) => i.type === "ACTION_EXECUTED")).toBeUndefined();
   });
 
   it("swallows write failures (best-effort) and logs to console", async () => {
@@ -73,8 +78,10 @@ describe("logActivity + listActivity", () => {
     await expect(
       logActivity(badEnv, {
         companyId: COMPANY_ID,
+        refId: "ticket-broken",
+        refType: "ticket",
         summary: "won't actually write",
-        type: "X",
+        type: "TICKET_DONE",
       }),
     ).resolves.toBeUndefined();
     expect(consoleSpy).toHaveBeenCalled();

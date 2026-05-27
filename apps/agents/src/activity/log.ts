@@ -3,15 +3,19 @@
 // action row itself; activity_log is the human-readable timeline). Errors
 // are surfaced via console.error so wrangler tail / observability sees them
 // instead of being silently swallowed.
+//
+// Inputs are typed via `ActivityEvent` (see ./types.ts) — every legal
+// (type, refType, payload-shape) triplet is enumerated there. Adding a new
+// event type means extending the union and adding a category case; the
+// compiler will refuse a typo or a missing renderer.
 
-type LogActivityInput = {
+import type { ActivityEvent, ActivityType } from "@/activity/types";
+import { safeJson } from "@/db/mappers";
+
+type LogActivityInput = ActivityEvent & {
   actorId?: string;
   companyId: string;
-  payload?: Record<string, unknown>;
-  refId?: string;
-  refType?: string;
   summary: string;
-  type: string;
 };
 
 const logActivity = async (env: { DB: D1Database }, input: LogActivityInput): Promise<void> => {
@@ -25,10 +29,10 @@ const logActivity = async (env: { DB: D1Database }, input: LogActivityInput): Pr
         crypto.randomUUID(),
         input.companyId,
         input.type,
-        input.refType ?? null,
-        input.refId ?? null,
+        input.refType,
+        input.refId,
         input.summary,
-        input.payload ? JSON.stringify(input.payload) : null,
+        input.payload === undefined ? null : JSON.stringify(input.payload),
         input.actorId ?? null,
         Date.now(),
       )
@@ -47,11 +51,14 @@ type ActivityEntry = {
   companyId: string;
   createdAt: number;
   id: string;
+  // The reader-side stays string-typed so legacy rows (older event-type
+  // values that didn't exist when this code was deployed) deserialize
+  // without throwing. The writer-side guarantees only listed types land.
   payload: Record<string, unknown> | null;
   refId: string | null;
   refType: string | null;
   summary: string;
-  type: string;
+  type: ActivityType | string;
 };
 
 type ActivityRow = {
@@ -66,26 +73,12 @@ type ActivityRow = {
   type: string;
 };
 
-const safeJson = (value: string | null): Record<string, unknown> | null => {
-  if (!value) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
 const mapActivity = (row: ActivityRow): ActivityEntry => ({
   actorId: row.actor_id,
   companyId: row.company_id,
   createdAt: row.created_at,
   id: row.id,
-  payload: safeJson(row.payload),
+  payload: safeJson<Record<string, unknown> | null>(row.payload, null),
   refId: row.ref_id,
   refType: row.ref_type,
   summary: row.summary,
