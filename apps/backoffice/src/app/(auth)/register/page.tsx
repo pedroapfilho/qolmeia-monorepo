@@ -42,7 +42,7 @@ const RegisterPage = () => {
       push("/");
       refresh();
     },
-    validators: { onChange: registerSchema },
+    validators: { onSubmit: registerSchema },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -61,76 +61,92 @@ const RegisterPage = () => {
         <CardContent>
           <FieldGroup>
             <form.Field name="name">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Nome</FieldLabel>
-                  <Input
-                    autoComplete="name"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="text"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>Nome</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="name"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      type="text"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
 
             <form.Field name="email">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>E-mail</FieldLabel>
-                  <Input
-                    autoComplete="email"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    placeholder="voce@empresa.com"
-                    type="email"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>E-mail</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="email"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      placeholder="voce@empresa.com"
+                      type="email"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
 
             <form.Field name="password">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Senha</FieldLabel>
-                  <Input
-                    autoComplete="new-password"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="password"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>Senha</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="new-password"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      type="password"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
 
             <form.Field name="confirmPassword">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Confirmar senha</FieldLabel>
-                  <Input
-                    autoComplete="new-password"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="password"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>Confirmar senha</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="new-password"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      type="password"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
           </FieldGroup>
         </CardContent>

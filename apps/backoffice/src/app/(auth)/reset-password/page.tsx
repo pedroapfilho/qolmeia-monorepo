@@ -49,7 +49,7 @@ const ResetPasswordForm = () => {
       toast.success("Senha redefinida com sucesso.");
       push("/login");
     },
-    validators: { onChange: resetPasswordSchema },
+    validators: { onSubmit: resetPasswordSchema },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -68,39 +68,47 @@ const ResetPasswordForm = () => {
         <CardContent>
           <FieldGroup>
             <form.Field name="password">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Nova senha</FieldLabel>
-                  <Input
-                    autoComplete="new-password"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="password"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>Nova senha</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="new-password"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      type="password"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
 
             <form.Field name="confirmPassword">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Confirmar nova senha</FieldLabel>
-                  <Input
-                    autoComplete="new-password"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="password"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>Confirmar nova senha</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="new-password"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      type="password"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
           </FieldGroup>
         </CardContent>
