@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
-vi.mock("@repo/ui/components/sonner", () => ({
+vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: toastErrorMock, success: vi.fn() },
 }));
 

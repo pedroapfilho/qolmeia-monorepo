@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { useState } from "react";
 
 import { ActivityRow } from "@/components/activity-row";

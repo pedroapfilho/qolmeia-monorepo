@@ -14,7 +14,7 @@ vi.mock("@/lib/auth-client", () => ({
   authClient: { signOut },
 }));
 
-vi.mock("@repo/ui/components/sonner", () => ({
+vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 

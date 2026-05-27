@@ -7,7 +7,7 @@ import { getAuth } from "@/lib/auth";
 // Returns the current Better Auth session, or null if the cookie is missing
 // or invalid. Cached per-request via React `cache` so multiple RSCs reading
 // the session within the same render don't trigger duplicate DB hits.
-export const getSession = cache(async () => {
+const getSession = cache(async () => {
   const headersList = await headers();
 
   try {

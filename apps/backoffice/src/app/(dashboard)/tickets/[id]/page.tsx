@@ -20,14 +20,16 @@ type TicketDetailPageProps = {
 const TicketDetailPage = async ({ params }: TicketDetailPageProps) => {
   const { id } = await params;
 
-  let detail: TicketDetailResponse;
+  let detail: TicketDetailResponse | null = null;
   try {
     detail = await apiGetServer<TicketDetailResponse>(`/tickets/${id}`);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      notFound();
+    if (!(error instanceof ApiError) || error.status !== 404) {
+      throw error;
     }
-    throw error;
+  }
+  if (!detail) {
+    notFound();
   }
 
   const { actions, ticket } = detail;

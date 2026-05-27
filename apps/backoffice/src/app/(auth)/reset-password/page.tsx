@@ -11,7 +11,7 @@ import {
 } from "@repo/ui/components/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,7 +23,7 @@ import { resetPasswordSchema } from "@/lib/form-schemas";
 // useSearchParams forces a CSR bailout during static export — wrap in
 // Suspense at the page boundary so prerender succeeds.
 const ResetPasswordForm = () => {
-  const router = useRouter();
+  const { push } = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
 
@@ -47,7 +47,7 @@ const ResetPasswordForm = () => {
         return;
       }
       toast.success("Senha redefinida com sucesso.");
-      router.push("/login");
+      push("/login");
     },
     validators: { onChange: resetPasswordSchema },
   });

@@ -12,7 +12,7 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
-vi.mock("@repo/ui/components/sonner", () => ({
+vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 

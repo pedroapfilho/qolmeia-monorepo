@@ -3,6 +3,18 @@
 // the agents Worker (the operator-facing API) returns those everywhere.
 
 const RTF = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+const DATE_SHORT = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+const DATE_TIME = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  month: "short",
+  year: "numeric",
+});
 
 const formatRelative = (epochMs: number, now: Date = new Date()): string => {
   const then = new Date(epochMs);
@@ -26,11 +38,7 @@ const formatRelative = (epochMs: number, now: Date = new Date()): string => {
   if (Math.abs(diffDay) < 30) {
     return RTF.format(diffDay, "day");
   }
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(then);
+  return DATE_SHORT.format(then);
 };
 
 const formatDateTime = (epochMs: number): string => {
@@ -38,13 +46,7 @@ const formatDateTime = (epochMs: number): string => {
   if (Number.isNaN(date.getTime())) {
     return String(epochMs);
   }
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return DATE_TIME.format(date);
 };
 
 const formatDurationSeconds = (seconds: number): string => {

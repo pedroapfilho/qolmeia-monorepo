@@ -1,8 +1,8 @@
 "use client";
 
 import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
 import { Textarea } from "@repo/ui/components/textarea";
+import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -48,7 +48,7 @@ const MAX_FEEDBACK = 2000;
 // the RSC list, and routes back to /approvals so the operator can keep
 // triaging without a manual click.
 const DecisionForm = ({ actionId }: DecisionFormProps) => {
-  const router = useRouter();
+  const { back, push, refresh } = useRouter();
   const [decision, setDecision] = useState<DecisionOutcome>("approved");
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -76,8 +76,8 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
         rejected: "Rejeitado.",
       };
       toast.success(successCopy[decision]);
-      router.push("/approvals");
-      router.refresh();
+      push("/approvals");
+      refresh();
     } catch (error) {
       const message =
         error instanceof ApiError
@@ -110,6 +110,7 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
                 key={opt.value}
               >
                 <input
+                  aria-label={opt.label}
                   checked={selected}
                   className="mt-1 size-4 accent-primary"
                   id={inputId}
@@ -162,7 +163,7 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
         </Button>
         <Button
           disabled={submitting}
-          onClick={() => router.back()}
+          onClick={() => back()}
           size="lg"
           type="button"
           variant="ghost"

@@ -2,7 +2,7 @@
 
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
 import { Loader2, MessageSquare, Paperclip, X } from "lucide-react";
@@ -207,6 +207,7 @@ const Chat = ({
       <div className="border-t border-border bg-card p-3">
         <input
           accept={ALLOWED_UPLOAD_MIME.join(",")}
+          aria-label="Anexar imagem"
           className="sr-only"
           onChange={handleFileSelected}
           ref={fileInputRef}

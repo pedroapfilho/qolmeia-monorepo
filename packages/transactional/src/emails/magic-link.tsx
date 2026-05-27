@@ -39,7 +39,7 @@ const MagicLinkEmail = ({ url, userEmail, username }: MagicLinkEmailProps) => {
       <Divider />
 
       <Text className="m-0 mb-4 text-sm text-muted-foreground">
-        Se você não solicitou este email, pode ignorá-lo com segurança — ninguém terá acesso à sua
+        Se você não solicitou este email, pode ignorá-lo com segurança: ninguém terá acesso à sua
         conta sem clicar no link.
       </Text>
 
