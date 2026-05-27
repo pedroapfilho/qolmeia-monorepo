@@ -25,7 +25,7 @@ type TemplatesResponse = {
 
 const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
   try {
-    const res = await fetch(`${url}?cf_session=${token}`);
+    const res = await fetch(`${url}?cf_session=${token}`, { cache: "no-store" });
     if (!res.ok) {
       return null;
     }
@@ -36,8 +36,7 @@ const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
 };
 
 const ChatPage = async () => {
-  const session = await requireSession();
-  const me = await requireCustomer();
+  const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
   const companyId = me.currentOrg?.id;
   if (!companyId) {
     throw new Error("CUSTOMER has no currentOrg — auth invariant broken");

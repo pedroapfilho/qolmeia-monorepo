@@ -27,6 +27,13 @@ export const proxy = async (request: NextRequest) => {
     return NextResponse.next();
   }
 
+  // /auth/verify is the magic-link landing — handle as auth-route (no
+  // session required to reach it, since the click flow exchanges a token
+  // *for* a session).
+  if (pathname.startsWith("/auth/verify")) {
+    return NextResponse.next();
+  }
+
   const session = await getAuth()
     .api.getSession({
       headers: request.headers,
@@ -38,13 +45,6 @@ export const proxy = async (request: NextRequest) => {
       });
       return null;
     });
-
-  // /auth/verify is the magic-link landing — handle as auth-route (no
-  // session required to reach it, since the click flow exchanges a token
-  // *for* a session).
-  if (pathname.startsWith("/auth/verify")) {
-    return NextResponse.next();
-  }
 
   if (isProtectedRoute && !session) {
     const url = new URL("/login", request.url);

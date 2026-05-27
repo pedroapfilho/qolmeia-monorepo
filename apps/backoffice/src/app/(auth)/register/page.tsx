@@ -11,7 +11,7 @@ import {
 } from "@repo/ui/components/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,7 +20,7 @@ import { authClient } from "@/lib/auth-client";
 import { registerSchema } from "@/lib/form-schemas";
 
 const RegisterPage = () => {
-  const router = useRouter();
+  const { push, refresh } = useRouter();
 
   const form = useForm({
     defaultValues: { confirmPassword: "", email: "", name: "", password: "" },
@@ -39,8 +39,8 @@ const RegisterPage = () => {
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");
-      router.push("/");
-      router.refresh();
+      push("/");
+      refresh();
     },
     validators: { onChange: registerSchema },
   });

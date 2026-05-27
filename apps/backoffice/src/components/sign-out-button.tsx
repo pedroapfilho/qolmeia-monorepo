@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,18 +14,18 @@ type SignOutButtonProps = {
 };
 
 const SignOutButton = ({ className, label = "Sair" }: SignOutButtonProps) => {
-  const router = useRouter();
+  const { push, refresh } = useRouter();
   const [pending, setPending] = useState(false);
 
-  const handleClick = async () => {
+  const signOut = async () => {
     if (pending) {
       return;
     }
     setPending(true);
     try {
       await authClient.signOut();
-      router.push("/login");
-      router.refresh();
+      push("/login");
+      refresh();
     } catch (error) {
       // Surface failures so a stuck cookie doesn't silently keep the user in.
       console.error("[sign-out] failed", { error });
@@ -38,7 +38,7 @@ const SignOutButton = ({ className, label = "Sair" }: SignOutButtonProps) => {
     <Button
       className={className}
       disabled={pending}
-      onClick={handleClick}
+      onClick={signOut}
       type="button"
       variant="ghost"
     >

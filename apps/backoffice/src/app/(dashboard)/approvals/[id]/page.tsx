@@ -28,14 +28,16 @@ const POLICY_COPY: Record<string, string> = {
 const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
   const { id } = await params;
 
-  let detail: ActionDetailResponse;
+  let detail: ActionDetailResponse | null = null;
   try {
     detail = await apiGetServer<ActionDetailResponse>(`/actions/${id}`);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      notFound();
+    if (!(error instanceof ApiError) || error.status !== 404) {
+      throw error;
     }
-    throw error;
+  }
+  if (!detail) {
+    notFound();
   }
 
   const { action, ticket } = detail;

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import { Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -75,7 +75,7 @@ const OnboardingActions = ({
 
   return (
     <div className="border-t border-border bg-card">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
         <div className="flex items-center gap-2">
           <Sparkles aria-hidden className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Especialistas disponíveis</h2>
@@ -100,6 +100,7 @@ const OnboardingActions = ({
                   htmlFor={inputId}
                 >
                   <input
+                    aria-label={t.displayName}
                     checked={checked}
                     className="mt-1 size-4 accent-primary"
                     id={inputId}

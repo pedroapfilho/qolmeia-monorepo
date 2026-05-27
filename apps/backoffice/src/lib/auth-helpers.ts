@@ -9,7 +9,7 @@ import type { MeResponse } from "./api-types";
 // Returns the current Better Auth session, or null if the cookie is missing
 // or invalid. Cached per-request via React `cache` so multiple RSCs reading
 // the session within the same render don't trigger duplicate DB hits.
-export const getSession = cache(async () => {
+const getSession = cache(async () => {
   const headersList = await headers();
 
   try {
@@ -26,7 +26,7 @@ export const getSession = cache(async () => {
 
 // Guards an RSC that requires *any* signed-in user. Use for routes that the
 // proxy.ts already gates — this is the type-narrowing helper for the page.
-export const requireSession = async () => {
+const requireSession = async () => {
   const session = await getSession();
   if (!session) {
     redirect("/login");

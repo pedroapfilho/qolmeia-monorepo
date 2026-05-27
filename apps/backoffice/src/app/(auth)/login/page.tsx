@@ -11,7 +11,7 @@ import {
 } from "@repo/ui/components/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
-import { toast } from "@repo/ui/components/sonner";
+import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -24,7 +24,7 @@ import { loginSchema } from "@/lib/form-schemas";
 // boundary keeps Next happy without giving up on static prerender for the
 // auth scaffold.
 const LoginForm = () => {
-  const router = useRouter();
+  const { push, refresh } = useRouter();
   const searchParams = useSearchParams();
   const fromParam = searchParams.get("from");
   const redirectTo = fromParam && fromParam.startsWith("/") ? fromParam : "/";
@@ -40,8 +40,8 @@ const LoginForm = () => {
         toast.error(error.message ?? "Não foi possível entrar. Verifique seus dados.");
         return;
       }
-      router.push(redirectTo);
-      router.refresh();
+      push(redirectTo);
+      refresh();
     },
     validators: { onChange: loginSchema },
   });

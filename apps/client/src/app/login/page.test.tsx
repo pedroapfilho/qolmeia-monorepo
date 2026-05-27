@@ -12,7 +12,7 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
-vi.mock("@repo/ui/components/sonner", () => ({
+vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
@@ -23,17 +23,17 @@ vi.mock("@repo/ui/components/button", () => ({
   ),
 }));
 
-const { default: LoginPage } = await import("./page");
+const { LoginForm } = await import("./login-form");
 
-describe("LoginPage", () => {
+describe("LoginForm", () => {
   it("renders the e-mail input + magic-link CTA", () => {
-    render(<LoginPage />);
+    render(<LoginForm />);
     expect(screen.getByLabelText(/E-mail/v)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enviar link/v })).toBeInTheDocument();
   });
 
   it("does not show a password field (magic-link only)", () => {
-    render(<LoginPage />);
+    render(<LoginForm />);
     expect(screen.queryByLabelText(/Senha/v)).not.toBeInTheDocument();
   });
 });

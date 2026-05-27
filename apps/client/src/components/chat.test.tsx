@@ -30,7 +30,7 @@ vi.mock("@cloudflare/ai-chat/react", () => ({
 }));
 
 const toastError = vi.fn();
-vi.mock("@repo/ui/components/sonner", () => ({
+vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 

@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Card,
   CardContent,
@@ -7,59 +5,43 @@ import {
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Entrando",
+};
 
 // Better Auth's magic-link verify endpoint sets the session cookie on
-// the API side then redirects the browser here. By the time we hit this
-// page the cookie is already on disk — we just bounce to "/" so the user
-// lands in the chat.
-//
-// If Better Auth appends ?error=... (token expired, etc.), we show it
+// the API side then redirects the browser here. The cookie is already on
+// disk by the time this page renders — we bounce to "/" so the user
+// lands in the chat. If Better Auth appended ?error=… we render that
 // instead of silently looping back to /login.
-const VerifyClient = () => {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const errorParam = searchParams.get("error");
+type VerifyPageProps = {
+  searchParams: Promise<{ error?: string }>;
+};
 
-  useEffect(() => {
-    if (errorParam) {
-      return;
-    }
-    router.push("/");
-    router.refresh();
-  }, [errorParam, router]);
-
-  if (errorParam) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Não conseguimos entrar</CardTitle>
-          <CardDescription>
-            O link mágico expirou ou já foi usado. Solicite um novo no login.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
+const VerifyPage = async ({ searchParams }: VerifyPageProps) => {
+  const { error } = await searchParams;
+  if (!error) {
+    redirect("/");
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">Entrando...</CardTitle>
-        <CardDescription>Aguarde um instante.</CardDescription>
+        <CardTitle className="text-2xl">Não conseguimos entrar</CardTitle>
+        <CardDescription>
+          O link mágico expirou ou já foi usado. Solicite um novo no login.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">Você será redirecionado em segundos.</p>
+        <p className="text-sm text-muted-foreground" role="alert">
+          {error}
+        </p>
       </CardContent>
     </Card>
   );
 };
-
-const VerifyPage = () => (
-  <Suspense fallback={null}>
-    <VerifyClient />
-  </Suspense>
-);
 
 export default VerifyPage;

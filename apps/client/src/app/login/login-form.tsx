@@ -13,26 +13,29 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/f
 import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
-import Link from "next/link";
+import { useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
-import { recoverSchema } from "@/lib/form-schemas";
+import { magicLinkSchema } from "@/lib/form-schemas";
 
-const RecoverPage = () => {
+const LoginForm = () => {
+  const [sent, setSent] = useState(false);
+
   const form = useForm({
     defaultValues: { email: "" },
     onSubmit: async ({ value }) => {
-      const { error } = await authClient.requestPasswordReset({
+      const callbackURL = `${window.location.origin}/auth/verify`;
+      const { error } = await authClient.signIn.magicLink({
+        callbackURL,
         email: value.email,
-        redirectTo: "/reset-password",
       });
       if (error) {
-        toast.error(error.message ?? "Não foi possível enviar o link.");
+        toast.error(error.message ?? "Não foi possível enviar o link. Tente novamente.");
         return;
       }
-      toast.success("Enviamos um link para seu e-mail.");
+      setSent(true);
     },
-    validators: { onChange: recoverSchema },
+    validators: { onChange: magicLinkSchema },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -41,12 +44,37 @@ const RecoverPage = () => {
     void form.handleSubmit();
   };
 
+  if (sent) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
+          <CardDescription>
+            Enviamos um link mágico para você. Abra o e-mail e clique no link para entrar.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter className="flex flex-col gap-3 pt-6">
+          <Button
+            className="w-full"
+            onClick={() => {
+              setSent(false);
+            }}
+            type="button"
+            variant="ghost"
+          >
+            Usar outro e-mail
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">Recuperar senha</CardTitle>
+        <CardTitle className="text-2xl">Entrar</CardTitle>
         <CardDescription>
-          Informe o e-mail cadastrado para receber o link de redefinição.
+          Use o e-mail no qual você recebeu o convite. Vamos te enviar um link mágico.
         </CardDescription>
       </CardHeader>
       <form noValidate onSubmit={handleSubmit}>
@@ -81,22 +109,14 @@ const RecoverPage = () => {
                 size="lg"
                 type="submit"
               >
-                {isSubmitting ? "Enviando..." : "Enviar link"}
+                {isSubmitting ? "Enviando..." : "Enviar link mágico"}
               </Button>
             )}
           </form.Subscribe>
-          <p className="text-center text-sm text-muted-foreground">
-            <Link
-              className="font-medium text-primary underline-offset-4 hover:underline"
-              href="/login"
-            >
-              Voltar para o login
-            </Link>
-          </p>
         </CardFooter>
       </form>
     </Card>
   );
 };
 
-export default RecoverPage;
+export { LoginForm };
