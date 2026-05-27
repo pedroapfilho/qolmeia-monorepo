@@ -149,6 +149,16 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
           summary: "Ticket concluído automaticamente (auto-execute).",
           type: "TICKET_DONE",
         });
+        // Surface the deliverable in the customer's chat. Auto-executed
+        // work has no operator gate but still has a deliverable; without
+        // this the chat goes silent after "vou pedir ao designer".
+        try {
+          const corr = await getAgentByName(this.env.CORRESPONDENT, companyId);
+          await corr.presentResult({ result: generated.summary, ticketId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logError("workflow.presentResult.err", { companyId, error: message, ticketId });
+        }
         return { actionId: null, policy };
       }
 
@@ -183,16 +193,10 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         type: "ACTION_PROPOSED",
       });
 
-      // Notify the Correspondent so the User sees the proposal. RPC failure
-      // shouldn't fail the Workflow — the action row exists in D1, the
-      // backoffice can surface it manually as a fallback.
-      try {
-        const corr = await getAgentByName(this.env.CORRESPONDENT, companyId);
-        await corr.presentAction(actionId);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logError("workflow.presentAction.err", { actionId, companyId, error: message });
-      }
+      // No customer-facing notification at proposal time: the operator is
+      // the sole approver and reviews on /approvals. The customer only sees
+      // the final deliverable after the action transitions to executed —
+      // see the presentResult call in the approved branch below.
 
       logInfo("workflow.propose.ok", {
         actionId,
@@ -258,6 +262,16 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
           summary: "Ação aprovada e executada.",
           type: "ACTION_EXECUTED",
         });
+        // The customer sees nothing about the pending proposal — only the
+        // approved deliverable lands in chat. Same RPC pattern as the
+        // auto-execute branch above.
+        try {
+          const corr = await getAgentByName(this.env.CORRESPONDENT, companyId);
+          await corr.presentResult({ result: generated.summary, ticketId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logError("workflow.presentResult.err", { companyId, error: message, ticketId });
+        }
       } else if (evt.payload.decision === "rejected") {
         await setTicketStatus(this.env.DB, ticketId, "rejected");
         await logActivity(this.env, {

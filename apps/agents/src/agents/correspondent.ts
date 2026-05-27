@@ -23,7 +23,6 @@ import {
 import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
 import { getAdapter } from "@/connectors/registry";
 import type { ConnectorType, NormalizedMessage } from "@/connectors/types";
-import { getAction } from "@/db/action";
 import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema";
 import { getModel } from "@/lib/ai-gateway";
 import type { CompanyBriefPartial } from "@/lib/company-brief";
@@ -32,12 +31,7 @@ import { logError, logInfo } from "@/lib/logger";
 import { getMemoryAdapter } from "@/lib/memory";
 import { buildSkillTools } from "@/skills/registry";
 
-const CORRESPONDENT_SKILLS = [
-  "rememberFact",
-  "recallMemory",
-  "delegateToWorker",
-  "decideAction",
-] as const;
+const CORRESPONDENT_SKILLS = ["rememberFact", "recallMemory", "delegateToWorker"] as const;
 
 // 3 steps: model emits a tool call → tool result feeds back → final reply.
 const CORRESPONDENT_STOP_STEPS = 3;
@@ -61,8 +55,10 @@ type PreparedTurn = {
 // Three model-using surfaces compose with `prepareConversationTurn`:
 //   - onChatMessage: web-chat streaming reply
 //   - handleInboundFromConnector: external-channel non-streaming reply
-// Two model-less surfaces stay direct:
-//   - presentAction: Workflow-side RPC injecting a 🟡 message into chat
+// Two model-less surfaces stay direct (the Workflow + team-confirm RPCs):
+//   - presentResult: deliverable injection after a Worker job finishes
+//     (approved on /approvals or auto-executed). The customer never sees
+//     the pending proposal — operators are the sole approvers.
 //   - seedMemory: team-confirm hook seeding the brief into memory
 class CorrespondentAgent extends AIChatAgent<Env> {
   // Model resolution is a seam: the DO runs inside the bundled worker, out
@@ -169,39 +165,34 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     };
   }
 
-  // Called by the WorkerJob Workflow when a Worker proposes a gated action.
-  // Formats the proposal as an assistant message + persists it everywhere
-  // the next chat turn looks: D1 (system of record), the SDK's message list
-  // (which it auto-broadcasts to connected WS clients), and the recent-turns
-  // buffer (so the model sees the proposal in context and knows to call
-  // decideAction on the User's next reply).
-  async presentAction(actionId: string): Promise<void> {
-    const action = await getAction(this.env.DB, actionId);
-    if (!action) {
-      logInfo("agent.presentAction.skip", { actionId, reason: "action not found" });
+  // Called by the WorkerJob Workflow once a deliverable is ready to ship
+  // to the customer. "Ready" means one of:
+  //   - policy = auto-execute → the work ran without a gate.
+  //   - policy = require-approval AND an operator approved on /approvals
+  //     (the customer never sees the pending proposal — operators decide).
+  //
+  // The deliverable text is the Worker's own LLM output (markdown, with
+  // inline image URLs already rendered by the Designer's generateBrandImage
+  // skill). We just persist it as a regular agent turn everywhere a future
+  // turn looks: D1, the SDK's message list (auto-broadcast to connected WS
+  // clients), and the recent-turns buffer.
+  async presentResult(args: { result: string; ticketId: string }): Promise<void> {
+    const text = args.result.trim();
+    if (text.length === 0) {
+      logInfo("agent.presentResult.skip", { reason: "empty result", ticketId: args.ticketId });
       return;
     }
-    const proposedSummary =
-      typeof action.proposed.summary === "string" ? action.proposed.summary : "";
-    const text = `🟡 **Ação pendente** (id: \`${actionId}\`)
-
-O especialista propõe:
-
-${proposedSummary}
-
-Quer **aprovar**, **ajustar** (diga o que mudar) ou **rejeitar**?`;
 
     const companyId = this.name;
     const agentInstanceId = `corr-${companyId}`;
     const conversationId = `web-${companyId}`;
     const messageId = crypto.randomUUID();
 
-    logInfo("agent.presentAction", {
-      actionId,
-      actionType: action.actionType,
+    logInfo("agent.presentResult", {
       agentInstanceId,
       companyId,
-      proposedSummary,
+      replyText: text,
+      ticketId: args.ticketId,
     });
 
     await upsertConversation(this.env.DB, {

@@ -47,10 +47,15 @@
     "onlyBuiltDependencies": [
       "@prisma/client",
       "@prisma/engines",
+      "core-js-pure",
       "esbuild",
       "fallow",
+      "msw",
       "prisma",
-      "unrs-resolver"
+      "sharp",
+      "unrs-resolver",
+      "vue-demi",
+      "workerd"
     ]
   }
 }
