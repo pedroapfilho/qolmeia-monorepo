@@ -30,11 +30,13 @@
     "AI_GATEWAY_NAME": "qolmeia",
     "CORRESPONDENT_MODEL": "openai/gpt-5.3-chat",
     // Image generation model — hot-swappable without a deploy. Default is
-    // Nano Banana (gemini-2.5-flash-image). Alternates verified live on
-    // OpenRouter: google/gemini-3-pro-image-preview (Nano Banana Pro),
-    // google/gemini-3.1-flash-image-preview. All three route through
-    // /chat/completions with modalities: ["image","text"].
-    "IMAGE_GEN_MODEL": "google/gemini-2.5-flash-image",
+    // Nano Banana 2 (gemini-3.1-flash-image-preview), Google's latest as of
+    // Feb 2026 — Pro-tier quality at Flash speed. Alternates verified live
+    // on OpenRouter: google/gemini-3-pro-image-preview (Nano Banana Pro,
+    // highest fidelity, slower/pricier), google/gemini-2.5-flash-image
+    // (original Nano Banana). All route through /chat/completions with
+    // modalities: ["image","text"].
+    "IMAGE_GEN_MODEL": "google/gemini-3.1-flash-image-preview",
     // Public URL of this Worker — used to build absolute asset URLs the client
     // can fetch. Override at deploy with the *.workers.dev / custom domain URL.
     "WORKER_PUBLIC_URL": "http://localhost:8787",

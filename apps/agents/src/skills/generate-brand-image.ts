@@ -10,9 +10,12 @@ import type { SkillContext, UnknownSkill } from "@/skills/registry";
 // through chat completions and returns base64 data URLs on
 // `choices[0].message.images[i].image_url.url`.
 //
-// Default model: `google/gemini-2.5-flash-image` (Nano Banana). Hot-swap
-// via IMAGE_GEN_MODEL — `google/gemini-3-pro-image-preview` and
-// `google/gemini-3.1-flash-image-preview` are both valid alternates.
+// Default model: `google/gemini-3.1-flash-image-preview` (Nano Banana 2 —
+// Pro quality at Flash speed; Google's latest image model as of Feb 2026).
+// Hot-swap via IMAGE_GEN_MODEL — `google/gemini-3-pro-image-preview` (Nano
+// Banana Pro, highest fidelity, slower/pricier) and
+// `google/gemini-2.5-flash-image` (original Nano Banana) are both valid
+// alternates.
 //
 // Bytes flow R2 → signed URL → message file part (the client renders it as
 // an <img>). Asset metadata in D1 carries (company_id, sha256) for dedup.
