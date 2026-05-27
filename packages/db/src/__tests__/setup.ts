@@ -1,10 +1,11 @@
 import dotenv from "dotenv";
 import { vi } from "vitest";
 
-// Load DATABASE_URL and other secrets from the auth app's .env so
-// integration tests can reach the local Postgres instance.
+// Integration tests need a real DATABASE_URL to reach local Postgres.
+// We read it from this package's own `.env` (copied from `.env.example`)
+// so the test setup doesn't reach across into a sibling app's env file.
 const result = dotenv.config({
-  path: new URL("../../../../apps/auth/.env", import.meta.url).pathname,
+  path: new URL("../../.env", import.meta.url).pathname,
 });
 
 if (result.parsed?.DATABASE_URL) {
