@@ -1,0 +1,84 @@
+// apps/backoffice/src/lib/team-fetch.ts
+// Backoffice-side fetchers. Same shapes as the customer side; different
+// endpoint prefix.
+
+import { AGENTS_URL, ApiError } from "@/lib/api-client";
+
+type TeamMemberView = {
+  currentWork: ReadonlyArray<{ status: string; summary: string; ticketId: string }>;
+  displayName: string;
+  hasPromptOverride: boolean;
+  id: string;
+  lifetimeDone: number;
+  role: "correspondent" | "planner" | "worker";
+  status: "available" | "awaiting_approval" | "paused" | "working";
+  templateId: string | null;
+  workerKind: string | null;
+};
+
+type TeamMemberDetailView = TeamMemberView & {
+  capabilities: string;
+  promptOverride: string | null;
+  promptOverrideUpdatedAt: number | null;
+  templateSystemPrompt: string;
+};
+
+const fetchTeam = async (companyId: string, cookie: string): Promise<Array<TeamMemberView>> => {
+  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body);
+  }
+  return ((await res.json()) as { members: Array<TeamMemberView> }).members;
+};
+
+const fetchMember = async (
+  companyId: string,
+  memberId: string,
+  cookie: string,
+): Promise<TeamMemberDetailView> => {
+  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body);
+  }
+  return ((await res.json()) as { member: TeamMemberDetailView }).member;
+};
+
+const patchMember = async (
+  companyId: string,
+  memberId: string,
+  patch: { displayName?: string; promptOverride?: string | null },
+  cookie: string,
+): Promise<TeamMemberDetailView> => {
+  const body = JSON.stringify(patch);
+  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
+    body,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    method: "PATCH",
+  });
+  if (!res.ok) {
+    const resBody = await res.text().catch(() => "");
+    throw new ApiError(res.status, resBody);
+  }
+  return ((await res.json()) as { member: TeamMemberDetailView }).member;
+};
+
+export { fetchMember, fetchTeam, patchMember };
+export type { TeamMemberDetailView, TeamMemberView };
