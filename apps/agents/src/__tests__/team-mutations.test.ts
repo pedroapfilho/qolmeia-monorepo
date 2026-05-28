@@ -52,6 +52,7 @@ beforeEach(async () => {
 describe("hireMember", () => {
   it("creates a new agent_instance + team_member and appends to correspondent's delegation list", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -87,6 +88,7 @@ describe("hireMember", () => {
 
   it("uses a provided displayName when present", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: "Marina",
       templateId: "tpl-designer",
@@ -96,6 +98,7 @@ describe("hireMember", () => {
 
   it("writes MEMBER_HIRED activity row", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -122,6 +125,7 @@ describe("hireMember", () => {
 describe("pauseMember / resumeMember", () => {
   it("pauses a worker and writes activity", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -142,6 +146,7 @@ describe("pauseMember / resumeMember", () => {
 
   it("resumes a paused worker", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -157,6 +162,7 @@ describe("pauseMember / resumeMember", () => {
 
   it("is idempotent (pausing twice returns paused without error)", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -170,6 +176,7 @@ describe("pauseMember / resumeMember", () => {
 describe("updateMember", () => {
   it("renames a worker", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -193,6 +200,7 @@ describe("updateMember", () => {
 
   it("sets the prompt override and logs MEMBER_PROMPT_EDITED", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -216,6 +224,7 @@ describe("updateMember", () => {
 
   it("clears the prompt override when promptOverride is null + logs MEMBER_PROMPT_RESET", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -247,6 +256,7 @@ describe("updateMember", () => {
 
   it("accepts both fields in one call", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -265,6 +275,7 @@ describe("updateMember", () => {
 
   it("treats empty/whitespace promptOverride as a reset (does not store empty string)", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -296,6 +307,7 @@ describe("updateMember", () => {
 
   it("rejects whitespace-only displayName at hire (mutation-layer defense)", async () => {
     const member = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: "   ",
       templateId: "tpl-designer",

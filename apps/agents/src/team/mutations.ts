@@ -7,6 +7,7 @@ import { getMemberDetail, getTeamRoster } from "@/team/queries";
 import type { TeamMemberView } from "@/team/types";
 
 type HireInput = {
+  actorId: string | null;
   companyId: string;
   displayName: string | undefined;
   templateId: string;
@@ -82,6 +83,7 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   await logActivity(
     { DB: db },
     {
+      actorId: input.actorId ?? undefined,
       companyId: input.companyId,
       payload: { displayName: desiredName, templateId: template.id },
       refId: newId,

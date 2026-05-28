@@ -115,6 +115,39 @@ describe("POST /api/me/team/hire", () => {
   });
 });
 
+describe("/api/me/team mutations — CUSTOMER role gate", () => {
+  it("403 when STAFF tries to hire", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+      body: JSON.stringify({ templateId: "tpl-designer" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("403 when STAFF tries to pause", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/me/team/members/${WORKER_ID}/pause?cf_session=tok`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /api/me/team/hire — error mapping", () => {
+  it("404 when template doesn't exist", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+      body: JSON.stringify({ templateId: "tpl-does-not-exist" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("PATCH /api/me/team/members/:id", () => {
   it("renames + sets prompt override", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));

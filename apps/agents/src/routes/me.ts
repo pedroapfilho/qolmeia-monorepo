@@ -140,21 +140,33 @@ const hireSchema = z.object({
 
 meRoutes.post("/team/hire", async (c) => {
   const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
   const parsed = hireSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  const member = await hireMember(c.env.DB, {
-    companyId: session.companyId,
-    displayName: parsed.data.displayName,
-    templateId: parsed.data.templateId,
-  });
-  await emitTeamEvent(c.env, {
-    companyId: session.companyId,
-    reason: "hired",
-    type: "team:roster",
-  });
-  return c.json({ member });
+  try {
+    const member = await hireMember(c.env.DB, {
+      actorId: session.userId,
+      companyId: session.companyId,
+      displayName: parsed.data.displayName,
+      templateId: parsed.data.templateId,
+    });
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: "hired",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("not found") || message.includes("is retired")) {
+      return c.json({ error: message }, 404);
+    }
+    throw error;
+  }
 });
 
 const patchSchema = z.object({
@@ -164,6 +176,9 @@ const patchSchema = z.object({
 
 meRoutes.patch("/team/members/:id", async (c) => {
   const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
   const id = c.req.param("id");
   const parsed = patchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
@@ -204,8 +219,16 @@ meRoutes.get("/team/members/:id", async (c) => {
 
 meRoutes.post("/team/members/:id/pause", async (c) => {
   const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
   try {
-    const member = await pauseMember(c.env.DB, session.companyId, c.req.param("id"));
+    const member = await pauseMember(
+      c.env.DB,
+      session.companyId,
+      c.req.param("id"),
+      session.userId,
+    );
     await emitTeamEvent(c.env, {
       companyId: session.companyId,
       reason: "paused",
@@ -226,8 +249,16 @@ meRoutes.post("/team/members/:id/pause", async (c) => {
 
 meRoutes.post("/team/members/:id/resume", async (c) => {
   const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
   try {
-    const member = await resumeMember(c.env.DB, session.companyId, c.req.param("id"));
+    const member = await resumeMember(
+      c.env.DB,
+      session.companyId,
+      c.req.param("id"),
+      session.userId,
+    );
     await emitTeamEvent(c.env, {
       companyId: session.companyId,
       reason: "resumed",
