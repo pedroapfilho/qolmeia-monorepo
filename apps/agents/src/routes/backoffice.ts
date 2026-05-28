@@ -5,6 +5,9 @@ import { listActivity } from "@/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "@/db/action";
 import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
+import { emitTeamEvent } from "@/team/events";
+import { updateMember } from "@/team/mutations";
+import { getMemberDetail, getTeamRoster } from "@/team/queries";
 
 // Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
 // agent paths, just with a different role guard. Every write — including the
@@ -164,6 +167,56 @@ backofficeRoutes.get("/actions/:id", async (c) => {
   }
   const ticket = await loadTicket(c.env.DB, action.ticketId);
   return c.json({ action, ticket });
+});
+
+const backofficePatchSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  promptOverride: z.union([z.string().max(20_000), z.null()]).optional(),
+});
+
+backofficeRoutes.get("/teams/:companyId/members", async (c) => {
+  const companyId = c.req.param("companyId");
+  const members = await getTeamRoster(c.env.DB, companyId);
+  return c.json({ members });
+});
+
+backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
+  const member = await getMemberDetail(c.env.DB, c.req.param("companyId"), c.req.param("id"));
+  if (!member) {
+    return c.json({ error: "not found" }, 404);
+  }
+  return c.json({ member });
+});
+
+backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
+  const companyId = c.req.param("companyId");
+  const id = c.req.param("id");
+  const parsed = backofficePatchSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  try {
+    const member = await updateMember(c.env.DB, {
+      agentInstanceId: id,
+      companyId,
+      displayName: parsed.data.displayName,
+      editedBy: "operator",
+      operatorId: c.get("userId"),
+      promptOverride: parsed.data.promptOverride,
+    });
+    await emitTeamEvent(c.env, {
+      companyId,
+      reason: parsed.data.promptOverride === undefined ? "renamed" : "prompt_changed",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("not in company")) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
 });
 
 export { backofficeRoutes };
