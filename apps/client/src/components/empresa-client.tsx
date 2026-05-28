@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@repo/ui/components/card";
 import { toast } from "@repo/ui/lib/toast";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AgentCard } from "@/components/agent-card";
 import { HireDialog } from "@/components/hire-dialog";
@@ -36,7 +36,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
   const [detail, setDetail] = useState<TeamMemberDetailView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { members, refetch } = useTeamRoster(companyId, sessionToken);
+  const { error: rosterError, members, refetch } = useTeamRoster(companyId, sessionToken);
 
   const loadCatalogue = async () => {
     try {
@@ -52,6 +52,16 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
     loadCatalogue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const lastErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (rosterError && rosterError.message !== lastErrorRef.current) {
+      toast.error(`Falha ao sincronizar time: ${rosterError.message}`);
+      lastErrorRef.current = rosterError.message;
+    } else if (!rosterError) {
+      lastErrorRef.current = null;
+    }
+  }, [rosterError]);
 
   const openDetail = async (id: string) => {
     try {
@@ -193,9 +203,15 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
 
       <HireDialog
         onClose={() => setHireTemplate(null)}
-        onHired={() => {
-          refetch();
-          loadCatalogue();
+        onHired={async () => {
+          try {
+            await refetch();
+            await loadCatalogue();
+          } catch (error) {
+            toast.error(
+              `Hire ok, mas falha ao atualizar: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }}
         open={hireTemplate !== null}
         template={hireTemplate}
