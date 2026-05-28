@@ -24,7 +24,29 @@ type DelegateResult =
   | { error: string; ticketId?: string }
   | { status: "queued"; ticketId: string; workflowId: string };
 
-type WorkerLookup = { id: string };
+type WorkerCandidate = {
+  busy_count: number;
+  id: string;
+};
+
+const pickWorker = (
+  candidates: ReadonlyArray<WorkerCandidate>,
+  allowed: ReadonlyArray<string>,
+): WorkerCandidate | null => {
+  const eligible = candidates.filter((c) => allowed.includes(c.id));
+  if (eligible.length === 0) {
+    return null;
+  }
+  const idle = eligible.filter((c) => c.busy_count === 0);
+  const pool = idle.length > 0 ? idle : eligible;
+  // Round-robin across the pool by hashing the current time. Stable enough
+  // for fair distribution under load, no per-DO state required.
+  const idx = Number(BigInt(Date.now()) % BigInt(pool.length));
+  // pool is non-empty (checked above), so pool[0] is always defined.
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const chosen = pool[idx] ?? pool[0];
+  return chosen ?? null;
+};
 
 const delegateToWorkerSkill: UnknownSkill = {
   description:
@@ -32,27 +54,30 @@ const delegateToWorkerSkill: UnknownSkill = {
   async execute(input: unknown, ctx: SkillContext): Promise<DelegateResult> {
     const { brief, workerKind } = delegateInputSchema.parse(input);
 
-    const target = await ctx.env.DB.prepare(
-      `SELECT a.id
+    const { results: candidates } = await ctx.env.DB.prepare(
+      `SELECT a.id,
+              (SELECT COUNT(*) FROM ticket
+                WHERE agent_instance_id = a.id
+                  AND status IN ('in_progress', 'awaiting_approval')) AS busy_count
          FROM agent_instance a
          JOIN template t ON t.id = a.template_id
         WHERE a.company_id = ?
           AND a.role = 'worker'
           AND a.status = 'active'
           AND t.worker_kind = ?
-          AND t.status = 'active'
-        LIMIT 1`,
+          AND t.status = 'active'`,
     )
       .bind(ctx.companyId, workerKind)
-      .first<WorkerLookup>();
+      .all<WorkerCandidate>();
 
-    if (!target) {
+    if (candidates.length === 0) {
       return { error: `Nenhum especialista do tipo "${workerKind}" no Time desta empresa.` };
     }
 
     const delegationTargets = await getDelegationTargets(ctx.env.DB, ctx.agentInstanceId);
-    if (!delegationTargets?.includes(target.id)) {
-      return { error: `Você não tem permissão para delegar para ${target.id}.` };
+    const target = pickWorker(candidates, delegationTargets ?? []);
+    if (!target) {
+      return { error: `Você não tem permissão para delegar para "${workerKind}".` };
     }
 
     const ticketId = crypto.randomUUID();
