@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { hireMember, pauseMember, resumeMember } from "@/team/mutations";
+import { hireMember, pauseMember, resumeMember, updateMember } from "@/team/mutations";
 
 const COMPANY_ID = "co_hire_test";
 const TEAM_ID = `team-${COMPANY_ID}`;
@@ -164,5 +164,102 @@ describe("pauseMember / resumeMember", () => {
     await pauseMember(env.DB, COMPANY_ID, member.id);
     const again = await pauseMember(env.DB, COMPANY_ID, member.id);
     expect(again.status).toBe("paused");
+  });
+});
+
+describe("updateMember", () => {
+  it("renames a worker", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    const updated = await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: "Marina",
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: undefined,
+    });
+    expect(updated.displayName).toBe("Marina");
+    const log = await env.DB.prepare(
+      "SELECT type FROM activity_log WHERE ref_id = ? AND type = 'MEMBER_RENAMED'",
+    )
+      .bind(member.id)
+      .first<{ type: string }>();
+    expect(log?.type).toBe("MEMBER_RENAMED");
+  });
+
+  it("sets the prompt override and logs MEMBER_PROMPT_EDITED", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    const updated = await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      editedBy: "operator",
+      operatorId: "user-staff-1",
+      promptOverride: "Seja minimalista, monocromático.",
+    });
+    expect(updated.hasPromptOverride).toBe(true);
+    const log = await env.DB.prepare(
+      "SELECT type, actor_id FROM activity_log WHERE ref_id = ? AND type = 'MEMBER_PROMPT_EDITED'",
+    )
+      .bind(member.id)
+      .first<{ actor_id: string | null; type: string }>();
+    expect(log).toEqual({ actor_id: "user-staff-1", type: "MEMBER_PROMPT_EDITED" });
+  });
+
+  it("clears the prompt override when promptOverride is null + logs MEMBER_PROMPT_RESET", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: "anything",
+    });
+    const cleared = await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: null,
+    });
+    expect(cleared.hasPromptOverride).toBe(false);
+    const log = await env.DB.prepare(
+      "SELECT type FROM activity_log WHERE ref_id = ? AND type = 'MEMBER_PROMPT_RESET'",
+    )
+      .bind(member.id)
+      .first<{ type: string }>();
+    expect(log?.type).toBe("MEMBER_PROMPT_RESET");
+  });
+
+  it("accepts both fields in one call", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    const updated = await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: "Carla",
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: "boa noite",
+    });
+    expect(updated.displayName).toBe("Carla");
+    expect(updated.hasPromptOverride).toBe(true);
   });
 });

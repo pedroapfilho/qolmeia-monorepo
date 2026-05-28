@@ -90,6 +90,27 @@ type MemberResumedEvent = {
   type: "MEMBER_RESUMED";
 };
 
+type MemberRenamedEvent = {
+  payload: { newName: string; oldName: string };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_RENAMED";
+};
+
+type MemberPromptEditedEvent = {
+  payload: { editedBy: "customer" | "operator"; length: number | null };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_PROMPT_EDITED";
+};
+
+type MemberPromptResetEvent = {
+  payload: { editedBy: "customer" | "operator" };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_PROMPT_RESET";
+};
+
 type ActivityEvent =
   | ActionProposedEvent
   | ActionExecutedEvent
@@ -99,7 +120,10 @@ type ActivityEvent =
   | TeamConfirmedEvent
   | MemberHiredEvent
   | MemberPausedEvent
-  | MemberResumedEvent;
+  | MemberResumedEvent
+  | MemberRenamedEvent
+  | MemberPromptEditedEvent
+  | MemberPromptResetEvent;
 
 type ActivityType = ActivityEvent["type"];
 
@@ -124,7 +148,10 @@ const eventCategory = (event: ActivityEvent): ActivityCategory => {
     }
     case "MEMBER_HIRED":
     case "MEMBER_PAUSED":
-    case "MEMBER_RESUMED": {
+    case "MEMBER_RESUMED":
+    case "MEMBER_RENAMED":
+    case "MEMBER_PROMPT_EDITED":
+    case "MEMBER_PROMPT_RESET": {
       return "member";
     }
     default: {
@@ -146,6 +173,9 @@ const ACTIVITY_TYPES = [
   "MEMBER_HIRED",
   "MEMBER_PAUSED",
   "MEMBER_RESUMED",
+  "MEMBER_RENAMED",
+  "MEMBER_PROMPT_EDITED",
+  "MEMBER_PROMPT_RESET",
 ] as const satisfies ReadonlyArray<ActivityType>;
 
 export { ACTIVITY_TYPES, eventCategory };

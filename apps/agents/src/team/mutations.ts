@@ -179,4 +179,119 @@ const resumeMember = (db: D1Database, companyId: string, agentInstanceId: string
     status: "active",
   });
 
-export { hireMember, NEW_WORKER_PREFIX, newWorkerId, pauseMember, resumeMember };
+type UpdateInput = {
+  agentInstanceId: string;
+  companyId: string;
+  displayName: string | undefined;
+  editedBy: "customer" | "operator";
+  operatorId: string | null;
+  // `null` means "clear override"; `undefined` means "don't touch".
+  promptOverride: string | null | undefined;
+};
+
+const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMemberView> => {
+  const existing = await db
+    .prepare(
+      "SELECT display_name, prompt_override FROM agent_instance WHERE id = ? AND company_id = ?",
+    )
+    .bind(input.agentInstanceId, input.companyId)
+    .first<{ display_name: string; prompt_override: string | null }>();
+  if (!existing) {
+    throw new Error(`agent_instance ${input.agentInstanceId} not in company ${input.companyId}`);
+  }
+
+  const sets: Array<string> = [];
+  const binds: Array<string | number | null> = [];
+  let renameLog: { newName: string; oldName: string } | null = null;
+  let promptLog: "MEMBER_PROMPT_EDITED" | "MEMBER_PROMPT_RESET" | null = null;
+  let nextLength: number | null = null;
+
+  if (input.displayName !== undefined) {
+    const trimmed = input.displayName.trim();
+    if (trimmed.length === 0) {
+      throw new Error("displayName cannot be empty");
+    }
+    if (trimmed !== existing.display_name) {
+      sets.push("display_name = ?");
+      binds.push(trimmed);
+      renameLog = { newName: trimmed, oldName: existing.display_name };
+    }
+  }
+
+  if (input.promptOverride !== undefined) {
+    if (input.promptOverride === null) {
+      sets.push("prompt_override = NULL");
+      promptLog = "MEMBER_PROMPT_RESET";
+    } else {
+      sets.push("prompt_override = ?");
+      binds.push(input.promptOverride);
+      promptLog = "MEMBER_PROMPT_EDITED";
+      nextLength = input.promptOverride.length;
+    }
+  }
+
+  if (sets.length > 0) {
+    sets.push("updated_at = ?");
+    binds.push(Date.now());
+    binds.push(input.agentInstanceId);
+    binds.push(input.companyId);
+    await db
+      .prepare(`UPDATE agent_instance SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
+      .bind(...binds)
+      .run();
+  }
+
+  if (renameLog) {
+    await logActivity(
+      { DB: db },
+      {
+        actorId: input.operatorId ?? undefined,
+        companyId: input.companyId,
+        payload: renameLog,
+        refId: input.agentInstanceId,
+        refType: "agent_instance",
+        summary: `Renomeado de "${renameLog.oldName}" para "${renameLog.newName}".`,
+        type: "MEMBER_RENAMED",
+      },
+    );
+  }
+  if (promptLog) {
+    await logActivity(
+      { DB: db },
+      {
+        actorId: input.operatorId ?? undefined,
+        companyId: input.companyId,
+        payload:
+          promptLog === "MEMBER_PROMPT_EDITED"
+            ? { editedBy: input.editedBy, length: nextLength }
+            : { editedBy: input.editedBy },
+        refId: input.agentInstanceId,
+        refType: "agent_instance",
+        summary:
+          promptLog === "MEMBER_PROMPT_EDITED"
+            ? "Prompt personalizado atualizado."
+            : "Prompt restaurado ao padrão do template.",
+        type: promptLog,
+      },
+    );
+  }
+
+  const detail = await getMemberDetail(db, input.companyId, input.agentInstanceId);
+  if (!detail) {
+    throw new Error("updateMember: read-back failed");
+  }
+  return {
+    currentWork: detail.currentWork,
+    displayName: detail.displayName,
+    hasPromptOverride: detail.hasPromptOverride,
+    id: detail.id,
+    lifetimeDone: detail.lifetimeDone,
+    role: detail.role,
+    status: detail.status,
+    templateId: detail.templateId,
+    workerKind: detail.workerKind,
+  };
+};
+
+export { hireMember, NEW_WORKER_PREFIX, newWorkerId, pauseMember, resumeMember, updateMember };
+export type { UpdateInput };
