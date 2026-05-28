@@ -12,6 +12,7 @@ import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "
 import { getModel } from "@/lib/ai-gateway";
 import { logError, logInfo } from "@/lib/logger";
 import { buildSkillTools } from "@/skills/registry";
+import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
 
 // One generic Workflow class for every Worker job (decision 1 in the P4 plan).
 // The Workflow is the *task's* lifecycle; the Worker DO is the agent's
@@ -89,7 +90,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         messages: [{ content: ticket.brief, role: "user" }],
         model: getModel(this.env, template.model),
         stopWhen: stepCountIs(5),
-        system: template.systemPrompt,
+        system: resolveSystemPrompt(agentInstance, template),
         tools,
       });
       const summary = result.text.trim();
