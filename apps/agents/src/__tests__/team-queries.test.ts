@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getTeamRoster } from "@/team/queries";
+import { getCatalogue, getTeamRoster } from "@/team/queries";
 
 const COMPANY_ID = "co_roster_test";
 const TEAM_ID = "team_roster_test";
@@ -89,5 +89,30 @@ describe("getTeamRoster", () => {
   it("orders correspondent first, then by recent activity, then alphabetical", async () => {
     const roster = await getTeamRoster(env.DB, COMPANY_ID);
     expect(roster[0]?.role).toBe("correspondent");
+  });
+});
+
+describe("getCatalogue", () => {
+  it("returns active worker templates with per-template hiredCount for this company", async () => {
+    const items = await getCatalogue(env.DB, COMPANY_ID);
+    const designer = items.find((t) => t.id === "tpl-designer");
+    expect(designer).toMatchObject({
+      hiredCount: 1, // the seeded WORKER_ID instance
+      workerKind: "designer",
+    });
+  });
+
+  it("returns 0 for templates with no hires on this company", async () => {
+    // Insert a template no instance points at.
+    await env.DB.prepare(
+      `INSERT OR REPLACE INTO template
+         (id, version, status, display_name, description, system_prompt, model,
+          worker_kind, skill_ids, default_action_type, default_policies,
+          created_at, updated_at)
+       VALUES ('tpl-fresh', 1, 'active', 'Novo Tipo', 'desc', 'sys', 'gpt-x',
+               'newkind', '[]', 'worker_deliverable', '{}', 0, 0)`,
+    ).run();
+    const items = await getCatalogue(env.DB, COMPANY_ID);
+    expect(items.find((t) => t.id === "tpl-fresh")?.hiredCount).toBe(0);
   });
 });

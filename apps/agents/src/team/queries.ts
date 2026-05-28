@@ -131,5 +131,44 @@ const getTeamRoster = async (
   return sortRoster(members);
 };
 
-export { getTeamRoster };
+type CatalogueCountRow = { n: number; template_id: string };
+
+const getCatalogue = async (
+  db: D1Database,
+  companyId: string,
+): Promise<Array<HireableTemplate>> => {
+  const { results: templates } = await db
+    .prepare(
+      `SELECT id, display_name, description, worker_kind
+         FROM template
+        WHERE status = 'active'
+        ORDER BY display_name ASC`,
+    )
+    .all<{ description: string; display_name: string; id: string; worker_kind: string }>();
+
+  const { results: counts } = await db
+    .prepare(
+      `SELECT template_id, COUNT(*) AS n
+         FROM agent_instance
+        WHERE company_id = ? AND role = 'worker' AND template_id IS NOT NULL
+        GROUP BY template_id`,
+    )
+    .bind(companyId)
+    .all<CatalogueCountRow>();
+
+  const countByTemplate = new Map<string, number>();
+  for (const row of counts) {
+    countByTemplate.set(row.template_id, row.n);
+  }
+
+  return templates.map((t) => ({
+    description: t.description,
+    displayName: t.display_name,
+    hiredCount: countByTemplate.get(t.id) ?? 0,
+    id: t.id,
+    workerKind: t.worker_kind,
+  }));
+};
+
+export { getCatalogue, getTeamRoster };
 export type { HireableTemplate, TeamMemberDetailView, TeamMemberView };
