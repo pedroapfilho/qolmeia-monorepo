@@ -6,7 +6,7 @@ import { logError } from "@/lib/logger";
 const emitTeamEvent = async (env: Env, event: TeamEvent): Promise<void> => {
   try {
     const stub = await getAgentByName(env.CORRESPONDENT, event.companyId);
-    stub.broadcastTeamEvent(event);
+    await stub.broadcastTeamEvent(event);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logError("team.event.emit.err", {
