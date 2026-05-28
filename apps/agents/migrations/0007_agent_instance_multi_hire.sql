@@ -3,8 +3,10 @@
 -- agent_instance so that multiple workers of the same template can coexist
 -- per company (multi-hire). SQLite doesn't support DROP CONSTRAINT, so we
 -- recreate the table without the constraint and copy all existing data.
+-- FK enforcement is deferred until commit so the table rebuild can run inside
+-- D1's per-migration transaction.
 
-PRAGMA foreign_keys = OFF;
+PRAGMA defer_foreign_keys = ON;
 
 CREATE TABLE agent_instance_new (
   id               TEXT PRIMARY KEY,
@@ -31,4 +33,4 @@ INSERT INTO agent_instance_new
 DROP TABLE agent_instance;
 ALTER TABLE agent_instance_new RENAME TO agent_instance;
 
-PRAGMA foreign_keys = ON;
+PRAGMA foreign_key_check;
