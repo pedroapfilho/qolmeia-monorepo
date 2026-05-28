@@ -35,7 +35,7 @@ const LoginForm = () => {
       }
       setSent(true);
     },
-    validators: { onChange: magicLinkSchema },
+    validators: { onSubmit: magicLinkSchema },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -81,22 +81,26 @@ const LoginForm = () => {
         <CardContent>
           <FieldGroup>
             <form.Field name="email">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>E-mail</FieldLabel>
-                  <Input
-                    autoComplete="email"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    placeholder="voce@empresa.com"
-                    type="email"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>E-mail</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="email"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      placeholder="voce@empresa.com"
+                      type="email"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
           </FieldGroup>
         </CardContent>

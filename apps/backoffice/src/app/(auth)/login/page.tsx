@@ -43,7 +43,7 @@ const LoginForm = () => {
       push(redirectTo);
       refresh();
     },
-    validators: { onChange: loginSchema },
+    validators: { onSubmit: loginSchema },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -62,48 +62,56 @@ const LoginForm = () => {
         <CardContent>
           <FieldGroup>
             <form.Field name="email">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>E-mail</FieldLabel>
-                  <Input
-                    autoComplete="email"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    placeholder="voce@empresa.com"
-                    type="email"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <FieldLabel htmlFor={field.name}>E-mail</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="email"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      placeholder="voce@empresa.com"
+                      type="email"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
 
             <form.Field name="password">
-              {(field) => (
-                <Field>
-                  <div className="flex items-center justify-between">
-                    <FieldLabel htmlFor={field.name}>Senha</FieldLabel>
-                    <Link
-                      className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                      href="/recover"
-                    >
-                      Esqueci minha senha
-                    </Link>
-                  </div>
-                  <Input
-                    autoComplete="current-password"
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="password"
-                    value={field.state.value}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
-              )}
+              {(field) => {
+                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid || undefined}>
+                    <div className="flex items-center justify-between">
+                      <FieldLabel htmlFor={field.name}>Senha</FieldLabel>
+                      <Link
+                        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                        href="/recover"
+                      >
+                        Esqueci minha senha
+                      </Link>
+                    </div>
+                    <Input
+                      aria-invalid={isInvalid}
+                      autoComplete="current-password"
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      type="password"
+                      value={field.state.value}
+                    />
+                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
             </form.Field>
           </FieldGroup>
         </CardContent>
