@@ -52,10 +52,7 @@ const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberVie
   return [...correspondent, ...others];
 };
 
-const getTeamRoster = async (
-  db: D1Database,
-  companyId: string,
-): Promise<Array<TeamMemberView>> => {
+const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<TeamMemberView>> => {
   const { results: rosterRows } = await db
     .prepare(
       `SELECT a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,

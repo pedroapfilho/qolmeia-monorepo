@@ -65,12 +65,12 @@ Two sections:
 
 Single shared helper `resolveAgentStatus(instance, openTickets)`, used by both the API formatter and the UI:
 
-| Display status         | Rule                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------- |
-| `paused`               | `agent_instance.status === 'paused'`                                                      |
-| `working`              | `agent_instance.status === 'active'` AND any open ticket has `status === 'in_progress'`   |
-| `awaiting_approval`    | `agent_instance.status === 'active'` AND any open ticket has `status === 'awaiting_approval'` AND none `in_progress` |
-| `available`            | otherwise                                                                                 |
+| Display status      | Rule                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `paused`            | `agent_instance.status === 'paused'`                                                                                 |
+| `working`           | `agent_instance.status === 'active'` AND any open ticket has `status === 'in_progress'`                              |
+| `awaiting_approval` | `agent_instance.status === 'active'` AND any open ticket has `status === 'awaiting_approval'` AND none `in_progress` |
+| `available`         | otherwise                                                                                                            |
 
 Display label mapping (pt-BR): `paused → Pausado`, `working → Trabalhando`, `awaiting_approval → Aguardando aprovação`, `available → Disponível`.
 
@@ -94,8 +94,8 @@ A single resolver helper centralises prompt lookup:
 ```ts
 // apps/agents/src/team/resolve-system-prompt.ts
 export function resolveSystemPrompt(
-  instance: Pick<AgentInstance, 'promptOverride'>,
-  template: Pick<Template, 'systemPrompt'>,
+  instance: Pick<AgentInstance, "promptOverride">,
+  template: Pick<Template, "systemPrompt">,
 ): string {
   return instance.promptOverride ?? template.systemPrompt;
 }
@@ -111,38 +111,38 @@ All under `apps/agents/src/routes/me.ts` (customer) and `apps/agents/src/routes/
 
 ### Customer routes (CUSTOMER role)
 
-| Method | Path                                            | Body                                                  | Returns                                                                 |
-| ------ | ----------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/me/team`                                  | —                                                     | `{ members: TeamMemberView[] }`                                         |
-| GET    | `/api/me/catalogue`                             | —                                                     | `{ templates: HireableTemplate[] }`                                     |
-| POST   | `/api/me/team/hire`                             | `{ templateId: string; displayName?: string }`        | `{ member: TeamMemberView }`                                            |
-| PATCH  | `/api/me/team/members/:id`                      | `{ displayName?: string; promptOverride?: string \| null }` | `{ member: TeamMemberView }`                                            |
-| POST   | `/api/me/team/members/:id/pause`                | —                                                     | `{ member: TeamMemberView }`                                            |
-| POST   | `/api/me/team/members/:id/resume`               | —                                                     | `{ member: TeamMemberView }`                                            |
+| Method | Path                              | Body                                                        | Returns                             |
+| ------ | --------------------------------- | ----------------------------------------------------------- | ----------------------------------- |
+| GET    | `/api/me/team`                    | —                                                           | `{ members: TeamMemberView[] }`     |
+| GET    | `/api/me/catalogue`               | —                                                           | `{ templates: HireableTemplate[] }` |
+| POST   | `/api/me/team/hire`               | `{ templateId: string; displayName?: string }`              | `{ member: TeamMemberView }`        |
+| PATCH  | `/api/me/team/members/:id`        | `{ displayName?: string; promptOverride?: string \| null }` | `{ member: TeamMemberView }`        |
+| POST   | `/api/me/team/members/:id/pause`  | —                                                           | `{ member: TeamMemberView }`        |
+| POST   | `/api/me/team/members/:id/resume` | —                                                           | `{ member: TeamMemberView }`        |
 
 ### Backoffice routes (OWNER/STAFF role)
 
-| Method | Path                                                                  | Body                                                  | Returns                                |
-| ------ | --------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------- |
-| GET    | `/api/backoffice/teams/:companyId/members`                            | —                                                     | `{ members: TeamMemberView[] }`        |
-| GET    | `/api/backoffice/teams/:companyId/members/:id`                        | —                                                     | `{ member: TeamMemberDetailView }`     |
-| PATCH  | `/api/backoffice/teams/:companyId/members/:id`                        | `{ displayName?: string; promptOverride?: string \| null }` | `{ member: TeamMemberDetailView }`     |
+| Method | Path                                           | Body                                                        | Returns                            |
+| ------ | ---------------------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
+| GET    | `/api/backoffice/teams/:companyId/members`     | —                                                           | `{ members: TeamMemberView[] }`    |
+| GET    | `/api/backoffice/teams/:companyId/members/:id` | —                                                           | `{ member: TeamMemberDetailView }` |
+| PATCH  | `/api/backoffice/teams/:companyId/members/:id` | `{ displayName?: string; promptOverride?: string \| null }` | `{ member: TeamMemberDetailView }` |
 
 `TeamMemberView` shape (canonical, lives in `apps/agents/src/team/types.ts`):
 
 ```ts
 type TeamMemberView = {
-  id: string;                    // agent_instance.id
-  role: 'correspondent' | 'planner' | 'worker';
+  id: string; // agent_instance.id
+  role: "correspondent" | "planner" | "worker";
   templateId: string | null;
-  workerKind: string | null;     // template.worker_kind for workers, null otherwise
+  workerKind: string | null; // template.worker_kind for workers, null otherwise
   displayName: string;
-  status: 'available' | 'working' | 'awaiting_approval' | 'paused';
+  status: "available" | "working" | "awaiting_approval" | "paused";
   hasPromptOverride: boolean;
   currentWork: Array<{
     ticketId: string;
     summary: string;
-    status: 'in_progress' | 'awaiting_approval';
+    status: "in_progress" | "awaiting_approval";
   }>;
   lifetimeDone: number;
 };
@@ -151,7 +151,7 @@ type TeamMemberDetailView = TeamMemberView & {
   templateSystemPrompt: string;
   promptOverride: string | null;
   promptOverrideUpdatedAt: number | null; // unix ms from latest MEMBER_PROMPT_EDITED activity_log row
-  capabilities: string;                   // template.description
+  capabilities: string; // template.description
 };
 ```
 
@@ -188,8 +188,12 @@ The Correspondent DO already maintains a WebSocket to the customer for chat. We 
 
 ```ts
 type TeamEvent =
-  | { type: 'team:status'; reason: 'ticket_changed' | 'instance_changed'; companyId: string }
-  | { type: 'team:roster'; reason: 'hired' | 'paused' | 'resumed' | 'renamed' | 'prompt_changed'; companyId: string };
+  | { type: "team:status"; reason: "ticket_changed" | "instance_changed"; companyId: string }
+  | {
+      type: "team:roster";
+      reason: "hired" | "paused" | "resumed" | "renamed" | "prompt_changed";
+      companyId: string;
+    };
 ```
 
 The frames carry no row data — they are pure "invalidate your cache" pings. The client refetches `/api/me/team` on receipt. This keeps the WS payload tiny and avoids two paths to truth.
@@ -212,29 +216,29 @@ Emission is via a thin helper `emitTeamEvent(env, companyId, event)` that gets a
 
 ### Files added
 
-| Path                                                    | Purpose                                                        |
-| ------------------------------------------------------- | -------------------------------------------------------------- |
-| `src/app/(client)/company/page.tsx`                     | Company page route                                             |
-| `src/components/team-sidebar.tsx`                       | Chat-page right rail (compact cards)                           |
-| `src/components/agent-card.tsx`                         | Shared card: `compact` and `detailed` variants                 |
-| `src/components/hire-dialog.tsx`                        | Modal triggered from Company page Contratar buttons            |
-| `src/components/prompt-editor.tsx`                      | Textarea + Salvar / Restaurar default. Intentionally duplicated in the backoffice (see `apps/backoffice/src/components/prompt-editor.tsx`) — the two apps have different auth wrappers, fetchers, and toast systems, so a shared package would carry more weight than the duplication saves. Revisit if it ever grows beyond ~150 lines. |
-| `src/lib/team.ts`                                       | Fetcher types + the `useTeamRoster` hook + status display map |
+| Path                                | Purpose                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/(client)/company/page.tsx` | Company page route                                                                                                                                                                                                                                                                                                                       |
+| `src/components/team-sidebar.tsx`   | Chat-page right rail (compact cards)                                                                                                                                                                                                                                                                                                     |
+| `src/components/agent-card.tsx`     | Shared card: `compact` and `detailed` variants                                                                                                                                                                                                                                                                                           |
+| `src/components/hire-dialog.tsx`    | Modal triggered from Company page Contratar buttons                                                                                                                                                                                                                                                                                      |
+| `src/components/prompt-editor.tsx`  | Textarea + Salvar / Restaurar default. Intentionally duplicated in the backoffice (see `apps/backoffice/src/components/prompt-editor.tsx`) — the two apps have different auth wrappers, fetchers, and toast systems, so a shared package would carry more weight than the duplication saves. Revisit if it ever grows beyond ~150 lines. |
+| `src/lib/team.ts`                   | Fetcher types + the `useTeamRoster` hook + status display map                                                                                                                                                                                                                                                                            |
 
 ### Files changed
 
-| Path                                  | Change                                                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `src/app/(client)/page.tsx`           | Wrap chat in a 2-column grid on `lg+`; mount `<TeamSidebar />` in the right column                       |
-| `src/components/nav.tsx`              | Add `Empresa` entry between `Chat` and `Assets`                                                          |
-| `src/app/(client)/layout.tsx`         | No change — column layout lives at the page level so `/company`, `/assets`, `/activity` stay full-width  |
+| Path                          | Change                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `src/app/(client)/page.tsx`   | Wrap chat in a 2-column grid on `lg+`; mount `<TeamSidebar />` in the right column                      |
+| `src/components/nav.tsx`      | Add `Empresa` entry between `Chat` and `Assets`                                                         |
+| `src/app/(client)/layout.tsx` | No change — column layout lives at the page level so `/company`, `/assets`, `/activity` stay full-width |
 
 ## Backoffice (`apps/backoffice`)
 
 ### Files added
 
-| Path                                                                | Purpose                                                                                  |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Path                                                                | Purpose                                                                                   |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `src/app/(dashboard)/teams/page.tsx`                                | List of companies with team summary (count of members, count of paused, count overridden) |
 | `src/app/(dashboard)/teams/[companyId]/page.tsx`                    | Per-company team roster — table of members with `Editar prompt` action                    |
 | `src/app/(dashboard)/teams/[companyId]/members/[memberId]/page.tsx` | Edit page: prompt editor, rename, view current work + lifetime stats                      |
@@ -242,9 +246,9 @@ Emission is via a thin helper `emitTeamEvent(env, companyId, event)` that gets a
 
 ### Files changed
 
-| Path                                                | Change                                            |
-| --------------------------------------------------- | ------------------------------------------------- |
-| `src/app/(dashboard)/layout.tsx` (or nav component) | Add `Times` nav entry                              |
+| Path                                                | Change                |
+| --------------------------------------------------- | --------------------- |
+| `src/app/(dashboard)/layout.tsx` (or nav component) | Add `Times` nav entry |
 
 The backoffice does not subscribe to the team WS channel — operators load the page on demand, and approvals/tickets pages already give them the timely view of what's happening.
 

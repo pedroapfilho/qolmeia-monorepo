@@ -19,10 +19,7 @@ const NEW_WORKER_PREFIX = "wkr_";
 // instances keep their stable IDs; everything created here gets a UUID.
 const newWorkerId = (): string => `${NEW_WORKER_PREFIX}${crypto.randomUUID()}`;
 
-const hireMember = async (
-  db: D1Database,
-  input: HireInput,
-): Promise<TeamMemberView> => {
+const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberView> => {
   const template = await getTemplate(db, input.templateId);
   if (!template) {
     throw new Error(`template ${input.templateId} not found`);
@@ -67,15 +64,7 @@ const hireMember = async (
             model_override, status, prompt_override, created_at, updated_at)
          VALUES (?, ?, 'worker', ?, ?, ?, NULL, 'active', NULL, ?, ?)`,
       )
-      .bind(
-        newId,
-        input.companyId,
-        template.id,
-        template.version,
-        desiredName,
-        now,
-        now,
-      ),
+      .bind(newId, input.companyId, template.id, template.version, desiredName, now, now),
     db
       .prepare(
         "INSERT INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')",
@@ -148,9 +137,7 @@ const setMemberStatus = async (
 ): Promise<TeamMemberView> => {
   await assertMemberPausable(db, companyId, agentInstanceId);
   await db
-    .prepare(
-      "UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?",
-    )
+    .prepare("UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?")
     .bind(input.status, Date.now(), agentInstanceId, companyId)
     .run();
   await logActivity(

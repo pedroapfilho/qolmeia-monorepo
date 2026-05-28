@@ -11,15 +11,14 @@ beforeEach(async () => {
   // Clean up workers and activity rows from prior tests so each test starts
   // with a clean slate for the hire company.
   await env.DB.batch([
-    env.DB.prepare(
-      "DELETE FROM team_member WHERE team_id = ? AND agent_instance_id != ?",
-    ).bind(TEAM_ID, CORR_ID),
-    env.DB.prepare(
-      "DELETE FROM agent_instance WHERE company_id = ? AND role = 'worker'",
-    ).bind(COMPANY_ID),
-    env.DB.prepare(
-      "DELETE FROM activity_log WHERE company_id = ?",
-    ).bind(COMPANY_ID),
+    env.DB.prepare("DELETE FROM team_member WHERE team_id = ? AND agent_instance_id != ?").bind(
+      TEAM_ID,
+      CORR_ID,
+    ),
+    env.DB.prepare("DELETE FROM agent_instance WHERE company_id = ? AND role = 'worker'").bind(
+      COMPANY_ID,
+    ),
+    env.DB.prepare("DELETE FROM activity_log WHERE company_id = ?").bind(COMPANY_ID),
   ]);
   await env.DB.batch([
     env.DB.prepare(
@@ -129,9 +128,7 @@ describe("pauseMember / resumeMember", () => {
     });
     const paused = await pauseMember(env.DB, COMPANY_ID, member.id);
     expect(paused.status).toBe("paused");
-    const row = await env.DB.prepare(
-      "SELECT status FROM agent_instance WHERE id = ?",
-    )
+    const row = await env.DB.prepare("SELECT status FROM agent_instance WHERE id = ?")
       .bind(member.id)
       .first<{ status: string }>();
     expect(row?.status).toBe("paused");

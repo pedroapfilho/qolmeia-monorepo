@@ -129,9 +129,7 @@ const listTickets = async (
 const loadAgentInstance = async (
   db: D1Database,
   id: string,
-): Promise<
-  { id: string; promptOverride: string | null; templateId: string | null } | null
-> => {
+): Promise<{ id: string; promptOverride: string | null; templateId: string | null } | null> => {
   const row = await db
     .prepare("SELECT id, template_id, prompt_override FROM agent_instance WHERE id = ?")
     .bind(id)

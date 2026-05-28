@@ -17,6 +17,7 @@
 ### `apps/agents`
 
 **New:**
+
 - `migrations/0006_agent_instance_prompt_override.sql`
 - `src/team/types.ts` — `TeamMemberView`, `TeamMemberDetailView`, `HireableTemplate`, `AgentDisplayStatus`
 - `src/team/status.ts` — `resolveAgentStatus`
@@ -35,6 +36,7 @@
 - `src/__tests__/delegate-multi-instance.test.ts`
 
 **Modified:**
+
 - `src/db/ticket.ts` — extend `loadAgentInstance` to return `promptOverride`; export a `loadAgentInstanceWithTemplate` variant
 - `src/db/team.ts` — no signature change to `materializeTeam`; add `appendCorrespondentDelegationTarget` helper
 - `src/workflows/worker-job.ts:92` — swap `template.systemPrompt` for `resolveSystemPrompt(...)`; emit `team:status` on each `setTicketStatus` callsite
@@ -46,6 +48,7 @@
 ### `apps/client`
 
 **New:**
+
 - `src/lib/team.ts` — fetchers, response types (mirroring the API shape), pt-BR status display map
 - `src/lib/use-team-roster.ts` — hook that subscribes to the WS `team:*` channel + falls back to visibility + 30s poll
 - `src/components/team-sidebar.tsx`
@@ -55,12 +58,14 @@
 - `src/app/(client)/company/page.tsx`
 
 **Modified:**
+
 - `src/app/(client)/page.tsx` — wrap in 2-column grid on `lg+`
 - `src/components/nav.tsx` — add Empresa entry
 
 ### `apps/backoffice`
 
 **New:**
+
 - `src/app/(dashboard)/teams/page.tsx`
 - `src/app/(dashboard)/teams/[companyId]/page.tsx`
 - `src/app/(dashboard)/teams/[companyId]/members/[memberId]/page.tsx`
@@ -68,11 +73,13 @@
 - `src/lib/team-fetch.ts`
 
 **Modified:**
+
 - `src/components/sidebar.tsx` — add Times nav entry
 
 ### `packages/ui`
 
 **New:**
+
 - `src/components/avatar.tsx`
 - `src/components/badge.tsx`
 - `src/components/dialog.tsx`
@@ -101,6 +108,7 @@ Each phase can ship independently; phases A–E carry full test coverage and mer
 ### Task 1: Add `prompt_override` migration
 
 **Files:**
+
 - Create: `apps/agents/migrations/0006_agent_instance_prompt_override.sql`
 
 - [ ] **Step 1: Create the migration**
@@ -136,6 +144,7 @@ git commit -m "feat(agents): add agent_instance.prompt_override column"
 ### Task 2: Extend `loadAgentInstance` with prompt override and template snapshot
 
 **Files:**
+
 - Modify: `apps/agents/src/db/ticket.ts`
 - Test: `apps/agents/src/__tests__/db.test.ts` (extend if it covers `loadAgentInstance`, otherwise create `apps/agents/src/__tests__/load-agent-instance.test.ts`)
 
@@ -245,6 +254,7 @@ git commit -m "feat(agents): loadAgentInstance returns promptOverride"
 ### Task 3: `resolveSystemPrompt` helper
 
 **Files:**
+
 - Create: `apps/agents/src/team/resolve-system-prompt.ts`
 - Test: `apps/agents/src/__tests__/team-resolve-system-prompt.test.ts`
 
@@ -258,28 +268,19 @@ import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
 
 describe("resolveSystemPrompt", () => {
   it("returns the template prompt when override is null", () => {
-    const out = resolveSystemPrompt(
-      { promptOverride: null },
-      { systemPrompt: "DEFAULT" },
-    );
+    const out = resolveSystemPrompt({ promptOverride: null }, { systemPrompt: "DEFAULT" });
     expect(out).toBe("DEFAULT");
   });
 
   it("returns the override when set", () => {
-    const out = resolveSystemPrompt(
-      { promptOverride: "CUSTOM" },
-      { systemPrompt: "DEFAULT" },
-    );
+    const out = resolveSystemPrompt({ promptOverride: "CUSTOM" }, { systemPrompt: "DEFAULT" });
     expect(out).toBe("CUSTOM");
   });
 
   it("treats empty string as an explicit override (not a fallback trigger)", () => {
     // Documented behaviour: '' !== null. If a user saves an empty editor we
     // honour the intent. The UI is responsible for disallowing it if needed.
-    const out = resolveSystemPrompt(
-      { promptOverride: "" },
-      { systemPrompt: "DEFAULT" },
-    );
+    const out = resolveSystemPrompt({ promptOverride: "" }, { systemPrompt: "DEFAULT" });
     expect(out).toBe("");
   });
 });
@@ -331,6 +332,7 @@ git commit -m "feat(agents): add resolveSystemPrompt helper"
 ### Task 4: Switch every system-prompt callsite to `resolveSystemPrompt`
 
 **Files:**
+
 - Modify: `apps/agents/src/workflows/worker-job.ts:92`
 - Test: extend `apps/agents/src/__tests__/worker.test.ts` if it covers the generate step; otherwise an inline assertion is added to a new test that asserts the override propagates
 
@@ -408,6 +410,7 @@ git commit -m "feat(agents): worker-job honors agent_instance.prompt_override"
 ### Task 5: `resolveAgentStatus` helper + `TeamMemberView` types
 
 **Files:**
+
 - Create: `apps/agents/src/team/types.ts`
 - Create: `apps/agents/src/team/status.ts`
 - Test: `apps/agents/src/__tests__/team-status.test.ts`
@@ -564,6 +567,7 @@ git commit -m "feat(agents): team status taxonomy + shared view types"
 ### Task 6: `nextDisplayName` naming helper
 
 **Files:**
+
 - Create: `apps/agents/src/team/naming.ts`
 - Test: `apps/agents/src/__tests__/team-naming.test.ts`
 
@@ -655,6 +659,7 @@ git commit -m "feat(agents): nextDisplayName helper for multi-hire"
 ### Task 7: `getTeamRoster(db, companyId)` query
 
 **Files:**
+
 - Create: `apps/agents/src/team/queries.ts`
 - Test: `apps/agents/src/__tests__/team-queries.test.ts`
 
@@ -821,10 +826,7 @@ const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberVie
   return [...correspondent, ...others];
 };
 
-const getTeamRoster = async (
-  db: D1Database,
-  companyId: string,
-): Promise<Array<TeamMemberView>> => {
+const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<TeamMemberView>> => {
   const { results: rosterRows } = await db
     .prepare(
       `SELECT a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,
@@ -925,6 +927,7 @@ git commit -m "feat(agents): getTeamRoster returns derived TeamMemberView shape"
 ### Task 8: `getCatalogue(db, companyId)` with `hiredCount`
 
 **Files:**
+
 - Modify: `apps/agents/src/team/queries.ts`
 - Test: extend `apps/agents/src/__tests__/team-queries.test.ts`
 
@@ -1028,6 +1031,7 @@ git commit -m "feat(agents): getCatalogue returns templates with per-company hir
 ### Task 9: `getMemberDetail(db, agentInstanceId)`
 
 **Files:**
+
 - Modify: `apps/agents/src/team/queries.ts`
 - Test: extend `apps/agents/src/__tests__/team-queries.test.ts`
 
@@ -1190,6 +1194,7 @@ git commit -m "feat(agents): getMemberDetail returns TeamMemberDetailView"
 ### Task 10: `hireMember` mutation
 
 **Files:**
+
 - Create: `apps/agents/src/team/mutations.ts`
 - Test: `apps/agents/src/__tests__/team-mutations.test.ts`
 
@@ -1332,10 +1337,7 @@ const NEW_WORKER_PREFIX = "wkr_";
 // instances keep their stable IDs; everything created here gets a UUID.
 const newWorkerId = (): string => `${NEW_WORKER_PREFIX}${crypto.randomUUID()}`;
 
-const hireMember = async (
-  db: D1Database,
-  input: HireInput,
-): Promise<TeamMemberView> => {
+const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberView> => {
   const template = await getTemplate(db, input.templateId);
   if (!template) {
     throw new Error(`template ${input.templateId} not found`);
@@ -1377,36 +1379,27 @@ const hireMember = async (
             model_override, status, prompt_override, created_at, updated_at)
          VALUES (?, ?, 'worker', ?, ?, ?, NULL, 'active', NULL, ?, ?)`,
       )
-      .bind(
-        newId,
-        input.companyId,
-        template.id,
-        template.version,
-        desiredName,
-        now,
-        now,
-      ),
+      .bind(newId, input.companyId, template.id, template.version, desiredName, now, now),
     db
       .prepare(
         "INSERT INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')",
       )
       .bind(teamId, newId),
     db
-      .prepare("UPDATE team_member SET can_delegate_to = ? WHERE agent_instance_id = ? AND team_id = ?")
+      .prepare(
+        "UPDATE team_member SET can_delegate_to = ? WHERE agent_instance_id = ? AND team_id = ?",
+      )
       .bind(JSON.stringify(updatedTargets), correspondentId, teamId),
   ]);
 
-  await logActivity(
-    { DB: db } as { DB: D1Database },
-    {
-      companyId: input.companyId,
-      payload: { displayName: desiredName, templateId: template.id },
-      refId: newId,
-      refType: "agent_instance",
-      summary: `Agente "${desiredName}" contratado.`,
-      type: "MEMBER_HIRED",
-    },
-  );
+  await logActivity({ DB: db } as { DB: D1Database }, {
+    companyId: input.companyId,
+    payload: { displayName: desiredName, templateId: template.id },
+    refId: newId,
+    refType: "agent_instance",
+    summary: `Agente "${desiredName}" contratado.`,
+    type: "MEMBER_HIRED",
+  });
 
   const detail = await getMemberDetail(db, input.companyId, newId);
   if (!detail) {
@@ -1450,6 +1443,7 @@ git commit -m "feat(agents): hireMember mutation with multi-hire + delegation gr
 ### Task 11: `pauseMember` / `resumeMember`
 
 **Files:**
+
 - Modify: `apps/agents/src/team/mutations.ts`
 - Test: extend `apps/agents/src/__tests__/team-mutations.test.ts`
 
@@ -1469,9 +1463,7 @@ describe("pauseMember / resumeMember", () => {
     });
     const paused = await pauseMember(env.DB, COMPANY_ID, member.id);
     expect(paused.status).toBe("paused");
-    const row = await env.DB.prepare(
-      "SELECT status FROM agent_instance WHERE id = ?",
-    )
+    const row = await env.DB.prepare("SELECT status FROM agent_instance WHERE id = ?")
       .bind(member.id)
       .first<{ status: string }>();
     expect(row?.status).toBe("paused");
@@ -1544,21 +1536,16 @@ const setMemberStatus = async (
 ): Promise<TeamMemberView> => {
   await assertMemberPausable(db, companyId, agentInstanceId);
   await db
-    .prepare(
-      "UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?",
-    )
+    .prepare("UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?")
     .bind(status, Date.now(), agentInstanceId, companyId)
     .run();
-  await logActivity(
-    { DB: db } as { DB: D1Database },
-    {
-      companyId,
-      refId: agentInstanceId,
-      refType: "agent_instance",
-      summary: status === "paused" ? "Agente pausado." : "Agente retomado.",
-      type: activityType,
-    },
-  );
+  await logActivity({ DB: db } as { DB: D1Database }, {
+    companyId,
+    refId: agentInstanceId,
+    refType: "agent_instance",
+    summary: status === "paused" ? "Agente pausado." : "Agente retomado.",
+    type: activityType,
+  });
   const detail = await getMemberDetail(db, companyId, agentInstanceId);
   if (!detail) {
     throw new Error("setMemberStatus: read-back failed");
@@ -1604,6 +1591,7 @@ git commit -m "feat(agents): pauseMember/resumeMember mutations + correspondent 
 ### Task 12: `updateMember` (rename + prompt override)
 
 **Files:**
+
 - Modify: `apps/agents/src/team/mutations.ts`
 - Test: extend `apps/agents/src/__tests__/team-mutations.test.ts`
 
@@ -1727,10 +1715,7 @@ type UpdateInput = {
   promptOverride: string | null | undefined;
 };
 
-const updateMember = async (
-  db: D1Database,
-  input: UpdateInput,
-): Promise<TeamMemberView> => {
+const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMemberView> => {
   const existing = await db
     .prepare(
       "SELECT display_name, prompt_override FROM agent_instance WHERE id = ? AND company_id = ?",
@@ -1783,38 +1768,32 @@ const updateMember = async (
   }
 
   if (renameLog) {
-    await logActivity(
-      { DB: db } as { DB: D1Database },
-      {
-        actorId: input.operatorId ?? undefined,
-        companyId: input.companyId,
-        payload: renameLog,
-        refId: input.agentInstanceId,
-        refType: "agent_instance",
-        summary: `Renomeado de "${renameLog.oldName}" para "${renameLog.newName}".`,
-        type: "MEMBER_RENAMED",
-      },
-    );
+    await logActivity({ DB: db } as { DB: D1Database }, {
+      actorId: input.operatorId ?? undefined,
+      companyId: input.companyId,
+      payload: renameLog,
+      refId: input.agentInstanceId,
+      refType: "agent_instance",
+      summary: `Renomeado de "${renameLog.oldName}" para "${renameLog.newName}".`,
+      type: "MEMBER_RENAMED",
+    });
   }
   if (promptLog) {
-    await logActivity(
-      { DB: db } as { DB: D1Database },
-      {
-        actorId: input.operatorId ?? undefined,
-        companyId: input.companyId,
-        payload:
-          promptLog === "MEMBER_PROMPT_EDITED"
-            ? { editedBy: input.editedBy, length: nextLength }
-            : { editedBy: input.editedBy },
-        refId: input.agentInstanceId,
-        refType: "agent_instance",
-        summary:
-          promptLog === "MEMBER_PROMPT_EDITED"
-            ? "Prompt personalizado atualizado."
-            : "Prompt restaurado ao padrão do template.",
-        type: promptLog,
-      },
-    );
+    await logActivity({ DB: db } as { DB: D1Database }, {
+      actorId: input.operatorId ?? undefined,
+      companyId: input.companyId,
+      payload:
+        promptLog === "MEMBER_PROMPT_EDITED"
+          ? { editedBy: input.editedBy, length: nextLength }
+          : { editedBy: input.editedBy },
+      refId: input.agentInstanceId,
+      refType: "agent_instance",
+      summary:
+        promptLog === "MEMBER_PROMPT_EDITED"
+          ? "Prompt personalizado atualizado."
+          : "Prompt restaurado ao padrão do template.",
+      type: promptLog,
+    });
   }
 
   const detail = await getMemberDetail(db, input.companyId, input.agentInstanceId);
@@ -1860,6 +1839,7 @@ git commit -m "feat(agents): updateMember handles rename + promptOverride with a
 ### Task 13: `broadcastTeamEvent` RPC on CorrespondentAgent
 
 **Files:**
+
 - Modify: `apps/agents/src/agents/correspondent.ts`
 - Test: `apps/agents/src/__tests__/team-broadcast.test.ts`
 
@@ -1882,8 +1862,9 @@ describe("CorrespondentAgent.broadcastTeamEvent", () => {
       const fakePeer = { send: (msg: string) => sent.push(msg) };
       // Inject a peer through the SDK's internal connections set if available;
       // otherwise stub getConnections() directly for the test.
-      (instance as unknown as { getConnections: () => Array<{ send: (m: string) => void }> })
-        .getConnections = () => [fakePeer];
+      (
+        instance as unknown as { getConnections: () => Array<{ send: (m: string) => void }> }
+      ).getConnections = () => [fakePeer];
       await instance.broadcastTeamEvent({
         companyId: COMPANY_ID,
         reason: "ticket_changed",
@@ -1970,6 +1951,7 @@ git commit -m "feat(agents): CorrespondentAgent.broadcastTeamEvent RPC"
 ### Task 14: `emitTeamEvent` helper
 
 **Files:**
+
 - Create: `apps/agents/src/team/events.ts`
 - Test: `apps/agents/src/__tests__/team-events.test.ts`
 
@@ -1990,8 +1972,9 @@ describe("emitTeamEvent", () => {
     const stub = env.CORRESPONDENT.get(env.CORRESPONDENT.idFromName(COMPANY_ID));
     const received: Array<string> = [];
     await runInDurableObject(stub, async (instance: InstanceType<typeof CorrespondentAgent>) => {
-      (instance as unknown as { getConnections: () => Array<{ send: (m: string) => void }> })
-        .getConnections = () => [{ send: (m: string) => received.push(m) }];
+      (
+        instance as unknown as { getConnections: () => Array<{ send: (m: string) => void }> }
+      ).getConnections = () => [{ send: (m: string) => received.push(m) }];
     });
     await emitTeamEvent(env, {
       companyId: COMPANY_ID,
@@ -2009,11 +1992,14 @@ describe("emitTeamEvent", () => {
 
   it("swallows errors when the DO is unreachable", async () => {
     await expect(
-      emitTeamEvent({ ...env, CORRESPONDENT: undefined as unknown as DurableObjectNamespace }, {
-        companyId: "anything",
-        reason: "hired",
-        type: "team:roster",
-      }),
+      emitTeamEvent(
+        { ...env, CORRESPONDENT: undefined as unknown as DurableObjectNamespace },
+        {
+          companyId: "anything",
+          reason: "hired",
+          type: "team:roster",
+        },
+      ),
     ).resolves.toBeUndefined();
   });
 });
@@ -2065,6 +2051,7 @@ git commit -m "feat(agents): emitTeamEvent helper (best-effort fan-out via DO)"
 ### Task 15: Wire `emitTeamEvent` into `setTicketStatus` callsites
 
 **Files:**
+
 - Modify: `apps/agents/src/workflows/worker-job.ts`
 
 Emission happens at the four ticket-status transitions: `propose-deliverable → awaiting_approval` (line 186), `apply-decision approved → done` (after line 256), `apply-decision rejected → rejected` (line 276), `apply-decision changes_requested → in_progress` (line 289). Plus the auto-execute branch's `markTicketDone` at line 144.
@@ -2089,6 +2076,7 @@ await emitTeamEvent(this.env, {
 ```
 
 Do this for:
+
 - After `markTicketDone(...)` in the auto-execute branch (around line 144)
 - After `setTicketStatus(..., "awaiting_approval")` (around line 186)
 - After `markTicketDone(..., { summary: generated.summary })` in the approved branch (around line 256)
@@ -2114,8 +2102,9 @@ describe("ticket-status transitions emit team:status", () => {
     const stub = env.CORRESPONDENT.get(env.CORRESPONDENT.idFromName(COMPANY_ID));
     const received: Array<string> = [];
     await runInDurableObject(stub, async (instance: InstanceType<typeof CorrespondentAgent>) => {
-      (instance as unknown as { getConnections: () => Array<{ send: (m: string) => void }> })
-        .getConnections = () => [{ send: (m: string) => received.push(m) }];
+      (
+        instance as unknown as { getConnections: () => Array<{ send: (m: string) => void }> }
+      ).getConnections = () => [{ send: (m: string) => received.push(m) }];
     });
 
     // Insert a ticket and flip its status via the production helper.
@@ -2123,16 +2112,24 @@ describe("ticket-status transitions emit team:status", () => {
       `INSERT OR IGNORE INTO company
          (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
        VALUES (?, 'E', 'e', 'America/Sao_Paulo', 'pt-BR', 'active', NULL, 0, 0)`,
-    ).bind(COMPANY_ID).run();
+    )
+      .bind(COMPANY_ID)
+      .run();
     await env.DB.prepare(
       `INSERT INTO ticket
          (id, company_id, agent_instance_id, parent_ticket_id, title, brief,
           status, origin, workflow_id, result, created_at, updated_at)
        VALUES ('tkt_e', ?, 'a', NULL, 't', 'b', 'open', 'delegation', NULL, NULL, 0, 0)`,
-    ).bind(COMPANY_ID).run();
+    )
+      .bind(COMPANY_ID)
+      .run();
 
     await setTicketStatus(env.DB, "tkt_e", "in_progress");
-    await emitTeamEvent(env, { companyId: COMPANY_ID, reason: "ticket_changed", type: "team:status" });
+    await emitTeamEvent(env, {
+      companyId: COMPANY_ID,
+      reason: "ticket_changed",
+      type: "team:status",
+    });
 
     expect(received.some((m) => m.includes("team:status"))).toBe(true);
   });
@@ -2161,6 +2158,7 @@ git commit -m "feat(agents): worker-job emits team:status on every ticket transi
 ### Task 16: Make `delegateToWorker` prefer available + round-robin
 
 **Files:**
+
 - Modify: `apps/agents/src/skills/delegate-to-worker.ts`
 - Test: `apps/agents/src/__tests__/delegate-multi-instance.test.ts`
 
@@ -2227,7 +2225,9 @@ describe("delegateToWorker multi-instance dispatch", () => {
     await env.DB.prepare(
       `INSERT INTO ticket (id, company_id, agent_instance_id, parent_ticket_id, title, brief, status, origin, workflow_id, result, created_at, updated_at)
        VALUES ('tkt_busy', ?, ?, NULL, 't', 'b', 'in_progress', 'delegation', NULL, NULL, 0, 0)`,
-    ).bind(COMPANY_ID, D1).run();
+    )
+      .bind(COMPANY_ID, D1)
+      .run();
 
     const result = await delegateToWorkerSkill.execute(
       { brief: "fazer logo", workerKind: "designer" },
@@ -2237,14 +2237,15 @@ describe("delegateToWorker multi-instance dispatch", () => {
     // Inspect the freshly-created ticket to confirm it was assigned to D2
     const tickets = await env.DB.prepare(
       "SELECT agent_instance_id FROM ticket WHERE company_id = ? AND title LIKE 'designer:%'",
-    ).bind(COMPANY_ID).all<{ agent_instance_id: string }>();
+    )
+      .bind(COMPANY_ID)
+      .all<{ agent_instance_id: string }>();
     expect(tickets.results.some((r) => r.agent_instance_id === D2)).toBe(true);
     expect(tickets.results.some((r) => r.agent_instance_id === D1)).toBe(false);
   });
 
   it("skips paused workers entirely", async () => {
-    await env.DB.prepare("UPDATE agent_instance SET status = 'paused' WHERE id = ?")
-      .bind(D2).run();
+    await env.DB.prepare("UPDATE agent_instance SET status = 'paused' WHERE id = ?").bind(D2).run();
     const result = await delegateToWorkerSkill.execute(
       { brief: "fazer logo", workerKind: "designer" },
       ctx,
@@ -2252,13 +2253,17 @@ describe("delegateToWorker multi-instance dispatch", () => {
     expect("status" in result && result.status).toBe("queued");
     const tickets = await env.DB.prepare(
       "SELECT agent_instance_id FROM ticket WHERE company_id = ? AND title LIKE 'designer:%'",
-    ).bind(COMPANY_ID).all<{ agent_instance_id: string }>();
+    )
+      .bind(COMPANY_ID)
+      .all<{ agent_instance_id: string }>();
     // Should land on D1 (the only active one), even though it's busy.
     expect(tickets.results.every((r) => r.agent_instance_id !== D2)).toBe(true);
   });
 
   it("returns an error when all workers of the kind are paused", async () => {
-    await env.DB.prepare("UPDATE agent_instance SET status = 'paused' WHERE template_id = 'tpl-designer'").run();
+    await env.DB.prepare(
+      "UPDATE agent_instance SET status = 'paused' WHERE template_id = 'tpl-designer'",
+    ).run();
     const result = await delegateToWorkerSkill.execute(
       { brief: "fazer logo", workerKind: "designer" },
       ctx,
@@ -2280,7 +2285,10 @@ type WorkerCandidate = {
   id: string;
 };
 
-const pickWorker = (candidates: ReadonlyArray<WorkerCandidate>, allowed: ReadonlyArray<string>): WorkerCandidate | null => {
+const pickWorker = (
+  candidates: ReadonlyArray<WorkerCandidate>,
+  allowed: ReadonlyArray<string>,
+): WorkerCandidate | null => {
   const eligible = candidates.filter((c) => allowed.includes(c.id));
   if (eligible.length === 0) {
     return null;
@@ -2346,6 +2354,7 @@ git commit -m "feat(agents): delegateToWorker prefers available + round-robin am
 ### Task 17: `GET /api/me/team` route
 
 **Files:**
+
 - Modify: `apps/agents/src/routes/me.ts`
 - Test: `apps/agents/src/__tests__/me-team-route.test.ts`
 
@@ -2474,6 +2483,7 @@ git commit -m "feat(agents): GET /api/me/team returns derived roster view"
 ### Task 18: `GET /api/me/catalogue` route
 
 **Files:**
+
 - Modify: `apps/agents/src/routes/me.ts`
 - Test: extend `apps/agents/src/__tests__/me-team-route.test.ts`
 
@@ -2526,6 +2536,7 @@ git commit -m "feat(agents): GET /api/me/catalogue lists hireable templates"
 ### Task 19: `POST /api/me/team/hire` route
 
 **Files:**
+
 - Modify: `apps/agents/src/routes/me.ts`
 - Test: extend `apps/agents/src/__tests__/me-team-route.test.ts`
 
@@ -2612,6 +2623,7 @@ git commit -m "feat(agents): POST /api/me/team/hire creates instance + emits ros
 ### Task 20: `PATCH /api/me/team/members/:id` route
 
 **Files:**
+
 - Modify: `apps/agents/src/routes/me.ts`
 - Test: extend `apps/agents/src/__tests__/me-team-route.test.ts`
 
@@ -2621,30 +2633,26 @@ git commit -m "feat(agents): POST /api/me/team/hire creates instance + emits ros
 describe("PATCH /api/me/team/members/:id", () => {
   it("renames + sets prompt override", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
-      "https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok",
-      {
-        body: JSON.stringify({ displayName: "Marina", promptOverride: "minimalista" }),
-        headers: { "content-type": "application/json" },
-        method: "PATCH",
-      },
-    );
+    const res = await SELF.fetch("https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok", {
+      body: JSON.stringify({ displayName: "Marina", promptOverride: "minimalista" }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { member: { displayName: string; hasPromptOverride: boolean } };
+    const body = (await res.json()) as {
+      member: { displayName: string; hasPromptOverride: boolean };
+    };
     expect(body.member.displayName).toBe("Marina");
     expect(body.member.hasPromptOverride).toBe(true);
   });
 
   it("clears prompt override when promptOverride: null", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
-      "https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok",
-      {
-        body: JSON.stringify({ promptOverride: null }),
-        headers: { "content-type": "application/json" },
-        method: "PATCH",
-      },
-    );
+    const res = await SELF.fetch("https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok", {
+      body: JSON.stringify({ promptOverride: null }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { member: { hasPromptOverride: boolean } };
     expect(body.member.hasPromptOverride).toBe(false);
@@ -2727,6 +2735,7 @@ git commit -m "feat(agents): PATCH /api/me/team/members/:id rename + prompt over
 ### Task 21: `POST /api/me/team/members/:id/pause` and `/resume`
 
 **Files:**
+
 - Modify: `apps/agents/src/routes/me.ts`
 - Test: extend `apps/agents/src/__tests__/me-team-route.test.ts`
 
@@ -2747,7 +2756,9 @@ describe("POST /api/me/team/members/:id/pause + /resume", () => {
       "https://agents.test/api/me/team/members/ai_mt_d/resume?cf_session=tok",
       { method: "POST" },
     );
-    expect(((await resumed.json()) as { member: { status: string } }).member.status).toBe("available");
+    expect(((await resumed.json()) as { member: { status: string } }).member.status).toBe(
+      "available",
+    );
   });
 
   it("rejects pausing the correspondent with 400", async () => {
@@ -2833,6 +2844,7 @@ git commit -m "feat(agents): pause/resume routes with correspondent guard"
 ### Task 22: Backoffice routes — list, detail, patch
 
 **Files:**
+
 - Modify: `apps/agents/src/routes/backoffice.ts`
 - Test: `apps/agents/src/__tests__/backoffice-team-route.test.ts`
 
@@ -3014,6 +3026,7 @@ git commit -m "feat(agents): backoffice team list/detail/patch with operator-tag
 ### Task 23: `Avatar` primitive
 
 **Files:**
+
 - Create: `packages/ui/src/components/avatar.tsx`
 
 The Avatar shows initials over a deterministic background colour derived from a string seed.
@@ -3053,7 +3066,12 @@ const hashSeed = (seed: string): number => {
 
 const initialsOf = (name: string): string => {
   const parts = name.trim().split(/\s+/u).slice(0, 2);
-  return parts.map((p) => p[0] ?? "").join("").toLocaleUpperCase("pt-BR") || "?";
+  return (
+    parts
+      .map((p) => p[0] ?? "")
+      .join("")
+      .toLocaleUpperCase("pt-BR") || "?"
+  );
 };
 
 type AvatarProps = {
@@ -3103,6 +3121,7 @@ git commit -m "feat(ui): Avatar primitive with deterministic colour from seed"
 ### Task 24: `Badge` primitive
 
 **Files:**
+
 - Create: `packages/ui/src/components/badge.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -3155,6 +3174,7 @@ git commit -m "feat(ui): Badge primitive with semantic variants"
 ### Task 25: `Dialog` primitive (shadcn pattern)
 
 **Files:**
+
 - Create: `packages/ui/src/components/dialog.tsx`
 
 Use Radix Dialog (already a transitive dep through `@repo/ui` if present; otherwise install with `pnpm --filter=@repo/ui add @radix-ui/react-dialog`).
@@ -3192,7 +3212,11 @@ const DialogOverlay = ({ className, ...rest }: ComponentProps<typeof DialogPrimi
   />
 );
 
-const DialogContent = ({ children, className, ...rest }: ComponentProps<typeof DialogPrimitive.Content>) => (
+const DialogContent = ({
+  children,
+  className,
+  ...rest
+}: ComponentProps<typeof DialogPrimitive.Content>) => (
   <DialogPrimitive.Portal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -3218,15 +3242,27 @@ const DialogHeader = ({ className, ...rest }: ComponentProps<"div">) => (
 );
 
 const DialogFooter = ({ className, ...rest }: ComponentProps<"div">) => (
-  <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)} {...rest} />
+  <div
+    className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+    {...rest}
+  />
 );
 
 const DialogTitle = ({ className, ...rest }: ComponentProps<typeof DialogPrimitive.Title>) => (
-  <DialogPrimitive.Title className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...rest} />
+  <DialogPrimitive.Title
+    className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+    {...rest}
+  />
 );
 
-const DialogDescription = ({ className, ...rest }: ComponentProps<typeof DialogPrimitive.Description>) => (
-  <DialogPrimitive.Description className={cn("text-sm text-muted-foreground", className)} {...rest} />
+const DialogDescription = ({
+  className,
+  ...rest
+}: ComponentProps<typeof DialogPrimitive.Description>) => (
+  <DialogPrimitive.Description
+    className={cn("text-sm text-muted-foreground", className)}
+    {...rest}
+  />
 );
 
 export {
@@ -3257,6 +3293,7 @@ git commit -m "feat(ui): Dialog primitive over @radix-ui/react-dialog"
 ### Task 26: `apps/client/src/lib/team.ts` types + fetchers + display map
 
 **Files:**
+
 - Create: `apps/client/src/lib/team.ts`
 
 - [ ] **Step 1: Create the module**
@@ -3337,7 +3374,10 @@ const fetchCatalogue = async (): Promise<Array<HireableTemplate>> => {
   return body.templates;
 };
 
-const hireMember = async (input: { displayName?: string; templateId: string }): Promise<TeamMemberView> => {
+const hireMember = async (input: {
+  displayName?: string;
+  templateId: string;
+}): Promise<TeamMemberView> => {
   const res = await fetch(apiUrl("/api/me/team/hire"), {
     body: JSON.stringify(input),
     credentials: "include",
@@ -3409,6 +3449,7 @@ git commit -m "feat(client): team API fetchers + status display map"
 ### Task 27: `useTeamRoster` hook
 
 **Files:**
+
 - Create: `apps/client/src/lib/use-team-roster.ts`
 
 The hook uses `useAgent` (from the `agents/react` package, already in use in `apps/client/src/components/chat.tsx`) to subscribe to the same DO and listen for `team:*` frames. Without TanStack Query installed we keep state local — the hook owns the roster and exposes a refetch function. The Company page and the sidebar both call it.
@@ -3537,6 +3578,7 @@ git commit -m "feat(client): useTeamRoster hook with WS invalidation + safety po
 ### Task 28: `AgentCard` component
 
 **Files:**
+
 - Create: `apps/client/src/components/agent-card.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -3612,6 +3654,7 @@ git commit -m "feat(client): AgentCard with compact/detailed variants"
 ### Task 29: `TeamSidebar` component
 
 **Files:**
+
 - Create: `apps/client/src/components/team-sidebar.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -3680,6 +3723,7 @@ git commit -m "feat(client): TeamSidebar — lg+ chat rail with live roster"
 ### Task 30: Mount sidebar into chat page
 
 **Files:**
+
 - Modify: `apps/client/src/app/(client)/page.tsx`
 
 - [ ] **Step 1: Read the current file structure**
@@ -3692,9 +3736,7 @@ Open `apps/client/src/app/(client)/page.tsx`. Find the JSX that renders `<Chat a
 
 ```tsx
 <div className="flex h-full min-h-0 flex-1">
-  <div className="flex min-w-0 flex-1 flex-col">
-    {/* existing <Chat ... /> tree stays here */}
-  </div>
+  <div className="flex min-w-0 flex-1 flex-col">{/* existing <Chat ... /> tree stays here */}</div>
   <TeamSidebar companyId={company.id} />
 </div>
 ```
@@ -3727,6 +3769,7 @@ git commit -m "feat(client): mount TeamSidebar on chat page (lg+ 2-column)"
 ### Task 31: `HireDialog` component
 
 **Files:**
+
 - Create: `apps/client/src/components/hire-dialog.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -3827,6 +3870,7 @@ git commit -m "feat(client): HireDialog for picking a display name + confirming"
 ### Task 32: `PromptEditor` component (customer)
 
 **Files:**
+
 - Create: `apps/client/src/components/prompt-editor.tsx`
 
 - [ ] **Step 1: Create the component**
@@ -3850,7 +3894,12 @@ type PromptEditorProps = {
 };
 
 const formatDate = (ms: number): string =>
-  new Date(ms).toLocaleString("pt-BR", { day: "2-digit", hour: "2-digit", minute: "2-digit", month: "short" });
+  new Date(ms).toLocaleString("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+  });
 
 const PromptEditor = ({
   busy,
@@ -3922,6 +3971,7 @@ git commit -m "feat(client): PromptEditor component (textarea + save + reset)"
 ### Task 33: Empresa page
 
 **Files:**
+
 - Create: `apps/client/src/app/(client)/empresa/page.tsx`
 
 URL, folder, and label all use `empresa` for consistency.
@@ -3933,7 +3983,13 @@ URL, folder, and label all use `empresa` for consistency.
 "use client";
 
 import { Button } from "@repo/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -3971,7 +4027,9 @@ const CompanyPage = (_props: Props) => {
   const { members, refetch } = useTeamRoster(companyId ?? "");
 
   useEffect(() => {
-    fetchCatalogue().then(setCatalogue).catch((e) => toast.error(String(e)));
+    fetchCatalogue()
+      .then(setCatalogue)
+      .catch((e) => toast.error(String(e)));
   }, [members.length]);
 
   const openDetail = async (id: string) => {
@@ -4095,7 +4153,9 @@ const CompanyPage = (_props: Props) => {
         onClose={() => setHireTemplate(null)}
         onHired={() => {
           refetch();
-          fetchCatalogue().then(setCatalogue).catch(() => undefined);
+          fetchCatalogue()
+            .then(setCatalogue)
+            .catch(() => undefined);
         }}
         open={hireTemplate !== null}
         template={hireTemplate}
@@ -4127,6 +4187,7 @@ git commit -m "feat(client): /empresa page — roster + hire + prompt editor"
 ### Task 34: Add `Empresa` to client nav
 
 **Files:**
+
 - Modify: `apps/client/src/components/nav.tsx`
 
 - [ ] **Step 1: Insert nav entry**
@@ -4166,6 +4227,7 @@ git commit -m "feat(client): /empresa nav entry"
 ### Task 35: Backoffice team-fetch helpers
 
 **Files:**
+
 - Create: `apps/backoffice/src/lib/team-fetch.ts`
 
 - [ ] **Step 1: Create the module**
@@ -4213,10 +4275,10 @@ const fetchMember = async (
   memberId: string,
   cookie: string,
 ): Promise<TeamMemberDetailView> => {
-  const res = await fetch(
-    `${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`,
-    { cache: "no-store", headers: { cookie } },
-  );
+  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
+    cache: "no-store",
+    headers: { cookie },
+  });
   if (!res.ok) {
     throw new Error(`member detail failed ${res.status}`);
   }
@@ -4229,14 +4291,11 @@ const patchMember = async (
   patch: { displayName?: string; promptOverride?: string | null },
   cookie: string,
 ): Promise<TeamMemberDetailView> => {
-  const res = await fetch(
-    `${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`,
-    {
-      body: JSON.stringify(patch),
-      headers: { cookie, "content-type": "application/json" },
-      method: "PATCH",
-    },
-  );
+  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
+    body: JSON.stringify(patch),
+    headers: { cookie, "content-type": "application/json" },
+    method: "PATCH",
+  });
   if (!res.ok) {
     throw new Error(`member patch failed ${res.status}`);
   }
@@ -4259,6 +4318,7 @@ git commit -m "feat(backoffice): team-fetch helpers (list / detail / patch)"
 ### Task 36: Backoffice teams list page
 
 **Files:**
+
 - Create: `apps/backoffice/src/app/(dashboard)/teams/page.tsx`
 
 Look at `apps/backoffice/src/app/(dashboard)/approvals/page.tsx` first to see the existing server-component fetch pattern (cookie pass-through via `next/headers`). Mirror it here.
@@ -4282,16 +4342,17 @@ const TeamsPage = async () => {
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-2xl font-semibold">Times</h1>
-        <p className="text-sm text-muted-foreground">
-          {members.length} agente(s) nesta empresa
-        </p>
+        <p className="text-sm text-muted-foreground">{members.length} agente(s) nesta empresa</p>
       </header>
       <div className="grid gap-3 md:grid-cols-2">
         {members.map((m) => (
           <Card key={m.id}>
             <CardHeader>
               <CardTitle className="text-base">
-                <Link className="hover:underline" href={`/teams/${session.companyId}/members/${m.id}`}>
+                <Link
+                  className="hover:underline"
+                  href={`/teams/${session.companyId}/members/${m.id}`}
+                >
                   {m.displayName}
                 </Link>
               </CardTitle>
@@ -4324,6 +4385,7 @@ git commit -m "feat(backoffice): /teams roster index page"
 ### Task 37: Backoffice member edit page + PromptEditor
 
 **Files:**
+
 - Create: `apps/backoffice/src/app/(dashboard)/teams/[companyId]/members/[memberId]/page.tsx`
 - Create: `apps/backoffice/src/components/prompt-editor.tsx` (intentional duplication — see spec)
 
@@ -4463,6 +4525,7 @@ git commit -m "feat(backoffice): member edit page with prompt editor + rename"
 ### Task 38: Add `Times` to backoffice sidebar
 
 **Files:**
+
 - Modify: `apps/backoffice/src/components/sidebar.tsx`
 
 - [ ] **Step 1: Insert nav entry**
@@ -4501,6 +4564,7 @@ git commit -m "feat(backoffice): Times nav entry"
 ### Task 39: Document and run the manual smoke
 
 **Files:**
+
 - (no new files; verifies the integrated stack)
 
 - [ ] **Step 1: Bring the stack up**
@@ -4532,12 +4596,14 @@ Use `customer@qolmeia.dev` (magic link in the auth logs).
 Ask the Correspondent to make an image (e.g. "Faça um logo minimalista").
 
 Verify in the sidebar without refreshing:
+
 - Designer card flips Disponível → **Trabalhando**
 - After the worker proposes its deliverable → **Aguardando aprovação**
 
 - [ ] **Step 5: Approve in backoffice**
 
 Log into `http://localhost:3000` as `operator@qolmeia.dev` / `Qolmeia-Dev-OperatorPass!`.
+
 - Go to `/approvals`, find the pending action, decide **Aprovar**.
 - Switch back to the customer tab — the sidebar should flip → Trabalhando → **Disponível**, and the image should appear in chat.
 
