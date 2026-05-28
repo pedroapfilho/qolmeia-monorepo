@@ -2,6 +2,7 @@ import { resolveAgentStatus } from "@/team/status";
 import type {
   HireableTemplate,
   OpenTicketSlim,
+  TeamMemberBase,
   TeamMemberDetailView,
   TeamMemberView,
 } from "@/team/types";
@@ -30,7 +31,7 @@ const toOpenStatus = (s: string): OpenTicketSlim["status"] | null =>
 
 const toInstanceStatus = (s: string): "active" | "paused" => (s === "paused" ? "paused" : "active");
 
-const toRole = (s: string): TeamMemberView["role"] => {
+const toRole = (s: string): "correspondent" | "planner" | "worker" => {
   if (s === "correspondent" || s === "planner" || s === "worker") {
     return s;
   }
@@ -111,17 +112,41 @@ const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<T
   }
 
   const members: Array<TeamMemberView> = rosterRows.map((row) => {
+    const role = toRole(row.role);
     const current = openByAgent.get(row.id) ?? [];
+    const status = resolveAgentStatus({ status: toInstanceStatus(row.status) }, current);
+    const currentWork = current;
+    const displayName = row.display_name;
+    const hasPromptOverride = row.prompt_override !== null;
+    const id = row.id;
+    const lifetimeDone = doneByAgent.get(row.id) ?? 0;
+    if (role === "worker") {
+      if (!row.template_id || !row.worker_kind) {
+        // Data corruption: a worker row missing template metadata.
+        throw new Error(`worker ${row.id} missing template_id or worker_kind`);
+      }
+      return {
+        currentWork,
+        displayName,
+        hasPromptOverride,
+        id,
+        lifetimeDone,
+        role: "worker",
+        status,
+        templateId: row.template_id,
+        workerKind: row.worker_kind,
+      };
+    }
     return {
-      currentWork: current,
-      displayName: row.display_name,
-      hasPromptOverride: row.prompt_override !== null,
-      id: row.id,
-      lifetimeDone: doneByAgent.get(row.id) ?? 0,
-      role: toRole(row.role),
-      status: resolveAgentStatus({ status: toInstanceStatus(row.status) }, current),
-      templateId: row.template_id,
-      workerKind: row.worker_kind,
+      currentWork,
+      displayName,
+      hasPromptOverride,
+      id,
+      lifetimeDone,
+      role,
+      status,
+      templateId: null,
+      workerKind: null,
     };
   });
 
@@ -221,21 +246,34 @@ const getMemberDetail = async (
     .bind(companyId, agentInstanceId)
     .first<{ created_at: number }>();
 
-  return {
+  const role = toRole(row.role);
+  const detailExtras = {
     capabilities: row.description ?? "",
+    promptOverride: row.prompt_override,
+    promptOverrideUpdatedAt: editedRow?.created_at ?? null,
+    templateSystemPrompt: row.system_prompt ?? "",
+  };
+  const base: TeamMemberBase = {
     currentWork,
     displayName: row.display_name,
     hasPromptOverride: row.prompt_override !== null,
     id: row.id,
     lifetimeDone: done?.n ?? 0,
-    promptOverride: row.prompt_override,
-    promptOverrideUpdatedAt: editedRow?.created_at ?? null,
-    role: toRole(row.role),
     status: resolveAgentStatus({ status: toInstanceStatus(row.status) }, currentWork),
-    templateId: row.template_id,
-    templateSystemPrompt: row.system_prompt ?? "",
-    workerKind: row.worker_kind,
   };
+  if (role === "worker") {
+    if (!row.template_id || !row.worker_kind) {
+      throw new Error(`worker ${row.id} missing template_id or worker_kind`);
+    }
+    return {
+      ...base,
+      ...detailExtras,
+      role: "worker",
+      templateId: row.template_id,
+      workerKind: row.worker_kind,
+    };
+  }
+  return { ...base, ...detailExtras, role, templateId: null, workerKind: null };
 };
 
 export { getCatalogue, getMemberDetail, getTeamRoster };

@@ -90,6 +90,18 @@ describe("getTeamRoster", () => {
     const roster = await getTeamRoster(env.DB, COMPANY_ID);
     expect(roster[0]?.role).toBe("correspondent");
   });
+
+  it("throws if a worker row is missing template_id (data corruption guard)", async () => {
+    await env.DB.prepare(
+      `INSERT OR REPLACE INTO agent_instance
+         (id, company_id, role, template_id, template_version, display_name,
+          model_override, status, prompt_override, created_at, updated_at)
+       VALUES ('worker_no_tpl', ?, 'worker', NULL, NULL, 'broken', NULL, 'active', NULL, 0, 0)`,
+    )
+      .bind(COMPANY_ID)
+      .run();
+    await expect(getTeamRoster(env.DB, COMPANY_ID)).rejects.toThrow(/worker .* missing/v);
+  });
 });
 
 describe("getCatalogue", () => {
