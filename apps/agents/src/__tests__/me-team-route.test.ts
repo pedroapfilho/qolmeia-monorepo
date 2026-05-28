@@ -77,3 +77,16 @@ describe("GET /api/me/team", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("GET /api/me/catalogue", () => {
+  it("returns active worker templates with hiredCount", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/me/catalogue?cf_session=tok");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      templates: Array<{ hiredCount: number; id: string }>;
+    };
+    const designer = body.templates.find((t) => t.id === "tpl-designer");
+    expect(designer?.hiredCount).toBe(1);
+  });
+});

@@ -6,7 +6,7 @@ import { validateSession, type ValidatedSession } from "@/lib/auth";
 import { parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
-import { getTeamRoster } from "@/team/queries";
+import { getCatalogue, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
 // route between the Planner and the Correspondent. The auth service still
@@ -122,6 +122,12 @@ meRoutes.get("/team", async (c) => {
   const { companyId } = c.get("session");
   const members = await getTeamRoster(c.env.DB, companyId);
   return c.json({ members });
+});
+
+meRoutes.get("/catalogue", async (c) => {
+  const session = c.get("session");
+  const templates = await getCatalogue(c.env.DB, session.companyId);
+  return c.json({ templates });
 });
 
 const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
