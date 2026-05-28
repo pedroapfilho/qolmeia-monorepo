@@ -20,7 +20,11 @@ const roleLabel = (m: TeamMemberView): string => {
   if (m.role === "planner") {
     return "Planejador";
   }
-  return m.workerKind ?? "Worker";
+  if (m.role === "worker") {
+    return m.workerKind; // narrowed to string — no ?? "Worker" fallback
+  }
+  // exhaustive: role union covers all three literals above
+  return m.role;
 };
 
 const AgentCard = ({ member, variant }: AgentCardProps) => (

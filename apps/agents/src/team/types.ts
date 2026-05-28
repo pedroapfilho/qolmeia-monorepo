@@ -6,24 +6,38 @@ type OpenTicketSlim = {
   ticketId: string;
 };
 
-type TeamMemberView = {
+type TeamMemberBase = {
   currentWork: ReadonlyArray<OpenTicketSlim>;
   displayName: string;
   hasPromptOverride: boolean;
   id: string;
   lifetimeDone: number;
-  role: "correspondent" | "planner" | "worker";
   status: AgentDisplayStatus;
-  templateId: string | null;
-  workerKind: string | null;
 };
 
-type TeamMemberDetailView = TeamMemberView & {
+type TeamMemberNonWorker = TeamMemberBase & {
+  role: "correspondent" | "planner";
+  templateId: null;
+  workerKind: null;
+};
+
+type TeamMemberWorker = TeamMemberBase & {
+  role: "worker";
+  templateId: string;
+  workerKind: string;
+};
+
+type TeamMemberView = TeamMemberNonWorker | TeamMemberWorker;
+
+type TeamMemberDetailExtras = {
   capabilities: string;
   promptOverride: string | null;
   promptOverrideUpdatedAt: number | null;
   templateSystemPrompt: string;
 };
+
+// Distributes over the union: each variant gets the extras.
+type TeamMemberDetailView = TeamMemberView & TeamMemberDetailExtras;
 
 type HireableTemplate = {
   description: string;
@@ -37,6 +51,10 @@ export type {
   AgentDisplayStatus,
   HireableTemplate,
   OpenTicketSlim,
+  TeamMemberBase,
   TeamMemberDetailView,
+  TeamMemberDetailExtras,
+  TeamMemberNonWorker,
   TeamMemberView,
+  TeamMemberWorker,
 };

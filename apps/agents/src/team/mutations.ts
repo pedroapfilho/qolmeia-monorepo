@@ -12,7 +12,27 @@ import {
 } from "@/team/errors";
 import { nextDisplayName } from "@/team/naming";
 import { getMemberDetail, getTeamRoster } from "@/team/queries";
-import type { TeamMemberView } from "@/team/types";
+import type { TeamMemberBase, TeamMemberDetailView, TeamMemberView } from "@/team/types";
+
+const projectMemberView = (detail: TeamMemberDetailView): TeamMemberView => {
+  const base: TeamMemberBase = {
+    currentWork: detail.currentWork,
+    displayName: detail.displayName,
+    hasPromptOverride: detail.hasPromptOverride,
+    id: detail.id,
+    lifetimeDone: detail.lifetimeDone,
+    status: detail.status,
+  };
+  if (detail.role === "worker") {
+    return {
+      ...base,
+      role: "worker",
+      templateId: detail.templateId,
+      workerKind: detail.workerKind,
+    };
+  }
+  return { ...base, role: detail.role, templateId: null, workerKind: null };
+};
 
 type HireInput = {
   actorId: string | null;
@@ -110,17 +130,7 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
     throw new Error("hireMember: failed to read back the new member");
   }
 
-  return {
-    currentWork: detail.currentWork,
-    displayName: detail.displayName,
-    hasPromptOverride: detail.hasPromptOverride,
-    id: detail.id,
-    lifetimeDone: detail.lifetimeDone,
-    role: detail.role,
-    status: detail.status,
-    templateId: detail.templateId,
-    workerKind: detail.workerKind,
-  };
+  return projectMemberView(detail);
 };
 
 const assertMemberPausable = async (
@@ -176,17 +186,7 @@ const setMemberStatus = async (
     });
     throw new Error("setMemberStatus: read-back failed");
   }
-  return {
-    currentWork: detail.currentWork,
-    displayName: detail.displayName,
-    hasPromptOverride: detail.hasPromptOverride,
-    id: detail.id,
-    lifetimeDone: detail.lifetimeDone,
-    role: detail.role,
-    status: detail.status,
-    templateId: detail.templateId,
-    workerKind: detail.workerKind,
-  };
+  return projectMemberView(detail);
 };
 
 const pauseMember = (
@@ -327,17 +327,7 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
     });
     throw new Error("updateMember: read-back failed");
   }
-  return {
-    currentWork: detail.currentWork,
-    displayName: detail.displayName,
-    hasPromptOverride: detail.hasPromptOverride,
-    id: detail.id,
-    lifetimeDone: detail.lifetimeDone,
-    role: detail.role,
-    status: detail.status,
-    templateId: detail.templateId,
-    workerKind: detail.workerKind,
-  };
+  return projectMemberView(detail);
 };
 
 export {
