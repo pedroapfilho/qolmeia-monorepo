@@ -33,6 +33,18 @@ import { buildSkillTools } from "@/skills/registry";
 
 const CORRESPONDENT_SKILLS = ["rememberFact", "recallMemory", "delegateToWorker"] as const;
 
+type TeamEvent =
+  | {
+      companyId: string;
+      reason: "ticket_changed" | "instance_changed";
+      type: "team:status";
+    }
+  | {
+      companyId: string;
+      reason: "hired" | "paused" | "resumed" | "renamed" | "prompt_changed";
+      type: "team:roster";
+    };
+
 // 3 steps: model emits a tool call → tool result feeds back → final reply.
 const CORRESPONDENT_STOP_STEPS = 3;
 
@@ -163,6 +175,26 @@ class CorrespondentAgent extends AIChatAgent<Env> {
       system: buildSystemPrompt(retrieved),
       tools,
     };
+  }
+
+  // Fans a team:* invalidation ping out to all connected WS peers. Pure
+  // invalidation — the payload carries no row data, the client refetches
+  // /api/me/team on receipt. Errors are swallowed by callers (emitTeamEvent):
+  // the DB is source of truth, the event is a cache hint.
+  broadcastTeamEvent(event: TeamEvent): void {
+    const frame = JSON.stringify(event);
+    for (const peer of this.getConnections()) {
+      try {
+        peer.send(frame);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logInfo("agent.broadcastTeamEvent.send.err", {
+          companyId: event.companyId,
+          error: message,
+          type: event.type,
+        });
+      }
+    }
   }
 
   // Called by the WorkerJob Workflow once a deliverable is ready to ship
@@ -456,3 +488,4 @@ class CorrespondentAgent extends AIChatAgent<Env> {
 }
 
 export { CorrespondentAgent };
+export type { TeamEvent };
