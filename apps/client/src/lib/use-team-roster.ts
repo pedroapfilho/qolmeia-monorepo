@@ -24,7 +24,7 @@ const isTeamFrame = (payload: unknown): boolean => {
   return typeof type === "string" && type.startsWith("team:");
 };
 
-const useTeamRoster = (companyId: string): UseTeamRosterResult => {
+const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterResult => {
   const [members, setMembers] = useState<Array<TeamMemberView>>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<Error | null>(null);
@@ -73,6 +73,7 @@ const useTeamRoster = (companyId: string): UseTeamRosterResult => {
     onOpen: () => {
       wsOpenRef.current = true;
     },
+    query: { cf_session: sessionToken },
   });
 
   // visibilitychange → refetch once when becoming visible
