@@ -8,7 +8,7 @@ import { parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 import { emitTeamEvent } from "@/team/events";
-import { hireMember, updateMember } from "@/team/mutations";
+import { hireMember, pauseMember, resumeMember, updateMember } from "@/team/mutations";
 import { getCatalogue, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
@@ -186,6 +186,50 @@ meRoutes.patch("/team/members/:id", async (c) => {
     return c.json({ member });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("not in company")) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
+});
+
+meRoutes.post("/team/members/:id/pause", async (c) => {
+  const session = c.get("session");
+  try {
+    const member = await pauseMember(c.env.DB, session.companyId, c.req.param("id"));
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: "paused",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("cannot pause")) {
+      return c.json({ error: message }, 400);
+    }
+    if (message.includes("not in company")) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
+});
+
+meRoutes.post("/team/members/:id/resume", async (c) => {
+  const session = c.get("session");
+  try {
+    const member = await resumeMember(c.env.DB, session.companyId, c.req.param("id"));
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: "resumed",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("cannot")) {
+      return c.json({ error: message }, 400);
+    }
     if (message.includes("not in company")) {
       return c.json({ error: "not found" }, 404);
     }
