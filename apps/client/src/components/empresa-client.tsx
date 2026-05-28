@@ -131,27 +131,29 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
               <CardContent className="flex flex-col gap-3 pt-6">
                 <AgentCard member={m} variant="detailed" />
                 <div className="flex flex-wrap gap-2">
-                  {detail?.id === m.id ? (
-                    <Button onClick={() => closeDetail(m.id)} size="sm" variant="outline">
-                      Fechar editor
-                    </Button>
-                  ) : (
-                    <Button onClick={() => openDetail(m.id)} size="sm" variant="outline">
-                      Editar prompt
-                    </Button>
-                  )}
                   {m.role === "worker" && (
-                    <Button
-                      disabled={busyId === m.id}
-                      onClick={() => togglePause(m.id, m.status !== "paused")}
-                      size="sm"
-                      variant="outline"
-                    >
-                      {m.status === "paused" ? "Retomar" : "Pausar"}
-                    </Button>
+                    <>
+                      {detail?.id === m.id ? (
+                        <Button onClick={() => closeDetail(m.id)} size="sm" variant="outline">
+                          Fechar editor
+                        </Button>
+                      ) : (
+                        <Button onClick={() => openDetail(m.id)} size="sm" variant="outline">
+                          Editar prompt
+                        </Button>
+                      )}
+                      <Button
+                        disabled={busyId === m.id}
+                        onClick={() => togglePause(m.id, m.status !== "paused")}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {m.status === "paused" ? "Retomar" : "Pausar"}
+                      </Button>
+                    </>
                   )}
                 </div>
-                {detail?.id === m.id && (
+                {detail?.id === m.id && m.role === "worker" && (
                   <PromptEditor
                     busy={busyId === m.id}
                     initialValue={detail.promptOverride}
