@@ -130,6 +130,7 @@ const assertMemberPausable = async (
 
 type SetMemberStatusInput = {
   activityType: "MEMBER_PAUSED" | "MEMBER_RESUMED";
+  actorId: string | null;
   status: "active" | "paused";
 };
 
@@ -147,6 +148,7 @@ const setMemberStatus = async (
   await logActivity(
     { DB: db },
     {
+      actorId: input.actorId ?? undefined,
       companyId,
       refId: agentInstanceId,
       refType: "agent_instance",
@@ -171,15 +173,27 @@ const setMemberStatus = async (
   };
 };
 
-const pauseMember = (db: D1Database, companyId: string, agentInstanceId: string) =>
+const pauseMember = (
+  db: D1Database,
+  companyId: string,
+  agentInstanceId: string,
+  actorId: string | null = null,
+) =>
   setMemberStatus(db, companyId, agentInstanceId, {
     activityType: "MEMBER_PAUSED",
+    actorId,
     status: "paused",
   });
 
-const resumeMember = (db: D1Database, companyId: string, agentInstanceId: string) =>
+const resumeMember = (
+  db: D1Database,
+  companyId: string,
+  agentInstanceId: string,
+  actorId: string | null = null,
+) =>
   setMemberStatus(db, companyId, agentInstanceId, {
     activityType: "MEMBER_RESUMED",
+    actorId,
     status: "active",
   });
 
