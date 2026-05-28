@@ -4,10 +4,11 @@ import { z } from "zod";
 import { getDelegationTargets } from "@/db/team";
 import type { SkillContext, UnknownSkill } from "@/skills/registry";
 
-// Delegates a task to a specialist Worker on this Company's Team. In P3 the
-// call awaits the Worker's response inline — clean tool-call ergonomics for
-// the model, fine for short jobs. P4 makes it async via Cloudflare Workflows
-// so long jobs survive eviction and pause for approvals.
+// Delegates a task to a specialist Worker on this Company's Team. Runs
+// asynchronously via Cloudflare Workflows — long jobs survive DO eviction
+// and can pause for operator approval. The Correspondent's immediate reply
+// is "the Designer is working on it"; the deliverable arrives later via
+// Correspondent.presentResult once approved (or auto-executed).
 const delegateInputSchema = z.object({
   brief: z
     .string()
@@ -42,8 +43,6 @@ const pickWorker = (
   // Round-robin across the pool by hashing the current time. Stable enough
   // for fair distribution under load, no per-DO state required.
   const idx = Number(BigInt(Date.now()) % BigInt(pool.length));
-  // pool is non-empty (checked above), so pool[0] is always defined.
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const chosen = pool[idx] ?? pool[0];
   return chosen ?? null;
 };
@@ -105,9 +104,8 @@ const delegateToWorkerSkill: UnknownSkill = {
     if (!result.ok) {
       return { error: result.error, ticketId };
     }
-    // P4: the Workflow runs asynchronously and pauses for approval. The
-    // Correspondent's User-facing reply is "the Designer is working on it";
-    // the actual deliverable arrives later via Correspondent.presentAction.
+    // The Workflow runs asynchronously and pauses for approval; the deliverable
+    // arrives via Correspondent.presentResult.
     return { status: "queued", ticketId, workflowId: result.workflowId };
   },
   id: "delegateToWorker",

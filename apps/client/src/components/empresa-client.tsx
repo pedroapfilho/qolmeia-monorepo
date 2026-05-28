@@ -50,7 +50,6 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
   useEffect(() => {
     // oxlint-disable-next-line react-hooks-js/set-state-in-effect
     loadCatalogue();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const lastErrorRef = useRef<string | null>(null);
