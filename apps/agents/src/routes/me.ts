@@ -9,7 +9,7 @@ import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 import { emitTeamEvent } from "@/team/events";
 import { hireMember, pauseMember, resumeMember, updateMember } from "@/team/mutations";
-import { getCatalogue, getTeamRoster } from "@/team/queries";
+import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
 // route between the Planner and the Correspondent. The auth service still
@@ -191,6 +191,15 @@ meRoutes.patch("/team/members/:id", async (c) => {
     }
     throw error;
   }
+});
+
+meRoutes.get("/team/members/:id", async (c) => {
+  const session = c.get("session");
+  const member = await getMemberDetail(c.env.DB, session.companyId, c.req.param("id"));
+  if (!member) {
+    return c.json({ error: "not found" }, 404);
+  }
+  return c.json({ member });
 });
 
 meRoutes.post("/team/members/:id/pause", async (c) => {

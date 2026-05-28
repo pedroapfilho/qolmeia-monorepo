@@ -54,12 +54,17 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
   }, []);
 
   const openDetail = async (id: string) => {
-    const res = await fetch(`${AGENTS_URL}/api/me/team/members/${id}`, {
-      credentials: "include",
-    });
-    if (res.ok) {
+    try {
+      const res = await fetch(`${AGENTS_URL}/api/me/team/members/${id}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Falha ao carregar agente (${res.status})`);
+      }
       const body = (await res.json()) as { member: TeamMemberDetailView };
       setDetail(body.member);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
     }
   };
 

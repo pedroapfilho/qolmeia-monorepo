@@ -157,6 +157,28 @@ describe("PATCH /api/me/team/members/:id", () => {
   });
 });
 
+describe("GET /api/me/team/members/:id", () => {
+  it("returns the detail view for a member of the customer's company", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/me/team/members/${WORKER_ID}?cf_session=tok`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      member: { id: string; promptOverride: string | null; templateSystemPrompt: string };
+    };
+    expect(body.member.id).toBe(WORKER_ID);
+  });
+
+  it("404 when the member doesn't belong to the company", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/me/team/members/ai_does_not_exist?cf_session=tok`,
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("POST /api/me/team/members/:id/pause + /resume", () => {
   it("pauses then resumes the worker", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
