@@ -4,21 +4,36 @@
 
 import { AGENTS_URL, ApiError } from "@/lib/api-client";
 
-type TeamMemberView = {
-  currentWork: ReadonlyArray<{
-    status: "in_progress" | "awaiting_approval";
-    summary: string;
-    ticketId: string;
-  }>;
+type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
+
+type OpenTicketSlim = {
+  status: "awaiting_approval" | "in_progress";
+  summary: string;
+  ticketId: string;
+};
+
+type TeamMemberBase = {
+  currentWork: ReadonlyArray<OpenTicketSlim>;
   displayName: string;
   hasPromptOverride: boolean;
   id: string;
   lifetimeDone: number;
-  role: "correspondent" | "planner" | "worker";
-  status: "available" | "awaiting_approval" | "paused" | "working";
-  templateId: string | null;
-  workerKind: string | null;
+  status: AgentDisplayStatus;
 };
+
+type TeamMemberNonWorker = TeamMemberBase & {
+  role: "correspondent" | "planner";
+  templateId: null;
+  workerKind: null;
+};
+
+type TeamMemberWorker = TeamMemberBase & {
+  role: "worker";
+  templateId: string;
+  workerKind: string;
+};
+
+type TeamMemberView = TeamMemberNonWorker | TeamMemberWorker;
 
 type TeamMemberDetailView = TeamMemberView & {
   capabilities: string;
@@ -85,4 +100,12 @@ const patchMember = async (
 };
 
 export { fetchMember, fetchTeam, patchMember };
-export type { TeamMemberDetailView, TeamMemberView };
+export type {
+  AgentDisplayStatus,
+  OpenTicketSlim,
+  TeamMemberBase,
+  TeamMemberDetailView,
+  TeamMemberNonWorker,
+  TeamMemberView,
+  TeamMemberWorker,
+};

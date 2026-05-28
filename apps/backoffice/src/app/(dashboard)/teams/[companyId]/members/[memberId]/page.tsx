@@ -11,25 +11,36 @@ import { PromptEditor } from "@/components/prompt-editor";
 // Inline minimal copy of TeamMemberDetailView so the page doesn't depend on
 // a server lib import (the page is a client component and the existing
 // team-fetch.ts is server-only).
-type TeamMemberDetailView = {
+type OpenTicketSlim = {
+  status: "awaiting_approval" | "in_progress";
+  summary: string;
+  ticketId: string;
+};
+
+type TeamMemberDetailViewBase = {
   capabilities: string;
-  currentWork: ReadonlyArray<{
-    status: "in_progress" | "awaiting_approval";
-    summary: string;
-    ticketId: string;
-  }>;
+  currentWork: ReadonlyArray<OpenTicketSlim>;
   displayName: string;
   hasPromptOverride: boolean;
   id: string;
   lifetimeDone: number;
   promptOverride: string | null;
   promptOverrideUpdatedAt: number | null;
-  role: "correspondent" | "planner" | "worker";
-  status: "available" | "working" | "awaiting_approval" | "paused";
-  templateId: string | null;
+  status: "available" | "awaiting_approval" | "paused" | "working";
   templateSystemPrompt: string;
-  workerKind: string | null;
 };
+
+type TeamMemberDetailView =
+  | (TeamMemberDetailViewBase & {
+      role: "correspondent" | "planner";
+      templateId: null;
+      workerKind: null;
+    })
+  | (TeamMemberDetailViewBase & {
+      role: "worker";
+      templateId: string;
+      workerKind: string;
+    });
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 

@@ -1,25 +1,36 @@
 // Customer-side API surface for the team feature. Types mirror the agents
 // API output shape; status display labels live here (pt-BR).
 
-type AgentDisplayStatus = "available" | "working" | "awaiting_approval" | "paused";
+type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
 
 type OpenTicketSlim = {
-  status: "in_progress" | "awaiting_approval";
+  status: "awaiting_approval" | "in_progress";
   summary: string;
   ticketId: string;
 };
 
-type TeamMemberView = {
+type TeamMemberBase = {
   currentWork: ReadonlyArray<OpenTicketSlim>;
   displayName: string;
   hasPromptOverride: boolean;
   id: string;
   lifetimeDone: number;
-  role: "correspondent" | "planner" | "worker";
   status: AgentDisplayStatus;
-  templateId: string | null;
-  workerKind: string | null;
 };
+
+type TeamMemberNonWorker = TeamMemberBase & {
+  role: "correspondent" | "planner";
+  templateId: null;
+  workerKind: null;
+};
+
+type TeamMemberWorker = TeamMemberBase & {
+  role: "worker";
+  templateId: string;
+  workerKind: string;
+};
+
+type TeamMemberView = TeamMemberNonWorker | TeamMemberWorker;
 
 type TeamMemberDetailView = TeamMemberView & {
   capabilities: string;
@@ -130,6 +141,9 @@ export type {
   AgentDisplayStatus,
   HireableTemplate,
   OpenTicketSlim,
+  TeamMemberBase,
   TeamMemberDetailView,
+  TeamMemberNonWorker,
   TeamMemberView,
+  TeamMemberWorker,
 };
