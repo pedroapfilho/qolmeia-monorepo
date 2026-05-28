@@ -50,7 +50,11 @@ type TicketListRow = TicketRow & {
   updated_at: number;
 };
 
-type AgentInstanceRow = { id: string; template_id: string | null };
+type AgentInstanceRow = {
+  id: string;
+  prompt_override: string | null;
+  template_id: string | null;
+};
 
 const toStatus = (raw: string): TicketStatus => {
   const valid: ReadonlyArray<TicketStatus> = [
@@ -125,12 +129,20 @@ const listTickets = async (
 const loadAgentInstance = async (
   db: D1Database,
   id: string,
-): Promise<{ id: string; templateId: string | null } | null> => {
+): Promise<
+  { id: string; promptOverride: string | null; templateId: string | null } | null
+> => {
   const row = await db
-    .prepare("SELECT id, template_id FROM agent_instance WHERE id = ?")
+    .prepare("SELECT id, template_id, prompt_override FROM agent_instance WHERE id = ?")
     .bind(id)
     .first<AgentInstanceRow>();
-  return row ? { id: row.id, templateId: row.template_id } : null;
+  return row
+    ? {
+        id: row.id,
+        promptOverride: row.prompt_override,
+        templateId: row.template_id,
+      }
+    : null;
 };
 
 const setTicketWorkflowId = async (
