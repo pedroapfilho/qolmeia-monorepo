@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Chat } from "@/components/chat";
 import { OnboardingActions } from "@/components/onboarding-actions";
+import { TeamSidebar } from "@/components/team-sidebar";
 import { requireCustomer, requireSession } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = {
@@ -67,7 +68,19 @@ const ChatPage = async () => {
   }
 
   return (
-    <Chat agent="correspondent" agentsUrl={AGENTS_URL} companyId={companyId} sessionToken={token} />
+    <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Chat
+          agent="correspondent"
+          agentsUrl={AGENTS_URL}
+          companyId={companyId}
+          sessionToken={token}
+        />
+      </div>
+      <div className="hidden lg:flex">
+        <TeamSidebar companyId={companyId} sessionToken={token} />
+      </div>
+    </div>
   );
 };
 
