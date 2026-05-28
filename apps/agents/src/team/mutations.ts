@@ -255,23 +255,30 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
       },
     );
   }
-  if (promptLog) {
+  if (promptLog === "MEMBER_PROMPT_EDITED") {
     await logActivity(
       { DB: db },
       {
         actorId: input.operatorId ?? undefined,
         companyId: input.companyId,
-        payload:
-          promptLog === "MEMBER_PROMPT_EDITED"
-            ? { editedBy: input.editedBy, length: nextLength }
-            : { editedBy: input.editedBy },
+        payload: { editedBy: input.editedBy, length: nextLength },
         refId: input.agentInstanceId,
         refType: "agent_instance",
-        summary:
-          promptLog === "MEMBER_PROMPT_EDITED"
-            ? "Prompt personalizado atualizado."
-            : "Prompt restaurado ao padrão do template.",
-        type: promptLog,
+        summary: "Prompt personalizado atualizado.",
+        type: "MEMBER_PROMPT_EDITED",
+      },
+    );
+  } else if (promptLog === "MEMBER_PROMPT_RESET") {
+    await logActivity(
+      { DB: db },
+      {
+        actorId: input.operatorId ?? undefined,
+        companyId: input.companyId,
+        payload: { editedBy: input.editedBy },
+        refId: input.agentInstanceId,
+        refType: "agent_instance",
+        summary: "Prompt restaurado ao padrão do template.",
+        type: "MEMBER_PROMPT_RESET",
       },
     );
   }
