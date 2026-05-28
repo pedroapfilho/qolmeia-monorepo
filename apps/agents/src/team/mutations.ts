@@ -33,12 +33,14 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   // the same template against the same roster snapshot could both compute
   // "Designer #2" and both succeed. Display names are cosmetic — treat as
   // soft labels, not identifiers.
+  const trimmedName = input.displayName?.trim();
   const desiredName =
-    input.displayName?.trim() ??
-    nextDisplayName(
-      template.displayName,
-      existingRoster.map((m) => m.displayName),
-    );
+    trimmedName && trimmedName.length > 0
+      ? trimmedName
+      : nextDisplayName(
+          template.displayName,
+          existingRoster.map((m) => m.displayName),
+        );
 
   const newId = newWorkerId();
 
@@ -219,7 +221,9 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
   }
 
   if (input.promptOverride !== undefined) {
-    if (input.promptOverride === null) {
+    const trimmedPrompt =
+      typeof input.promptOverride === "string" ? input.promptOverride.trim() : null;
+    if (input.promptOverride === null || trimmedPrompt === "") {
       sets.push("prompt_override = NULL");
       promptLog = "MEMBER_PROMPT_RESET";
     } else {

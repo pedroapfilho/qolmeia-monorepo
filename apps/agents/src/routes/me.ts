@@ -159,7 +159,7 @@ meRoutes.post("/team/hire", async (c) => {
 
 const patchSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
-  promptOverride: z.union([z.string().max(20_000), z.null()]).optional(),
+  promptOverride: z.union([z.string().trim().min(1).max(20_000), z.null()]).optional(),
 });
 
 meRoutes.patch("/team/members/:id", async (c) => {

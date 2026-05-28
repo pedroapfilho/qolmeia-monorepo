@@ -262,4 +262,45 @@ describe("updateMember", () => {
     expect(updated.displayName).toBe("Carla");
     expect(updated.hasPromptOverride).toBe(true);
   });
+
+  it("treats empty/whitespace promptOverride as a reset (does not store empty string)", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    // First set it to something
+    await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: "real prompt",
+    });
+    // Then send an empty string — should reset, not store ""
+    const result = await updateMember(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: "   ",
+    });
+    expect(result.hasPromptOverride).toBe(false);
+    const row = await env.DB.prepare("SELECT prompt_override FROM agent_instance WHERE id = ?")
+      .bind(member.id)
+      .first<{ prompt_override: string | null }>();
+    expect(row?.prompt_override).toBeNull();
+  });
+
+  it("rejects whitespace-only displayName at hire (mutation-layer defense)", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: "   ",
+      templateId: "tpl-designer",
+    });
+    // Should fall back to nextDisplayName, not store "   "
+    expect(member.displayName.trim().length).toBeGreaterThan(0);
+  });
 });

@@ -171,7 +171,7 @@ backofficeRoutes.get("/actions/:id", async (c) => {
 
 const backofficePatchSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
-  promptOverride: z.union([z.string().max(20_000), z.null()]).optional(),
+  promptOverride: z.union([z.string().trim().min(1).max(20_000), z.null()]).optional(),
 });
 
 backofficeRoutes.get("/teams/:companyId/members", async (c) => {
