@@ -1,0 +1,86 @@
+import { expect, test } from "@playwright/test";
+
+import { authUrl, clientUrl } from "../../../playwright.config";
+import { extractLink, waitForEmail } from "../helpers/resend";
+import { makeTestEmail } from "../helpers/test-email";
+
+// Skip when Resend isn't configured. The client's magic-link login is the
+// ONLY auth surface this app exposes, so without delivery there's nothing
+// to assert about beyond "the request returned 200" — which is exactly the
+// false-positive class this spec exists to prevent.
+test.skip(!process.env.RESEND_API_KEY, "needs RESEND_API_KEY (test mode)");
+
+test.describe("Client magic-link login", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("request → email lands → click verify → user lands authenticated on /", async ({
+    page,
+  }, testInfo) => {
+    const since = Date.now();
+    const email = makeTestEmail(testInfo);
+
+    // Request a magic link via the client's /login form. The form posts to
+    // :4000/api/auth/sign-in/magic-link with callbackURL set to
+    // `${origin}/auth/verify`, then flips the Card into the "check your
+    // email" state.
+    await page.goto(`${clientUrl}/login`);
+    await page.getByLabel(/e-?mail/iv).fill(email);
+    await page.getByRole("button", { name: /enviar link mágico|send magic link/iv }).click();
+    await expect(page.getByText(/verifique seu e-mail|check your email/iv)).toBeVisible();
+
+    // Assert the magic-link email actually left Resend. This is the
+    // primary value of this spec — "the form said 'check your email' but
+    // no email ever queued" was the production bug class that triggered
+    // this whole suite.
+    const mail = await waitForEmail({
+      sinceMs: since,
+      // Qolmeia ships the magic-link template with subject "Seu link de
+      // acesso à Qolmeia" — keep the regex permissive so a copy revision
+      // doesn't break the test.
+      subject: /link|acesso|magic|sign.?in/iv,
+      to: email,
+    });
+    expect(mail.last_event).not.toBe("bounced");
+
+    // The URL points at :4000/api/auth/magic-link/verify?token=...&callbackURL=...
+    // Better Auth sets the session cookie host-only on `localhost`, then
+    // redirects to callbackURL (the client's /auth/verify), which in turn
+    // 302s to `/` (chat home) once a session is detected.
+    const verifyUrl = extractLink(mail, /\/api\/auth\/magic-link\/verify/v);
+    expect(verifyUrl.startsWith(`${authUrl}/api/auth/magic-link/verify`)).toBe(true);
+
+    await page.goto(verifyUrl);
+    // Final landing — chat home. Either the URL ends `/` or the
+    // /auth/verify intermediate page redirected to `/`. Use a regex so the
+    // assertion survives either landing.
+    await page.waitForURL(
+      new RegExp(`^${clientUrl.replaceAll(".", String.raw`\.`)}/(\\?.*)?$`, "v"),
+    );
+    expect(page.url()).not.toContain("/login");
+    expect(page.url()).not.toContain("/auth/verify");
+  });
+
+  test("error param on /auth/verify renders the failure card instead of redirecting", async ({
+    page,
+  }) => {
+    // Better Auth's magic-link/verify handler redirects to
+    // callbackURL?error=<reason> when a token is expired/used/missing.
+    // The /auth/verify page should render the error message rather than
+    // silently looping back to /login.
+    await page.goto(`${clientUrl}/auth/verify?error=expired_token`);
+    await expect(page.getByText(/não conseguimos|expirou|expired/iv)).toBeVisible();
+    expect(page.url()).toContain("/auth/verify");
+  });
+});
+
+test.describe("Client login form validation", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("renders the request-link card without a sent state on first load", async ({ page }) => {
+    await page.goto(`${clientUrl}/login`);
+
+    await expect(page.getByRole("button", { name: /enviar link mágico/iv })).toBeVisible();
+    // The "verifique seu e-mail" state shouldn't be present before a submit.
+    await expect(page.getByText(/verifique seu e-mail/iv)).toHaveCount(0);
+  });
+});
