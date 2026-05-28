@@ -1,4 +1,5 @@
 import { logActivity } from "@/activity/log";
+import { correspondentIdFor, teamIdFor } from "@/db/team";
 import { getTemplate } from "@/db/template";
 import { nextDisplayName } from "@/team/naming";
 import { getMemberDetail, getTeamRoster } from "@/team/queries";
@@ -39,32 +40,16 @@ const hireMember = async (
 
   const newId = newWorkerId();
 
-  // Resolve the team and correspondent by querying DB — the seeded IDs in
-  // tests don't follow the deterministic `teamIdFor`/`correspondentIdFor`
-  // pattern, so we always look them up dynamically.
-  const teamRow = await db
-    .prepare("SELECT id FROM team WHERE company_id = ? LIMIT 1")
-    .bind(input.companyId)
-    .first<{ id: string }>();
-  if (!teamRow) {
-    throw new Error(`no team found for company ${input.companyId}`);
-  }
-  const teamId = teamRow.id;
+  const teamId = teamIdFor(input.companyId);
+  const correspondentId = correspondentIdFor(input.companyId);
 
   const corrRow = await db
-    .prepare(
-      `SELECT a.id, tm.can_delegate_to
-         FROM agent_instance a
-         JOIN team_member tm ON tm.agent_instance_id = a.id AND tm.team_id = ?
-        WHERE a.company_id = ? AND a.role = 'correspondent'
-        LIMIT 1`,
-    )
-    .bind(teamId, input.companyId)
-    .first<{ can_delegate_to: string; id: string }>();
+    .prepare("SELECT can_delegate_to FROM team_member WHERE agent_instance_id = ? AND team_id = ?")
+    .bind(correspondentId, teamId)
+    .first<{ can_delegate_to: string }>();
   if (!corrRow) {
     throw new Error(`correspondent team_member missing for ${input.companyId}`);
   }
-
   const targets = JSON.parse(corrRow.can_delegate_to) as Array<string>;
   const updatedTargets = [...targets, newId];
   const now = Date.now();
@@ -95,7 +80,7 @@ const hireMember = async (
       .prepare(
         "UPDATE team_member SET can_delegate_to = ? WHERE agent_instance_id = ? AND team_id = ?",
       )
-      .bind(JSON.stringify(updatedTargets), corrRow.id, teamId),
+      .bind(JSON.stringify(updatedTargets), correspondentId, teamId),
   ]);
 
   await logActivity(

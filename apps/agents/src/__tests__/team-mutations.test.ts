@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { hireMember } from "@/team/mutations";
 
 const COMPANY_ID = "co_hire_test";
-const TEAM_ID = "team_hire_test";
-const CORR_ID = "corr_hire_test";
+const TEAM_ID = `team-${COMPANY_ID}`;
+const CORR_ID = `corr-${COMPANY_ID}`;
 
 beforeEach(async () => {
   // Clean up workers and activity rows from prior tests so each test starts
