@@ -67,5 +67,14 @@ export default defineConfig({
         "max-lines": ["error", 500],
       },
     },
+    // errors.ts is a dedicated domain-error registry. Multiple typed Error
+    // subclasses in one file is the point — each belongs to the same domain
+    // and co-locating them avoids a proliferation of single-class files.
+    {
+      files: ["apps/agents/src/team/errors.ts"],
+      rules: {
+        "max-classes-per-file": "off",
+      },
+    },
   ],
 });

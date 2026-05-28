@@ -6,7 +6,7 @@ import { getAction, listActions, listActionsForTicket, listPendingActions } from
 import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
 import { emitTeamEvent } from "@/team/events";
-import { updateMember } from "@/team/mutations";
+import { TeamMemberNotFoundError, updateMember } from "@/team/mutations";
 import { getMemberDetail, getTeamRoster } from "@/team/queries";
 
 // Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
@@ -220,8 +220,7 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not in company")) {
+    if (error instanceof TeamMemberNotFoundError) {
       return c.json({ error: "not found" }, 404);
     }
     throw error;

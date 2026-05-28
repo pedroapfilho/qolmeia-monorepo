@@ -2,6 +2,14 @@ import { logActivity } from "@/activity/log";
 import { safeJson } from "@/db/mappers";
 import { correspondentIdFor, teamIdFor } from "@/db/team";
 import { getTemplate } from "@/db/template";
+import { logError } from "@/lib/logger";
+import {
+  CorrespondentMissingError,
+  TeamMemberNotFoundError,
+  TeamMemberNotPausableError,
+  TemplateNotFoundError,
+  TemplateRetiredError,
+} from "@/team/errors";
 import { nextDisplayName } from "@/team/naming";
 import { getMemberDetail, getTeamRoster } from "@/team/queries";
 import type { TeamMemberView } from "@/team/types";
@@ -23,10 +31,10 @@ const newWorkerId = (): string => `${NEW_WORKER_PREFIX}${crypto.randomUUID()}`;
 const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberView> => {
   const template = await getTemplate(db, input.templateId);
   if (!template) {
-    throw new Error(`template ${input.templateId} not found`);
+    throw new TemplateNotFoundError(input.templateId);
   }
   if (template.status !== "active") {
-    throw new Error(`template ${input.templateId} is retired`);
+    throw new TemplateRetiredError(input.templateId);
   }
 
   const existingRoster = await getTeamRoster(db, input.companyId);
@@ -53,7 +61,7 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
     .bind(correspondentId, teamId)
     .first<{ can_delegate_to: string }>();
   if (!corrRow) {
-    throw new Error(`correspondent team_member missing for ${input.companyId}`);
+    throw new CorrespondentMissingError(input.companyId);
   }
   const targets = safeJson<Array<string>>(corrRow.can_delegate_to, []);
   const updatedTargets = [...targets, newId];
@@ -95,6 +103,10 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
 
   const detail = await getMemberDetail(db, input.companyId, newId);
   if (!detail) {
+    logError("team.hireMember.readBack.missing", {
+      agentInstanceId: newId,
+      companyId: input.companyId,
+    });
     throw new Error("hireMember: failed to read back the new member");
   }
 
@@ -121,10 +133,10 @@ const assertMemberPausable = async (
     .bind(agentInstanceId, companyId)
     .first<{ role: string }>();
   if (!row) {
-    throw new Error(`agent_instance ${agentInstanceId} not in company ${companyId}`);
+    throw new TeamMemberNotFoundError(agentInstanceId, companyId);
   }
   if (row.role !== "worker") {
-    throw new Error(`cannot pause/resume a ${row.role}`);
+    throw new TeamMemberNotPausableError(row.role);
   }
 };
 
@@ -158,6 +170,10 @@ const setMemberStatus = async (
   );
   const detail = await getMemberDetail(db, companyId, agentInstanceId);
   if (!detail) {
+    logError("team.setMemberStatus.readBack.missing", {
+      agentInstanceId,
+      companyId,
+    });
     throw new Error("setMemberStatus: read-back failed");
   }
   return {
@@ -215,7 +231,7 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
     .bind(input.agentInstanceId, input.companyId)
     .first<{ display_name: string; prompt_override: string | null }>();
   if (!existing) {
-    throw new Error(`agent_instance ${input.agentInstanceId} not in company ${input.companyId}`);
+    throw new TeamMemberNotFoundError(input.agentInstanceId, input.companyId);
   }
 
   const sets: Array<string> = [];
@@ -305,6 +321,10 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
 
   const detail = await getMemberDetail(db, input.companyId, input.agentInstanceId);
   if (!detail) {
+    logError("team.updateMember.readBack.missing", {
+      agentInstanceId: input.agentInstanceId,
+      companyId: input.companyId,
+    });
     throw new Error("updateMember: read-back failed");
   }
   return {
@@ -320,5 +340,17 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
   };
 };
 
-export { hireMember, NEW_WORKER_PREFIX, newWorkerId, pauseMember, resumeMember, updateMember };
+export {
+  CorrespondentMissingError,
+  hireMember,
+  NEW_WORKER_PREFIX,
+  newWorkerId,
+  pauseMember,
+  resumeMember,
+  TeamMemberNotFoundError,
+  TeamMemberNotPausableError,
+  TemplateNotFoundError,
+  TemplateRetiredError,
+  updateMember,
+};
 export type { UpdateInput };

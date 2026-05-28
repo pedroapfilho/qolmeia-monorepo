@@ -8,7 +8,17 @@ import { parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 import { emitTeamEvent } from "@/team/events";
-import { hireMember, pauseMember, resumeMember, updateMember } from "@/team/mutations";
+import {
+  CorrespondentMissingError,
+  hireMember,
+  pauseMember,
+  resumeMember,
+  TeamMemberNotFoundError,
+  TeamMemberNotPausableError,
+  TemplateNotFoundError,
+  TemplateRetiredError,
+  updateMember,
+} from "@/team/mutations";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
@@ -161,9 +171,11 @@ meRoutes.post("/team/hire", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not found") || message.includes("is retired")) {
-      return c.json({ error: message }, 404);
+    if (error instanceof TemplateNotFoundError || error instanceof TemplateRetiredError) {
+      return c.json({ error: error.message }, 404);
+    }
+    if (error instanceof CorrespondentMissingError) {
+      return c.json({ error: error.message }, 500);
     }
     throw error;
   }
@@ -200,8 +212,7 @@ meRoutes.patch("/team/members/:id", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not in company")) {
+    if (error instanceof TeamMemberNotFoundError) {
       return c.json({ error: "not found" }, 404);
     }
     throw error;
@@ -236,11 +247,10 @@ meRoutes.post("/team/members/:id/pause", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("cannot pause")) {
-      return c.json({ error: message }, 400);
+    if (error instanceof TeamMemberNotPausableError) {
+      return c.json({ error: error.message }, 400);
     }
-    if (message.includes("not in company")) {
+    if (error instanceof TeamMemberNotFoundError) {
       return c.json({ error: "not found" }, 404);
     }
     throw error;
@@ -266,11 +276,10 @@ meRoutes.post("/team/members/:id/resume", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("cannot")) {
-      return c.json({ error: message }, 400);
+    if (error instanceof TeamMemberNotPausableError) {
+      return c.json({ error: error.message }, 400);
     }
-    if (message.includes("not in company")) {
+    if (error instanceof TeamMemberNotFoundError) {
       return c.json({ error: "not found" }, 404);
     }
     throw error;
