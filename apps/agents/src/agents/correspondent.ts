@@ -183,9 +183,13 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   // the DB is source of truth, the event is a cache hint.
   broadcastTeamEvent(event: TeamEvent): void {
     const frame = JSON.stringify(event);
+    let attempted = 0;
+    let succeeded = 0;
     for (const peer of this.getConnections()) {
+      attempted++;
       try {
         peer.send(frame);
+        succeeded++;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logInfo("agent.broadcastTeamEvent.send.err", {
@@ -194,6 +198,13 @@ class CorrespondentAgent extends AIChatAgent<Env> {
           type: event.type,
         });
       }
+    }
+    if (attempted > 0 && succeeded === 0) {
+      logError("agent.broadcastTeamEvent.totalFail", {
+        attempted,
+        companyId: event.companyId,
+        type: event.type,
+      });
     }
   }
 

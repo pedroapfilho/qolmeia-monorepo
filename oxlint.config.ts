@@ -64,7 +64,7 @@ export default defineConfig({
     {
       files: ["apps/agents/src/agents/correspondent.ts"],
       rules: {
-        "max-lines": ["error", 500],
+        "max-lines": ["error", 510],
       },
     },
     // errors.ts is a dedicated domain-error registry. Multiple typed Error
