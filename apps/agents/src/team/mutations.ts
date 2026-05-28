@@ -1,4 +1,5 @@
 import { logActivity } from "@/activity/log";
+import { safeJson } from "@/db/mappers";
 import { correspondentIdFor, teamIdFor } from "@/db/team";
 import { getTemplate } from "@/db/template";
 import { nextDisplayName } from "@/team/naming";
@@ -31,6 +32,10 @@ const hireMember = async (
   }
 
   const existingRoster = await getTeamRoster(db, input.companyId);
+  // Note: display_name has no DB-level uniqueness. Two concurrent hires for
+  // the same template against the same roster snapshot could both compute
+  // "Designer #2" and both succeed. Display names are cosmetic — treat as
+  // soft labels, not identifiers.
   const desiredName =
     input.displayName?.trim() ??
     nextDisplayName(
@@ -50,7 +55,7 @@ const hireMember = async (
   if (!corrRow) {
     throw new Error(`correspondent team_member missing for ${input.companyId}`);
   }
-  const targets = JSON.parse(corrRow.can_delegate_to) as Array<string>;
+  const targets = safeJson<Array<string>>(corrRow.can_delegate_to, []);
   const updatedTargets = [...targets, newId];
   const now = Date.now();
 
