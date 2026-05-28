@@ -90,3 +90,27 @@ describe("GET /api/me/catalogue", () => {
     expect(designer?.hiredCount).toBe(1);
   });
 });
+
+describe("POST /api/me/team/hire", () => {
+  it("creates a new instance and emits team:roster", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+      body: JSON.stringify({ templateId: "tpl-designer" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { member: { id: string; templateId: string } };
+    expect(body.member.templateId).toBe("tpl-designer");
+  });
+
+  it("400 when templateId missing", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+      body: JSON.stringify({}),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(res.status).toBe(400);
+  });
+});

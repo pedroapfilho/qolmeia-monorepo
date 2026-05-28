@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
 import { listActiveTemplates } from "@/db/template";
@@ -6,6 +7,8 @@ import { validateSession, type ValidatedSession } from "@/lib/auth";
 import { parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
+import { emitTeamEvent } from "@/team/events";
+import { hireMember } from "@/team/mutations";
 import { getCatalogue, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
@@ -128,6 +131,30 @@ meRoutes.get("/catalogue", async (c) => {
   const session = c.get("session");
   const templates = await getCatalogue(c.env.DB, session.companyId);
   return c.json({ templates });
+});
+
+const hireSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  templateId: z.string().min(1),
+});
+
+meRoutes.post("/team/hire", async (c) => {
+  const session = c.get("session");
+  const parsed = hireSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  const member = await hireMember(c.env.DB, {
+    companyId: session.companyId,
+    displayName: parsed.data.displayName,
+    templateId: parsed.data.templateId,
+  });
+  await emitTeamEvent(c.env, {
+    companyId: session.companyId,
+    reason: "hired",
+    type: "team:roster",
+  });
+  return c.json({ member });
 });
 
 const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
