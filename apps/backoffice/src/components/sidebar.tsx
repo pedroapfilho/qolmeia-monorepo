@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@repo/ui/lib/utils";
-import { Activity, Home, Inbox, Ticket } from "lucide-react";
+import { Activity, Home, Inbox, Ticket, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -18,6 +18,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/", icon: <Home aria-hidden />, label: "Início" },
   { href: "/approvals", icon: <Inbox aria-hidden />, label: "Aprovações" },
   { href: "/tickets", icon: <Ticket aria-hidden />, label: "Tickets" },
+  { href: "/teams", icon: <Users aria-hidden />, label: "Times" },
   { href: "/activity", icon: <Activity aria-hidden />, label: "Atividade" },
 ];
 
