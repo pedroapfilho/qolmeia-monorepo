@@ -69,17 +69,25 @@ type TeamConfirmedEvent = {
   type: "TEAM_CONFIRMED";
 };
 
+type MemberHiredEvent = {
+  payload: { displayName: string; templateId: string };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_HIRED";
+};
+
 type ActivityEvent =
   | ActionProposedEvent
   | ActionExecutedEvent
   | ActionRejectedEvent
   | ActionChangesRequestedEvent
   | TicketDoneEvent
-  | TeamConfirmedEvent;
+  | TeamConfirmedEvent
+  | MemberHiredEvent;
 
 type ActivityType = ActivityEvent["type"];
 
-type ActivityCategory = "action" | "team" | "ticket";
+type ActivityCategory = "action" | "member" | "team" | "ticket";
 
 // Discriminated lookup. Adding a new ActivityEvent branch without
 // updating this switch fails to compile — the `never` narrowing in
@@ -98,6 +106,9 @@ const eventCategory = (event: ActivityEvent): ActivityCategory => {
     case "TEAM_CONFIRMED": {
       return "team";
     }
+    case "MEMBER_HIRED": {
+      return "member";
+    }
     default: {
       const unhandled: never = event;
       throw new Error(`unhandled activity event: ${JSON.stringify(unhandled)}`);
@@ -114,6 +125,7 @@ const ACTIVITY_TYPES = [
   "ACTION_CHANGES_REQUESTED",
   "TICKET_DONE",
   "TEAM_CONFIRMED",
+  "MEMBER_HIRED",
 ] as const satisfies ReadonlyArray<ActivityType>;
 
 export { ACTIVITY_TYPES, eventCategory };
