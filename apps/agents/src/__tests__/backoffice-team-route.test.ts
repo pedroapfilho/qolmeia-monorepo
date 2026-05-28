@@ -84,3 +84,34 @@ describe("/api/backoffice/teams/:companyId/members", () => {
     expect(JSON.parse(log?.payload ?? "{}").editedBy).toBe("operator");
   });
 });
+
+describe("backoffice team routes — cross-tenant", () => {
+  it("403 when STAFF queries a different company's members list", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/teams/co_other_company/members?cf_session=tok`,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("403 when STAFF reads a member from a different company", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/teams/co_other_company/members/ai_bot_d?cf_session=tok`,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("403 when STAFF PATCHes a member from a different company", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/teams/co_other_company/members/ai_bot_d?cf_session=tok`,
+      {
+        body: JSON.stringify({ displayName: "evil" }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+});

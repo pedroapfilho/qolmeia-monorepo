@@ -176,11 +176,17 @@ const backofficePatchSchema = z.object({
 
 backofficeRoutes.get("/teams/:companyId/members", async (c) => {
   const companyId = c.req.param("companyId");
+  if (companyId !== c.get("companyId")) {
+    return c.text("Forbidden", 403);
+  }
   const members = await getTeamRoster(c.env.DB, companyId);
   return c.json({ members });
 });
 
 backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
+  if (c.req.param("companyId") !== c.get("companyId")) {
+    return c.text("Forbidden", 403);
+  }
   const member = await getMemberDetail(c.env.DB, c.req.param("companyId"), c.req.param("id"));
   if (!member) {
     return c.json({ error: "not found" }, 404);
@@ -190,6 +196,9 @@ backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
 
 backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
   const companyId = c.req.param("companyId");
+  if (companyId !== c.get("companyId")) {
+    return c.text("Forbidden", 403);
+  }
   const id = c.req.param("id");
   const parsed = backofficePatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
