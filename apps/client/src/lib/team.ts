@@ -1,0 +1,135 @@
+// Customer-side API surface for the team feature. Types mirror the agents
+// API output shape; status display labels live here (pt-BR).
+
+type AgentDisplayStatus = "available" | "working" | "awaiting_approval" | "paused";
+
+type OpenTicketSlim = {
+  status: "in_progress" | "awaiting_approval";
+  summary: string;
+  ticketId: string;
+};
+
+type TeamMemberView = {
+  currentWork: ReadonlyArray<OpenTicketSlim>;
+  displayName: string;
+  hasPromptOverride: boolean;
+  id: string;
+  lifetimeDone: number;
+  role: "correspondent" | "planner" | "worker";
+  status: AgentDisplayStatus;
+  templateId: string | null;
+  workerKind: string | null;
+};
+
+type TeamMemberDetailView = TeamMemberView & {
+  capabilities: string;
+  promptOverride: string | null;
+  promptOverrideUpdatedAt: number | null;
+  templateSystemPrompt: string;
+};
+
+type HireableTemplate = {
+  description: string;
+  displayName: string;
+  hiredCount: number;
+  id: string;
+  workerKind: string;
+};
+
+const STATUS_LABEL: Record<AgentDisplayStatus, string> = {
+  available: "Disponível",
+  awaiting_approval: "Aguardando aprovação",
+  paused: "Pausado",
+  working: "Trabalhando",
+};
+
+const STATUS_VARIANT: Record<AgentDisplayStatus, "success" | "warning" | "info" | "muted"> = {
+  available: "success",
+  awaiting_approval: "warning",
+  paused: "muted",
+  working: "info",
+};
+
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
+
+const apiUrl = (path: string): string => `${AGENTS_URL}${path}`;
+
+const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
+  const res = await fetch(apiUrl("/api/me/team"), { credentials: "include" });
+  if (!res.ok) {
+    throw new Error(`GET /api/me/team failed (${res.status})`);
+  }
+  const body = (await res.json()) as { members: Array<TeamMemberView> };
+  return body.members;
+};
+
+const fetchCatalogue = async (): Promise<Array<HireableTemplate>> => {
+  const res = await fetch(apiUrl("/api/me/catalogue"), { credentials: "include" });
+  if (!res.ok) {
+    throw new Error(`GET /api/me/catalogue failed (${res.status})`);
+  }
+  const body = (await res.json()) as { templates: Array<HireableTemplate> };
+  return body.templates;
+};
+
+const hireMember = async (input: {
+  displayName?: string;
+  templateId: string;
+}): Promise<TeamMemberView> => {
+  const res = await fetch(apiUrl("/api/me/team/hire"), {
+    body: JSON.stringify(input),
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw new Error(`POST /api/me/team/hire failed (${res.status})`);
+  }
+  const body = (await res.json()) as { member: TeamMemberView };
+  return body.member;
+};
+
+const patchMember = async (
+  id: string,
+  patch: { displayName?: string; promptOverride?: string | null },
+): Promise<TeamMemberView> => {
+  const res = await fetch(apiUrl(`/api/me/team/members/${id}`), {
+    body: JSON.stringify(patch),
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    method: "PATCH",
+  });
+  if (!res.ok) {
+    throw new Error(`PATCH /api/me/team/members/${id} failed (${res.status})`);
+  }
+  return ((await res.json()) as { member: TeamMemberView }).member;
+};
+
+const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> => {
+  const res = await fetch(apiUrl(`/api/me/team/members/${id}/${paused ? "pause" : "resume"}`), {
+    credentials: "include",
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw new Error(`pause/resume failed (${res.status})`);
+  }
+  return ((await res.json()) as { member: TeamMemberView }).member;
+};
+
+export {
+  AGENTS_URL,
+  fetchCatalogue,
+  fetchTeam,
+  hireMember,
+  patchMember,
+  setPaused,
+  STATUS_LABEL,
+  STATUS_VARIANT,
+};
+export type {
+  AgentDisplayStatus,
+  HireableTemplate,
+  OpenTicketSlim,
+  TeamMemberDetailView,
+  TeamMemberView,
+};
