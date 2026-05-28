@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
 import { listActiveTemplates } from "@/db/template";
@@ -6,6 +7,19 @@ import { validateSession, type ValidatedSession } from "@/lib/auth";
 import { parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
+import { emitTeamEvent } from "@/team/events";
+import {
+  CorrespondentMissingError,
+  hireMember,
+  pauseMember,
+  resumeMember,
+  TeamMemberNotFoundError,
+  TeamMemberNotPausableError,
+  TemplateNotFoundError,
+  TemplateRetiredError,
+  updateMember,
+} from "@/team/mutations";
+import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
 // route between the Planner and the Correspondent. The auth service still
@@ -115,6 +129,161 @@ meRoutes.get("/templates", async (c) => {
       workerKind: t.workerKind,
     })),
   });
+});
+
+meRoutes.get("/team", async (c) => {
+  const { companyId } = c.get("session");
+  const members = await getTeamRoster(c.env.DB, companyId);
+  return c.json({ members });
+});
+
+meRoutes.get("/catalogue", async (c) => {
+  const session = c.get("session");
+  const templates = await getCatalogue(c.env.DB, session.companyId);
+  return c.json({ templates });
+});
+
+const hireSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  templateId: z.string().min(1),
+});
+
+meRoutes.post("/team/hire", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const parsed = hireSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  try {
+    const member = await hireMember(c.env.DB, {
+      actorId: session.userId,
+      companyId: session.companyId,
+      displayName: parsed.data.displayName,
+      templateId: parsed.data.templateId,
+    });
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: "hired",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    if (error instanceof TemplateNotFoundError || error instanceof TemplateRetiredError) {
+      return c.json({ error: error.message }, 404);
+    }
+    if (error instanceof CorrespondentMissingError) {
+      return c.json({ error: error.message }, 500);
+    }
+    throw error;
+  }
+});
+
+const patchSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  promptOverride: z.union([z.string().trim().min(1).max(20_000), z.null()]).optional(),
+});
+
+meRoutes.patch("/team/members/:id", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const id = c.req.param("id");
+  const parsed = patchSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  try {
+    const member = await updateMember(c.env.DB, {
+      agentInstanceId: id,
+      companyId: session.companyId,
+      displayName: parsed.data.displayName,
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: parsed.data.promptOverride,
+    });
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: parsed.data.promptOverride === undefined ? "renamed" : "prompt_changed",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    if (error instanceof TeamMemberNotFoundError) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
+});
+
+meRoutes.get("/team/members/:id", async (c) => {
+  const session = c.get("session");
+  const member = await getMemberDetail(c.env.DB, session.companyId, c.req.param("id"));
+  if (!member) {
+    return c.json({ error: "not found" }, 404);
+  }
+  return c.json({ member });
+});
+
+meRoutes.post("/team/members/:id/pause", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  try {
+    const member = await pauseMember(
+      c.env.DB,
+      session.companyId,
+      c.req.param("id"),
+      session.userId,
+    );
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: "paused",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    if (error instanceof TeamMemberNotPausableError) {
+      return c.json({ error: error.message }, 400);
+    }
+    if (error instanceof TeamMemberNotFoundError) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
+});
+
+meRoutes.post("/team/members/:id/resume", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  try {
+    const member = await resumeMember(
+      c.env.DB,
+      session.companyId,
+      c.req.param("id"),
+      session.userId,
+    );
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: "resumed",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    if (error instanceof TeamMemberNotPausableError) {
+      return c.json({ error: error.message }, 400);
+    }
+    if (error instanceof TeamMemberNotFoundError) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
 });
 
 const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {

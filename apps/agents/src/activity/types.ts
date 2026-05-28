@@ -69,17 +69,65 @@ type TeamConfirmedEvent = {
   type: "TEAM_CONFIRMED";
 };
 
+type MemberHiredEvent = {
+  payload: { displayName: string; templateId: string };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_HIRED";
+};
+
+type MemberPausedEvent = {
+  payload?: undefined;
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_PAUSED";
+};
+
+type MemberResumedEvent = {
+  payload?: undefined;
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_RESUMED";
+};
+
+type MemberRenamedEvent = {
+  payload: { newName: string; oldName: string };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_RENAMED";
+};
+
+type MemberPromptEditedEvent = {
+  payload: { editedBy: "customer" | "operator"; length: number | null };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_PROMPT_EDITED";
+};
+
+type MemberPromptResetEvent = {
+  payload: { editedBy: "customer" | "operator" };
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_PROMPT_RESET";
+};
+
 type ActivityEvent =
   | ActionProposedEvent
   | ActionExecutedEvent
   | ActionRejectedEvent
   | ActionChangesRequestedEvent
   | TicketDoneEvent
-  | TeamConfirmedEvent;
+  | TeamConfirmedEvent
+  | MemberHiredEvent
+  | MemberPausedEvent
+  | MemberResumedEvent
+  | MemberRenamedEvent
+  | MemberPromptEditedEvent
+  | MemberPromptResetEvent;
 
 type ActivityType = ActivityEvent["type"];
 
-type ActivityCategory = "action" | "team" | "ticket";
+type ActivityCategory = "action" | "member" | "team" | "ticket";
 
 // Discriminated lookup. Adding a new ActivityEvent branch without
 // updating this switch fails to compile — the `never` narrowing in
@@ -98,6 +146,14 @@ const eventCategory = (event: ActivityEvent): ActivityCategory => {
     case "TEAM_CONFIRMED": {
       return "team";
     }
+    case "MEMBER_HIRED":
+    case "MEMBER_PAUSED":
+    case "MEMBER_RESUMED":
+    case "MEMBER_RENAMED":
+    case "MEMBER_PROMPT_EDITED":
+    case "MEMBER_PROMPT_RESET": {
+      return "member";
+    }
     default: {
       const unhandled: never = event;
       throw new Error(`unhandled activity event: ${JSON.stringify(unhandled)}`);
@@ -114,6 +170,12 @@ const ACTIVITY_TYPES = [
   "ACTION_CHANGES_REQUESTED",
   "TICKET_DONE",
   "TEAM_CONFIRMED",
+  "MEMBER_HIRED",
+  "MEMBER_PAUSED",
+  "MEMBER_RESUMED",
+  "MEMBER_RENAMED",
+  "MEMBER_PROMPT_EDITED",
+  "MEMBER_PROMPT_RESET",
 ] as const satisfies ReadonlyArray<ActivityType>;
 
 export { ACTIVITY_TYPES, eventCategory };

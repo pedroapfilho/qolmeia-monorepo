@@ -1,6 +1,7 @@
 import { Agent } from "agents";
 
 import { loadAgentInstance, loadTicket, setTicketWorkflowId } from "@/db/ticket";
+import { emitTeamEvent } from "@/team/events";
 
 // Task-facing agent. The WorkerAgent DO holds identity + per-agent state;
 // the heavy lifting (LLM, tool calls, approval loop) runs in a Cloudflare
@@ -37,6 +38,11 @@ class WorkerAgent extends Agent<Env> {
     });
 
     await setTicketWorkflowId(this.env.DB, ticketId, instance.id);
+    await emitTeamEvent(this.env, {
+      companyId: ticket.companyId,
+      reason: "ticket_changed",
+      type: "team:status",
+    });
     return { ok: true, workflowId: instance.id };
   }
 }
