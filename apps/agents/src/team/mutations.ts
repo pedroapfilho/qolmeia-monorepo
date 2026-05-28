@@ -118,4 +118,78 @@ const hireMember = async (
   };
 };
 
-export { hireMember, NEW_WORKER_PREFIX, newWorkerId };
+const assertMemberPausable = async (
+  db: D1Database,
+  companyId: string,
+  agentInstanceId: string,
+): Promise<void> => {
+  const row = await db
+    .prepare("SELECT role FROM agent_instance WHERE id = ? AND company_id = ?")
+    .bind(agentInstanceId, companyId)
+    .first<{ role: string }>();
+  if (!row) {
+    throw new Error(`agent_instance ${agentInstanceId} not in company ${companyId}`);
+  }
+  if (row.role !== "worker") {
+    throw new Error(`cannot pause/resume a ${row.role}`);
+  }
+};
+
+type SetMemberStatusInput = {
+  activityType: "MEMBER_PAUSED" | "MEMBER_RESUMED";
+  status: "active" | "paused";
+};
+
+const setMemberStatus = async (
+  db: D1Database,
+  companyId: string,
+  agentInstanceId: string,
+  input: SetMemberStatusInput,
+): Promise<TeamMemberView> => {
+  await assertMemberPausable(db, companyId, agentInstanceId);
+  await db
+    .prepare(
+      "UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?",
+    )
+    .bind(input.status, Date.now(), agentInstanceId, companyId)
+    .run();
+  await logActivity(
+    { DB: db },
+    {
+      companyId,
+      refId: agentInstanceId,
+      refType: "agent_instance",
+      summary: input.status === "paused" ? "Agente pausado." : "Agente retomado.",
+      type: input.activityType,
+    },
+  );
+  const detail = await getMemberDetail(db, companyId, agentInstanceId);
+  if (!detail) {
+    throw new Error("setMemberStatus: read-back failed");
+  }
+  return {
+    currentWork: detail.currentWork,
+    displayName: detail.displayName,
+    hasPromptOverride: detail.hasPromptOverride,
+    id: detail.id,
+    lifetimeDone: detail.lifetimeDone,
+    role: detail.role,
+    status: detail.status,
+    templateId: detail.templateId,
+    workerKind: detail.workerKind,
+  };
+};
+
+const pauseMember = (db: D1Database, companyId: string, agentInstanceId: string) =>
+  setMemberStatus(db, companyId, agentInstanceId, {
+    activityType: "MEMBER_PAUSED",
+    status: "paused",
+  });
+
+const resumeMember = (db: D1Database, companyId: string, agentInstanceId: string) =>
+  setMemberStatus(db, companyId, agentInstanceId, {
+    activityType: "MEMBER_RESUMED",
+    status: "active",
+  });
+
+export { hireMember, NEW_WORKER_PREFIX, newWorkerId, pauseMember, resumeMember };

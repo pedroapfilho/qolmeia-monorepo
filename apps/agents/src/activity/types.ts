@@ -76,6 +76,20 @@ type MemberHiredEvent = {
   type: "MEMBER_HIRED";
 };
 
+type MemberPausedEvent = {
+  payload?: undefined;
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_PAUSED";
+};
+
+type MemberResumedEvent = {
+  payload?: undefined;
+  refId: string;
+  refType: "agent_instance";
+  type: "MEMBER_RESUMED";
+};
+
 type ActivityEvent =
   | ActionProposedEvent
   | ActionExecutedEvent
@@ -83,7 +97,9 @@ type ActivityEvent =
   | ActionChangesRequestedEvent
   | TicketDoneEvent
   | TeamConfirmedEvent
-  | MemberHiredEvent;
+  | MemberHiredEvent
+  | MemberPausedEvent
+  | MemberResumedEvent;
 
 type ActivityType = ActivityEvent["type"];
 
@@ -106,7 +122,9 @@ const eventCategory = (event: ActivityEvent): ActivityCategory => {
     case "TEAM_CONFIRMED": {
       return "team";
     }
-    case "MEMBER_HIRED": {
+    case "MEMBER_HIRED":
+    case "MEMBER_PAUSED":
+    case "MEMBER_RESUMED": {
       return "member";
     }
     default: {
@@ -126,6 +144,8 @@ const ACTIVITY_TYPES = [
   "TICKET_DONE",
   "TEAM_CONFIRMED",
   "MEMBER_HIRED",
+  "MEMBER_PAUSED",
+  "MEMBER_RESUMED",
 ] as const satisfies ReadonlyArray<ActivityType>;
 
 export { ACTIVITY_TYPES, eventCategory };

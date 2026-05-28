@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { hireMember } from "@/team/mutations";
+import { hireMember, pauseMember, resumeMember } from "@/team/mutations";
 
 const COMPANY_ID = "co_hire_test";
 const TEAM_ID = `team-${COMPANY_ID}`;
@@ -117,5 +117,55 @@ describe("hireMember", () => {
         templateId: "tpl-nope",
       }),
     ).rejects.toThrow(/template.*tpl-nope/v);
+  });
+});
+
+describe("pauseMember / resumeMember", () => {
+  it("pauses a worker and writes activity", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    const paused = await pauseMember(env.DB, COMPANY_ID, member.id);
+    expect(paused.status).toBe("paused");
+    const row = await env.DB.prepare(
+      "SELECT status FROM agent_instance WHERE id = ?",
+    )
+      .bind(member.id)
+      .first<{ status: string }>();
+    expect(row?.status).toBe("paused");
+    const log = await env.DB.prepare(
+      "SELECT type FROM activity_log WHERE ref_id = ? AND type = 'MEMBER_PAUSED'",
+    )
+      .bind(member.id)
+      .first<{ type: string }>();
+    expect(log?.type).toBe("MEMBER_PAUSED");
+  });
+
+  it("resumes a paused worker", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    await pauseMember(env.DB, COMPANY_ID, member.id);
+    const resumed = await resumeMember(env.DB, COMPANY_ID, member.id);
+    expect(resumed.status).toBe("available");
+  });
+
+  it("rejects pausing the correspondent", async () => {
+    await expect(pauseMember(env.DB, COMPANY_ID, CORR_ID)).rejects.toThrow(/correspondent/v);
+  });
+
+  it("is idempotent (pausing twice returns paused without error)", async () => {
+    const member = await hireMember(env.DB, {
+      companyId: COMPANY_ID,
+      displayName: undefined,
+      templateId: "tpl-designer",
+    });
+    await pauseMember(env.DB, COMPANY_ID, member.id);
+    const again = await pauseMember(env.DB, COMPANY_ID, member.id);
+    expect(again.status).toBe("paused");
   });
 });
