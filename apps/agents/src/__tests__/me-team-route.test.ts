@@ -114,3 +114,74 @@ describe("POST /api/me/team/hire", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("PATCH /api/me/team/members/:id", () => {
+  it("renames + sets prompt override", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok", {
+      body: JSON.stringify({ displayName: "Marina", promptOverride: "minimalista" }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      member: { displayName: string; hasPromptOverride: boolean };
+    };
+    expect(body.member.displayName).toBe("Marina");
+    expect(body.member.hasPromptOverride).toBe(true);
+  });
+
+  it("clears prompt override when promptOverride: null", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok", {
+      body: JSON.stringify({ promptOverride: null }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { member: { hasPromptOverride: boolean } };
+    expect(body.member.hasPromptOverride).toBe(false);
+  });
+
+  it("404 when the member doesn't belong to the company", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch(
+      "https://agents.test/api/me/team/members/ai_does_not_exist?cf_session=tok",
+      {
+        body: JSON.stringify({ displayName: "x" }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/me/team/members/:id/pause + /resume", () => {
+  it("pauses then resumes the worker", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const paused = await SELF.fetch(
+      "https://agents.test/api/me/team/members/ai_mt_d/pause?cf_session=tok",
+      { method: "POST" },
+    );
+    expect(paused.status).toBe(200);
+    expect(((await paused.json()) as { member: { status: string } }).member.status).toBe("paused");
+
+    const resumed = await SELF.fetch(
+      "https://agents.test/api/me/team/members/ai_mt_d/resume?cf_session=tok",
+      { method: "POST" },
+    );
+    expect(((await resumed.json()) as { member: { status: string } }).member.status).toBe(
+      "available",
+    );
+  });
+
+  it("rejects pausing the correspondent with 400", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/me/team/members/corr-${COMPANY_ID}/pause?cf_session=tok`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(400);
+  });
+});

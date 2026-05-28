@@ -8,7 +8,7 @@ import { parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 import { emitTeamEvent } from "@/team/events";
-import { hireMember } from "@/team/mutations";
+import { hireMember, updateMember } from "@/team/mutations";
 import { getCatalogue, getTeamRoster } from "@/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
@@ -155,6 +155,42 @@ meRoutes.post("/team/hire", async (c) => {
     type: "team:roster",
   });
   return c.json({ member });
+});
+
+const patchSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  promptOverride: z.union([z.string().max(20_000), z.null()]).optional(),
+});
+
+meRoutes.patch("/team/members/:id", async (c) => {
+  const session = c.get("session");
+  const id = c.req.param("id");
+  const parsed = patchSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  try {
+    const member = await updateMember(c.env.DB, {
+      agentInstanceId: id,
+      companyId: session.companyId,
+      displayName: parsed.data.displayName,
+      editedBy: "customer",
+      operatorId: null,
+      promptOverride: parsed.data.promptOverride,
+    });
+    await emitTeamEvent(c.env, {
+      companyId: session.companyId,
+      reason: parsed.data.promptOverride === undefined ? "renamed" : "prompt_changed",
+      type: "team:roster",
+    });
+    return c.json({ member });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("not in company")) {
+      return c.json({ error: "not found" }, 404);
+    }
+    throw error;
+  }
 });
 
 const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
