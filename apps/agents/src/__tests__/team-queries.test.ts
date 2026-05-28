@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getCatalogue, getTeamRoster } from "@/team/queries";
+import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
 
 const COMPANY_ID = "co_roster_test";
 const TEAM_ID = "team_roster_test";
@@ -114,5 +114,57 @@ describe("getCatalogue", () => {
     ).run();
     const items = await getCatalogue(env.DB, COMPANY_ID);
     expect(items.find((t) => t.id === "tpl-fresh")?.hiredCount).toBe(0);
+  });
+});
+
+describe("getMemberDetail", () => {
+  it("returns the template prompt and override + last edited timestamp", async () => {
+    await env.DB.prepare(
+      `INSERT OR REPLACE INTO template
+         (id, version, status, display_name, description, system_prompt, model,
+          worker_kind, skill_ids, default_action_type, default_policies,
+          created_at, updated_at)
+       VALUES ('tpl-designer', 1, 'active', 'Designer', 'cria imagens',
+               'TEMPLATE_PROMPT', 'gpt-x', 'designer', '[]',
+               'worker_deliverable', '{}', 0, 0)`,
+    ).run();
+    await env.DB.prepare(
+      `INSERT INTO activity_log
+         (id, company_id, actor_id, type, ref_type, ref_id, summary, payload, created_at)
+       VALUES ('al_pe', ?, NULL, 'MEMBER_PROMPT_EDITED', 'agent_instance', ?, 'edited', '{}', 1234)`,
+    )
+      .bind(COMPANY_ID, WORKER_ID)
+      .run();
+
+    const detail = await getMemberDetail(env.DB, COMPANY_ID, WORKER_ID);
+    expect(detail).toMatchObject({
+      capabilities: "cria imagens",
+      hasPromptOverride: true,
+      id: WORKER_ID,
+      promptOverride: "meu",
+      promptOverrideUpdatedAt: 1234,
+      templateSystemPrompt: "TEMPLATE_PROMPT",
+    });
+  });
+
+  it("returns null promptOverrideUpdatedAt when no edit log row exists", async () => {
+    // Reset the seeded designer to have override = NULL
+    await env.DB.prepare("UPDATE agent_instance SET prompt_override = NULL WHERE id = ?")
+      .bind(WORKER_ID)
+      .run();
+    await env.DB.prepare(
+      "DELETE FROM activity_log WHERE ref_id = ? AND type = 'MEMBER_PROMPT_EDITED'",
+    )
+      .bind(WORKER_ID)
+      .run();
+    const detail = await getMemberDetail(env.DB, COMPANY_ID, WORKER_ID);
+    expect(detail?.hasPromptOverride).toBe(false);
+    expect(detail?.promptOverride).toBeNull();
+    expect(detail?.promptOverrideUpdatedAt).toBeNull();
+  });
+
+  it("returns null when the instance doesn't belong to that company", async () => {
+    const detail = await getMemberDetail(env.DB, "co_other", WORKER_ID);
+    expect(detail).toBeNull();
   });
 });

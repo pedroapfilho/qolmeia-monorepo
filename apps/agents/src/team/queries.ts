@@ -170,5 +170,76 @@ const getCatalogue = async (
   }));
 };
 
-export { getCatalogue, getTeamRoster };
+type DetailRow = RosterRow & {
+  description: string | null;
+  system_prompt: string | null;
+};
+
+const getMemberDetail = async (
+  db: D1Database,
+  companyId: string,
+  agentInstanceId: string,
+): Promise<TeamMemberDetailView | null> => {
+  const row = await db
+    .prepare(
+      `SELECT a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,
+              t.worker_kind, t.description, t.system_prompt
+         FROM agent_instance a
+         LEFT JOIN template t ON t.id = a.template_id
+        WHERE a.id = ? AND a.company_id = ?`,
+    )
+    .bind(agentInstanceId, companyId)
+    .first<DetailRow>();
+  if (!row) {
+    return null;
+  }
+
+  const { results: openRows } = await db
+    .prepare(
+      `SELECT id, agent_instance_id, title, status
+         FROM ticket
+        WHERE company_id = ? AND agent_instance_id = ?
+          AND status IN ('in_progress', 'awaiting_approval')`,
+    )
+    .bind(companyId, agentInstanceId)
+    .all<TicketSlimRow>();
+  const currentWork: Array<OpenTicketSlim> = openRows.flatMap((r) => {
+    const s = toOpenStatus(r.status);
+    return s ? [{ status: s, summary: r.title, ticketId: r.id }] : [];
+  });
+  const done = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM ticket
+        WHERE company_id = ? AND agent_instance_id = ? AND status = 'done'`,
+    )
+    .bind(companyId, agentInstanceId)
+    .first<{ n: number }>();
+
+  const editedRow = await db
+    .prepare(
+      `SELECT created_at FROM activity_log
+        WHERE company_id = ? AND ref_id = ? AND type = 'MEMBER_PROMPT_EDITED'
+        ORDER BY created_at DESC LIMIT 1`,
+    )
+    .bind(companyId, agentInstanceId)
+    .first<{ created_at: number }>();
+
+  return {
+    capabilities: row.description ?? "",
+    currentWork,
+    displayName: row.display_name,
+    hasPromptOverride: row.prompt_override !== null,
+    id: row.id,
+    lifetimeDone: done?.n ?? 0,
+    promptOverride: row.prompt_override,
+    promptOverrideUpdatedAt: editedRow?.created_at ?? null,
+    role: toRole(row.role),
+    status: resolveAgentStatus({ status: toInstanceStatus(row.status) }, currentWork),
+    templateId: row.template_id,
+    templateSystemPrompt: row.system_prompt ?? "",
+    workerKind: row.worker_kind,
+  };
+};
+
+export { getCatalogue, getMemberDetail, getTeamRoster };
 export type { HireableTemplate, TeamMemberDetailView, TeamMemberView };
