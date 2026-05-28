@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@repo/ui/lib/utils";
-import { Activity, Image as ImageIcon, MessageCircle } from "lucide-react";
+import { Activity, Building2, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -16,6 +16,7 @@ type NavItem = {
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/", icon: <MessageCircle aria-hidden />, label: "Chat" },
+  { href: "/empresa", icon: <Building2 aria-hidden />, label: "Empresa" },
   { href: "/assets", icon: <ImageIcon aria-hidden />, label: "Assets" },
   { href: "/activity", icon: <Activity aria-hidden />, label: "Atividade" },
 ];
