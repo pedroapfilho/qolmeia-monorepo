@@ -13,7 +13,11 @@ import { PromptEditor } from "@/components/prompt-editor";
 // team-fetch.ts is server-only).
 type TeamMemberDetailView = {
   capabilities: string;
-  currentWork: ReadonlyArray<{ status: string; summary: string; ticketId: string }>;
+  currentWork: ReadonlyArray<{
+    status: "in_progress" | "awaiting_approval";
+    summary: string;
+    ticketId: string;
+  }>;
   displayName: string;
   hasPromptOverride: boolean;
   id: string;

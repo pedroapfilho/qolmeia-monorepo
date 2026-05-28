@@ -5,7 +5,11 @@
 import { AGENTS_URL, ApiError } from "@/lib/api-client";
 
 type TeamMemberView = {
-  currentWork: ReadonlyArray<{ status: string; summary: string; ticketId: string }>;
+  currentWork: ReadonlyArray<{
+    status: "in_progress" | "awaiting_approval";
+    summary: string;
+    ticketId: string;
+  }>;
   displayName: string;
   hasPromptOverride: boolean;
   id: string;
