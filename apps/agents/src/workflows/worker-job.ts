@@ -12,6 +12,7 @@ import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "
 import { getModel } from "@/lib/ai-gateway";
 import { logError, logInfo } from "@/lib/logger";
 import { buildSkillTools } from "@/skills/registry";
+import { emitTeamEvent } from "@/team/events";
 import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
 
 // One generic Workflow class for every Worker job (decision 1 in the P4 plan).
@@ -143,6 +144,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 
       if (policy === "auto-execute") {
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
+        await emitTeamEvent(this.env, {
+          companyId,
+          reason: "ticket_changed",
+          type: "team:status",
+        });
         await logActivity(this.env, {
           companyId,
           refId: ticketId,
@@ -185,6 +191,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         ticketId,
       });
       await setTicketStatus(this.env.DB, ticketId, "awaiting_approval");
+      await emitTeamEvent(this.env, {
+        companyId,
+        reason: "ticket_changed",
+        type: "team:status",
+      });
       await logActivity(this.env, {
         companyId,
         payload: { actionId, summary: generated.summary },
@@ -255,6 +266,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (evt.payload.decision === "approved") {
         await markExecuted(this.env.DB, actionId);
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
+        await emitTeamEvent(this.env, {
+          companyId,
+          reason: "ticket_changed",
+          type: "team:status",
+        });
         await logActivity(this.env, {
           actorId: evt.payload.decidedByUserId,
           companyId,
@@ -275,6 +291,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         }
       } else if (evt.payload.decision === "rejected") {
         await setTicketStatus(this.env.DB, ticketId, "rejected");
+        await emitTeamEvent(this.env, {
+          companyId,
+          reason: "ticket_changed",
+          type: "team:status",
+        });
         await logActivity(this.env, {
           actorId: evt.payload.decidedByUserId,
           companyId,
@@ -288,6 +309,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         // changes_requested — back to in_progress so a re-run is possible.
         // P4 doesn't auto re-trigger; that's a P5 polish.
         await setTicketStatus(this.env.DB, ticketId, "in_progress");
+        await emitTeamEvent(this.env, {
+          companyId,
+          reason: "ticket_changed",
+          type: "team:status",
+        });
         await logActivity(this.env, {
           actorId: evt.payload.decidedByUserId,
           companyId,
