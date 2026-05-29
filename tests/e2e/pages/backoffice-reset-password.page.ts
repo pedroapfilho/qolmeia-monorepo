@@ -13,7 +13,11 @@ export class BackofficeResetPasswordPage {
   private readonly successToast: Locator;
 
   constructor(private readonly page: Page) {
-    this.heading = page.getByText(/redefinir senha|reset password/iu, { exact: false });
+    // Target the CardTitle slot so the locator doesn't collide with the
+    // submit button (both render the text "Redefinir senha").
+    this.heading = page.locator('[data-slot="card-title"]').filter({
+      hasText: /redefinir senha|reset password/iu,
+    });
     this.passwordInput = page.getByLabel(/^nova senha$|^new password$/iu);
     this.confirmPasswordInput = page.getByLabel(/confirmar nova senha|confirm.*password/iu);
     this.submitButton = page.getByRole("button", { name: /redefinir senha|reset password/iu });

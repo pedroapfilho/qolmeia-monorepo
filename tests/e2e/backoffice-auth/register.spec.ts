@@ -38,10 +38,13 @@ test.describe("Backoffice register", () => {
     expect(page.url()).toContain("/register");
   });
 
-  test("redirects to dashboard if already authenticated", async ({ page }) => {
+  test("redirects away from /register when already authenticated", async ({ page }) => {
+    // Setup signs in a CUSTOMER-role user — proxy bounces off /register,
+    // dashboard layout then bounces off `/`. Either landing is fine; the
+    // assertion just pins that /register itself is unreachable for a
+    // signed-in session.
     await page.goto("/register");
-
-    await page.waitForURL(new RegExp(`${backofficeUrl.replaceAll(".", String.raw`\.`)}/$`, "v"));
+    await page.waitForURL((url) => !url.pathname.startsWith("/register"));
     expect(page.url()).not.toContain("/register");
   });
 });
