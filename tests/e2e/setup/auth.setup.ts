@@ -40,14 +40,23 @@ setup("create and authenticate test user", async ({ page, request }) => {
     headers: { Origin: backofficeUrl },
   });
   expect(signIn.status()).toBe(200);
-  const setCookie = signIn.headers()["set-cookie"] ?? "";
+  // Better Auth issues two cookies (`qolmeia.session_token` +
+  // `qolmeia.session_data`). `headers()["set-cookie"]` flattens duplicates
+  // into a single comma-joined string and the dot in the cookie name makes
+  // re-splitting fragile — use `headersArray()` which preserves multiples.
+  const setCookieHeaders = signIn
+    .headersArray()
+    .filter((h) => h.name.toLowerCase() === "set-cookie")
+    .map((h) => h.value);
   const browserCookies = [];
-  for (const part of setCookie.split(/,(?=\s*[\w-]+=)/u)) {
+  for (const part of setCookieHeaders) {
     const [nameValue] = part.split(";");
     const eq = nameValue.indexOf("=");
     if (eq < 0) continue;
     browserCookies.push({
-      domain: "localhost",
+      // Set on the backoffice host so the proxy.ts middleware sees the
+      // session when dependent specs hit `${backofficeUrl}/<route>`.
+      domain: new URL(backofficeUrl).hostname,
       httpOnly: true,
       name: nameValue.slice(0, eq).trim(),
       path: "/",

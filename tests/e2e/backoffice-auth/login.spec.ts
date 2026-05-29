@@ -29,10 +29,13 @@ test.describe("Backoffice login", () => {
 });
 
 test.describe("Backoffice login (already authenticated)", () => {
-  test("redirects to dashboard if already authenticated", async ({ page }) => {
-    // storageState from setup means we're already logged in.
+  test("redirects away from /login when already authenticated", async ({ page }) => {
+    // The setup project signs in a CUSTOMER-role user. The proxy redirects
+    // authenticated users away from `/login`; the dashboard layout then
+    // bounces non-staff users to `/no-access`. Either way, the user must
+    // not stay on `/login` — that's what this test pins.
     await page.goto("/login");
-    await page.waitForURL(new RegExp(`${backofficeUrl.replaceAll(".", String.raw`\.`)}/$`, "v"));
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"));
     expect(page.url()).not.toContain("/login");
   });
 });
