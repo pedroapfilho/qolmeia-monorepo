@@ -13,11 +13,11 @@ export class BackofficeRegisterPage {
   private readonly rootError: Locator;
 
   constructor(private readonly page: Page) {
-    this.nameInput = page.getByLabel(/^nome$|^name$/iv);
-    this.emailInput = page.getByLabel(/e-?mail/iv);
-    this.passwordInput = page.getByLabel(/^senha$|^password$/iv);
-    this.confirmPasswordInput = page.getByLabel(/confirmar senha|confirm password/iv);
-    this.submitButton = page.getByRole("button", { name: /criar conta|create account/iv });
+    this.nameInput = page.getByLabel(/^nome$|^name$/iu);
+    this.emailInput = page.getByLabel(/e-?mail/iu);
+    this.passwordInput = page.getByLabel(/^senha$|^password$/iu);
+    this.confirmPasswordInput = page.getByLabel(/confirmar senha|confirm password/iu);
+    this.submitButton = page.getByRole("button", { name: /criar conta|create account/iu });
     this.rootError = page.locator('[data-sonner-toast][data-type="error"]');
   }
 

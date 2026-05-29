@@ -11,8 +11,8 @@ export class BackofficeRecoverPage {
   private readonly errorToast: Locator;
 
   constructor(private readonly page: Page) {
-    this.emailInput = page.getByLabel(/e-?mail/iv);
-    this.submitButton = page.getByRole("button", { name: /enviar link|send.*link/iv });
+    this.emailInput = page.getByLabel(/e-?mail/iu);
+    this.submitButton = page.getByRole("button", { name: /enviar link|send.*link/iu });
     this.successToast = page.locator('[data-sonner-toast][data-type="success"]');
     this.errorToast = page.locator('[data-sonner-toast][data-type="error"]');
   }

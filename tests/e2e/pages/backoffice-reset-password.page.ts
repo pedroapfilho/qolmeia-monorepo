@@ -13,10 +13,10 @@ export class BackofficeResetPasswordPage {
   private readonly successToast: Locator;
 
   constructor(private readonly page: Page) {
-    this.heading = page.getByText(/redefinir senha|reset password/iv, { exact: false });
-    this.passwordInput = page.getByLabel(/^nova senha$|^new password$/iv);
-    this.confirmPasswordInput = page.getByLabel(/confirmar nova senha|confirm.*password/iv);
-    this.submitButton = page.getByRole("button", { name: /redefinir senha|reset password/iv });
+    this.heading = page.getByText(/redefinir senha|reset password/iu, { exact: false });
+    this.passwordInput = page.getByLabel(/^nova senha$|^new password$/iu);
+    this.confirmPasswordInput = page.getByLabel(/confirmar nova senha|confirm.*password/iu);
+    this.submitButton = page.getByRole("button", { name: /redefinir senha|reset password/iu });
     this.errorToast = page.locator('[data-sonner-toast][data-type="error"]');
     this.successToast = page.locator('[data-sonner-toast][data-type="success"]');
   }

@@ -35,9 +35,9 @@ setup("create and authenticate test user", async ({ page, request }) => {
   // Next middleware validates sessions without round-tripping to the auth
   // service for every request.
   await page.goto(`${backofficeUrl}/login`);
-  await page.getByLabel(/e-?mail/iv).fill(TEST_USER.email);
-  await page.getByLabel(/senha|password/iv).fill(TEST_USER.password);
-  await page.getByRole("button", { name: /entrar|sign in/iv }).click();
+  await page.getByLabel(/e-?mail/iu).fill(TEST_USER.email);
+  await page.getByLabel(/senha|password/iu).fill(TEST_USER.password);
+  await page.getByRole("button", { name: /entrar|sign in/iu }).click();
 
   // The backoffice dashboard lives at `/`. Wait for the redirect away from
   // /login rather than asserting on a specific heading — the dashboard
