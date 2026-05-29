@@ -63,3 +63,8 @@ logs/
 # agent output
 /agents/
 .fallow/
+
+# playwright
+test-results/
+playwright-report/
+tests/e2e/.auth/

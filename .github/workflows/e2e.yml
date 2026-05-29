@@ -1,0 +1,91 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      CI: true
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+      BETTER_AUTH_SECRET: test-secret-minimum-32-characters-long-for-e2e
+      CORS_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+      # Apps/auth binds to :4000; HOST is overridden by the webServer entry
+      # in playwright.config.ts to bind explicitly to 127.0.0.1 (matching
+      # the baseURL the suite probes).
+      NEXT_PUBLIC_AUTH_URL: http://127.0.0.1:4000
+      NEXT_PUBLIC_AGENTS_URL: http://127.0.0.1:8787
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:4000
+      WEB_APP_URL: http://127.0.0.1:3001
+      INTERNAL_SHARED_SECRET: e2e-internal-shared-secret
+      # Gates tests/e2e/client-magic-link/ and any future auth-email specs.
+      # When unset (forks, contributors without secret access), those specs
+      # `test.skip()` themselves — the rest of the e2e suite still runs.
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:push
+      # Build auth + the two Next apps. `agents` (Cloudflare Worker) isn't
+      # under test here — the auth flows we exercise terminate on the auth
+      # service + the Next proxies; the chat surface that talks to the
+      # Worker is dead weight for these specs.
+      - run: pnpm build --filter=auth --filter=backoffice --filter=client
+      - name: Get Playwright version
+        id: pw
+        run: echo "version=$(pnpm exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install
+      - name: Install Playwright system deps
+        run: |
+          attempt=0
+          until pnpm exec playwright install-deps; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 3 ]; then
+              echo "playwright install-deps failed after $attempt attempts"
+              exit 1
+            fi
+            echo "apt fetch failed (attempt $attempt); retrying in 30s..."
+            sleep 30
+            sudo apt-get update || true
+          done
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
