@@ -14,9 +14,9 @@ export class ClientLoginPage {
   private readonly errorToast: Locator;
 
   constructor(private readonly page: Page) {
-    this.emailInput = page.getByLabel(/e-?mail/iv);
-    this.submitButton = page.getByRole("button", { name: /enviar link mágico|send magic link/iv });
-    this.sentHeading = page.getByText(/verifique seu e-mail|check your email/iv);
+    this.emailInput = page.getByLabel(/e-?mail/iu);
+    this.submitButton = page.getByRole("button", { name: /enviar link mágico|send magic link/iu });
+    this.sentHeading = page.getByText(/verifique seu e-mail|check your email/iu);
     this.errorToast = page.locator('[data-sonner-toast][data-type="error"]');
   }
 

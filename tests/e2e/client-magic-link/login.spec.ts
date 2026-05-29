@@ -24,9 +24,9 @@ test.describe("Client magic-link login", () => {
     // `${origin}/auth/verify`, then flips the Card into the "check your
     // email" state.
     await page.goto(`${clientUrl}/login`);
-    await page.getByLabel(/e-?mail/iv).fill(email);
-    await page.getByRole("button", { name: /enviar link mágico|send magic link/iv }).click();
-    await expect(page.getByText(/verifique seu e-mail|check your email/iv)).toBeVisible();
+    await page.getByLabel(/e-?mail/iu).fill(email);
+    await page.getByRole("button", { name: /enviar link mágico|send magic link/iu }).click();
+    await expect(page.getByText(/verifique seu e-mail|check your email/iu)).toBeVisible();
 
     // Assert the magic-link email actually left Resend. This is the
     // primary value of this spec — "the form said 'check your email' but
@@ -37,7 +37,7 @@ test.describe("Client magic-link login", () => {
       // Qolmeia ships the magic-link template with subject "Seu link de
       // acesso à Qolmeia" — keep the regex permissive so a copy revision
       // doesn't break the test.
-      subject: /link|acesso|magic|sign.?in/iv,
+      subject: /link|acesso|magic|sign.?in/iu,
       to: email,
     });
     expect(mail.last_event).not.toBe("bounced");
@@ -68,7 +68,7 @@ test.describe("Client magic-link login", () => {
     // The /auth/verify page should render the error message rather than
     // silently looping back to /login.
     await page.goto(`${clientUrl}/auth/verify?error=expired_token`);
-    await expect(page.getByText(/não conseguimos|expirou|expired/iv)).toBeVisible();
+    await expect(page.getByText(/não conseguimos|expirou|expired/iu)).toBeVisible();
     expect(page.url()).toContain("/auth/verify");
   });
 });
@@ -79,8 +79,8 @@ test.describe("Client login form validation", () => {
   test("renders the request-link card without a sent state on first load", async ({ page }) => {
     await page.goto(`${clientUrl}/login`);
 
-    await expect(page.getByRole("button", { name: /enviar link mágico/iv })).toBeVisible();
+    await expect(page.getByRole("button", { name: /enviar link mágico/iu })).toBeVisible();
     // The "verifique seu e-mail" state shouldn't be present before a submit.
-    await expect(page.getByText(/verifique seu e-mail/iv)).toHaveCount(0);
+    await expect(page.getByText(/verifique seu e-mail/iu)).toHaveCount(0);
   });
 });

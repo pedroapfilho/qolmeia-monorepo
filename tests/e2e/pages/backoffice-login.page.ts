@@ -11,9 +11,9 @@ export class BackofficeLoginPage {
   private readonly rootError: Locator;
 
   constructor(private readonly page: Page) {
-    this.emailInput = page.getByLabel(/e-?mail/iv);
-    this.passwordInput = page.getByLabel(/senha|password/iv);
-    this.submitButton = page.getByRole("button", { name: /entrar|sign in/iv });
+    this.emailInput = page.getByLabel(/e-?mail/iu);
+    this.passwordInput = page.getByLabel(/senha|password/iu);
+    this.submitButton = page.getByRole("button", { name: /entrar|sign in/iu });
     this.rootError = page.locator('[data-sonner-toast][data-type="error"]');
   }
 

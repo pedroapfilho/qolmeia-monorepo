@@ -76,5 +76,19 @@ export default defineConfig({
         "max-classes-per-file": "off",
       },
     },
+    // Playwright's internal selector engine parses regexes passed to
+    // `getByLabel`/`getByRole`/`getByText`/`locator(...)` and does NOT support
+    // the ES2024 `v` (unicode-sets) flag — it throws a SyntaxError before any
+    // test in the project can run. Page objects, fixtures, setup, and specs
+    // in `tests/e2e/` use `/iu` instead. Native-JS regexes in helpers
+    // (`matchAll`, `replace`, `test`) can still use `v` — the rule only
+    // applies here because the `u` form is the safe lowest-common-denominator
+    // for the whole tree.
+    {
+      files: ["tests/e2e/**/*.ts"],
+      rules: {
+        "require-unicode-regexp": "off",
+      },
+    },
   ],
 });
