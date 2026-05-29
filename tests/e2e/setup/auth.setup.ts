@@ -29,21 +29,34 @@ setup("create and authenticate test user", async ({ page, request }) => {
   });
   expect([200, 201, 409, 422]).toContain(signUpResponse.status());
 
-  // Navigate to the backoffice login page and authenticate. The cookie
-  // issued by :4000 is host-only (Domain=localhost), so the browser sends
-  // it on subsequent navigations to :3000 — that's how the backoffice's
-  // Next middleware validates sessions without round-tripping to the auth
-  // service for every request.
-  await page.goto(`${backofficeUrl}/login`);
-  await page.getByLabel(/e-?mail/iu).fill(TEST_USER.email);
-  await page.getByLabel(/senha|password/iu).fill(TEST_USER.password);
-  await page.getByRole("button", { name: /entrar|sign in/iu }).click();
-
-  // The backoffice dashboard lives at `/`. Wait for the redirect away from
-  // /login rather than asserting on a specific heading — the dashboard
-  // layout is still in flux and a heading lock-in would make every
-  // dashboard reshape a test bug.
-  await page.waitForURL(new RegExp(`${backofficeUrl.replaceAll(".", String.raw`\.`)}/$`, "v"));
+  // Sign in via the auth API directly, then thread the cookies into the
+  // BrowserContext. The UI-form sign-in path was racy: Playwright's click
+  // fired before TanStack Form hydrated, and the browser fell back to a
+  // default GET submit (`/login?email=…&password=…`) that never
+  // authenticated. UI sign-in is exercised in login.spec.ts; here we just
+  // need a valid session in storageState for the dependent specs.
+  const signIn = await request.post(`${authUrl}/api/auth/sign-in/email`, {
+    data: { email: TEST_USER.email, password: TEST_USER.password },
+    headers: { Origin: backofficeUrl },
+  });
+  expect(signIn.status()).toBe(200);
+  const setCookie = signIn.headers()["set-cookie"] ?? "";
+  const browserCookies = [];
+  for (const part of setCookie.split(/,(?=\s*[\w-]+=)/u)) {
+    const [nameValue] = part.split(";");
+    const eq = nameValue.indexOf("=");
+    if (eq < 0) continue;
+    browserCookies.push({
+      domain: "localhost",
+      httpOnly: true,
+      name: nameValue.slice(0, eq).trim(),
+      path: "/",
+      sameSite: "Lax" as const,
+      secure: false,
+      value: nameValue.slice(eq + 1).trim(),
+    });
+  }
+  await page.context().addCookies(browserCookies);
 
   await page.context().storageState({ path: "tests/e2e/.auth/user.json" });
 });
