@@ -122,6 +122,7 @@ export const createAuth = (config: AuthConfig) => {
                 resetPasswordUrl: `${origin}/recover`,
                 signInUrl: `${origin}/login`,
                 userEmail: user.email,
+                userId: user.id,
                 username: user.name,
               },
               { apiKey: resendApiKey, from: fromEmail },
@@ -152,6 +153,7 @@ export const createAuth = (config: AuthConfig) => {
           {
             resetUrl: url,
             userEmail: user.email,
+            userId: user.id,
             username: user.name,
           },
           { apiKey: resendApiKey, from: fromEmail },
@@ -172,6 +174,7 @@ export const createAuth = (config: AuthConfig) => {
         const result = await sendWelcomeEmail(
           {
             userEmail: user.email,
+            userId: user.id,
             username: user.name,
             verificationUrl: url,
           },
@@ -268,6 +271,7 @@ export const createAuth = (config: AuthConfig) => {
               changeUrl: url,
               currentEmail: user.email,
               newEmail,
+              userId: user.id,
               username: user.name,
             },
             { apiKey: resendApiKey, from: fromEmail },

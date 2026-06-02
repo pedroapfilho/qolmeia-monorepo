@@ -52,7 +52,9 @@ setup("create and authenticate test user", async ({ page, request }) => {
   for (const part of setCookieHeaders) {
     const [nameValue] = part.split(";");
     const eq = nameValue.indexOf("=");
-    if (eq < 0) continue;
+    if (eq === -1) {
+      continue;
+    }
     browserCookies.push({
       // Set on the backoffice host so the proxy.ts middleware sees the
       // session when dependent specs hit `${backofficeUrl}/<route>`.
