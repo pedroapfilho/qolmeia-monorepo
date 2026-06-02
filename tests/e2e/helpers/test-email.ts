@@ -11,4 +11,14 @@ const makeTestEmail = (info: TestInfo): string => {
   return `delivered+${run}-${slug}@resend.dev`;
 };
 
-export { makeTestEmail };
+// Better Auth's `username()` plugin makes username effectively required at
+// signup. Default validator is /^[a-zA-Z0-9_.]+$/ (dashes rejected) and
+// maxUsernameLength defaults to 30. Derive from a hash of the email so it
+// stays unique-per-run but well under the limit (4 + 16 = 20 chars), even
+// after specs append `_2`, `_b`, etc.
+const makeTestUsername = (email: string): string => {
+  const hash = crypto.createHash("sha256").update(email).digest("hex").slice(0, 16);
+  return `e2e_${hash}`;
+};
+
+export { makeTestEmail, makeTestUsername };

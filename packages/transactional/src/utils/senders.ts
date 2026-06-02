@@ -21,15 +21,20 @@ const DEFAULT_FROM = "Qolmeia <noreply@qolmeia.ai>";
 const sendWelcomeEmail = (
   {
     userEmail,
+    userId,
     username,
     verificationUrl,
   }: {
     userEmail: string;
+    userId: string;
     username?: string;
     verificationUrl: string;
   },
   config: EmailConfig,
 ) => {
+  // Resend rejects tag values containing anything outside `[A-Za-z0-9_-]` —
+  // notably spaces, so the user's display name (`user.name`) can't be tagged.
+  // Tag by `userId` instead; it's the stable, ASCII-safe identifier.
   return sendEmail({
     apiKey: config.apiKey,
     defaultReplyTo: config.defaultReplyTo,
@@ -37,7 +42,7 @@ const sendWelcomeEmail = (
     subject: `Welcome to Qolmeia${username ? `, ${username}` : ""}! Please verify your email`,
     tags: [
       { name: "type", value: "welcome" },
-      ...(username ? [{ name: "username", value: username }] : []),
+      { name: "userId", value: userId },
     ],
     template: React.createElement(WelcomeEmail, {
       userEmail,
@@ -53,11 +58,13 @@ const sendSignUpAttemptEmail = (
     resetPasswordUrl,
     signInUrl,
     userEmail,
+    userId,
     username,
   }: {
     resetPasswordUrl: string;
     signInUrl: string;
     userEmail: string;
+    userId: string;
     username?: string;
   },
   config: EmailConfig,
@@ -69,7 +76,7 @@ const sendSignUpAttemptEmail = (
     subject: "Sign-up attempt with your Qolmeia account",
     tags: [
       { name: "type", value: "sign-up-attempt" },
-      ...(username ? [{ name: "username", value: username }] : []),
+      { name: "userId", value: userId },
     ],
     template: React.createElement(SignUpAttemptEmail, {
       resetPasswordUrl,
@@ -87,12 +94,14 @@ const sendPasswordResetEmail = (
     ipAddress,
     resetUrl,
     userEmail,
+    userId,
     username,
   }: {
     browserInfo?: string;
     ipAddress?: string;
     resetUrl: string;
     userEmail: string;
+    userId: string;
     username?: string;
   },
   config: EmailConfig,
@@ -104,7 +113,7 @@ const sendPasswordResetEmail = (
     subject: "Reset your Qolmeia password",
     tags: [
       { name: "type", value: "password-reset" },
-      ...(username ? [{ name: "username", value: username }] : []),
+      { name: "userId", value: userId },
     ],
     template: React.createElement(PasswordResetEmail, {
       browserInfo,
@@ -122,11 +131,13 @@ const sendChangeEmailConfirmation = (
     changeUrl,
     currentEmail,
     newEmail,
+    userId,
     username,
   }: {
     changeUrl: string;
     currentEmail: string;
     newEmail: string;
+    userId: string;
     username?: string;
   },
   config: EmailConfig,
@@ -138,7 +149,7 @@ const sendChangeEmailConfirmation = (
     subject: "Confirm change of your Qolmeia account email",
     tags: [
       { name: "type", value: "change-email-confirmation" },
-      ...(username ? [{ name: "username", value: username }] : []),
+      { name: "userId", value: userId },
     ],
     template: React.createElement(ChangeEmail, {
       changeUrl,
@@ -157,14 +168,18 @@ const sendMagicLinkEmail = (
   {
     url,
     userEmail,
+    userId,
     username,
   }: {
     url: string;
     userEmail: string;
+    userId?: string;
     username?: string;
   },
   config: EmailConfig,
 ) => {
+  // Magic link can fire for unknown emails (signup-on-link); userId may not
+  // exist yet, so it's optional. When present, prefer it over username.
   return sendEmail({
     apiKey: config.apiKey,
     defaultReplyTo: config.defaultReplyTo,
@@ -172,7 +187,7 @@ const sendMagicLinkEmail = (
     subject: "Seu link de acesso à Qolmeia",
     tags: [
       { name: "type", value: "magic-link" },
-      ...(username ? [{ name: "username", value: username }] : []),
+      ...(userId ? [{ name: "userId", value: userId }] : []),
     ],
     template: React.createElement(MagicLinkEmail, {
       url,

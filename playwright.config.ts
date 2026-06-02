@@ -15,14 +15,24 @@ export default defineConfig({
     // Backoffice specs use storage state captured by a setup project so the
     // /protected-routes tests start authenticated. Magic-link specs declare
     // their own clean context with `test.use({ storageState: ... })`.
-    { name: "setup", testMatch: /.*\.setup\.ts/v },
+    { name: "setup", testMatch: /.*\.setup\.ts/v, use: { baseURL: backofficeUrl } },
     {
       dependencies: ["setup"],
       name: "chromium",
+      testIgnore: /.*\/auth-email\/.*/v,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "tests/e2e/.auth/user.json",
       },
+    },
+    // auth-email specs seed their own users via the auth API and assert
+    // Resend delivery. They intentionally start with a clean cookie jar
+    // (no setup dep, no storageState) and target authUrl, not backoffice.
+    // This is the dev-friendly path: API-driven, no UI hydration race.
+    {
+      name: "auth-email",
+      testMatch: /.*\/auth-email\/.*/v,
+      use: { ...devices["Desktop Chrome"], baseURL: authUrl },
     },
     ...(process.env.CI
       ? []
@@ -30,6 +40,7 @@ export default defineConfig({
           {
             dependencies: ["setup"],
             name: "firefox",
+            testIgnore: /.*\/auth-email\/.*/v,
             use: {
               ...devices["Desktop Firefox"],
               storageState: "tests/e2e/.auth/user.json",
@@ -38,6 +49,7 @@ export default defineConfig({
           {
             dependencies: ["setup"],
             name: "webkit",
+            testIgnore: /.*\/auth-email\/.*/v,
             use: {
               ...devices["Desktop Safari"],
               storageState: "tests/e2e/.auth/user.json",
