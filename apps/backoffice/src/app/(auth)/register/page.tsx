@@ -38,22 +38,30 @@ const RegisterForm = () => {
         toast.error("As senhas não conferem.");
         return;
       }
-      const result = await authClient.signUp.email({
-        callbackURL: redirectTo,
-        email: value.email,
-        name: value.name,
-        password: value.password,
-      });
-      if (result.error) {
-        toast.error(result.error.message ?? "Não foi possível criar a conta.");
-        return;
-      }
-      // No token means requireEmailVerification suppressed auto-sign-in (or
-      // enumeration prevention returned synthetic success); both paths show
-      // the same inline "check your email" state. Clicking the emailed link
-      // verifies AND signs in the clicking device.
-      if (!result.data?.token) {
-        setSentToEmail(value.email);
+      try {
+        const result = await authClient.signUp.email({
+          callbackURL: redirectTo,
+          email: value.email,
+          name: value.name,
+          password: value.password,
+        });
+        if (result.error) {
+          toast.error(result.error.message ?? "Não foi possível criar a conta.");
+          return;
+        }
+        // No token means requireEmailVerification suppressed auto-sign-in (or
+        // enumeration prevention returned synthetic success); both paths show
+        // the same inline "check your email" state. Clicking the emailed link
+        // verifies AND signs in the clicking device.
+        if (!result.data?.token) {
+          setSentToEmail(value.email);
+          return;
+        }
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures — catch so it doesn't escape the submit as an
+        // unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");

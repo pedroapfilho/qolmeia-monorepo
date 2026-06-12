@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { authUrl, clientUrl } from "../../../playwright.config";
+import { clientUrl } from "../../../playwright.config";
 import { extractLink, waitForEmail } from "../helpers/resend";
 import { makeTestEmail } from "../helpers/test-email";
 
@@ -19,10 +19,10 @@ test.describe("Client magic-link login", () => {
     const since = Date.now();
     const email = makeTestEmail(testInfo);
 
-    // Request a magic link via the client's /login form. The form posts to
-    // :4000/api/auth/sign-in/magic-link with callbackURL set to
-    // `${origin}/auth/verify`, then flips the Card into the "check your
-    // email" state.
+    // Request a magic link via the client's /login form. The form posts
+    // SAME-ORIGIN to /api/auth/sign-in/magic-link (the Next rewrite proxies
+    // it to the auth service) with callbackURL set to `${origin}/auth/verify`,
+    // then flips the Card into the "check your email" state.
     await page.goto(`${clientUrl}/login`);
     await page.getByLabel(/e-?mail/iu).fill(email);
     await page.getByRole("button", { name: /enviar link mágico|send magic link/iu }).click();
@@ -42,12 +42,15 @@ test.describe("Client magic-link login", () => {
     });
     expect(mail.last_event).not.toBe("bounced");
 
-    // The URL points at :4000/api/auth/magic-link/verify?token=...&callbackURL=...
-    // Better Auth sets the session cookie host-only on `localhost`, then
-    // redirects to callbackURL (the client's /auth/verify), which in turn
-    // 302s to `/` (chat home) once a session is detected.
+    // The URL points at the CLIENT APP's own origin: the request reached the
+    // auth service through the Next rewrite, which forwards x-forwarded-host,
+    // so Better Auth's dynamic baseURL derives the requesting app's origin.
+    // Clicking it hits /api/auth/magic-link/verify on the client app, the
+    // rewrite proxies to the auth service, the session cookie comes back
+    // FIRST-PARTY on the client origin, and Better Auth redirects to
+    // callbackURL (/auth/verify), which 302s to `/` once a session exists.
     const verifyUrl = extractLink(mail, /\/api\/auth\/magic-link\/verify/v);
-    expect(verifyUrl.startsWith(`${authUrl}/api/auth/magic-link/verify`)).toBe(true);
+    expect(verifyUrl.startsWith(`${clientUrl}/api/auth/magic-link/verify`)).toBe(true);
 
     await page.goto(verifyUrl);
     // Final landing — chat home. Either the URL ends `/` or the

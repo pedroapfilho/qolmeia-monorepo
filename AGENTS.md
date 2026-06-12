@@ -85,7 +85,7 @@ Each app has its own `.env.example`:
 
 - **apps/auth** — `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit — Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
 - **apps/agents** — `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
-- **apps/client** — `NEXT_PUBLIC_AGENTS_URL`, `NEXT_PUBLIC_AUTH_URL`, `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma).
+- **apps/client** — `NEXT_PUBLIC_AGENTS_URL`, `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth is same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`); `NEXT_PUBLIC_AUTH_URL` only overrides for a cross-origin prod deployment.
 - **apps/backoffice** — same as client.
 
 `.env` files are git-ignored; `.env.example` is committed.

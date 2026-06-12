@@ -25,12 +25,20 @@ const LoginForm = () => {
     defaultValues: { email: "" },
     onSubmit: async ({ value }) => {
       const callbackURL = `${window.location.origin}/auth/verify`;
-      const { error } = await authClient.signIn.magicLink({
-        callbackURL,
-        email: value.email,
-      });
-      if (error) {
-        toast.error(error.message ?? "Não foi possível enviar o link. Tente novamente.");
+      try {
+        const { error } = await authClient.signIn.magicLink({
+          callbackURL,
+          email: value.email,
+        });
+        if (error) {
+          toast.error(error.message ?? "Não foi possível enviar o link. Tente novamente.");
+          return;
+        }
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures — catch so it doesn't escape the submit as an
+        // unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       setSent(true);

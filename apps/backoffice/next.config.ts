@@ -1,28 +1,14 @@
-import { execFileSync } from "node:child_process";
-
 import type { NextConfig } from "next";
 
-const resolveApiUrl = (): string => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  if (process.env.NODE_ENV === "development") {
-    try {
-      const url = execFileSync("portless", ["get", "qolmeia.auth"], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }).trim();
-      if (url.startsWith("http")) {
-        return url;
-      }
-    } catch {
-      // portless not installed or daemon not running — fall through
-    }
-  }
-  return "http://localhost:4000";
-};
-
-const apiUrl = resolveApiUrl();
+// Same-origin auth: browsers treat `.localhost` as a public suffix, so under
+// portless dev (qolmeia.backoffice.localhost vs qolmeia.auth.localhost) the
+// registrable domains differ and NO shareable cookie domain exists — a
+// session cookie set by the auth origin is invisible here. Rewriting
+// /api/auth/* to the auth service keeps every browser auth call first-party
+// on this app's origin, so the cookie just works, portless or not.
+// 127.0.0.1 over `localhost` because Node prefers ::1 for `localhost` and
+// the auth service binds IPv4 (same reasoning as playwright.config.ts).
+const authServiceUrl = process.env.AUTH_SERVICE_INTERNAL_URL ?? "http://127.0.0.1:4000";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: [
@@ -30,8 +16,15 @@ const nextConfig: NextConfig = {
     "*.qolmeia.backoffice.localhost",
     "*.vercel.app",
   ],
-  env: { NEXT_PUBLIC_API_URL: apiUrl },
   reactStrictMode: true,
+
+  rewrites: () =>
+    Promise.resolve([
+      {
+        destination: `${authServiceUrl}/api/auth/:path*`,
+        source: "/api/auth/:path*",
+      },
+    ]),
 
   serverExternalPackages: ["@prisma/client", "@repo/db"],
 

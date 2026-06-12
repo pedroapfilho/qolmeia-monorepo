@@ -37,18 +37,26 @@ const LoginForm = () => {
     defaultValues: { email: "", password: "" },
     onSubmit: async ({ value }) => {
       setShowUnverifiedNotice(false);
-      const { error } = await authClient.signIn.email({
-        email: value.email,
-        password: value.password,
-      });
-      if (error) {
-        // Better Auth 403s unverified accounts and (sendOnSignIn) re-sends
-        // the verification link — informational, not a credentials error.
-        if (error.code === "EMAIL_NOT_VERIFIED") {
-          setShowUnverifiedNotice(true);
+      try {
+        const { error } = await authClient.signIn.email({
+          email: value.email,
+          password: value.password,
+        });
+        if (error) {
+          // Better Auth 403s unverified accounts and (sendOnSignIn) re-sends
+          // the verification link — informational, not a credentials error.
+          if (error.code === "EMAIL_NOT_VERIFIED") {
+            setShowUnverifiedNotice(true);
+            return;
+          }
+          toast.error(error.message ?? "Não foi possível entrar. Verifique seus dados.");
           return;
         }
-        toast.error(error.message ?? "Não foi possível entrar. Verifique seus dados.");
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures (auth service down) — without this catch the
+        // rejection escapes the submit as an unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       push(redirectTo);
