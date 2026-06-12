@@ -42,14 +42,17 @@ type VerifyRequest = {
 };
 
 type ConnectorAdapter = {
-  parseInbound(rawBody: string, config: Record<string, unknown>): Promise<NormalizedMessage | null>;
-  resolveIdentity(
+  parseInbound: (
     rawBody: string,
     config: Record<string, unknown>,
-  ): Promise<ResolveIdentityResult | null>;
-  sendOutbound(args: SendOutboundArgs): Promise<SendOutboundResult>;
+  ) => Promise<NormalizedMessage | null>;
+  resolveIdentity: (
+    rawBody: string,
+    config: Record<string, unknown>,
+  ) => Promise<ResolveIdentityResult | null>;
+  sendOutbound: (args: SendOutboundArgs) => Promise<SendOutboundResult>;
   type: ConnectorType;
-  verify(request: VerifyRequest, config: Record<string, unknown>): Promise<boolean>;
+  verify: (request: VerifyRequest, config: Record<string, unknown>) => Promise<boolean>;
 };
 
 export type {

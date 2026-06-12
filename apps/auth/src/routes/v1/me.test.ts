@@ -12,11 +12,11 @@ const session: AuthSession = {
 
 const buildAppWithGuard = (vars: StaffContextVars, routes: ReturnType<typeof buildMeRoutes>) => {
   const app = new Hono<{ Variables: StaffContextVars }>();
-  app.use("*", async (c, next) => {
+  app.use("*", (c, next) => {
     c.set("session", vars.session);
     c.set("orgId", vars.orgId);
     c.set("role", vars.role);
-    await next();
+    return next();
   });
   app.route("/", routes);
   return app;

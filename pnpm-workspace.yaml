@@ -3,3 +3,17 @@ packages:
   - packages/*
 
 nodeLinker: hoisted
+
+# pnpm 11 home for the former package.json `pnpm.onlyBuiltDependencies` list.
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  core-js-pure: true
+  esbuild: true
+  fallow: true
+  msw: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+  vue-demi: true
+  workerd: true

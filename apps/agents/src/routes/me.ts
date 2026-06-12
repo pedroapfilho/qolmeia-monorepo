@@ -98,7 +98,7 @@ meRoutes.use("*", async (c, next) => {
     return c.text("Unauthorized", 401);
   }
   c.set("session", session);
-  await next();
+  return next();
 });
 
 meRoutes.get("/company", async (c) => {

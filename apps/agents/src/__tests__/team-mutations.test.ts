@@ -72,11 +72,13 @@ describe("hireMember", () => {
 
   it("allows multi-hire of the same template with auto-numbered name", async () => {
     const first = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
     });
     const second = await hireMember(env.DB, {
+      actorId: null,
       companyId: COMPANY_ID,
       displayName: undefined,
       templateId: "tpl-designer",
@@ -114,6 +116,7 @@ describe("hireMember", () => {
   it("rejects unknown templates with a clear error", async () => {
     await expect(
       hireMember(env.DB, {
+        actorId: null,
         companyId: COMPANY_ID,
         displayName: undefined,
         templateId: "tpl-nope",

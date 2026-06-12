@@ -26,7 +26,7 @@ type SkillContext = {
 
 type UnknownSkill = {
   description: string;
-  execute(input: unknown, ctx: SkillContext): Promise<unknown>;
+  execute: (input: unknown, ctx: SkillContext) => Promise<unknown>;
   id: string;
   inputSchema: ZodType;
 };

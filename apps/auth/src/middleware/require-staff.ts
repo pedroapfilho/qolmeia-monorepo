@@ -70,7 +70,7 @@ const buildRoleGuard = (
     c.set("orgId", membership.orgId);
     c.set("role", membership.role);
 
-    await next();
+    return next();
   };
 };
 

@@ -22,7 +22,7 @@ teamsRoutes.use("*", async (c, next) => {
     return c.text("Unauthorized", 401);
   }
   c.set("session", session);
-  await next();
+  return next();
 });
 
 const confirmBodySchema = z.object({

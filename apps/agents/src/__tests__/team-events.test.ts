@@ -33,7 +33,7 @@ describe("emitTeamEvent", () => {
   it("swallows errors when the DO is unreachable", async () => {
     await expect(
       emitTeamEvent(
-        { ...env, CORRESPONDENT: undefined as unknown as DurableObjectNamespace },
+        { ...env, CORRESPONDENT: undefined as unknown as typeof env.CORRESPONDENT },
         {
           companyId: "anything",
           reason: "hired",

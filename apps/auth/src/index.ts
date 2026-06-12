@@ -47,15 +47,16 @@ app.use("*", async (c, next) => {
   }
 
   const start = Date.now();
-  await next();
-  const ms = Date.now() - start;
-
-  logger.info({
-    duration: ms,
-    method: c.req.method,
-    status: c.res.status,
-    url: c.req.url,
-  });
+  try {
+    return await next();
+  } finally {
+    logger.info({
+      duration: Date.now() - start,
+      method: c.req.method,
+      status: c.res.status,
+      url: c.req.url,
+    });
+  }
 });
 
 app.use("/api/*", standardRateLimit);
