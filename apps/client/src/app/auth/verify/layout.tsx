@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Verificando...",
+  title: "Verificando…",
 };
 
 const VerifyLayout = ({ children }: { children: ReactNode }) => (

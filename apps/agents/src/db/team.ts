@@ -168,12 +168,5 @@ const getDelegationTargets = async (
   }
 };
 
-export {
-  correspondentIdFor,
-  getDelegationTargets,
-  isAcyclic,
-  materializeTeam,
-  teamIdFor,
-  workerIdFor,
-};
+export { correspondentIdFor, getDelegationTargets, isAcyclic, materializeTeam, teamIdFor };
 export type { MaterializeInput, MaterializeResult };

@@ -42,16 +42,16 @@ type OrgsRouteDeps = {
 // Slug validator. Not a regex because oxlint's /v parser and V8's /v parser
 // disagree on where `-` is legal inside a character class — every shape that
 // satisfied one rejected the other. Not a charCode range (the earlier
-// approach) because oxlint and oxfmt fight over hex-digit case. A string
-// membership check is unambiguous in every parser and tool.
-const SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-";
+// approach) because oxlint and oxfmt fight over hex-digit case. A plain
+// Set membership check is unambiguous in every parser and tool.
+const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
 
 const isValidSlug = (slug: string): boolean => {
   if (slug.length === 0) {
     return false;
   }
   for (const char of slug) {
-    if (!SLUG_CHARS.includes(char)) {
+    if (!SLUG_CHARS.has(char)) {
       return false;
     }
   }

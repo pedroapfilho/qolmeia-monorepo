@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from "@repo/ui/components/card";
 import { toast } from "@repo/ui/lib/toast";
-import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { AgentCard } from "@/components/agent-card";
 import { HireDialog } from "@/components/hire-dialog";
@@ -25,44 +26,27 @@ import { useTeamRoster } from "@/lib/use-team-roster";
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
+const CATALOGUE_QUERY_KEY = ["catalogue"] as const;
+
 type EmpresaClientProps = {
   companyId: string;
   sessionToken: string;
 };
 
 const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
-  const [catalogue, setCatalogue] = useState<Array<HireableTemplate>>([]);
   const [hireTemplate, setHireTemplate] = useState<HireableTemplate | null>(null);
   const [detail, setDetail] = useState<TeamMemberDetailView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { error: rosterError, members, refetch } = useTeamRoster(companyId, sessionToken);
+  const queryClient = useQueryClient();
+  const { members, refetch } = useTeamRoster(companyId, sessionToken);
+  const { data: catalogue = [] } = useQuery({
+    meta: { errorToast: "Falha ao carregar catálogo" },
+    queryFn: fetchCatalogue,
+    queryKey: CATALOGUE_QUERY_KEY,
+  });
 
-  const loadCatalogue = async () => {
-    try {
-      const templates = await fetchCatalogue();
-      setCatalogue(templates);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  useEffect(() => {
-    // oxlint-disable-next-line react-hooks-js/set-state-in-effect
-    loadCatalogue();
-  }, []);
-
-  const lastErrorRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (rosterError && rosterError.message !== lastErrorRef.current) {
-      toast.error(`Falha ao sincronizar time: ${rosterError.message}`);
-      lastErrorRef.current = rosterError.message;
-    } else if (!rosterError) {
-      lastErrorRef.current = null;
-    }
-  }, [rosterError]);
-
-  const openDetail = async (id: string) => {
+  const handleOpenDetail = async (id: string) => {
     try {
       const res = await fetch(`${AGENTS_URL}/api/me/team/members/${id}`, {
         credentials: "include",
@@ -77,18 +61,18 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
     }
   };
 
-  const closeDetail = (id: string) => {
+  const handleCloseDetail = (id: string) => {
     if (detail?.id === id) {
       setDetail(null);
     }
   };
 
-  const savePrompt = async (id: string, value: string) => {
+  const handleSavePrompt = async (id: string, value: string) => {
     setBusyId(id);
     try {
       await patchMember(id, { promptOverride: value });
       toast.success("Prompt atualizado.");
-      await openDetail(id);
+      await handleOpenDetail(id);
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
@@ -97,12 +81,12 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
     }
   };
 
-  const resetPrompt = async (id: string) => {
+  const handleResetPrompt = async (id: string) => {
     setBusyId(id);
     try {
       await patchMember(id, { promptOverride: null });
       toast.success("Prompt restaurado.");
-      await openDetail(id);
+      await handleOpenDetail(id);
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
@@ -111,7 +95,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
     }
   };
 
-  const togglePause = async (id: string, paused: boolean) => {
+  const handleTogglePause = async (id: string, paused: boolean) => {
     setBusyId(id);
     try {
       await setPaused(id, paused);
@@ -121,6 +105,13 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleHired = () => {
+    // Fire-and-forget: fetch failures surface via the query layer's
+    // meta.errorToast, so no local error handling is needed here.
+    void refetch();
+    void queryClient.invalidateQueries({ queryKey: CATALOGUE_QUERY_KEY });
   };
 
   return (
@@ -143,17 +134,17 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
                   {m.role === "worker" && (
                     <>
                       {detail?.id === m.id ? (
-                        <Button onClick={() => closeDetail(m.id)} size="sm" variant="outline">
+                        <Button onClick={() => handleCloseDetail(m.id)} size="sm" variant="outline">
                           Fechar editor
                         </Button>
                       ) : (
-                        <Button onClick={() => openDetail(m.id)} size="sm" variant="outline">
+                        <Button onClick={() => handleOpenDetail(m.id)} size="sm" variant="outline">
                           Editar prompt
                         </Button>
                       )}
                       <Button
                         disabled={busyId === m.id}
-                        onClick={() => togglePause(m.id, m.status !== "paused")}
+                        onClick={() => handleTogglePause(m.id, m.status !== "paused")}
                         size="sm"
                         variant="outline"
                       >
@@ -166,8 +157,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
                   <PromptEditor
                     busy={busyId === m.id}
                     initialValue={detail.promptOverride}
-                    onReset={() => resetPrompt(m.id)}
-                    onSave={(v) => savePrompt(m.id, v)}
+                    onReset={() => handleResetPrompt(m.id)}
+                    onSave={(v) => handleSavePrompt(m.id, v)}
                     templatePrompt={detail.templateSystemPrompt}
                     updatedAt={detail.promptOverrideUpdatedAt}
                   />
@@ -202,16 +193,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
 
       <HireDialog
         onClose={() => setHireTemplate(null)}
-        onHired={async () => {
-          try {
-            await refetch();
-            await loadCatalogue();
-          } catch (error) {
-            toast.error(
-              `Hire ok, mas falha ao atualizar: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }}
+        onHired={handleHired}
         open={hireTemplate !== null}
         template={hireTemplate}
       />

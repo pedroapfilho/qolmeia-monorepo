@@ -72,28 +72,31 @@ const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<T
 
   const ids = rosterRows.map((r) => r.id);
   const placeholders = ids.map(() => "?").join(",");
-  const { results: openRows } = await db
-    .prepare(
-      `SELECT id, agent_instance_id, title, status
-         FROM ticket
-        WHERE company_id = ?
-          AND agent_instance_id IN (${placeholders})
-          AND status IN ('in_progress', 'awaiting_approval')
-        ORDER BY created_at ASC`,
-    )
-    .bind(companyId, ...ids)
-    .all<TicketSlimRow>();
-  const { results: doneRows } = await db
-    .prepare(
-      `SELECT agent_instance_id, COUNT(*) AS n
-         FROM ticket
-        WHERE company_id = ?
-          AND agent_instance_id IN (${placeholders})
-          AND status = 'done'
-        GROUP BY agent_instance_id`,
-    )
-    .bind(companyId, ...ids)
-    .all<DoneCountRow>();
+  // Independent reads — run both D1 round trips in parallel.
+  const [{ results: openRows }, { results: doneRows }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, agent_instance_id, title, status
+           FROM ticket
+          WHERE company_id = ?
+            AND agent_instance_id IN (${placeholders})
+            AND status IN ('in_progress', 'awaiting_approval')
+          ORDER BY created_at ASC`,
+      )
+      .bind(companyId, ...ids)
+      .all<TicketSlimRow>(),
+    db
+      .prepare(
+        `SELECT agent_instance_id, COUNT(*) AS n
+           FROM ticket
+          WHERE company_id = ?
+            AND agent_instance_id IN (${placeholders})
+            AND status = 'done'
+          GROUP BY agent_instance_id`,
+      )
+      .bind(companyId, ...ids)
+      .all<DoneCountRow>(),
+  ]);
 
   const openByAgent = new Map<string, Array<OpenTicketSlim>>();
   for (const row of openRows) {
@@ -159,24 +162,26 @@ const getCatalogue = async (
   db: D1Database,
   companyId: string,
 ): Promise<Array<HireableTemplate>> => {
-  const { results: templates } = await db
-    .prepare(
-      `SELECT id, display_name, description, worker_kind
-         FROM template
-        WHERE status = 'active'
-        ORDER BY display_name ASC`,
-    )
-    .all<{ description: string; display_name: string; id: string; worker_kind: string }>();
-
-  const { results: counts } = await db
-    .prepare(
-      `SELECT template_id, COUNT(*) AS n
-         FROM agent_instance
-        WHERE company_id = ? AND role = 'worker' AND template_id IS NOT NULL
-        GROUP BY template_id`,
-    )
-    .bind(companyId)
-    .all<CatalogueCountRow>();
+  // Independent reads — run both D1 round trips in parallel.
+  const [{ results: templates }, { results: counts }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, display_name, description, worker_kind
+           FROM template
+          WHERE status = 'active'
+          ORDER BY display_name ASC`,
+      )
+      .all<{ description: string; display_name: string; id: string; worker_kind: string }>(),
+    db
+      .prepare(
+        `SELECT template_id, COUNT(*) AS n
+           FROM agent_instance
+          WHERE company_id = ? AND role = 'worker' AND template_id IS NOT NULL
+          GROUP BY template_id`,
+      )
+      .bind(companyId)
+      .all<CatalogueCountRow>(),
+  ]);
 
   const countByTemplate = new Map<string, number>();
   for (const row of counts) {
@@ -216,35 +221,37 @@ const getMemberDetail = async (
     return null;
   }
 
-  const { results: openRows } = await db
-    .prepare(
-      `SELECT id, agent_instance_id, title, status
-         FROM ticket
-        WHERE company_id = ? AND agent_instance_id = ?
-          AND status IN ('in_progress', 'awaiting_approval')`,
-    )
-    .bind(companyId, agentInstanceId)
-    .all<TicketSlimRow>();
+  // Three independent reads — run the D1 round trips in parallel.
+  const [{ results: openRows }, done, editedRow] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, agent_instance_id, title, status
+           FROM ticket
+          WHERE company_id = ? AND agent_instance_id = ?
+            AND status IN ('in_progress', 'awaiting_approval')`,
+      )
+      .bind(companyId, agentInstanceId)
+      .all<TicketSlimRow>(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM ticket
+          WHERE company_id = ? AND agent_instance_id = ? AND status = 'done'`,
+      )
+      .bind(companyId, agentInstanceId)
+      .first<{ n: number }>(),
+    db
+      .prepare(
+        `SELECT created_at FROM activity_log
+          WHERE company_id = ? AND ref_id = ? AND type = 'MEMBER_PROMPT_EDITED'
+          ORDER BY created_at DESC LIMIT 1`,
+      )
+      .bind(companyId, agentInstanceId)
+      .first<{ created_at: number }>(),
+  ]);
   const currentWork: Array<OpenTicketSlim> = openRows.flatMap((r) => {
     const s = toOpenStatus(r.status);
     return s ? [{ status: s, summary: r.title, ticketId: r.id }] : [];
   });
-  const done = await db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM ticket
-        WHERE company_id = ? AND agent_instance_id = ? AND status = 'done'`,
-    )
-    .bind(companyId, agentInstanceId)
-    .first<{ n: number }>();
-
-  const editedRow = await db
-    .prepare(
-      `SELECT created_at FROM activity_log
-        WHERE company_id = ? AND ref_id = ? AND type = 'MEMBER_PROMPT_EDITED'
-        ORDER BY created_at DESC LIMIT 1`,
-    )
-    .bind(companyId, agentInstanceId)
-    .first<{ created_at: number }>();
 
   const role = toRole(row.role);
   const detailExtras = {

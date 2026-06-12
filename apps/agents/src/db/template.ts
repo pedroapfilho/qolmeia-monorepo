@@ -97,17 +97,6 @@ const getTemplate = async (db: D1Database, id: string): Promise<Template | null>
   return row ? mapTemplate(row) : null;
 };
 
-const getTemplateByWorkerKind = async (
-  db: D1Database,
-  workerKind: string,
-): Promise<Template | null> => {
-  const row = await db
-    .prepare("SELECT * FROM template WHERE worker_kind = ? AND status = 'active' LIMIT 1")
-    .bind(workerKind)
-    .first<TemplateRow>();
-  return row ? mapTemplate(row) : null;
-};
-
 const listActiveTemplates = async (db: D1Database): Promise<ReadonlyArray<Template>> => {
   const { results } = await db
     .prepare("SELECT * FROM template WHERE status = 'active' ORDER BY display_name ASC")
@@ -130,5 +119,5 @@ const listSkillOverlays = async (
   return results.map(mapSkillOverlay);
 };
 
-export { getTemplate, getTemplateByWorkerKind, listActiveTemplates, listSkillOverlays };
+export { getTemplate, listActiveTemplates, listSkillOverlays };
 export type { SkillOverlay, Template, TemplateStatus };

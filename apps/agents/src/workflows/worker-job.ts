@@ -65,8 +65,12 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 
     const generated = await step.do("generate", async (): Promise<GenerateResult> => {
       const stepStart = Date.now();
-      const ticket = await loadTicket(this.env.DB, ticketId);
-      const agentInstance = await loadAgentInstance(this.env.DB, agentInstanceId);
+      // Independent D1 reads — each await is a full round trip on Workers,
+      // so fetch them in parallel (both are required: fail-fast is correct).
+      const [ticket, agentInstance] = await Promise.all([
+        loadTicket(this.env.DB, ticketId),
+        loadAgentInstance(this.env.DB, agentInstanceId),
+      ]);
       if (!ticket || !agentInstance?.templateId) {
         throw new Error(`ticket ${ticketId} or its agent_instance not properly seeded`);
       }
@@ -134,8 +138,12 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (!agentInstance?.templateId) {
         throw new Error("agent_instance vanished mid-workflow");
       }
-      const template = await getTemplate(this.env.DB, agentInstance.templateId);
-      const company = await getCompany(this.env.DB, companyId);
+      // template needs agentInstance.templateId; company does not — overlap
+      // the two D1 round trips.
+      const [template, company] = await Promise.all([
+        getTemplate(this.env.DB, agentInstance.templateId),
+        getCompany(this.env.DB, companyId),
+      ]);
       if (!template || !company) {
         throw new Error("template or company vanished mid-workflow");
       }

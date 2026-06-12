@@ -159,7 +159,7 @@ const RegisterPage = () => {
                 size="lg"
                 type="submit"
               >
-                {isSubmitting ? "Criando conta..." : "Criar conta"}
+                {isSubmitting ? "Criando conta…" : "Criar conta"}
               </Button>
             )}
           </form.Subscribe>

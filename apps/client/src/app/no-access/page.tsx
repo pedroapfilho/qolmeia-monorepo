@@ -23,7 +23,7 @@ const NoAccessPage = () => (
       <CardHeader>
         <div
           aria-hidden
-          className="mb-1 flex size-10 items-center justify-center rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-400/20 [&_svg]:size-5"
+          className="mb-1 flex size-10 items-center justify-center rounded-full bg-warning-surface text-warning-surface-foreground ring-1 ring-warning/20 [&_svg]:size-5"
         >
           <ShieldAlert />
         </div>

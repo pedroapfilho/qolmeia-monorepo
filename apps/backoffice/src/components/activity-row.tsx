@@ -19,12 +19,10 @@ const categoriseType = (type: string): Category => {
 };
 
 const CATEGORY_CLASSES: Record<Category, string> = {
-  action:
-    "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-400/20",
+  action: "bg-info-surface text-info-surface-foreground ring-info/20",
   neutral: "bg-muted text-muted-foreground ring-border",
-  team: "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-400/20",
-  ticket:
-    "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/20",
+  team: "bg-highlight-surface text-highlight-surface-foreground ring-highlight/20",
+  ticket: "bg-success-surface text-success-surface-foreground ring-success/20",
 };
 
 type ActivityRowProps = {

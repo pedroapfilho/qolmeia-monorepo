@@ -59,26 +59,5 @@ const logInfo = (event: string, payload: LogPayload = {}): void => emit("info", 
 const logWarn = (event: string, payload: LogPayload = {}): void => emit("warn", event, payload);
 const logError = (event: string, payload: LogPayload = {}): void => emit("error", event, payload);
 
-// Wraps an async block in a try/catch + duration measurement. Emits a
-// `<event>.start`, `<event>.ok`, and on throw a `<event>.err` line —
-// rethrowing so the caller's control flow doesn't change.
-const withSpan = async <T>(
-  event: string,
-  payload: LogPayload,
-  fn: () => Promise<T>,
-): Promise<T> => {
-  const start = Date.now();
-  logInfo(`${event}.start`, payload);
-  try {
-    const result = await fn();
-    logInfo(`${event}.ok`, { ...payload, durationMs: Date.now() - start });
-    return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logError(`${event}.err`, { ...payload, durationMs: Date.now() - start, error: message });
-    throw error;
-  }
-};
-
-export { logError, logInfo, logWarn, withSpan };
+export { logError, logInfo, logWarn };
 export type { LogPayload };

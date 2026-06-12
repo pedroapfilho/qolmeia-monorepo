@@ -124,7 +124,7 @@ const LoginForm = () => {
                 size="lg"
                 type="submit"
               >
-                {isSubmitting ? "Entrando..." : "Entrar"}
+                {isSubmitting ? "Entrando…" : "Entrar"}
               </Button>
             )}
           </form.Subscribe>

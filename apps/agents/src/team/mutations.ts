@@ -333,8 +333,6 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
 export {
   CorrespondentMissingError,
   hireMember,
-  NEW_WORKER_PREFIX,
-  newWorkerId,
   pauseMember,
   resumeMember,
   TeamMemberNotFoundError,
