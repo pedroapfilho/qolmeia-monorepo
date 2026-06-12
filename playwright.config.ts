@@ -1,15 +1,35 @@
+import { execFileSync } from "node:child_process";
+
 import { defineConfig, devices } from "@playwright/test";
+
+const getPortlessUrl = (name: string) => {
+  if (process.env.CI) {
+    return undefined;
+  }
+  try {
+    return execFileSync("portless", ["get", name], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+};
 
 // In CI the apps bind to 0.0.0.0 / Node 18+ resolves `localhost` to `::1`
 // via getaddrinfo, and undici doesn't fall back to IPv4 — pin the explicit
-// loopback address. Locally we hit the dev ports directly.
-const authUrl = process.env.E2E_AUTH_URL ?? "http://127.0.0.1:4000";
-const backofficeUrl = process.env.E2E_BACKOFFICE_URL ?? "http://127.0.0.1:3000";
-const clientUrl = process.env.E2E_CLIENT_URL ?? "http://127.0.0.1:3001";
+// loopback address. Locally portless gives us the real dev URL.
+const authUrl =
+  process.env.E2E_AUTH_URL ?? getPortlessUrl("qolmeia.auth") ?? "http://127.0.0.1:4000";
+const backofficeUrl =
+  process.env.E2E_BACKOFFICE_URL ?? getPortlessUrl("qolmeia.backoffice") ?? "http://127.0.0.1:3000";
+const clientUrl =
+  process.env.E2E_CLIENT_URL ?? getPortlessUrl("qolmeia.client") ?? "http://127.0.0.1:3001";
 
 export default defineConfig({
   forbidOnly: !!process.env.CI,
   fullyParallel: true,
+  globalTeardown: "./tests/e2e/teardown/cleanup.ts",
 
   projects: [
     // Backoffice specs use storage state captured by a setup project so the
