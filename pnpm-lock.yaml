@@ -35,6 +35,9 @@ importers:
       turbo:
         specifier: ^2.9.12
         version: 2.9.12
+      undici:
+        specifier: ^7.21.0
+        version: 7.25.0
 
   apps/agents:
     dependencies:
@@ -93,9 +96,6 @@ importers:
       '@repo/observability':
         specifier: workspace:*
         version: link:../../packages/observability
-      '@repo/transactional':
-        specifier: workspace:*
-        version: link:../../packages/transactional
       '@scalar/hono-api-reference':
         specifier: ^0.10.14
         version: 0.10.14(hono@4.12.18)
@@ -124,9 +124,6 @@ importers:
       '@rollup/plugin-alias':
         specifier: ^6.0.0
         version: 6.0.0
-      '@total-typescript/ts-reset':
-        specifier: ^0.6.1
-        version: 0.6.1
       '@types/node':
         specifier: ^25.6.2
         version: 25.6.2
@@ -191,6 +188,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.0
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@total-typescript/ts-reset':
         specifier: ^0.6.1
         version: 0.6.1
@@ -282,6 +282,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.0
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@types/node':
         specifier: ^25.6.2
         version: 25.6.2

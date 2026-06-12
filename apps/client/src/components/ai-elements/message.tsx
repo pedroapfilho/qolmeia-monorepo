@@ -81,4 +81,4 @@ const MessageResponse = memo(
 MessageResponse.displayName = "MessageResponse";
 
 export { Message, MessageContent, MessageResponse };
-export type { MessageContentProps, MessageProps, MessageResponseProps };
+export type { MessageContentProps, MessageProps };

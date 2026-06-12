@@ -81,7 +81,6 @@ const buildModelMessages = (
 };
 
 export {
-  BASE_SYSTEM_PROMPT,
   buildModelMessages,
   buildSystemPrompt,
   extractImages,

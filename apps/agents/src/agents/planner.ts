@@ -43,6 +43,8 @@ class PlannerAgent extends AIChatAgent<Env> {
     return getModel(this.env);
   }
 
+  // AIChatAgent framework callback — the agents SDK dispatches it, not our code.
+  // fallow-ignore-next-line unused-class-member
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
   ): Promise<Response | undefined> {

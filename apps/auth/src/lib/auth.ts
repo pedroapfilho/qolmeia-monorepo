@@ -14,7 +14,4 @@ const auth = createAuth({
   secret: env.BETTER_AUTH_SECRET,
 });
 
-type Auth = typeof auth;
-
 export { auth };
-export type { Auth };

@@ -57,6 +57,8 @@ type DecisionEvent = {
 };
 
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
+  // Cloudflare Workflows entrypoint — the runtime invokes run().
+  // fallow-ignore-next-line unused-class-member
   async run(event: Readonly<WorkflowEvent<WorkerJobParams>>, step: WorkflowStep): Promise<unknown> {
     const { agentInstanceId, companyId, ticketId } = event.payload;
     const workflowStart = Date.now();
@@ -338,4 +340,4 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 }
 
 export { WorkerJobWorkflow };
-export type { DecisionEvent, WorkerJobParams };
+export type { WorkerJobParams };

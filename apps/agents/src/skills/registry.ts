@@ -126,5 +126,5 @@ const registerSkill = (skill: UnknownSkill): void => {
   codeRegistry.set(skill.id, skill);
 };
 
-export { ALL_SKILLS, buildSkillTools, registerSkill };
+export { buildSkillTools, registerSkill };
 export type { SkillContext, UnknownSkill };

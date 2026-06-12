@@ -42,4 +42,4 @@ const getAdapter = (type: string): ConnectorAdapter | null => {
   return connectorRegistry[type];
 };
 
-export { connectorRegistry, getAdapter, isConnectorType, NotImplementedAdapter };
+export { getAdapter, isConnectorType };
