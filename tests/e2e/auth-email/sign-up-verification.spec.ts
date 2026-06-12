@@ -12,7 +12,7 @@ test.skip(!process.env.RESEND_API_KEY, "needs RESEND_API_KEY (test mode)");
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("Sign-up email verification", () => {
-  test("verify email is sent, link verifies the user, sign-in then succeeds", async ({
+  test("verify email is sent, clicking the link signs in the clicking context", async ({
     request,
   }, testInfo) => {
     const since = Date.now();
@@ -26,7 +26,8 @@ test.describe("Sign-up email verification", () => {
     expect([200, 201]).toContain(signUp.status());
 
     // Pre-verification: signIn fails (Better Auth blocks unverified users
-    // when requireEmailVerification is on) and returns no session cookie.
+    // when requireEmailVerification is on) and, with sendOnSignIn, re-sends
+    // a fresh verification link alongside the 403.
     const preSignIn = await request.post(`${authUrl}/api/auth/sign-in/email`, {
       data: { email, password },
       failOnStatusCode: false,
@@ -44,17 +45,31 @@ test.describe("Sign-up email verification", () => {
     expect(mail.last_event).not.toBe("bounced");
 
     // Follow the verification URL with the request fixture (no browser, no
-    // hydration race). Better Auth's verify-email handler accepts the token
-    // and 302s to its callbackURL. failOnStatusCode: false because Playwright
-    // treats 3xx as failures by default.
+    // hydration race). The link IS the login: Better Auth's verify-email
+    // handler accepts the token, mints a session for the clicking context
+    // (autoSignInAfterVerification: true) and 302s to the app-root callback.
+    // failOnStatusCode: false because Playwright treats 3xx as failures by
+    // default.
     const verifyUrl = extractLink(mail, /\/api\/auth\/verify-email\?token=/v);
     const verifyResponse = await request.get(verifyUrl, {
       failOnStatusCode: false,
       maxRedirects: 0,
     });
-    expect([200, 302]).toContain(verifyResponse.status());
+    expect(verifyResponse.status()).toBe(302);
 
-    // Post-verification: signIn now succeeds.
+    // The clicking context is signed in: the redirect carries the session
+    // cookie (name may gain the __Secure- prefix under HTTPS, so match the
+    // suffix) and lands on the app root, not a dedicated success page.
+    const setCookies = verifyResponse
+      .headersArray()
+      .filter((header) => header.name.toLowerCase() === "set-cookie")
+      .map((header) => header.value);
+    expect(setCookies.some((cookie) => cookie.includes("qolmeia.session_token="))).toBe(true);
+    const location = verifyResponse.headers().location;
+    expect(location).toBeDefined();
+    expect(new URL(location, authUrl).pathname).toBe("/");
+
+    // The email is now verified, so a plain credentials sign-in succeeds too.
     const postSignIn = await request.post(`${authUrl}/api/auth/sign-in/email`, {
       data: { email, password },
     });

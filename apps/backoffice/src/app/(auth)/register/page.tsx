@@ -15,14 +15,14 @@ import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { registerSchema } from "@/lib/form-schemas";
 
-import { stashCredentials } from "../verify-email/credentials-store";
-
 const RegisterPage = () => {
   const { push, refresh } = useRouter();
+  const [sentToEmail, setSentToEmail] = useState<string | null>(null);
 
   const form = useForm({
     defaultValues: { confirmPassword: "", email: "", name: "", password: "" },
@@ -41,11 +41,11 @@ const RegisterPage = () => {
         return;
       }
       // No token means requireEmailVerification suppressed auto-sign-in (or
-      // enumeration prevention returned synthetic success); both paths route
-      // to /verify-email with the same "check inbox" UX.
+      // enumeration prevention returned synthetic success); both paths show
+      // the same inline "check your email" state. Clicking the emailed link
+      // verifies AND signs in the clicking device.
       if (!result.data?.token) {
-        const handoff = stashCredentials({ email: value.email, password: value.password });
-        push(`/verify-email?k=${handoff}`);
+        setSentToEmail(value.email);
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");
@@ -60,6 +60,23 @@ const RegisterPage = () => {
     event.stopPropagation();
     void form.handleSubmit();
   };
+
+  if (sentToEmail) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <output aria-live="polite" className="block text-sm text-muted-foreground">
+            Enviamos um link de verificação para{" "}
+            <span className="font-medium text-foreground">{sentToEmail}</span>. Clique nele para
+            confirmar sua conta e entrar.
+          </output>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

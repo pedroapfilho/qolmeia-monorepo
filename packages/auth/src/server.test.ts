@@ -208,6 +208,14 @@ describe("Auth Server Configuration", () => {
     expect(emailAuth.options.emailVerification?.sendVerificationEmail).toBeDefined();
   });
 
+  it("enables autoSignInAfterVerification so the verification link is the login", () => {
+    expect(auth.options.emailVerification?.autoSignInAfterVerification).toBe(true);
+  });
+
+  it("re-sends the verification email on unverified sign-in attempts", () => {
+    expect(auth.options.emailVerification?.sendOnSignIn).toBe(true);
+  });
+
   it("should have displayName as optional additional user field", () => {
     const displayName = auth.options.user?.additionalFields?.displayName;
     expect(displayName).toEqual({

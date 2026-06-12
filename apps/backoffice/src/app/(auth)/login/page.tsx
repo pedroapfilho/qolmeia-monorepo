@@ -15,7 +15,7 @@ import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { loginSchema } from "@/lib/form-schemas";
@@ -28,15 +28,23 @@ const LoginForm = () => {
   const searchParams = useSearchParams();
   const fromParam = searchParams.get("from");
   const redirectTo = fromParam && fromParam.startsWith("/") ? fromParam : "/";
+  const [showUnverifiedNotice, setShowUnverifiedNotice] = useState(false);
 
   const form = useForm({
     defaultValues: { email: "", password: "" },
     onSubmit: async ({ value }) => {
+      setShowUnverifiedNotice(false);
       const { error } = await authClient.signIn.email({
         email: value.email,
         password: value.password,
       });
       if (error) {
+        // Better Auth 403s unverified accounts and (sendOnSignIn) re-sends
+        // the verification link — informational, not a credentials error.
+        if (error.code === "EMAIL_NOT_VERIFIED") {
+          setShowUnverifiedNotice(true);
+          return;
+        }
         toast.error(error.message ?? "Não foi possível entrar. Verifique seus dados.");
         return;
       }
@@ -114,6 +122,12 @@ const LoginForm = () => {
               }}
             </form.Field>
           </FieldGroup>
+
+          {showUnverifiedNotice && (
+            <output aria-live="polite" className="mt-4 block text-center text-sm">
+              Este e-mail ainda não foi verificado — acabamos de enviar um novo link.
+            </output>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-3 pt-6">
           <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>

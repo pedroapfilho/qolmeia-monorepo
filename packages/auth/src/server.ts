@@ -173,19 +173,23 @@ export const createAuth = (config: AuthConfig) => {
     },
 
     emailVerification: {
-      // The link-clicking device never gets a session — it lands on the
-      // self-contained /verify-email/success page while the original tab's
-      // pending screen polls signIn.email and transitions on its own. This is
-      // what makes cross-device verification (click on phone, signed up on
-      // desktop) behave sanely.
-      autoSignInAfterVerification: false,
+      // The link is the login: clicking it verifies the address AND signs in
+      // the clicking device. Tradeoff accepted (2026-06-12 fleet decision) —
+      // simpler than the retired pending-screen flow, at the cost of the
+      // session landing on whichever device opens the link.
+      autoSignInAfterVerification: true,
+      // Unverified sign-in attempts still 403, but get a fresh verification
+      // link alongside it so the login form can say "we just sent a new one".
+      sendOnSignIn: true,
       // Same no-op-without-Resend pattern as sendResetPassword above.
       sendVerificationEmail: async ({ url, user }, request) => {
         // Auth runs on its own origin (apps/auth), so a relative callbackURL
         // would resolve against the auth service. Rebuild it against the web
-        // app origin that initiated the request (register form / resend
-        // button / change-email confirmation). When the origin header is
-        // absent (non-browser callers), keep Better Auth's original URL.
+        // app origin that initiated the request (register form / unverified
+        // sign-in / change-email confirmation), targeting the app root —
+        // signed-in users route into the app from there. When the origin
+        // header is absent (non-browser callers), keep Better Auth's
+        // original URL.
         const origin = request?.headers.get("origin");
         const verificationUrl = (() => {
           if (!origin) {
@@ -193,7 +197,7 @@ export const createAuth = (config: AuthConfig) => {
           }
           try {
             const target = new URL(url);
-            target.searchParams.set("callbackURL", `${origin}/verify-email/success`);
+            target.searchParams.set("callbackURL", `${origin}/`);
             return target.toString();
           } catch {
             return url;
