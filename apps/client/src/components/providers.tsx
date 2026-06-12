@@ -9,27 +9,37 @@ import { type ReactNode, useState } from "react";
 //
 // Error toasting is centralised here: queries opt in by setting
 // `meta.errorToast` to a pt-BR prefix. QueryCache.onError fires once per
-// failed fetch cycle (after retries), so no per-component dedupe is needed.
+// failed fetch cycle (after retries), and polling queries keep failing on
+// an interval during an outage — dedupe identical consecutive errors per
+// query so the user sees one toast per failure streak, not one per poll.
 const Providers = ({ children }: { children: ReactNode }) => {
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            refetchOnWindowFocus: false,
-            staleTime: 30_000,
-          },
+  const [client] = useState(() => {
+    const lastToastedByQuery = new Map<string, string>();
+    return new QueryClient({
+      defaultOptions: {
+        queries: {
+          refetchOnWindowFocus: false,
+          staleTime: 30_000,
         },
-        queryCache: new QueryCache({
-          onError: (error, query) => {
-            const prefix = query.meta?.errorToast;
-            if (typeof prefix === "string") {
-              toast.error(`${prefix}: ${error.message}`);
-            }
-          },
-        }),
+      },
+      queryCache: new QueryCache({
+        onError: (error, query) => {
+          const prefix = query.meta?.errorToast;
+          if (typeof prefix !== "string") {
+            return;
+          }
+          if (lastToastedByQuery.get(query.queryHash) === error.message) {
+            return;
+          }
+          lastToastedByQuery.set(query.queryHash, error.message);
+          toast.error(`${prefix}: ${error.message}`);
+        },
+        onSuccess: (_data, query) => {
+          lastToastedByQuery.delete(query.queryHash);
+        },
       }),
-  );
+    });
+  });
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 };

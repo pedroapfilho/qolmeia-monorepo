@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAgent } from "agents/react";
-import { useRef } from "react";
+import { useState } from "react";
 
 import { AGENTS_URL, fetchTeam, type TeamMemberView } from "@/lib/team";
 
@@ -39,7 +39,10 @@ const rosterStatus = (query: { isError: boolean; isPending: boolean }): RosterSt
 
 const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterResult => {
   const queryClient = useQueryClient();
-  const wsOpenRef = useRef(false);
+  // State (not a ref): TanStack only recomputes refetchInterval when the
+  // observer's options or result change, so a socket drop must re-render
+  // the hook for the safety poll to re-arm.
+  const [isSocketOpen, setIsSocketOpen] = useState(false);
 
   const query = useQuery({
     meta: { errorToast: "Falha ao sincronizar time" },
@@ -47,7 +50,7 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
     queryKey: teamQueryKey(companyId),
     // The WebSocket is the primary invalidation channel; the 30s interval is
     // a safety poll that only runs while the socket is down.
-    refetchInterval: () => (wsOpenRef.current ? false : POLL_INTERVAL_MS),
+    refetchInterval: isSocketOpen ? false : POLL_INTERVAL_MS,
     // Always refresh when the tab becomes visible again (the socket may have
     // silently dropped while backgrounded).
     refetchOnWindowFocus: true,
@@ -60,7 +63,7 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
     host: AGENTS_URL,
     name: companyId,
     onClose: () => {
-      wsOpenRef.current = false;
+      setIsSocketOpen(false);
     },
     onMessage: (event) => {
       let parsed: unknown;
@@ -74,7 +77,7 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
       }
     },
     onOpen: () => {
-      wsOpenRef.current = true;
+      setIsSocketOpen(true);
     },
     query: { cf_session: sessionToken },
   });
