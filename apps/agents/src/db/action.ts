@@ -185,7 +185,6 @@ export {
   listActions,
   listActionsForTicket,
   listPendingActions,
-  mapAction,
   markExecuted,
   proposeAction,
 };
