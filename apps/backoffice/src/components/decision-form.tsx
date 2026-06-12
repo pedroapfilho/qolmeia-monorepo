@@ -138,7 +138,7 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
             <span
               className={cn(
                 "ml-1 text-xs font-normal",
-                feedbackRequired ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+                feedbackRequired ? "text-warning-surface-foreground" : "text-muted-foreground",
               )}
             >
               {feedbackRequired ? "(obrigatório)" : "(opcional)"}
@@ -159,7 +159,7 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={submitting} size="lg" type="submit">
-          {submitting ? "Enviando..." : "Enviar decisão"}
+          {submitting ? "Enviando…" : "Enviar decisão"}
         </Button>
         <Button
           disabled={submitting}

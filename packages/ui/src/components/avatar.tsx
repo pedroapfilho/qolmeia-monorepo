@@ -2,15 +2,17 @@ import { cn } from "@repo/ui/lib/utils";
 
 type AvatarSize = "sm" | "md" | "lg";
 
+// Decorative rotation — hues come from the --color-avatar-* tokens in
+// globals.css so the palette is themed in one place.
 const PALETTE: ReadonlyArray<string> = [
-  "bg-rose-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-emerald-500",
-  "bg-teal-500",
-  "bg-sky-500",
-  "bg-indigo-500",
-  "bg-fuchsia-500",
+  "bg-avatar-1",
+  "bg-avatar-2",
+  "bg-avatar-3",
+  "bg-avatar-4",
+  "bg-avatar-5",
+  "bg-avatar-6",
+  "bg-avatar-7",
+  "bg-avatar-8",
 ];
 
 const SIZES: Record<AvatarSize, string> = {

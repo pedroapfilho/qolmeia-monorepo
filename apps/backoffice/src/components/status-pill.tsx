@@ -4,7 +4,7 @@ import type { ActionStatus, TicketStatus } from "@/lib/api-types";
 
 type StatusKind = ActionStatus | TicketStatus;
 
-type Tone = "emerald" | "amber" | "blue" | "rose" | "sky" | "neutral";
+type Tone = "success" | "warning" | "info" | "danger" | "neutral";
 
 const STATUS_COPY: Record<StatusKind, string> = {
   approved: "Aprovado",
@@ -21,37 +21,33 @@ const STATUS_COPY: Record<StatusKind, string> = {
 };
 
 const STATUS_TONE: Record<StatusKind, Tone> = {
-  approved: "emerald",
-  awaiting_approval: "amber",
-  blocked: "rose",
+  approved: "success",
+  awaiting_approval: "warning",
+  blocked: "danger",
   cancelled: "neutral",
-  changes_requested: "amber",
-  done: "emerald",
-  executed: "emerald",
-  in_progress: "blue",
-  open: "sky",
-  pending: "amber",
-  rejected: "rose",
+  changes_requested: "warning",
+  done: "success",
+  executed: "success",
+  in_progress: "info",
+  open: "info",
+  pending: "warning",
+  rejected: "danger",
 };
 
 const TONE_CLASSES: Record<Tone, string> = {
-  amber:
-    "bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-400/20",
-  blue: "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-400/20",
-  emerald:
-    "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/20",
+  danger: "bg-destructive-surface text-destructive-surface-foreground ring-destructive/20",
+  info: "bg-info-surface text-info-surface-foreground ring-info/20",
   neutral: "bg-muted text-muted-foreground ring-border",
-  rose: "bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-400/20",
-  sky: "bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-400/20",
+  success: "bg-success-surface text-success-surface-foreground ring-success/20",
+  warning: "bg-warning-surface text-warning-surface-foreground ring-warning/20",
 };
 
 const DOT_CLASSES: Record<Tone, string> = {
-  amber: "bg-amber-500 dark:bg-amber-400",
-  blue: "bg-blue-500 dark:bg-blue-400",
-  emerald: "bg-emerald-500 dark:bg-emerald-400",
+  danger: "bg-destructive",
+  info: "bg-info",
   neutral: "bg-muted-foreground/60",
-  rose: "bg-rose-500 dark:bg-rose-400",
-  sky: "bg-sky-500 dark:bg-sky-400",
+  success: "bg-success",
+  warning: "bg-warning",
 };
 
 type StatusPillProps = {
