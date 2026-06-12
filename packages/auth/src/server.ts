@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@repo/db";
+import { log } from "@repo/observability";
 import {
   sendChangeEmailConfirmation,
   sendMagicLinkEmail,
@@ -131,7 +132,10 @@ export const createAuth = (config: AuthConfig) => {
               // Don't throw — Better Auth's enumeration-prevention path needs
               // to return success regardless. Log so delivery failures don't
               // break the auth response.
-              console.error("[Auth] Failed to send sign-up attempt email:", result.error);
+              log.error({
+                error: result.error,
+                message: "auth: failed to send sign-up attempt email",
+              });
             }
           }
         : undefined,
@@ -146,7 +150,11 @@ export const createAuth = (config: AuthConfig) => {
       // but the user-visible flow (form submit → redirect) still works.
       sendResetPassword: async ({ url, user }) => {
         if (!resendApiKey) {
-          console.info(`[auth] password-reset link for ${user.email}: ${url}`);
+          log.info({
+            message: "auth: password-reset link (no Resend key)",
+            url,
+            userEmail: user.email,
+          });
           return;
         }
         const result = await sendPasswordResetEmail(
@@ -168,7 +176,11 @@ export const createAuth = (config: AuthConfig) => {
       // Same no-op-without-Resend pattern as sendResetPassword above.
       sendVerificationEmail: async ({ url, user }) => {
         if (!resendApiKey) {
-          console.info(`[auth] verification link for ${user.email}: ${url}`);
+          log.info({
+            message: "auth: verification link (no Resend key)",
+            url,
+            userEmail: user.email,
+          });
           return;
         }
         const result = await sendWelcomeEmail(
@@ -195,7 +207,7 @@ export const createAuth = (config: AuthConfig) => {
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           if (!resendApiKey) {
-            console.info(`[auth] magic-link for ${email}: ${url}`);
+            log.info({ message: "auth: magic-link (no Resend key)", url, userEmail: email });
             return;
           }
           const result = await sendMagicLinkEmail(

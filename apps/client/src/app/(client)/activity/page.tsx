@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 
 import { apiGetServer } from "@/lib/api-server";
 import type { ListResponse } from "@/lib/api-types";
+import { log } from "@/lib/observability";
 
 export const metadata: Metadata = {
   title: "Atividade",
@@ -23,7 +24,7 @@ const loadActivity = async (): Promise<ReadonlyArray<ActivityRow>> => {
     const result = await apiGetServer<ListResponse<ActivityRow>>("/api/me/activity?limit=50");
     return result.items;
   } catch (error) {
-    console.error("[activity] failed to load", { error });
+    log.error({ error, message: "activity: failed to load" });
     return [];
   }
 };

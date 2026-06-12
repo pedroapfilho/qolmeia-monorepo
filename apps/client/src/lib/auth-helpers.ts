@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { getAuth } from "@/lib/auth";
+import { log } from "@/lib/observability";
 
 // Returns the current Better Auth session, or null if the cookie is missing
 // or invalid. Cached per-request via React `cache` so multiple RSCs reading
@@ -17,7 +18,7 @@ const getSession = cache(async () => {
 
     return session;
   } catch (error) {
-    console.error("[auth-helpers] getSession failed", { error });
+    log.error({ error, message: "auth-helpers: getSession failed" });
     return null;
   }
 });
@@ -75,7 +76,7 @@ export const requireCustomer = async (): Promise<MeResponse> => {
     redirect("/no-access");
   }
   if (!res.ok) {
-    console.error("[auth-helpers] /api/me transient failure", { status: res.status });
+    log.error({ message: "auth-helpers: /api/me transient failure", status: res.status });
     throw new Error(`/api/me responded ${res.status}`);
   }
 

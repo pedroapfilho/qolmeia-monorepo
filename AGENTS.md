@@ -33,8 +33,8 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 
 ### Apps
 
-| Folder            | Package name  | Framework         | Dev URL                 | Audience                                                                                                                            |
-| ----------------- | ------------- | ----------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Folder            | Package name  | Framework         | Dev URL                                           | Audience                                                                                                                            |
+| ----------------- | ------------- | ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/auth`       | `auth`        | Hono on Node 24   | `https://qolmeia.auth.localhost` (portless)       | Auth service — `/api/auth/*` (Better Auth) + `/api/v1/me` (relay target).                                                           |
 | `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`). |
 | `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface — CUSTOMER role.                                                                                          |
@@ -118,8 +118,8 @@ pnpm dev
 
 **Seeded dev credentials** (created by `apps/auth/src/scripts/seed-dev.ts`):
 
-| Surface                              | Role     | Email                  | Password                    |
-| ------------------------------------ | -------- | ---------------------- | --------------------------- |
+| Surface                                             | Role     | Email                  | Password                    |
+| --------------------------------------------------- | -------- | ---------------------- | --------------------------- |
 | Backoffice — `https://qolmeia.backoffice.localhost` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
 | Client — `https://qolmeia.client.localhost`         | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 

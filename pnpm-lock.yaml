@@ -151,6 +151,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -227,6 +230,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -303,6 +309,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../db
+      '@repo/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@repo/transactional':
         specifier: workspace:*
         version: link:../transactional

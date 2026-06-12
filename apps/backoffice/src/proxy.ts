@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getAuth } from "@/lib/auth";
+import { log } from "@/lib/observability";
 
 // Protected: every backoffice route lives behind a session. The dashboard "/"
 // is included plus the operator-facing surfaces. Role check (OWNER/STAFF
@@ -32,8 +33,9 @@ export const proxy = async (request: NextRequest) => {
       headers: request.headers,
     })
     .catch((error) => {
-      console.error("[proxy] getSession failed — treating as unauthenticated", {
+      log.error({
         error,
+        message: "proxy: getSession failed — treating as unauthenticated",
         pathname,
       });
       return null;
