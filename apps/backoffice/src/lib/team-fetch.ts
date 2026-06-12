@@ -76,30 +76,7 @@ const fetchMember = async (
   return ((await res.json()) as { member: TeamMemberDetailView }).member;
 };
 
-const patchMember = async (
-  companyId: string,
-  memberId: string,
-  patch: { displayName?: string; promptOverride?: string | null },
-  cookie: string,
-): Promise<TeamMemberDetailView> => {
-  const body = JSON.stringify(patch);
-  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
-    body,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(cookie ? { Cookie: cookie } : {}),
-    },
-    method: "PATCH",
-  });
-  if (!res.ok) {
-    const resBody = await res.text().catch(() => "");
-    throw new ApiError(res.status, resBody);
-  }
-  return ((await res.json()) as { member: TeamMemberDetailView }).member;
-};
-
-export { fetchMember, fetchTeam, patchMember };
+export { fetchMember, fetchTeam };
 export type {
   AgentDisplayStatus,
   OpenTicketSlim,
