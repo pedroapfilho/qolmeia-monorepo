@@ -6,7 +6,7 @@
   "scripts": {
     "build": "next build",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf .next",
-    "dev": "next dev -p 3000",
+    "dev": "portless run --name qolmeia.backoffice next dev",
     "lint": "oxlint src",
     "start": "next start",
     "test": "vitest run",

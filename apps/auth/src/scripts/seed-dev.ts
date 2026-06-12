@@ -15,10 +15,10 @@ import { env } from "../lib/env";
 //     --local --file scripts/seed-p2.sql
 //
 // then start the four dev processes:
-//   pnpm dev --filter=auth         (port 4000)
+//   pnpm dev --filter=auth         (https://qolmeia.auth.localhost via portless)
 //   pnpm dev --filter=worker-bees  (port 8787 via wrangler dev)
-//   pnpm dev --filter=client       (port 3001)
-//   pnpm dev --filter=backoffice   (port 3000)
+//   pnpm dev --filter=client       (https://qolmeia.client.localhost)
+//   pnpm dev --filter=backoffice   (https://qolmeia.backoffice.localhost)
 //
 // Credentials (printed on creation):
 //   OWNER:    operator@qolmeia.dev / Qolmeia-Dev-OperatorPass!

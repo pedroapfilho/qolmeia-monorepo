@@ -7,7 +7,7 @@
     "build": "tsdown",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
     "db:seed": "tsx src/scripts/seed-dev.ts",
-    "dev": "tsdown --watch --on-success \"node --env-file-if-exists=.env dist/index.mjs\"",
+    "dev": "portless run --name qolmeia.auth tsdown --watch --on-success \"node --env-file-if-exists=.env dist/index.mjs\"",
     "lint": "oxlint src",
     "typecheck": "tsc --noEmit",
     "start": "node --env-file-if-exists=.env dist/index.mjs",
