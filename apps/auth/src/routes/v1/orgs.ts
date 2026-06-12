@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { auth as defaultAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
+import { log } from "@/lib/logger";
 
 // POST /api/v1/orgs — create an Organization + OWNER OrgMembership for the
 // signed-in user, then relay the new company id to apps/agents to provision
@@ -153,7 +153,7 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       slug: org.slug,
     });
     if (!relay.ok) {
-      logger.error({ companyId: org.id, error: relay.error }, "[orgs] D1 relay failed");
+      log.error({ companyId: org.id, error: relay.error, message: "[orgs] D1 relay failed" });
     }
 
     return c.json(

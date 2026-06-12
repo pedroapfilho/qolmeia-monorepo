@@ -1,16 +1,3 @@
-import pino from "pino";
-
-import { env } from "./env";
-
-const logLevel = env.NODE_ENV === "production" ? "info" : "debug";
-
-export const logger = pino({
-  base: {
-    env: env.NODE_ENV,
-  },
-  level: logLevel,
-  redact: {
-    paths: ["req.headers.authorization", "req.headers.cookie", "res.headers"],
-    remove: true,
-  },
-});
+// Module-level evlog logger for startup/shutdown lines that run outside any
+// request scope. Request-scoped code uses `c.get("log")` from honoEvlog().
+export { log } from "@repo/observability/hono";

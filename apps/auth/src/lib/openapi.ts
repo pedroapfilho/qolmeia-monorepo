@@ -1,8 +1,18 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
+import type { EvlogVariables } from "@repo/observability/hono";
 import { Scalar } from "@scalar/hono-api-reference";
 
+type EvlogContextVars = EvlogVariables["Variables"];
+
+declare module "hono" {
+  // oxlint-disable-next-line consistent-type-definitions -- declaration merging requires interface, not type
+  interface ContextVariableMap extends EvlogContextVars {
+    requestId: string;
+  }
+}
+
 const createOpenAPIApp = <V extends Record<string, unknown> = Record<string, never>>() => {
-  const app = new OpenAPIHono<{ Variables: V }>();
+  const app = new OpenAPIHono<{ Variables: EvlogContextVars & V }>();
 
   app.doc("/openapi.json", {
     info: {
