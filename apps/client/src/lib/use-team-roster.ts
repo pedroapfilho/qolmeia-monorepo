@@ -1,19 +1,22 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAgent } from "agents/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 
 import { AGENTS_URL, fetchTeam, type TeamMemberView } from "@/lib/team";
 
 const POLL_INTERVAL_MS = 30_000;
 
-type Status = "idle" | "loading" | "ready" | "error";
+const teamQueryKey = (companyId: string) => ["team", companyId] as const;
+
+type RosterStatus = "error" | "loading" | "ready";
 
 type UseTeamRosterResult = {
   error: Error | null;
   members: Array<TeamMemberView>;
   refetch: () => Promise<void>;
-  status: Status;
+  status: RosterStatus;
 };
 
 const isTeamFrame = (payload: unknown): boolean => {
@@ -24,32 +27,32 @@ const isTeamFrame = (payload: unknown): boolean => {
   return typeof type === "string" && type.startsWith("team:");
 };
 
+const rosterStatus = (query: { isError: boolean; isPending: boolean }): RosterStatus => {
+  if (query.isPending) {
+    return "loading";
+  }
+  if (query.isError) {
+    return "error";
+  }
+  return "ready";
+};
+
 const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterResult => {
-  const [members, setMembers] = useState<Array<TeamMemberView>>([]);
-  const [status, setStatus] = useState<Status>("idle");
-  const [error, setError] = useState<Error | null>(null);
+  const queryClient = useQueryClient();
   const wsOpenRef = useRef(false);
 
-  const refetch = useCallback(async () => {
-    setStatus("loading");
-    try {
-      const next = await fetchTeam();
-      setMembers(next);
-      setError(null);
-      setStatus("ready");
-    } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError : new Error(String(fetchError)));
-      setStatus("error");
-    }
-  }, []);
-
-  // Initial load — calling an async state-updating function from useEffect is
-  // the intended data-fetching pattern here; the lint rule targets direct
-  // setState() calls, not async fetch helpers.
-  useEffect(() => {
-    // oxlint-disable-next-line react-hooks-js/set-state-in-effect
-    refetch();
-  }, [refetch]);
+  const query = useQuery({
+    meta: { errorToast: "Falha ao sincronizar time" },
+    queryFn: fetchTeam,
+    queryKey: teamQueryKey(companyId),
+    // The WebSocket is the primary invalidation channel; the 30s interval is
+    // a safety poll that only runs while the socket is down.
+    refetchInterval: () => (wsOpenRef.current ? false : POLL_INTERVAL_MS),
+    // Always refresh when the tab becomes visible again (the socket may have
+    // silently dropped while backgrounded).
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
 
   // Subscribe to the correspondent DO's WebSocket for team:* invalidation pings.
   useAgent({
@@ -67,7 +70,7 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
         return;
       }
       if (isTeamFrame(parsed)) {
-        refetch();
+        void queryClient.invalidateQueries({ queryKey: teamQueryKey(companyId) });
       }
     },
     onOpen: () => {
@@ -76,28 +79,16 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
     query: { cf_session: sessionToken },
   });
 
-  // visibilitychange → refetch once when becoming visible
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        refetch();
-      }
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, [refetch]);
+  const refetch = async (): Promise<void> => {
+    await query.refetch();
+  };
 
-  // 30s safety poll only when the socket is closed
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (!wsOpenRef.current) {
-        refetch();
-      }
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [refetch]);
-
-  return { error, members, refetch, status };
+  return {
+    error: query.error,
+    members: query.data ?? [],
+    refetch,
+    status: rosterStatus(query),
+  };
 };
 
 export { useTeamRoster };
