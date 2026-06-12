@@ -113,7 +113,7 @@ const LoginForm = () => {
                 size="lg"
                 type="submit"
               >
-                {isSubmitting ? "Enviando..." : "Enviar link mágico"}
+                {isSubmitting ? "Enviando…" : "Enviar link mágico"}
               </Button>
             )}
           </form.Subscribe>

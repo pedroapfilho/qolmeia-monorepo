@@ -85,7 +85,7 @@ const RecoverPage = () => {
                 size="lg"
                 type="submit"
               >
-                {isSubmitting ? "Enviando..." : "Enviar link"}
+                {isSubmitting ? "Enviando…" : "Enviar link"}
               </Button>
             )}
           </form.Subscribe>
