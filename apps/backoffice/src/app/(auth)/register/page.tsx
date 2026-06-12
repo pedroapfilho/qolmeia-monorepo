@@ -19,6 +19,8 @@ import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { registerSchema } from "@/lib/form-schemas";
 
+import { stashCredentials } from "../verify-email/credentials-store";
+
 const RegisterPage = () => {
   const { push, refresh } = useRouter();
 
@@ -29,13 +31,21 @@ const RegisterPage = () => {
         toast.error("As senhas não conferem.");
         return;
       }
-      const { error } = await authClient.signUp.email({
+      const result = await authClient.signUp.email({
         email: value.email,
         name: value.name,
         password: value.password,
       });
-      if (error) {
-        toast.error(error.message ?? "Não foi possível criar a conta.");
+      if (result.error) {
+        toast.error(result.error.message ?? "Não foi possível criar a conta.");
+        return;
+      }
+      // No token means requireEmailVerification suppressed auto-sign-in (or
+      // enumeration prevention returned synthetic success); both paths route
+      // to /verify-email with the same "check inbox" UX.
+      if (!result.data?.token) {
+        const handoff = stashCredentials({ email: value.email, password: value.password });
+        push(`/verify-email?k=${handoff}`);
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");

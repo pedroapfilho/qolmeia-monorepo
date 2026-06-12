@@ -173,12 +173,36 @@ export const createAuth = (config: AuthConfig) => {
     },
 
     emailVerification: {
+      // The link-clicking device never gets a session — it lands on the
+      // self-contained /verify-email/success page while the original tab's
+      // pending screen polls signIn.email and transitions on its own. This is
+      // what makes cross-device verification (click on phone, signed up on
+      // desktop) behave sanely.
+      autoSignInAfterVerification: false,
       // Same no-op-without-Resend pattern as sendResetPassword above.
-      sendVerificationEmail: async ({ url, user }) => {
+      sendVerificationEmail: async ({ url, user }, request) => {
+        // Auth runs on its own origin (apps/auth), so a relative callbackURL
+        // would resolve against the auth service. Rebuild it against the web
+        // app origin that initiated the request (register form / resend
+        // button / change-email confirmation). When the origin header is
+        // absent (non-browser callers), keep Better Auth's original URL.
+        const origin = request?.headers.get("origin");
+        const verificationUrl = (() => {
+          if (!origin) {
+            return url;
+          }
+          try {
+            const target = new URL(url);
+            target.searchParams.set("callbackURL", `${origin}/verify-email/success`);
+            return target.toString();
+          } catch {
+            return url;
+          }
+        })();
         if (!resendApiKey) {
           log.info({
             message: "auth: verification link (no Resend key)",
-            url,
+            url: verificationUrl,
             userEmail: user.email,
           });
           return;
@@ -188,7 +212,7 @@ export const createAuth = (config: AuthConfig) => {
             userEmail: user.email,
             userId: user.id,
             username: user.name,
-            verificationUrl: url,
+            verificationUrl,
           },
           { apiKey: resendApiKey, from: fromEmail },
         );
