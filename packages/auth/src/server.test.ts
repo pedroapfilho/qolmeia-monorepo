@@ -1,7 +1,7 @@
 import { prisma } from "@repo/db";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { createAuth } from "./server";
+import { createAuth, safeCallbackPath } from "./server";
 import type { AuthConfig } from "./server";
 
 type Plugin = NonNullable<AuthConfig["extraPlugins"]>[number];
@@ -214,6 +214,32 @@ describe("Auth Server Configuration", () => {
 
   it("re-sends the verification email on unverified sign-in attempts", () => {
     expect(auth.options.emailVerification?.sendOnSignIn).toBe(true);
+  });
+
+  it("preserves a caller-provided in-app callbackURL path", () => {
+    // sendVerificationEmail re-anchors this on the requesting app's origin —
+    // the register form's ?from= context survives into the emailed link.
+    expect(safeCallbackPath("/tickets")).toBe("/tickets");
+    expect(safeCallbackPath("/tickets?status=open#top")).toBe("/tickets?status=open#top");
+    expect(safeCallbackPath("/")).toBe("/");
+  });
+
+  it("defaults absent or empty callbackURL to the app root", () => {
+    expect(safeCallbackPath(null)).toBe("/");
+    expect(safeCallbackPath("")).toBe("/");
+  });
+
+  it("rejects open-redirect callbackURL values", () => {
+    expect(safeCallbackPath("//evil.com")).toBe("/");
+    expect(safeCallbackPath("//evil.com/phish")).toBe("/");
+    // Browsers normalize "\" to "/" during URL parsing, so these would
+    // escape the app origin if let through.
+    expect(safeCallbackPath(String.raw`/\evil.com`)).toBe("/");
+    expect(safeCallbackPath(String.raw`\/evil.com`)).toBe("/");
+    expect(safeCallbackPath("https://evil.com/phish")).toBe("/");
+    // Built dynamically so lint's no-script-url doesn't flag a literal.
+    expect(safeCallbackPath(["javascript", "alert(1)"].join(":"))).toBe("/");
+    expect(safeCallbackPath("evil.com")).toBe("/");
   });
 
   it("should have displayName as optional additional user field", () => {

@@ -28,6 +28,32 @@ const parseEnvList = (value: string | undefined): Array<string> => {
   return result;
 };
 
+// Open-redirect gate for the verification callback: only in-app relative
+// paths survive (single leading "/", no protocol-relative "//", no
+// backslashes — browsers normalize "\" to "/" — and no scheme/host).
+// Anything else falls back to the app root. The register form validates the
+// same way before sending; this is the server-side half of the contract,
+// applied before the path is re-anchored on the requesting app's origin.
+const CALLBACK_FALLBACK_PATH = "/";
+
+// Fixed base for URL resolution: anything that escapes it (absolute URL,
+// scheme, protocol-relative host) resolves to a different origin.
+const CALLBACK_ANCHOR_ORIGIN = "https://qolmeia.invalid";
+
+export const safeCallbackPath = (value: string | null): string => {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return CALLBACK_FALLBACK_PATH;
+  }
+  try {
+    if (new URL(value, CALLBACK_ANCHOR_ORIGIN).origin !== CALLBACK_ANCHOR_ORIGIN) {
+      return CALLBACK_FALLBACK_PATH;
+    }
+  } catch {
+    return CALLBACK_FALLBACK_PATH;
+  }
+  return value;
+};
+
 type AuthConfig = {
   extraPlugins?: Array<BetterAuthPlugin>;
   fromEmail?: string;
@@ -186,10 +212,11 @@ export const createAuth = (config: AuthConfig) => {
         // Auth runs on its own origin (apps/auth), so a relative callbackURL
         // would resolve against the auth service. Rebuild it against the web
         // app origin that initiated the request (register form / unverified
-        // sign-in / change-email confirmation), targeting the app root —
-        // signed-in users route into the app from there. When the origin
-        // header is absent (non-browser callers), keep Better Auth's
-        // original URL.
+        // sign-in / change-email confirmation), preserving the caller's
+        // in-app path — the register form passes its ?from= context as
+        // callbackURL so the email clicker lands back where signup started —
+        // and defaulting to the app root. When the origin header is absent
+        // (non-browser callers), keep Better Auth's original URL.
         const origin = request?.headers.get("origin");
         const verificationUrl = (() => {
           if (!origin) {
@@ -197,7 +224,8 @@ export const createAuth = (config: AuthConfig) => {
           }
           try {
             const target = new URL(url);
-            target.searchParams.set("callbackURL", `${origin}/`);
+            const callbackPath = safeCallbackPath(target.searchParams.get("callbackURL"));
+            target.searchParams.set("callbackURL", `${origin}${callbackPath}`);
             return target.toString();
           } catch {
             return url;

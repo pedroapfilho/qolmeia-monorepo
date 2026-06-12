@@ -14,14 +14,21 @@ import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { registerSchema } from "@/lib/form-schemas";
+import { safeRedirectPath } from "@/lib/redirect-validation";
 
-const RegisterPage = () => {
+const RegisterForm = () => {
   const { push, refresh } = useRouter();
+  const searchParams = useSearchParams();
+  // Carried over from the login form's cross-link (proxy.ts sends logged-out
+  // visitors to /login?from=<pathname>). Validated to an in-app path; passed
+  // as callbackURL so packages/auth bakes it into the verification link and
+  // the email clicker lands back on the page that started signup.
+  const redirectTo = safeRedirectPath(searchParams.get("from"));
   const [sentToEmail, setSentToEmail] = useState<string | null>(null);
 
   const form = useForm({
@@ -32,6 +39,7 @@ const RegisterPage = () => {
         return;
       }
       const result = await authClient.signUp.email({
+        callbackURL: redirectTo,
         email: value.email,
         name: value.name,
         password: value.password,
@@ -49,7 +57,7 @@ const RegisterPage = () => {
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");
-      push("/");
+      push(redirectTo);
       refresh();
     },
     validators: { onSubmit: registerSchema },
@@ -194,7 +202,7 @@ const RegisterPage = () => {
             Já tem conta?{" "}
             <Link
               className="font-medium text-primary underline-offset-4 hover:underline"
-              href="/login"
+              href={redirectTo === "/" ? "/login" : `/login?from=${encodeURIComponent(redirectTo)}`}
             >
               Entrar
             </Link>
@@ -204,5 +212,14 @@ const RegisterPage = () => {
     </Card>
   );
 };
+
+// useSearchParams() forces a CSR bailout — wrapping in Suspense at the page
+// boundary keeps Next happy without giving up on static prerender for the
+// auth scaffold (same pattern as /login).
+const RegisterPage = () => (
+  <Suspense fallback={null}>
+    <RegisterForm />
+  </Suspense>
+);
 
 export default RegisterPage;
