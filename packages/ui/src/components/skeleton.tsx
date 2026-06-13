@@ -13,6 +13,19 @@ type SkeletonAvatarProps = SkeletonProps & {
   size?: number;
 };
 
+const VARIANT_CLASSES: Record<NonNullable<SkeletonProps["variant"]>, string> = {
+  circular: "rounded-full",
+  rectangular: "rounded-none",
+  rounded: "rounded-lg",
+  text: "rounded-md",
+};
+
+const ANIMATION_CLASSES: Record<NonNullable<SkeletonProps["animation"]>, string> = {
+  none: "",
+  pulse: "animate-pulse",
+  wave: "animate-shimmer",
+};
+
 const Skeleton = ({
   animation = "pulse",
   className,
@@ -22,23 +35,10 @@ const Skeleton = ({
   width,
   ...props
 }: SkeletonProps) => {
-  const variantClasses = {
-    circular: "rounded-full",
-    rectangular: "rounded-none",
-    rounded: "rounded-lg",
-    text: "rounded-md",
-  };
-
-  const animationClasses = {
-    none: "",
-    pulse: "animate-pulse",
-    wave: "animate-shimmer",
-  };
-
   return (
     <div
       aria-hidden="true"
-      className={cn("bg-muted", variantClasses[variant], animationClasses[animation], className)}
+      className={cn("bg-muted", VARIANT_CLASSES[variant], ANIMATION_CLASSES[animation], className)}
       style={{
         height: height || "1.2em",
         width: width || "100%",
@@ -55,6 +55,12 @@ type SkeletonContainerProps = HTMLAttributes<HTMLDivElement> & {
   spacing?: "sm" | "md" | "lg";
 };
 
+const SPACING_CLASSES: Record<NonNullable<SkeletonContainerProps["spacing"]>, string> = {
+  lg: "space-y-4",
+  md: "space-y-3",
+  sm: "space-y-2",
+};
+
 const SkeletonContainer = ({
   children,
   className,
@@ -62,15 +68,9 @@ const SkeletonContainer = ({
   spacing = "md",
   ...props
 }: SkeletonContainerProps) => {
-  const spacingClasses = {
-    lg: "space-y-4",
-    md: "space-y-3",
-    sm: "space-y-2",
-  };
-
   if (count > 1 && !children) {
     return (
-      <div className={cn(spacingClasses[spacing], className)} {...props}>
+      <div className={cn(SPACING_CLASSES[spacing], className)} {...props}>
         {Array.from({ length: count }).map((_, i) => (
           <Skeleton key={i} />
         ))}
@@ -79,7 +79,7 @@ const SkeletonContainer = ({
   }
 
   return (
-    <div className={cn(spacingClasses[spacing], className)} {...props}>
+    <div className={cn(SPACING_CLASSES[spacing], className)} {...props}>
       {children}
     </div>
   );

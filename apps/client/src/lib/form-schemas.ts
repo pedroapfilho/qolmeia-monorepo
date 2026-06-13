@@ -4,5 +4,5 @@ import { z } from "zod";
 // though there's just one form so future additions (profile, etc.) have
 // a home and the file matches backoffice's layout.
 export const magicLinkSchema = z.object({
-  email: z.string().email("E-mail inválido"),
+  email: z.email("E-mail inválido"),
 });

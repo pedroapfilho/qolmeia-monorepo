@@ -29,7 +29,10 @@ const ActivityPage = async () => {
               title="Nenhum evento ainda"
             />
           ) : (
-            <ActivityList initial={res.items} />
+            /* ActivityList seeds local pagination state from `initial`; keying
+               by the newest row remounts it when a router refresh brings fresh
+               data, so the list never shows a stale first page. */
+            <ActivityList initial={res.items} key={res.items[0]?.id ?? "empty"} />
           )}
         </CardContent>
       </Card>

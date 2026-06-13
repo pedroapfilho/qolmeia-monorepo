@@ -35,6 +35,13 @@ type TeamMemberWorker = TeamMemberBase & {
 
 type TeamMemberView = TeamMemberNonWorker | TeamMemberWorker;
 
+type TeamMemberDetailView = TeamMemberView & {
+  capabilities: string;
+  promptOverride: string | null;
+  promptOverrideUpdatedAt: number | null;
+  templateSystemPrompt: string;
+};
+
 const fetchTeam = async (companyId: string, cookie: string): Promise<Array<TeamMemberView>> => {
   const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members`, {
     cache: "no-store",
@@ -50,11 +57,31 @@ const fetchTeam = async (companyId: string, cookie: string): Promise<Array<TeamM
   return ((await res.json()) as { members: Array<TeamMemberView> }).members;
 };
 
-export { fetchTeam };
+const fetchMember = async (
+  companyId: string,
+  memberId: string,
+  cookie: string,
+): Promise<TeamMemberDetailView> => {
+  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body);
+  }
+  return ((await res.json()) as { member: TeamMemberDetailView }).member;
+};
+
+export { fetchMember, fetchTeam };
 export type {
   AgentDisplayStatus,
   OpenTicketSlim,
   TeamMemberBase,
+  TeamMemberDetailView,
   TeamMemberNonWorker,
   TeamMemberView,
   TeamMemberWorker,

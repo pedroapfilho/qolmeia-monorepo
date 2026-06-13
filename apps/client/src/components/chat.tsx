@@ -6,7 +6,7 @@ import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
 import { Loader2, MessageSquare, Paperclip, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   Conversation,
@@ -74,13 +74,14 @@ const Chat = ({
     query: { cf_session: sessionToken },
   });
 
-  const { error, messages, sendMessage, status } = useAgentChat({ agent });
-
-  useEffect(() => {
-    if (error) {
+  const { messages, sendMessage, status } = useAgentChat({
+    agent,
+    // Surface send/stream failures where they happen instead of watching
+    // the `error` state from an effect.
+    onError: () => {
       toast.error("Não foi possível enviar. Tente novamente.");
-    }
-  }, [error]);
+    },
+  });
 
   const isThinking = status === "submitted" || status === "streaming";
 

@@ -129,7 +129,7 @@ const ResetPasswordForm = () => {
                 size="lg"
                 type="submit"
               >
-                {isSubmitting ? "Salvando..." : "Redefinir senha"}
+                {isSubmitting ? "Salvando…" : "Redefinir senha"}
               </Button>
             )}
           </form.Subscribe>

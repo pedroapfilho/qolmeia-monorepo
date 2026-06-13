@@ -11,22 +11,24 @@ globalThis.ResizeObserver = class {
 
 const sendMessage = vi.fn();
 const chatState = {
-  error: undefined as Error | undefined,
   messages: [] as Array<unknown>,
   status: "ready" as string,
 };
+let capturedChatOptions: { onError?: (error: Error) => void } = {};
 
 vi.mock("agents/react", () => ({
   useAgent: () => ({ id: "test-agent" }),
 }));
 
 vi.mock("@cloudflare/ai-chat/react", () => ({
-  useAgentChat: () => ({
-    error: chatState.error,
-    messages: chatState.messages,
-    sendMessage,
-    status: chatState.status,
-  }),
+  useAgentChat: (options: { onError?: (error: Error) => void }) => {
+    capturedChatOptions = options;
+    return {
+      messages: chatState.messages,
+      sendMessage,
+      status: chatState.status,
+    };
+  },
 }));
 
 const toastError = vi.fn();
@@ -45,7 +47,7 @@ describe("Chat", () => {
   beforeEach(() => {
     sendMessage.mockReset();
     toastError.mockReset();
-    chatState.error = undefined;
+    capturedChatOptions = {};
     chatState.messages = [];
     chatState.status = "ready";
   });
@@ -83,8 +85,8 @@ describe("Chat", () => {
   });
 
   it("shows a toast when the chat reports an error", () => {
-    chatState.error = new Error("boom");
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
+    capturedChatOptions.onError?.(new Error("boom"));
     expect(toastError).toHaveBeenCalledOnce();
   });
 

@@ -29,16 +29,12 @@ export default defineConfig({
     // (or similar) lands and these files migrate to it.
     {
       files: [
-        "apps/web/src/proxy.ts",
-        "apps/web/src/lib/auth-helpers.ts",
         "apps/backoffice/src/proxy.ts",
         "apps/backoffice/src/lib/auth-helpers.ts",
         "apps/backoffice/src/components/sign-out-button.tsx",
         "apps/client/src/proxy.ts",
         "apps/client/src/lib/auth-helpers.ts",
         "apps/client/src/components/sign-out-button.tsx",
-        "apps/client/src/components/composer.tsx",
-        "apps/client/src/components/sse-subscriber.tsx",
         "apps/client/src/app/auth/verify/page.tsx",
         "apps/client/src/app/(client)/page.tsx",
         "apps/client/src/app/(client)/assets/page.tsx",

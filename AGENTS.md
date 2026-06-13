@@ -73,7 +73,7 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 
 ## Tooling
 
-- **Linter**: oxlint (NOT ESLint). Config in `.oxlintrc.json`.
+- **Linter**: oxlint (NOT ESLint). Config in `oxlint.config.ts`.
 - **Formatter**: oxfmt (NOT Prettier). Config in `.oxfmtrc.json`. Sorts imports.
 - **Pre-commit**: Husky + lint-staged runs `oxlint` + `oxfmt`.
 - **Testing**: Vitest. `apps/agents` uses `@cloudflare/vitest-pool-workers` against Miniflare.

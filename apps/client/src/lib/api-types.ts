@@ -1,5 +1,6 @@
-// Shared response shapes for /api/v1/web-chat/*. Kept in one file so the
-// chat UI components and query hooks stay in sync.
+// Shared response shapes for the client app's REST surface (assets,
+// activity pagination). The web-chat message/SSE types that used to live
+// here left with the deleted sse-subscriber/composer components.
 
 type WebChatAsset = {
   createdAt: string;

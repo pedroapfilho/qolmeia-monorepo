@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TeamMemberView } from "@/lib/team";
@@ -21,6 +23,19 @@ vi.mock("@/lib/team", async () => {
   };
 });
 
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return Wrapper;
+};
+
+const renderRoster = () =>
+  renderHook(() => useTeamRoster("co1", "tok"), { wrapper: createWrapper() });
+
 beforeEach(() => {
   mockUseAgent.mockReset();
   mockFetchTeam.mockReset();
@@ -33,7 +48,7 @@ afterEach(() => {
 
 describe("useTeamRoster", () => {
   it("fetches on mount", async () => {
-    const { result } = renderHook(() => useTeamRoster("co1", "tok"));
+    const { result } = renderRoster();
 
     // Wait for the initial fetch to complete and status to be ready
     await vi.waitFor(() => expect(result.current.status).toBe("ready"));
@@ -48,9 +63,12 @@ describe("useTeamRoster", () => {
       capturedOnMessage = opts.onMessage;
     });
 
-    renderHook(() => useTeamRoster("co1", "tok"));
+    const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledOnce());
+    // Wait for the rendered status (not just the mock call) so the initial
+    // fetch has fully settled — otherwise the invalidation dedupes into it.
+    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(mockFetchTeam).toHaveBeenCalledOnce();
 
     // Trigger team:roster frame
     act(() => {
@@ -78,7 +96,7 @@ describe("useTeamRoster", () => {
   });
 
   it("sets up polling and message handlers via useAgent", async () => {
-    renderHook(() => useTeamRoster("co1", "tok"));
+    renderRoster();
 
     await vi.waitFor(() => expect(mockUseAgent).toHaveBeenCalled());
 
@@ -98,29 +116,33 @@ describe("useTeamRoster", () => {
   });
 
   it("refetches on visibility change to visible", async () => {
-    const { result } = renderHook(() => useTeamRoster("co1", "tok"));
+    const { result } = renderRoster();
 
     await vi.waitFor(() => expect(result.current.status).toBe("ready"));
 
-    // Simulate becoming visible
+    // Simulate becoming visible — TanStack's focusManager listens for
+    // visibilitychange on window and the roster query opts into
+    // refetchOnWindowFocus (real browser visibilitychange events bubble to
+    // window; jsdom Events default to bubbles: false, so dispatch there).
     act(() => {
       Object.defineProperty(document, "visibilityState", {
         configurable: true,
         value: "visible",
       });
-      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("visibilitychange"));
     });
 
     await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
   });
 
   it("exposes refetch method for manual triggers", async () => {
-    const { result } = renderHook(() => useTeamRoster("co1", "tok"));
+    const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(mockFetchTeam).toHaveBeenCalledOnce();
 
     act(() => {
-      result.current.refetch();
+      void result.current.refetch();
     });
 
     await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
@@ -130,7 +152,7 @@ describe("useTeamRoster", () => {
     const testError = new Error("Network failed");
     mockFetchTeam.mockRejectedValueOnce(testError);
 
-    const { result } = renderHook(() => useTeamRoster("co1", "tok"));
+    const { result } = renderRoster();
 
     await vi.waitFor(() => expect(result.current.status).toBe("error"));
 
