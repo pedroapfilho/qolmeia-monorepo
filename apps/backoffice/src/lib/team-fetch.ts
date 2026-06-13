@@ -2,7 +2,8 @@
 // Backoffice-side fetchers. Same shapes as the customer side; different
 // endpoint prefix.
 
-import { AGENTS_URL, ApiError } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
+import { AGENTS_SERVER_URL } from "@/lib/api-server";
 
 type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
 
@@ -43,7 +44,7 @@ type TeamMemberDetailView = TeamMemberView & {
 };
 
 const fetchTeam = async (companyId: string, cookie: string): Promise<Array<TeamMemberView>> => {
-  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members`, {
+  const res = await fetch(`${AGENTS_SERVER_URL}/api/backoffice/teams/${companyId}/members`, {
     cache: "no-store",
     headers: {
       Accept: "application/json",
@@ -62,13 +63,16 @@ const fetchMember = async (
   memberId: string,
   cookie: string,
 ): Promise<TeamMemberDetailView> => {
-  const res = await fetch(`${AGENTS_URL}/api/backoffice/teams/${companyId}/members/${memberId}`, {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(cookie ? { Cookie: cookie } : {}),
+  const res = await fetch(
+    `${AGENTS_SERVER_URL}/api/backoffice/teams/${companyId}/members/${memberId}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
     },
-  });
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, body);

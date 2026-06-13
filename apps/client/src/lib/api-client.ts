@@ -2,8 +2,14 @@
 // All product data — company state, assets, activity, uploads — lives on the
 // agents Worker; the auth service (apps/auth) is reached only by Better Auth's
 // own client (see auth-client.ts).
+//
+// Default is "" (same-origin): next.config.ts rewrites /api/me/* and
+// /api/teams/* to the Worker, so the session cookie stays first-party
+// (`.localhost` is a public suffix — no cookie ever reaches localhost:8787
+// cross-origin under portless). NEXT_PUBLIC_AGENTS_URL only overrides for a
+// genuinely cross-origin prod Worker deployment.
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 type FetchInit = Omit<RequestInit, "body" | "method">;
 

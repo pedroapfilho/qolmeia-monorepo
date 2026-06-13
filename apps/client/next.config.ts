@@ -10,6 +10,15 @@ import type { NextConfig } from "next";
 // the auth service binds IPv4 (same reasoning as playwright.config.ts).
 const authServiceUrl = process.env.AUTH_SERVICE_INTERNAL_URL ?? "http://127.0.0.1:4000";
 
+// Same public-suffix problem for the agents Worker: the session cookie set on
+// this origin never reaches localhost:8787, so browser calls to the Worker's
+// REST surface (/api/me/*, /api/teams/*) are rewritten and stay first-party.
+// /agents/* is the chat WebSocket — Next's router-server resolves rewrites
+// for upgrade requests and proxies them (proxy.ws), so the socket rides the
+// same-origin path too instead of relying on the browser's localhost
+// mixed-content exemption (which Safari doesn't implement).
+const agentsUrl = process.env.AGENTS_INTERNAL_URL ?? "http://127.0.0.1:8787";
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["qolmeia.client.localhost", "*.qolmeia.client.localhost", "*.vercel.app"],
   reactStrictMode: true,
@@ -19,6 +28,18 @@ const nextConfig: NextConfig = {
       {
         destination: `${authServiceUrl}/api/auth/:path*`,
         source: "/api/auth/:path*",
+      },
+      {
+        destination: `${agentsUrl}/api/me/:path*`,
+        source: "/api/me/:path*",
+      },
+      {
+        destination: `${agentsUrl}/api/teams/:path*`,
+        source: "/api/teams/:path*",
+      },
+      {
+        destination: `${agentsUrl}/agents/:path*`,
+        source: "/agents/:path*",
       },
     ]),
 

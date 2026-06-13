@@ -1,8 +1,14 @@
 // Browser fetch helper for the backoffice. Targets the agents Worker's
 // /api/backoffice/* surface. Auth flows through the same Better Auth cookie
 // the auth service issued (forwarded via `credentials: "include"`).
+//
+// Default is "" (same-origin): next.config.ts rewrites /api/backoffice/* to
+// the Worker, so the session cookie stays first-party (`.localhost` is a
+// public suffix — no cookie ever reaches localhost:8787 cross-origin under
+// portless). NEXT_PUBLIC_AGENTS_URL only overrides for a genuinely
+// cross-origin prod Worker deployment.
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 type FetchInit = Omit<RequestInit, "body" | "method">;
 

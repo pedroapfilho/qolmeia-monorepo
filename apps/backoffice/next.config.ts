@@ -10,6 +10,11 @@ import type { NextConfig } from "next";
 // the auth service binds IPv4 (same reasoning as playwright.config.ts).
 const authServiceUrl = process.env.AUTH_SERVICE_INTERNAL_URL ?? "http://127.0.0.1:4000";
 
+// Same public-suffix problem for the agents Worker: the session cookie set on
+// this origin never reaches localhost:8787, so browser /api/backoffice/*
+// calls are rewritten to the Worker and stay first-party too.
+const agentsUrl = process.env.AGENTS_INTERNAL_URL ?? "http://127.0.0.1:8787";
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "qolmeia.backoffice.localhost",
@@ -23,6 +28,10 @@ const nextConfig: NextConfig = {
       {
         destination: `${authServiceUrl}/api/auth/:path*`,
         source: "/api/auth/:path*",
+      },
+      {
+        destination: `${agentsUrl}/api/backoffice/:path*`,
+        source: "/api/backoffice/:path*",
       },
     ]),
 

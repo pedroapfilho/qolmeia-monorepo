@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
+import { AGENTS_SERVER_URL } from "@/lib/api-server";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
@@ -50,9 +51,7 @@ export const requireStaff = async (): Promise<MeResponse> => {
   await requireSession();
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
-  const agentsUrl = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
-
-  const res = await fetch(`${agentsUrl}/api/me`, {
+  const res = await fetch(`${AGENTS_SERVER_URL}/api/me`, {
     cache: "no-store",
     headers: { Accept: "application/json", Cookie: cookie },
   });
