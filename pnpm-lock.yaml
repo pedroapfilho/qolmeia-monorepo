@@ -35,9 +35,6 @@ importers:
       turbo:
         specifier: ^2.9.12
         version: 2.9.12
-      undici:
-        specifier: ^7.21.0
-        version: 7.25.0
 
   apps/agents:
     dependencies:

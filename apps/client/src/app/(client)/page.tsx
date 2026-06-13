@@ -3,13 +3,18 @@ import type { Metadata } from "next";
 import { Chat } from "@/components/chat";
 import { OnboardingActions } from "@/components/onboarding-actions";
 import { TeamSidebar } from "@/components/team-sidebar";
+import { AGENTS_SERVER_URL } from "@/lib/api-server";
 import { requireCustomer, requireSession } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = {
   title: "Chat",
 };
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://localhost:8787";
+// Browser-facing Worker base handed to client components. "" = same-origin:
+// the chat WebSocket (/agents/*) and REST calls ride the next.config.ts
+// rewrites, so auth stays first-party under portless. NEXT_PUBLIC_AGENTS_URL
+// only overrides for a cross-origin prod Worker deployment.
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 type CompanyResponse = {
   company: { id: string; slug: string; status: string };
@@ -44,12 +49,12 @@ const ChatPage = async () => {
   }
 
   const token = session.session.token;
-  const companyRes = await fetchJson<CompanyResponse>(`${AGENTS_URL}/api/me/company`, token);
+  const companyRes = await fetchJson<CompanyResponse>(`${AGENTS_SERVER_URL}/api/me/company`, token);
   const status = companyRes?.company.status ?? "onboarding";
 
   if (status === "onboarding") {
     const templatesRes = await fetchJson<TemplatesResponse>(
-      `${AGENTS_URL}/api/me/templates`,
+      `${AGENTS_SERVER_URL}/api/me/templates`,
       token,
     );
     return (
