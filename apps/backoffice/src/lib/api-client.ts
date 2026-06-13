@@ -71,5 +71,5 @@ const apiSend = async <T>(
   return handleResponse<T>(res);
 };
 
-export { AGENTS_URL, apiGet, ApiError, apiSend };
+export { apiGet, ApiError, apiSend };
 export type { FetchInit };

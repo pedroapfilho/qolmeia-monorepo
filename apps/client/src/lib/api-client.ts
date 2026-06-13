@@ -59,5 +59,5 @@ const apiSendForm = async <T>(path: string, formData: FormData, init?: FetchInit
   return handleResponse<T>(res);
 };
 
-export { AGENTS_URL, ApiError, apiSendForm };
+export { ApiError, apiSendForm };
 export type { FetchInit };
