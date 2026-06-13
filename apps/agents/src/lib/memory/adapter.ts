@@ -23,8 +23,8 @@ type RetrieveArgs = {
 type ScoredRecord = MemoryRecord & { score: number };
 
 type MemoryAdapter = {
-  retrieve(args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>>;
-  upsert(record: MemoryRecord): Promise<void>;
+  retrieve: (args: RetrieveArgs) => Promise<ReadonlyArray<ScoredRecord>>;
+  upsert: (record: MemoryRecord) => Promise<void>;
 };
 
 export type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord };

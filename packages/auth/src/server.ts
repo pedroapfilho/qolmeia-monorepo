@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@repo/db";
+import { log } from "@repo/observability";
 import {
   sendChangeEmailConfirmation,
   sendMagicLinkEmail,
@@ -25,6 +26,32 @@ const parseEnvList = (value: string | undefined): Array<string> => {
     }
   }
   return result;
+};
+
+// Open-redirect gate for the verification callback: only in-app relative
+// paths survive (single leading "/", no protocol-relative "//", no
+// backslashes — browsers normalize "\" to "/" — and no scheme/host).
+// Anything else falls back to the app root. The register form validates the
+// same way before sending; this is the server-side half of the contract,
+// applied before the path is re-anchored on the requesting app's origin.
+const CALLBACK_FALLBACK_PATH = "/";
+
+// Fixed base for URL resolution: anything that escapes it (absolute URL,
+// scheme, protocol-relative host) resolves to a different origin.
+const CALLBACK_ANCHOR_ORIGIN = "https://qolmeia.invalid";
+
+export const safeCallbackPath = (value: string | null): string => {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return CALLBACK_FALLBACK_PATH;
+  }
+  try {
+    if (new URL(value, CALLBACK_ANCHOR_ORIGIN).origin !== CALLBACK_ANCHOR_ORIGIN) {
+      return CALLBACK_FALLBACK_PATH;
+    }
+  } catch {
+    return CALLBACK_FALLBACK_PATH;
+  }
+  return value;
 };
 
 type AuthConfig = {
@@ -131,7 +158,10 @@ export const createAuth = (config: AuthConfig) => {
               // Don't throw — Better Auth's enumeration-prevention path needs
               // to return success regardless. Log so delivery failures don't
               // break the auth response.
-              console.error("[Auth] Failed to send sign-up attempt email:", result.error);
+              log.error({
+                error: result.error,
+                message: "auth: failed to send sign-up attempt email",
+              });
             }
           }
         : undefined,
@@ -146,7 +176,11 @@ export const createAuth = (config: AuthConfig) => {
       // but the user-visible flow (form submit → redirect) still works.
       sendResetPassword: async ({ url, user }) => {
         if (!resendApiKey) {
-          console.info(`[auth] password-reset link for ${user.email}: ${url}`);
+          log.info({
+            message: "auth: password-reset link (no Resend key)",
+            url,
+            userEmail: user.email,
+          });
           return;
         }
         const result = await sendPasswordResetEmail(
@@ -165,10 +199,44 @@ export const createAuth = (config: AuthConfig) => {
     },
 
     emailVerification: {
+      // The link is the login: clicking it verifies the address AND signs in
+      // the clicking device. Tradeoff accepted (2026-06-12 fleet decision) —
+      // simpler than the retired pending-screen flow, at the cost of the
+      // session landing on whichever device opens the link.
+      autoSignInAfterVerification: true,
+      // Unverified sign-in attempts still 403, but get a fresh verification
+      // link alongside it so the login form can say "we just sent a new one".
+      sendOnSignIn: true,
       // Same no-op-without-Resend pattern as sendResetPassword above.
-      sendVerificationEmail: async ({ url, user }) => {
+      sendVerificationEmail: async ({ url, user }, request) => {
+        // Auth runs on its own origin (apps/auth), so a relative callbackURL
+        // would resolve against the auth service. Rebuild it against the web
+        // app origin that initiated the request (register form / unverified
+        // sign-in / change-email confirmation), preserving the caller's
+        // in-app path — the register form passes its ?from= context as
+        // callbackURL so the email clicker lands back where signup started —
+        // and defaulting to the app root. When the origin header is absent
+        // (non-browser callers), keep Better Auth's original URL.
+        const origin = request?.headers.get("origin");
+        const verificationUrl = (() => {
+          if (!origin) {
+            return url;
+          }
+          try {
+            const target = new URL(url);
+            const callbackPath = safeCallbackPath(target.searchParams.get("callbackURL"));
+            target.searchParams.set("callbackURL", `${origin}${callbackPath}`);
+            return target.toString();
+          } catch {
+            return url;
+          }
+        })();
         if (!resendApiKey) {
-          console.info(`[auth] verification link for ${user.email}: ${url}`);
+          log.info({
+            message: "auth: verification link (no Resend key)",
+            url: verificationUrl,
+            userEmail: user.email,
+          });
           return;
         }
         const result = await sendWelcomeEmail(
@@ -176,7 +244,7 @@ export const createAuth = (config: AuthConfig) => {
             userEmail: user.email,
             userId: user.id,
             username: user.name,
-            verificationUrl: url,
+            verificationUrl,
           },
           { apiKey: resendApiKey, from: fromEmail },
         );
@@ -195,7 +263,7 @@ export const createAuth = (config: AuthConfig) => {
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           if (!resendApiKey) {
-            console.info(`[auth] magic-link for ${email}: ${url}`);
+            log.info({ message: "auth: magic-link (no Resend key)", url, userEmail: email });
             return;
           }
           const result = await sendMagicLinkEmail(

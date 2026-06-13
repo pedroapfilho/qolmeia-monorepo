@@ -16,6 +16,8 @@ type EmbedResult = { data?: Array<Array<number>> };
 class VectorizeMemoryAdapter implements MemoryAdapter {
   constructor(private readonly env: Bindings) {}
 
+  // MemoryAdapter interface method — call sites dispatch through the interface.
+  // fallow-ignore-next-line unused-class-member
   async retrieve(args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>> {
     const vector = await this.embed(args.query);
     const result = await this.env.VECTORIZE.query(vector, {
@@ -43,6 +45,8 @@ class VectorizeMemoryAdapter implements MemoryAdapter {
     return records;
   }
 
+  // MemoryAdapter interface method — call sites dispatch through the interface.
+  // fallow-ignore-next-line unused-class-member
   async upsert(record: MemoryRecord): Promise<void> {
     const values = await this.embed(record.content);
     await this.env.VECTORIZE.upsert([

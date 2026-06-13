@@ -155,4 +155,4 @@ export {
   parsePagination,
   validationError,
 };
-export type { ApiErrorBody, ApiErrorCode, ApiListBody, ParsedPagination };
+export type { ApiListBody, ParsedPagination };

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "next build",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf .next",
-    "dev": "next dev -p 3000",
+    "dev": "portless run --name qolmeia.backoffice next dev",
     "lint": "oxlint src",
     "start": "next start",
     "test": "vitest run",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/observability": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-form": "^1.32.0",
     "@tanstack/react-query": "^5.95.0",
@@ -31,6 +32,7 @@
     "@repo/config-vitest": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.0",
+    "@testing-library/react": "^16.3.2",
     "@total-typescript/ts-reset": "^0.6.1",
     "@types/node": "^25.6.2",
     "@types/react": "^19.2.14",

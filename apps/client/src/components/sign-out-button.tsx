@@ -26,8 +26,8 @@ const SignOutButton = ({ className, label = "Sair" }: SignOutButtonProps) => {
       await authClient.signOut();
       push("/login");
       refresh();
-    } catch (error) {
-      console.error("[sign-out] failed", { error });
+    } catch {
+      // Surface failures via toast so a stuck cookie doesn't silently keep the user in.
       toast.error("Não foi possível sair. Tente novamente.");
       setPending(false);
     }

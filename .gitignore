@@ -67,4 +67,5 @@ logs/
 # playwright
 test-results/
 playwright-report/
+blob-report/
 tests/e2e/.auth/

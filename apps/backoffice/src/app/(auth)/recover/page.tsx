@@ -22,12 +22,20 @@ const RecoverPage = () => {
   const form = useForm({
     defaultValues: { email: "" },
     onSubmit: async ({ value }) => {
-      const { error } = await authClient.requestPasswordReset({
-        email: value.email,
-        redirectTo: "/reset-password",
-      });
-      if (error) {
-        toast.error(error.message ?? "Não foi possível enviar o link.");
+      try {
+        const { error } = await authClient.requestPasswordReset({
+          email: value.email,
+          redirectTo: "/reset-password",
+        });
+        if (error) {
+          toast.error(error.message ?? "Não foi possível enviar o link.");
+          return;
+        }
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures — catch so it doesn't escape the submit as an
+        // unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       toast.success("Enviamos um link para seu e-mail.");

@@ -7,16 +7,15 @@ vi.mock("@/lib/env", () => ({
   env: { NODE_ENV: "development" },
 }));
 
-vi.mock("@/lib/logger", () => ({
-  logger: { error: vi.fn(), info: vi.fn() },
-}));
-
 import { env } from "@/lib/env";
 
 import { AppError, errorHandler, notFound } from "./error-handler";
 
+const mockLogger = { error: vi.fn(), info: vi.fn() };
+
 const createMockContext = (headers: Record<string, string> = {}) => {
   return {
+    get: vi.fn((key: string) => (key === "log" ? mockLogger : undefined)),
     json: vi.fn((body: unknown, status?: number) => ({ body, status })),
     req: {
       header: vi.fn((name: string) => headers[name]),

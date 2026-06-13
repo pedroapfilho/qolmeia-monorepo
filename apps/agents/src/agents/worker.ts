@@ -12,6 +12,8 @@ import { emitTeamEvent } from "@/team/events";
 type HandleTicketResult = { error: string; ok: false } | { ok: true; workflowId: string };
 
 class WorkerAgent extends Agent<Env> {
+  // Called through the DO RPC stub by the delegateToWorker skill — invisible to static analysis.
+  // fallow-ignore-next-line unused-class-member
   async handleTicket(ticketId: string): Promise<HandleTicketResult> {
     const ticket = await loadTicket(this.env.DB, ticketId);
     if (!ticket) {

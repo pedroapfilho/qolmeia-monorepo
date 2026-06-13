@@ -65,11 +65,11 @@ const decodeBase64 = (b64: string): Uint8Array => {
 // future model returns an https://… link, the caller should fetch + upload
 // instead).
 const parseDataUrl = (url: string): { bytes: Uint8Array; mime: string } | null => {
-  const match = url.match(/^data:([^;]+);base64,(.+)$/v);
+  const match = url.match(/^data:(?<mime>[^;]+);base64,(?<b64>.+)$/v);
   if (!match) {
     return null;
   }
-  const [, mime, b64] = match;
+  const { b64, mime } = match.groups ?? {};
   if (!mime || !b64) {
     return null;
   }

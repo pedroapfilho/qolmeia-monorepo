@@ -1,12 +1,15 @@
 import { serve } from "@hono/node-server";
 import { createRoute, z } from "@hono/zod-openapi";
 import { prisma } from "@repo/db";
+import { createIdentify } from "@repo/observability/auth";
+import { honoEvlog, initApiLogger } from "@repo/observability/hono";
 import { createMarkdownFromOpenApi } from "@scalar/openapi-to-markdown";
 import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 
+import { auth } from "./lib/auth";
 import { env } from "./lib/env";
-import { logger } from "./lib/logger";
+import { log } from "./lib/logger";
 import { createOpenAPIApp } from "./lib/openapi";
 import { errorHandler, notFound } from "./middleware/error-handler";
 import {
@@ -19,9 +22,18 @@ import {
 import { authRoutes } from "./routes/auth";
 import { buildV1Routes } from "./routes/v1";
 
+initApiLogger({ service: "auth" });
+
 const app = createOpenAPIApp();
 
+const identify = createIdentify(auth);
+
 app.use("*", requestId);
+app.use("*", honoEvlog());
+app.use("*", async (c, next) => {
+  await identify(c.get("log"), c.req.raw.headers, c.req.path);
+  return next();
+});
 app.use("*", compress());
 app.use("*", requestSizeLimit());
 app.use("*", securityHeaders);
@@ -40,23 +52,6 @@ app.use(
     origin: corsOrigins.length > 0 ? corsOrigins : "*",
   }),
 );
-
-app.use("*", async (c, next) => {
-  if (c.req.path === "/healthz") {
-    return next();
-  }
-
-  const start = Date.now();
-  await next();
-  const ms = Date.now() - start;
-
-  logger.info({
-    duration: ms,
-    method: c.req.method,
-    status: c.res.status,
-    url: c.req.url,
-  });
-});
 
 app.use("/api/*", standardRateLimit);
 app.use("/api/v1/*", apiRateLimit);
@@ -138,7 +133,7 @@ app.openapi(readyzRoute, async (c) => {
       200,
     );
   } catch (error) {
-    logger.error({ error }, "Readiness check failed");
+    c.get("log").error("Readiness check failed", { error });
     return c.json(
       {
         checks: { database: "unhealthy" as const },
@@ -166,14 +161,12 @@ app.onError(errorHandler);
 const port = Number(env.PORT);
 const hostname = env.HOST;
 
-logger.info(
-  {
-    env: env.NODE_ENV,
-    hostname,
-    port,
-  },
-  "🚀 Starting auth service...",
-);
+log.info({
+  env: env.NODE_ENV,
+  hostname,
+  message: "🚀 Starting auth service...",
+  port,
+});
 
 serve({
   fetch: app.fetch,
@@ -182,13 +175,13 @@ serve({
 });
 
 process.on("SIGTERM", async () => {
-  logger.info("SIGTERM received, shutting down gracefully...");
+  log.info("server", "SIGTERM received, shutting down gracefully...");
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  logger.info("SIGINT received, shutting down gracefully...");
+  log.info("server", "SIGINT received, shutting down gracefully...");
   await prisma.$disconnect();
   process.exit(0);
 });

@@ -6,11 +6,15 @@ import { prisma } from "../client";
 // `pnpm db:push` has been run with the Phase 5b auth + membership additions
 // applied. Each test seeds its own fixtures under a unique prefix so the
 // suite is safe to re-run without truncation.
+//
+// Skipped when DATABASE_URL is absent — CI's test workflow (mirroring
+// acme's) runs without a Postgres service; the e2e workflow covers the
+// live-database path.
 
 const PREFIX = `auth-${Date.now()}`;
 const tag = (key: string): string => `${PREFIX}-${key}`;
 
-describe("Auth + OrgMembership schema", () => {
+describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => {
   beforeAll(() => {
     // Sanity: the new models exist on the typed Prisma client.
     expect(prisma.user).toBeDefined();

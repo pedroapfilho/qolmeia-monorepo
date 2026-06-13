@@ -38,12 +38,20 @@ const ResetPasswordForm = () => {
         toast.error("As senhas não conferem.");
         return;
       }
-      const { error } = await authClient.resetPassword({
-        newPassword: value.password,
-        token,
-      });
-      if (error) {
-        toast.error(error.message ?? "Não foi possível redefinir a senha.");
+      try {
+        const { error } = await authClient.resetPassword({
+          newPassword: value.password,
+          token,
+        });
+        if (error) {
+          toast.error(error.message ?? "Não foi possível redefinir a senha.");
+          return;
+        }
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures — catch so it doesn't escape the submit as an
+        // unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       toast.success("Senha redefinida com sucesso.");

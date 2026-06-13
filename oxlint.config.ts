@@ -83,6 +83,10 @@ export default defineConfig({
     {
       files: ["tests/e2e/**/*.ts"],
       rules: {
+        // The global teardown reports what it deleted (or why it couldn't) —
+        // Playwright surfaces stdout/stderr directly; a structured logger
+        // adds nothing in test infra.
+        "no-console": "off",
         "require-unicode-regexp": "off",
       },
     },

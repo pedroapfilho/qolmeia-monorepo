@@ -1,16 +1,14 @@
-// Typed activity event surface.
-//
-// Adding a new event type: add a new branch to `ActivityEvent` below.
+// Typed activity event surface. Adding a new event type = a new branch in
+// `ActivityEvent` below.
 //
 // What's load-bearing: the `(type, refType, payload-shape)` triplet. The
 // `summary` field is free-form pt-BR text per call. `refId` carries the id
 // of whatever the event refers to (action id, ticket id, team id, …) but
 // its type doesn't constrain the value beyond `string`.
 //
-// New events get a code prefix that matches one of the categories so the
-// prefix-based categorisation in the backoffice (apps/backoffice/.../
-// activity-row) keeps working for any rows written by older versions of
-// the worker.
+// New events get a code prefix that matches one of the backoffice categories
+// so the prefix-based fallback (apps/backoffice/.../activity-row) keeps
+// working for any rows written by older versions of the worker.
 
 type ActionProposedEvent = {
   payload: { actionId: string; summary: string };

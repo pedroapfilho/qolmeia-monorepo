@@ -15,10 +15,11 @@ import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { loginSchema } from "@/lib/form-schemas";
+import { safeRedirectPath } from "@/lib/redirect-validation";
 
 // useSearchParams() forces a CSR bailout — wrapping in Suspense at the page
 // boundary keeps Next happy without giving up on static prerender for the
@@ -26,18 +27,36 @@ import { loginSchema } from "@/lib/form-schemas";
 const LoginForm = () => {
   const { push, refresh } = useRouter();
   const searchParams = useSearchParams();
-  const fromParam = searchParams.get("from");
-  const redirectTo = fromParam && fromParam.startsWith("/") ? fromParam : "/";
+  // proxy.ts sends logged-out visitors here with ?from=<pathname>; validate
+  // it once and use it as both the post-sign-in destination and the register
+  // cross-link context. Invalid or absent → "/".
+  const redirectTo = safeRedirectPath(searchParams.get("from"));
+  const [showUnverifiedNotice, setShowUnverifiedNotice] = useState(false);
 
   const form = useForm({
     defaultValues: { email: "", password: "" },
     onSubmit: async ({ value }) => {
-      const { error } = await authClient.signIn.email({
-        email: value.email,
-        password: value.password,
-      });
-      if (error) {
-        toast.error(error.message ?? "Não foi possível entrar. Verifique seus dados.");
+      setShowUnverifiedNotice(false);
+      try {
+        const { error } = await authClient.signIn.email({
+          email: value.email,
+          password: value.password,
+        });
+        if (error) {
+          // Better Auth 403s unverified accounts and (sendOnSignIn) re-sends
+          // the verification link — informational, not a credentials error.
+          if (error.code === "EMAIL_NOT_VERIFIED") {
+            setShowUnverifiedNotice(true);
+            return;
+          }
+          toast.error(error.message ?? "Não foi possível entrar. Verifique seus dados.");
+          return;
+        }
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures (auth service down) — without this catch the
+        // rejection escapes the submit as an unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       push(redirectTo);
@@ -114,6 +133,12 @@ const LoginForm = () => {
               }}
             </form.Field>
           </FieldGroup>
+
+          {showUnverifiedNotice && (
+            <output aria-live="polite" className="mt-4 block text-center text-sm">
+              Este e-mail ainda não foi verificado — acabamos de enviar um novo link.
+            </output>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-3 pt-6">
           <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
@@ -132,7 +157,11 @@ const LoginForm = () => {
             Ainda não tem conta?{" "}
             <Link
               className="font-medium text-primary underline-offset-4 hover:underline"
-              href="/register"
+              href={
+                redirectTo === "/"
+                  ? "/register"
+                  : `/register?from=${encodeURIComponent(redirectTo)}`
+              }
             >
               Criar conta
             </Link>

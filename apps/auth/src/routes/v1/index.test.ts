@@ -13,11 +13,11 @@ const sessionA: AuthSession = {
   user: { email: "a@example.com", id: "user_a", name: "A" },
 };
 
-const buildAllowGuard = (): MiddlewareHandler => async (c: Context, next: Next) => {
+const buildAllowGuard = (): MiddlewareHandler => (c: Context, next: Next) => {
   c.set("session", sessionA);
   c.set("orgId", "org_a");
   c.set("role", "OWNER");
-  await next();
+  return next();
 };
 
 const buildRejectGuard = (): MiddlewareHandler => (c: Context, _next: Next) =>

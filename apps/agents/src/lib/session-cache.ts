@@ -91,5 +91,5 @@ const writeCachedString = async (
   }
 };
 
-export { buildCacheKey, KV_TTL_FLOOR_SECONDS, readCachedString, writeCachedString };
+export { buildCacheKey, readCachedString, writeCachedString };
 export type { CacheKeyInput };

@@ -5,7 +5,7 @@
   "globalEnv": ["NODE_ENV"],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "db:generate"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "env": [
         "AGENTS_INTERNAL_URL",
@@ -34,6 +34,7 @@
     "test:coverage": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
     "clean": { "cache": false },
     "db:generate": { "cache": false, "env": ["DATABASE_URL"] },
-    "db:push": { "cache": false, "env": ["DATABASE_URL"] }
+    "db:push": { "cache": false, "env": ["DATABASE_URL"] },
+    "db:seed": { "cache": false, "env": ["DATABASE_URL"] }
   }
 }

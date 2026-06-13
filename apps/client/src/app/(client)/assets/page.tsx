@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 
 import { apiGetServer } from "@/lib/api-server";
 import type { ListResponse, WebChatAsset } from "@/lib/api-types";
+import { log } from "@/lib/observability";
 
 export const metadata: Metadata = {
   title: "Assets",
@@ -16,7 +17,7 @@ const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
     const result = await apiGetServer<ListResponse<WebChatAsset>>("/api/me/assets?limit=100");
     return result.items;
   } catch (error) {
-    console.error("[assets] failed to load", { error });
+    log.error({ error, message: "assets: failed to load" });
     return [];
   }
 };

@@ -7,10 +7,10 @@ This file provides guidance to AI coding agents when working with code in this r
 ```bash
 # Development
 pnpm dev                                 # turbo runs all four apps in parallel
-pnpm dev --filter=auth                   # auth service (Hono, :4000)
+pnpm dev --filter=auth                   # auth service (Hono, https://qolmeia.auth.localhost via portless)
 pnpm dev --filter=worker-bees            # Cloudflare Worker (wrangler dev, :8787)
-pnpm dev --filter=client                 # customer app (Next.js, :3001)
-pnpm dev --filter=backoffice             # operator panel (Next.js, :3000)
+pnpm dev --filter=client                 # customer app (Next.js, https://qolmeia.client.localhost)
+pnpm dev --filter=backoffice             # operator panel (Next.js, https://qolmeia.backoffice.localhost)
 
 # Build / Lint / Typecheck
 pnpm build                        # all packages + apps (turbo cached)
@@ -33,12 +33,12 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 
 ### Apps
 
-| Folder            | Package name  | Framework         | Dev URL                 | Audience                                                                                                                            |
-| ----------------- | ------------- | ----------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/auth`       | `auth`        | Hono on Node 24   | `http://localhost:4000` | Auth service — `/api/auth/*` (Better Auth) + `/api/v1/me` (relay target).                                                           |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`). |
-| `apps/client`     | `client`      | Next.js 16        | `http://localhost:3001` | End-customer chat surface — CUSTOMER role.                                                                                          |
-| `apps/backoffice` | `backoffice`  | Next.js 16        | `http://localhost:3000` | Operator panel — OWNER/STAFF roles.                                                                                                 |
+| Folder            | Package name  | Framework         | Dev URL                                           | Audience                                                                                                                            |
+| ----------------- | ------------- | ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/auth`       | `auth`        | Hono on Node 24   | `https://qolmeia.auth.localhost` (portless)       | Auth service — `/api/auth/*` (Better Auth) + `/api/v1/me` (relay target).                                                           |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`). |
+| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface — CUSTOMER role.                                                                                          |
+| `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel — OWNER/STAFF roles.                                                                                                 |
 
 ### Key runtime moves (P1–P7)
 
@@ -85,7 +85,7 @@ Each app has its own `.env.example`:
 
 - **apps/auth** — `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit — Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
 - **apps/agents** — `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
-- **apps/client** — `NEXT_PUBLIC_AGENTS_URL`, `NEXT_PUBLIC_AUTH_URL`, `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma).
+- **apps/client** — `NEXT_PUBLIC_AGENTS_URL`, `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth is same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`); `NEXT_PUBLIC_AUTH_URL` only overrides for a cross-origin prod deployment.
 - **apps/backoffice** — same as client.
 
 `.env` files are git-ignored; `.env.example` is committed.
@@ -118,10 +118,10 @@ pnpm dev
 
 **Seeded dev credentials** (created by `apps/auth/src/scripts/seed-dev.ts`):
 
-| Surface                              | Role     | Email                  | Password                    |
-| ------------------------------------ | -------- | ---------------------- | --------------------------- |
-| Backoffice — `http://localhost:3000` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
-| Client — `http://localhost:3001`     | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
+| Surface                                             | Role     | Email                  | Password                    |
+| --------------------------------------------------- | -------- | ---------------------- | --------------------------- |
+| Backoffice — `https://qolmeia.backoffice.localhost` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
+| Client — `https://qolmeia.client.localhost`         | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 
 The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`) so it matches the D1 seed in `apps/agents/scripts/seed-p2.sql`. The client login is magic-link only; the password above only works on the backoffice. Watch `apps/auth` logs for the magic link in dev.
 

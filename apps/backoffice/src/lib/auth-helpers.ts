@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { getAuth } from "@/lib/auth";
+import { log } from "@/lib/observability";
 
 import type { MeResponse } from "./api-types";
 
@@ -19,7 +20,7 @@ const getSession = cache(async () => {
 
     return session;
   } catch (error) {
-    console.error("[auth-helpers] getSession failed", { error });
+    log.error({ error, message: "auth-helpers: getSession failed" });
     return null;
   }
 });
@@ -64,7 +65,7 @@ export const requireStaff = async (): Promise<MeResponse> => {
   }
   if (!res.ok) {
     // 429 / 5xx / etc. — surface the failure rather than redirect.
-    console.error("[auth-helpers] /api/me transient failure", { status: res.status });
+    log.error({ message: "auth-helpers: /api/me transient failure", status: res.status });
     throw new Error(`/api/me responded ${res.status}`);
   }
 

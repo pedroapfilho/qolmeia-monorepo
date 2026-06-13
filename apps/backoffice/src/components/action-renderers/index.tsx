@@ -19,4 +19,3 @@ const getActionRenderer = (actionType: string): ActionRenderer | null =>
   RENDERERS[actionType] ?? null;
 
 export { getActionRenderer };
-export type { ActionRendererProps };

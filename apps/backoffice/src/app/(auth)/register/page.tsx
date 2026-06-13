@@ -14,13 +14,22 @@ import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { registerSchema } from "@/lib/form-schemas";
+import { safeRedirectPath } from "@/lib/redirect-validation";
 
-const RegisterPage = () => {
+const RegisterForm = () => {
   const { push, refresh } = useRouter();
+  const searchParams = useSearchParams();
+  // Carried over from the login form's cross-link (proxy.ts sends logged-out
+  // visitors to /login?from=<pathname>). Validated to an in-app path; passed
+  // as callbackURL so packages/auth bakes it into the verification link and
+  // the email clicker lands back on the page that started signup.
+  const redirectTo = safeRedirectPath(searchParams.get("from"));
+  const [sentToEmail, setSentToEmail] = useState<string | null>(null);
 
   const form = useForm({
     defaultValues: { confirmPassword: "", email: "", name: "", password: "" },
@@ -29,17 +38,34 @@ const RegisterPage = () => {
         toast.error("As senhas não conferem.");
         return;
       }
-      const { error } = await authClient.signUp.email({
-        email: value.email,
-        name: value.name,
-        password: value.password,
-      });
-      if (error) {
-        toast.error(error.message ?? "Não foi possível criar a conta.");
+      try {
+        const result = await authClient.signUp.email({
+          callbackURL: redirectTo,
+          email: value.email,
+          name: value.name,
+          password: value.password,
+        });
+        if (result.error) {
+          toast.error(result.error.message ?? "Não foi possível criar a conta.");
+          return;
+        }
+        // No token means requireEmailVerification suppressed auto-sign-in (or
+        // enumeration prevention returned synthetic success); both paths show
+        // the same inline "check your email" state. Clicking the emailed link
+        // verifies AND signs in the clicking device.
+        if (!result.data?.token) {
+          setSentToEmail(value.email);
+          return;
+        }
+      } catch {
+        // Better Auth's client returns { error } for HTTP failures but THROWS
+        // on network failures — catch so it doesn't escape the submit as an
+        // unhandledRejection.
+        toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");
-      push("/");
+      push(redirectTo);
       refresh();
     },
     validators: { onSubmit: registerSchema },
@@ -50,6 +76,23 @@ const RegisterPage = () => {
     event.stopPropagation();
     void form.handleSubmit();
   };
+
+  if (sentToEmail) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <output aria-live="polite" className="block text-sm text-muted-foreground">
+            Enviamos um link de verificação para{" "}
+            <span className="font-medium text-foreground">{sentToEmail}</span>. Clique nele para
+            confirmar sua conta e entrar.
+          </output>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -167,7 +210,7 @@ const RegisterPage = () => {
             Já tem conta?{" "}
             <Link
               className="font-medium text-primary underline-offset-4 hover:underline"
-              href="/login"
+              href={redirectTo === "/" ? "/login" : `/login?from=${encodeURIComponent(redirectTo)}`}
             >
               Entrar
             </Link>
@@ -177,5 +220,14 @@ const RegisterPage = () => {
     </Card>
   );
 };
+
+// useSearchParams() forces a CSR bailout — wrapping in Suspense at the page
+// boundary keeps Next happy without giving up on static prerender for the
+// auth scaffold (same pattern as /login).
+const RegisterPage = () => (
+  <Suspense fallback={null}>
+    <RegisterForm />
+  </Suspense>
+);
 
 export default RegisterPage;

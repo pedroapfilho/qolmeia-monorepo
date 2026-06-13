@@ -33,7 +33,7 @@ backofficeRoutes.use("*", async (c, next) => {
   c.set("companyId", session.companyId);
   c.set("role", session.role);
   c.set("userId", session.userId);
-  await next();
+  return next();
 });
 
 backofficeRoutes.get("/tickets", async (c) => {

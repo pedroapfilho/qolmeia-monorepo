@@ -3,7 +3,14 @@
   "workspaces": {
     "packages": ["apps/*", "packages/*"]
   },
-  "entry": ["oxlint.config.ts", "**/prisma.config.ts", "apps/auth/src/lib/vitest-setup.ts"],
+  "entry": [
+    "oxlint.config.ts",
+    "**/prisma.config.ts",
+    "apps/auth/src/lib/vitest-setup.ts",
+    "apps/*/src/lib/observability.ts",
+    "packages/transactional/src/emails/**/*.tsx",
+    "scripts/e2e-*.mjs"
+  ],
   "ignorePatterns": [],
   "ignoreExports": [
     {
@@ -11,7 +18,15 @@
       "exports": ["isPrismaKnownError"]
     }
   ],
-  "ignoreDependencies": ["pino-pretty", "@prisma/client", "@vitest/coverage-v8", "jsdom"],
+  "ignoreDependencies": [
+    "@prisma/client",
+    "@vitest/coverage-v8",
+    "jsdom",
+    "better-auth",
+    "hono",
+    "react",
+    "postcss-load-config"
+  ],
   "rules": {
     "unused-dependencies": "warn"
   }

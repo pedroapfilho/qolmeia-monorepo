@@ -13,6 +13,7 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "turbo run db:generate",
     "db:push": "turbo run db:push",
+    "db:seed": "turbo run db:seed",
     "test": "turbo run test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -26,13 +27,14 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@repo/db": "workspace:*",
-    "fallow": "^2.69.0",
+    "fallow": "^2.85.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
-    "oxfmt": "^0.48.0",
-    "oxlint": "^1.63.0",
+    "oxfmt": "^0.52.0",
+    "oxlint": "^1.67.0",
     "oxlint-config-awesomeness": "^3.0.2",
-    "turbo": "^2.9.12"
+    "turbo": "^2.9.12",
+    "undici": "^7.21.0"
   },
   "lint-staged": {
     "!(*.d).{ts,tsx,mts,cts,js,jsx,mjs,cjs}": [
@@ -45,20 +47,5 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@10.33.0",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "core-js-pure",
-      "esbuild",
-      "fallow",
-      "msw",
-      "prisma",
-      "sharp",
-      "unrs-resolver",
-      "vue-demi",
-      "workerd"
-    ]
-  }
+  "packageManager": "pnpm@11.1.3"
 }

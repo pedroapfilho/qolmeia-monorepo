@@ -14,7 +14,12 @@ export default defineConfig(async () => {
       cloudflareTest({
         main: "./src/index.ts",
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations },
+          bindings: {
+            // Deterministic HMAC key so signed-URL tests don't depend on
+            // .dev.vars, which is gitignored and absent in CI.
+            ASSETS_SIGNING_KEY: "vitest-assets-signing-key",
+            TEST_MIGRATIONS: migrations,
+          },
         },
         wrangler: { configPath: "./wrangler.jsonc" },
       }),

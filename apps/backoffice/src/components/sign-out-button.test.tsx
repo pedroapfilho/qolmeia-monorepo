@@ -66,8 +66,6 @@ describe("SignOutButton", () => {
 
   it("shows an error toast when signOut throws", async () => {
     signOutMock.mockRejectedValueOnce(new Error("boom"));
-    // Silence the console.error the component emits on failure paths.
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<SignOutButton />);
     fireEvent.click(screen.getByRole("button", { name: "Sair" }));
@@ -76,7 +74,5 @@ describe("SignOutButton", () => {
       expect(toastErrorMock).toHaveBeenCalled();
       expect(pushMock).not.toHaveBeenCalled();
     });
-
-    errorSpy.mockRestore();
   });
 });

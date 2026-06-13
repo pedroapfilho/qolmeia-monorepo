@@ -188,11 +188,4 @@ export {
   markExecuted,
   proposeAction,
 };
-export type {
-  Action,
-  ActionRow,
-  ActionStatus,
-  DecideActionInput,
-  DecisionOutcome,
-  ProposeActionInput,
-};
+export type { Action, ActionStatus, DecideActionInput, DecisionOutcome, ProposeActionInput };

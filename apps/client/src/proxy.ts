@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getAuth } from "@/lib/auth";
+import { log } from "@/lib/observability";
 
 // Protected: every client route lives behind a session. The chat home
 // "/" plus assets/activity make up the customer surface.
@@ -39,8 +40,9 @@ export const proxy = async (request: NextRequest) => {
       headers: request.headers,
     })
     .catch((error) => {
-      console.error("[proxy] getSession failed — treating as unauthenticated", {
+      log.error({
         error,
+        message: "proxy: getSession failed — treating as unauthenticated",
         pathname,
       });
       return null;

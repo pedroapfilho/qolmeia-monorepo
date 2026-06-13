@@ -24,4 +24,4 @@ const getMemoryAdapter = (env: Env): MemoryAdapter => {
 };
 
 export { getMemoryAdapter };
-export type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "@/lib/memory/adapter";
+export type { MemoryAdapter, ScoredRecord } from "@/lib/memory/adapter";

@@ -181,6 +181,8 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   // invalidation — the payload carries no row data, the client refetches
   // /api/me/team on receipt. Errors are swallowed by callers (emitTeamEvent):
   // the DB is source of truth, the event is a cache hint.
+  // Called through the DO RPC stub (team/events.ts) — invisible to static analysis.
+  // fallow-ignore-next-line unused-class-member
   broadcastTeamEvent(event: TeamEvent): void {
     const frame = JSON.stringify(event);
     let attempted = 0;
@@ -219,6 +221,8 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   // skill). We just persist it as a regular agent turn everywhere a future
   // turn looks: D1, the SDK's message list (auto-broadcast to connected WS
   // clients), and the recent-turns buffer.
+  // Called through the DO RPC stub by the worker-job Workflow — invisible to static analysis.
+  // fallow-ignore-next-line unused-class-member
   async presentResult(args: { result: string; ticketId: string }): Promise<void> {
     const text = args.result.trim();
     if (text.length === 0) {
@@ -262,6 +266,7 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   // external channel (Telegram, etc.). Same prepared-turn primitive as the
   // web-chat path but uses generateText (non-streaming) and sends the reply
   // out via the channel adapter — there's no WebSocket client on this path.
+  // fallow-ignore-next-line unused-class-member
   async handleInboundFromConnector(input: {
     connectorId: string;
     connectorType: ConnectorType;
@@ -383,6 +388,7 @@ class CorrespondentAgent extends AIChatAgent<Env> {
   // Called by the team-confirm route after materializeTeam. Writes structured
   // facts into memory so the Correspondent's first chat turn already knows
   // who the customer is, instead of starting blank.
+  // fallow-ignore-next-line unused-class-member
   async seedMemory(input: {
     brief: Partial<CompanyBriefPartial>;
     debriefSummary: string;
@@ -435,6 +441,8 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     );
   }
 
+  // AIChatAgent framework callback — the agents SDK dispatches it, not our code.
+  // fallow-ignore-next-line unused-class-member
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
   ): Promise<Response | undefined> {

@@ -62,4 +62,3 @@ const draftSocialPostSkill: UnknownSkill = {
 };
 
 export { draftSocialPostSkill };
-export type { DraftSocialPostResult };

@@ -2,6 +2,7 @@ import { buttonVariants } from "@repo/ui/lib/button-variants";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+/** @public Next.js app-router reads metadata via the module loader */
 export const metadata: Metadata = {
   title: "Página não encontrada",
 };

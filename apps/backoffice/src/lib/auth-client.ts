@@ -2,17 +2,19 @@
 
 import { createBetterAuthClient } from "@repo/auth/client";
 
-// Auth lives at apps/auth (/api/auth) — cross-origin. The backoffice runs at
-// :3000 and talks to the auth service at NEXT_PUBLIC_AUTH_URL (defaulted to
-// :4000). Better Auth validates non-empty baseURLs as absolute URLs, so we
-// resolve the auth origin at module load and append /api/auth.
+// Same-origin by default: next.config.ts rewrites /api/auth/* to the auth
+// service, so every auth call (and its session cookie) stays first-party on
+// this app's origin. Browsers treat `.localhost` as a public suffix, so a
+// cross-origin auth service under portless could never set a cookie this app
+// can read — same-origin is the only shape that works everywhere.
 //
-// Empty SSR fallback matches the acme pattern — all call sites are
-// `"use client"`, so SSR evaluation never actually hits the client fetch
-// path. The runtime check on `window` is what guards the absolute URL.
-const authUrl =
-  process.env.NEXT_PUBLIC_AUTH_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// With an empty baseURL, Better Auth's client resolves the browser's own
+// origin + /api/auth at request time (and SSR never fetches — all call sites
+// are "use client"). NEXT_PUBLIC_AUTH_URL stays as an OVERRIDE for a
+// genuinely cross-origin deployment (e.g. prod auth on a sibling subdomain
+// that shares a registrable domain for cookies). Better Auth validates
+// non-empty baseURLs as absolute URLs, so the override appends /api/auth to
+// an absolute origin.
+const authUrl = process.env.NEXT_PUBLIC_AUTH_URL;
 
-export const authClient = createBetterAuthClient(
-  typeof window === "undefined" ? "" : `${authUrl}/api/auth`,
-);
+export const authClient = createBetterAuthClient(authUrl ? `${authUrl}/api/auth` : "");

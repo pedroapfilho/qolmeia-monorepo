@@ -19,7 +19,7 @@ internalRoutes.use("*", async (c, next) => {
   if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== expected) {
     return c.text("Forbidden", 403);
   }
-  await next();
+  return await next();
 });
 
 // Slug validator. Not a regex because oxlint's /v parser and V8's /v parser
