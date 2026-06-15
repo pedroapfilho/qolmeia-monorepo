@@ -20,6 +20,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.use(
   "*",
   cors({
+    allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
     origin: (origin, c) => {
       const env = c.env as Env;

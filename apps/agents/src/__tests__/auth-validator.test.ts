@@ -17,6 +17,9 @@ const meStaff = {
 const buildRequest = (token: string) =>
   new Request(`http://agents.test/agents/correspondent/co_1?cf_session=${token}`);
 
+const outboundAuthHeader = (init: RequestInit | undefined): string | undefined =>
+  (init?.headers as Record<string, string> | undefined)?.Authorization;
+
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
@@ -32,6 +35,31 @@ describe("validateSession", () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const result = await validateSession(buildRequest("tok"), env);
     expect(result?.role).toBe("STAFF");
+  });
+
+  it("resolves a session from an inbound Authorization: Bearer header (no cf_session/Cookie)", async () => {
+    const fetchSpy = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+      Promise.resolve(Response.json(meCustomer)),
+    );
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    const req = new Request("http://agents.test/api/me", {
+      headers: { Authorization: "Bearer header-tok" },
+    });
+    const result = await validateSession(req, env);
+    expect(result).toEqual({ companyId: "co_1", role: "CUSTOMER", userId: "u_1" });
+    expect(outboundAuthHeader(fetchSpy.mock.calls[0]?.[1])).toBe("Bearer header-tok");
+  });
+
+  it("prefers the inbound Authorization header over the cf_session query param", async () => {
+    const fetchSpy = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+      Promise.resolve(Response.json(meCustomer)),
+    );
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    const req = new Request("http://agents.test/api/me?cf_session=query-tok", {
+      headers: { Authorization: "Bearer header-tok" },
+    });
+    await validateSession(req, env);
+    expect(outboundAuthHeader(fetchSpy.mock.calls[0]?.[1])).toBe("Bearer header-tok");
   });
 
   it("returns null when /api/v1/me responds 401", async () => {

@@ -23,11 +23,19 @@ const SESSION_CACHE_NAMESPACE = "session";
 
 const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
+  const authHeader = request.headers.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const cookieHeader = request.headers.get("Cookie");
 
+  // Priority: inbound Authorization header > cf_session query param > Cookie.
+  // Server-to-Worker REST callers send the token as a header (it never lands in
+  // the request URL / Workers Logs); the browser WebSocket path can't set
+  // headers so it keeps using cf_session.
+  const token = bearerToken ?? tokenParam;
+
   const headers: Record<string, string> = {};
-  if (tokenParam) {
-    headers.Authorization = `Bearer ${tokenParam}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   } else if (cookieHeader) {
     headers.Cookie = cookieHeader;
   } else {
@@ -37,7 +45,7 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   const cacheKey = await buildCacheKey({
     cookie: cookieHeader,
     namespace: SESSION_CACHE_NAMESPACE,
-    token: tokenParam,
+    token,
   });
   const cachedRaw = await readCachedString(env, cacheKey);
   if (cachedRaw) {
