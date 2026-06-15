@@ -23,6 +23,9 @@ interface Env {
 }
 
 namespace Cloudflare {
+  // Intentionally mirrors the global `Env` above — the `AIChatAgent<Env>`
+  // constraint resolves against `Cloudflare.Env`, so the two must match.
+  // oxlint-disable-next-line no-shadow
   interface Env {
     AI?: Ai;
     ASSETS_SIGNING_KEY: string;
