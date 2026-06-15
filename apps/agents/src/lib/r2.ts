@@ -51,6 +51,11 @@ const fromBase64Url = (s: string): Uint8Array => {
 };
 
 const signAssetToken = async (secret: string, assetId: string, ttlMs: number): Promise<string> => {
+  if (!secret) {
+    // Refuse to mint tokens with an empty key — an empty HMAC key is public
+    // knowledge, so the signature would be forgeable. Fail loud instead.
+    throw new Error("ASSETS_SIGNING_KEY is not configured");
+  }
   const expiresAt = Date.now() + ttlMs;
   const key = await importHmacKey(secret);
   const payload = encoder.encode(`${assetId}.${expiresAt}`);
@@ -63,6 +68,10 @@ const verifyAssetToken = async (
   assetId: string,
   token: string,
 ): Promise<boolean> => {
+  if (!secret) {
+    // Fail closed: with no key configured, every token is unverifiable.
+    return false;
+  }
   const dot = token.lastIndexOf(".");
   if (dot === -1) {
     return false;
