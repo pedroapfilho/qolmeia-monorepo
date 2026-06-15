@@ -123,6 +123,18 @@ describe("markExecuted + listPendingActions", () => {
   });
 
   it("listPendingActions returns oldest-first within companyId", async () => {
+    // Two DISTINCT tickets: proposeAction is now idempotent on (ticketId,
+    // pending), so two proposes for the same ticket would collapse to one row.
+    // One action per ticket keeps two pending rows to order.
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO ticket
+         (id, company_id, agent_instance_id, parent_ticket_id, title, brief,
+          status, origin, workflow_id, result, created_at, updated_at)
+       VALUES ('tkt-action-test-2', ?, 'agent-action-test', NULL, 't2', 'b',
+               'open', 'delegation', NULL, NULL, 0, 0)`,
+    )
+      .bind(COMPANY_ID)
+      .run();
     const first = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
@@ -139,11 +151,58 @@ describe("markExecuted + listPendingActions", () => {
       companyId: COMPANY_ID,
       policy: "require-approval",
       proposed: { n: 2 },
-      ticketId: "tkt-action-test",
+      ticketId: "tkt-action-test-2",
     });
     const pending = await listPendingActions(env.DB, { companyId: COMPANY_ID });
     const indexFirst = pending.findIndex((a) => a.id === first.id);
     const indexSecond = pending.findIndex((a) => a.id === second.id);
     expect(indexFirst).toBeLessThan(indexSecond);
+  });
+
+  it("is idempotent on (ticketId, pending): double-propose returns the same id, one row", async () => {
+    const first = await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      policy: "require-approval",
+      proposed: { attempt: 1 },
+      ticketId: "tkt-action-test",
+    });
+    const second = await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      policy: "require-approval",
+      proposed: { attempt: 2 },
+      ticketId: "tkt-action-test",
+    });
+    expect(second.id).toBe(first.id);
+    const pending = await listPendingActions(env.DB, { companyId: COMPANY_ID });
+    const forTicket = pending.filter((a) => a.ticketId === "tkt-action-test");
+    expect(forTicket).toHaveLength(1);
+    expect(forTicket[0]?.id).toBe(first.id);
+  });
+
+  it("allows a fresh propose once the prior action is no longer pending", async () => {
+    const first = await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      policy: "require-approval",
+      proposed: { attempt: 1 },
+      ticketId: "tkt-action-test",
+    });
+    await decideAction(env.DB, {
+      actionId: first.id,
+      decidedByUserId: "op-1",
+      decision: "rejected",
+    });
+    // The prior action is decided (not pending), so a retry/new run may insert a
+    // fresh pending row for the same ticket.
+    const second = await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      policy: "require-approval",
+      proposed: { attempt: 2 },
+      ticketId: "tkt-action-test",
+    });
+    expect(second.id).not.toBe(first.id);
   });
 });
