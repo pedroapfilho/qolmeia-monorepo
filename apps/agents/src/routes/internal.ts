@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { constantTimeEqual } from "@/lib/constant-time";
+
 // Internal-only endpoints, gated by a shared secret in INTERNAL_SHARED_SECRET.
 // Today's surface: POST /api/internal/companies — called by apps/auth on
 // org creation to provision the matching D1 `company` row. The Better Auth
@@ -16,7 +18,7 @@ internalRoutes.use("*", async (c, next) => {
     return c.text("Internal endpoint disabled (missing INTERNAL_SHARED_SECRET)", 503);
   }
   const auth = c.req.header("Authorization");
-  if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== expected) {
+  if (!auth || !auth.startsWith("Bearer ") || !constantTimeEqual(auth.slice(7), expected)) {
     return c.text("Forbidden", 403);
   }
   return await next();
