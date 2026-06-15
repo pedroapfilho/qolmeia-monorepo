@@ -51,14 +51,14 @@ const OnboardingActions = ({
     }
     setSubmitting(true);
     try {
-      const response = await fetch(
-        `${agentsUrl}/api/teams/${companyId}/confirm?cf_session=${sessionToken}`,
-        {
-          body: JSON.stringify({ templateIds: [...selected] }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
+      const response = await fetch(`${agentsUrl}/api/teams/${companyId}/confirm`, {
+        body: JSON.stringify({ templateIds: [...selected] }),
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
         },
-      );
+        method: "POST",
+      });
       if (!response.ok) {
         const body = await response.text();
         toast.error(`Não foi possível confirmar: ${body.slice(0, 120)}`);

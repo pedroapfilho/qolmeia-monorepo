@@ -31,7 +31,12 @@ type TemplatesResponse = {
 
 const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
   try {
-    const res = await fetch(`${url}?cf_session=${token}`, { cache: "no-store" });
+    // Server-side REST call: pass the session via the Authorization header so the
+    // token never lands in the request URL (and thus never in Workers Logs).
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) {
       return null;
     }

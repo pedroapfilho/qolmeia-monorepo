@@ -75,10 +75,26 @@ type ProposeActionInput = {
   ticketId: string;
 };
 
+// Idempotent on (ticketId, status='pending'): if a pending action already
+// exists for the ticket, return its id instead of inserting a second row.
+// Cloudflare Workflows retry a `step.do` block on failure and may re-run a step
+// whose body partially executed — so if a write *after* this INSERT throws, the
+// step retries and calls propose again. Without this guard that minted a fresh
+// UUID and inserted a duplicate pending approval (the first one's `waitForEvent`
+// would then never resume). A single ticket's workflow is the only writer of its
+// pending action, so a look-before-insert has no cross-writer race within the DO.
 const proposeAction = async (
   db: D1Database,
   input: ProposeActionInput,
 ): Promise<{ id: string }> => {
+  const existing = await db
+    .prepare("SELECT id FROM action WHERE ticket_id = ? AND status = 'pending' LIMIT 1")
+    .bind(input.ticketId)
+    .first<{ id: string }>();
+  if (existing) {
+    return { id: existing.id };
+  }
+
   const id = crypto.randomUUID();
   const now = Date.now();
   await db

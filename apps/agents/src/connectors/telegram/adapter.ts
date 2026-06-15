@@ -6,6 +6,7 @@ import type {
   SendOutboundResult,
   VerifyRequest,
 } from "@/connectors/types";
+import { constantTimeEqual } from "@/lib/constant-time";
 
 // Telegram Bot API. Inbound: POST /webhooks/telegram/:connectorId with a
 // `Update` payload. Outbound: POST https://api.telegram.org/bot<token>/
@@ -148,7 +149,7 @@ const telegramAdapter: ConnectorAdapter = {
       return Promise.resolve(false);
     }
     const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
-    return Promise.resolve(got === expected);
+    return Promise.resolve(constantTimeEqual(got ?? "", expected));
   },
 };
 

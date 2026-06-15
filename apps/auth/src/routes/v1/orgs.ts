@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@repo/db";
-import { prisma as defaultPrisma } from "@repo/db";
+import { Prisma, prisma as defaultPrisma } from "@repo/db";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -22,7 +22,11 @@ import { log } from "@/lib/logger";
 // reconcile. (D1 rows are cheap; the user-facing failure mode is bad UX, not
 // data corruption.)
 
-type OrgsPrisma = Pick<PrismaClient, "organization" | "orgMembership">;
+// `$transaction` is needed so the org + OWNER membership commit atomically (no
+// orphaned tenant if the membership write fails). It lives on the full
+// PrismaClient, so the injectable type widens to include it alongside the two
+// models the route writes.
+type OrgsPrisma = Pick<PrismaClient, "$transaction" | "organization" | "orgMembership">;
 
 type AuthLike = {
   api: {
@@ -134,17 +138,34 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       );
     }
 
+    // Fast, friendly 409 for the common case. The transaction's P2002 catch
+    // below is the real guard against the check-then-act slug race (two
+    // concurrent creates both pass this check; the loser hits the unique
+    // constraint).
     const existing = await prisma.organization.findUnique({ where: { slug: parsed.data.slug } });
     if (existing) {
       return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
     }
 
-    const org = await prisma.organization.create({
-      data: { name: parsed.data.name, slug: parsed.data.slug },
-    });
-    await prisma.orgMembership.create({
-      data: { orgId: org.id, role: "OWNER", userId: session.user.id },
-    });
+    let org: { id: string; name: string; slug: string };
+    try {
+      // Org + OWNER membership commit together or not at all — a failed
+      // membership write must never leave an owner-less, unreachable tenant.
+      org = await prisma.$transaction(async (tx) => {
+        const created = await tx.organization.create({
+          data: { name: parsed.data.name, slug: parsed.data.slug },
+        });
+        await tx.orgMembership.create({
+          data: { orgId: created.id, role: "OWNER", userId: session.user.id },
+        });
+        return created;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
+      }
+      throw error;
+    }
 
     const relay = await provisionD1Company({
       companyId: org.id,
