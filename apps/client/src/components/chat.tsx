@@ -6,7 +6,7 @@ import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
 import { Loader2, MessageSquare, Paperclip, X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   Conversation,
@@ -82,6 +82,19 @@ const Chat = ({
       toast.error("Não foi possível enviar. Tente novamente.");
     },
   });
+
+  // When the app has no business info yet, the Planner opens the conversation
+  // itself instead of leaving a blank chat. Best-effort: the DO re-checks the
+  // transcript + brief and no-ops if an opening isn't warranted, so an
+  // optimistic fire here is safe even before history finishes syncing.
+  const didKickoff = useRef(false);
+  useEffect(() => {
+    if (agentName !== "planner" || didKickoff.current || messages.length > 0) {
+      return;
+    }
+    didKickoff.current = true;
+    void agent.call("startOpeningTurn");
+  }, [agentName, messages.length, agent]);
 
   const isThinking = status === "submitted" || status === "streaming";
 
