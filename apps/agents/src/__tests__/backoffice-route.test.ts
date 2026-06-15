@@ -211,20 +211,26 @@ describe("backoffice list routes ignore the ?companyId= override (IDOR regressio
   });
 
   it("GET /activity ignores ?companyId= and returns only the session company's rows", async () => {
-    await logActivity({ DB: env.DB }, {
-      companyId: COMPANY_ID,
-      refId: "tkt-bo-test",
-      refType: "ticket",
-      summary: "mine",
-      type: "TICKET_DONE",
-    });
-    await logActivity({ DB: env.DB }, {
-      companyId: OTHER_COMPANY_ID,
-      refId: "tkt-bo-other",
-      refType: "ticket",
-      summary: "theirs",
-      type: "TICKET_DONE",
-    });
+    await logActivity(
+      { DB: env.DB },
+      {
+        companyId: COMPANY_ID,
+        refId: "tkt-bo-test",
+        refType: "ticket",
+        summary: "mine",
+        type: "TICKET_DONE",
+      },
+    );
+    await logActivity(
+      { DB: env.DB },
+      {
+        companyId: OTHER_COMPANY_ID,
+        refId: "tkt-bo-other",
+        refType: "ticket",
+        summary: "theirs",
+        type: "TICKET_DONE",
+      },
+    );
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await SELF.fetch(
       `https://agents.test/api/backoffice/activity?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
