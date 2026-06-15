@@ -23,35 +23,41 @@ const buildAllowGuard = (): MiddlewareHandler => (c: Context, next: Next) => {
 const buildRejectGuard = (): MiddlewareHandler => (c: Context, _next: Next) =>
   Promise.resolve(c.json({ error: { code: "UNAUTHORIZED", message: "No session" } }, 401));
 
-const buildMockPrisma = () => ({
-  organization: {
-    create: vi.fn().mockResolvedValue({ id: "new_org", name: "New", slug: "new-org" }),
-    findUnique: vi.fn().mockResolvedValue(null),
-  },
-  orgMembership: {
-    create: vi.fn().mockResolvedValue({}),
-    findMany: vi.fn().mockResolvedValue([
-      {
-        createdAt: new Date("2026-01-01"),
-        org: { id: "org_a", name: "Org A", slug: "org-a" },
-        orgId: "org_a",
-        role: "OWNER",
-        userId: "user_a",
-      },
-    ]),
-  },
-  user: {
-    findUnique: vi.fn().mockResolvedValue({
-      displayName: null,
-      email: "a@example.com",
-      emailVerified: true,
-      id: "user_a",
-      image: null,
-      name: "A",
-      username: null,
-    }),
-  },
-});
+const buildMockPrisma = () => {
+  const prisma = {
+    $transaction: vi.fn(
+      (callback: (tx: typeof prisma) => Promise<unknown>): Promise<unknown> => callback(prisma),
+    ),
+    organization: {
+      create: vi.fn().mockResolvedValue({ id: "new_org", name: "New", slug: "new-org" }),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    orgMembership: {
+      create: vi.fn().mockResolvedValue({}),
+      findMany: vi.fn().mockResolvedValue([
+        {
+          createdAt: new Date("2026-01-01"),
+          org: { id: "org_a", name: "Org A", slug: "org-a" },
+          orgId: "org_a",
+          role: "OWNER",
+          userId: "user_a",
+        },
+      ]),
+    },
+    user: {
+      findUnique: vi.fn().mockResolvedValue({
+        displayName: null,
+        email: "a@example.com",
+        emailVerified: true,
+        id: "user_a",
+        image: null,
+        name: "A",
+        username: null,
+      }),
+    },
+  };
+  return prisma;
+};
 
 const buildV1WithMocks = (
   guard: MiddlewareHandler,

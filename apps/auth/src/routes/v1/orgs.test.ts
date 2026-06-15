@@ -1,3 +1,4 @@
+import { Prisma } from "@repo/db";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/middleware/require-staff";
@@ -13,19 +14,23 @@ const buildAuth = (session: AuthSession | null) => ({
   api: { getSession: vi.fn().mockResolvedValue(session) },
 });
 
-const buildPrisma = () => ({
-  organization: {
-    create: vi
-      .fn()
-      .mockImplementation((args: { data: { name: string; slug: string } }) =>
-        Promise.resolve({ id: "new_org_id", name: args.data.name, slug: args.data.slug }),
-      ),
-    findUnique: vi.fn().mockResolvedValue(null),
-  },
-  orgMembership: {
-    create: vi.fn().mockResolvedValue({}),
-  },
-});
+const buildPrisma = () => {
+  const prisma = {
+    $transaction: vi.fn((callback: (tx: typeof prisma) => Promise<unknown>) => callback(prisma)),
+    organization: {
+      create: vi
+        .fn()
+        .mockImplementation((args: { data: { name: string; slug: string } }) =>
+          Promise.resolve({ id: "new_org_id", name: args.data.name, slug: args.data.slug }),
+        ),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    orgMembership: {
+      create: vi.fn().mockResolvedValue({}),
+    },
+  };
+  return prisma;
+};
 
 const DEFAULT_HEADERS: Record<string, string> = { "Content-Type": "application/json" };
 
@@ -135,6 +140,59 @@ describe("POST /api/v1/orgs", () => {
       data: { orgId: "new_org_id", role: "OWNER", userId: "user_a" },
     });
     expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("creates org + OWNER membership inside one transaction", async () => {
+    const prisma = buildPrisma();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+    const app = buildOrgsRoutes({
+      auth: buildAuth(sessionA),
+      fetch: fetchMock,
+      prisma: prisma as never,
+    });
+    const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
+    expect(res.status).toBe(201);
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(prisma.organization.create).toHaveBeenCalled();
+    expect(prisma.orgMembership.create).toHaveBeenCalled();
+  });
+
+  it("rolls back (no 201) when the OWNER membership write fails inside the transaction", async () => {
+    const prisma = buildPrisma();
+    prisma.orgMembership.create.mockRejectedValueOnce(new Error("membership insert blew up"));
+    const fetchMock = vi.fn();
+    const app = buildOrgsRoutes({
+      auth: buildAuth(sessionA),
+      fetch: fetchMock,
+      prisma: prisma as never,
+    });
+    // The membership failure must surface as an error (Hono → 500) rather than
+    // returning 201 with a half-created tenant. No relay should fire.
+    const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
+    expect(res.status).toBe(500);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("409 when the create transaction loses the slug race (P2002)", async () => {
+    const prisma = buildPrisma();
+    // Pre-check passes (findUnique → null) but the concurrent winner already
+    // committed, so the create transaction trips the unique constraint.
+    prisma.$transaction.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        clientVersion: "test",
+        code: "P2002",
+        meta: { target: ["slug"] },
+      }),
+    );
+    const app = buildOrgsRoutes({
+      auth: buildAuth(sessionA),
+      fetch: vi.fn(),
+      prisma: prisma as never,
+    });
+    const res = await postOrgs(app, { name: "X", slug: "raced" });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("SLUG_TAKEN");
   });
 
   it("201 with d1Provisioned=false when the agents relay fails (org row still created)", async () => {
