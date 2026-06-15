@@ -37,7 +37,7 @@ backofficeRoutes.use("*", async (c, next) => {
 });
 
 backofficeRoutes.get("/tickets", async (c) => {
-  const companyId = c.req.query("companyId") ?? c.get("companyId");
+  const companyId = c.get("companyId");
   const status = c.req.query("status");
   const limitParam = Number(c.req.query("limit") ?? 50);
   const items = await listTickets(c.env.DB, { companyId, limit: limitParam, status });
@@ -49,7 +49,7 @@ backofficeRoutes.get("/tickets", async (c) => {
 backofficeRoutes.get("/actions", async (c) => {
   const status = c.req.query("status");
   const sort = c.req.query("sort");
-  const companyId = c.req.query("companyId") ?? c.get("companyId");
+  const companyId = c.get("companyId");
 
   if (status === "pending") {
     const items = await listPendingActions(c.env.DB, { companyId });
@@ -130,7 +130,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
 });
 
 backofficeRoutes.get("/activity", async (c) => {
-  const companyId = c.req.query("companyId") ?? c.get("companyId");
+  const companyId = c.get("companyId");
   const sinceRaw = c.req.query("since");
   const beforeRaw = c.req.query("before");
   const since = sinceRaw ? Number(sinceRaw) : undefined;

@@ -1,9 +1,11 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logActivity } from "@/activity/log";
 import { proposeAction } from "@/db/action";
 
 const COMPANY_ID = "co_bo_test";
+const OTHER_COMPANY_ID = "co_bo_other";
 const originalFetch = globalThis.fetch;
 
 const meStaff = {
@@ -39,6 +41,33 @@ beforeEach(async () => {
              'awaiting_approval', 'delegation', NULL, NULL, 0, 0)`,
   )
     .bind(COMPANY_ID)
+    .run();
+
+  // Seed a SECOND company with its own ticket so the IDOR regression tests can
+  // prove the `?companyId=` query param can no longer widen tenant scope.
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO company
+       (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
+     VALUES (?, 'BO Other', 'bo-other', 'America/Sao_Paulo', 'pt-BR', 'active', NULL, 0, 0)`,
+  )
+    .bind(OTHER_COMPANY_ID)
+    .run();
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO agent_instance
+       (id, company_id, role, template_id, template_version, display_name,
+        model_override, status, created_at, updated_at)
+     VALUES ('agent-bo-other', ?, 'worker', 'tpl-designer', 1, 'd', NULL, 'active', 0, 0)`,
+  )
+    .bind(OTHER_COMPANY_ID)
+    .run();
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO ticket
+       (id, company_id, agent_instance_id, parent_ticket_id, title, brief,
+        status, origin, workflow_id, result, created_at, updated_at)
+     VALUES ('tkt-bo-other', ?, 'agent-bo-other', NULL, 't', 'b',
+             'awaiting_approval', 'delegation', NULL, NULL, 0, 0)`,
+  )
+    .bind(OTHER_COMPANY_ID)
     .run();
 });
 
@@ -140,6 +169,70 @@ describe("backoffice listing endpoints", () => {
     expect(item).not.toHaveProperty("action_type");
     expect(item).not.toHaveProperty("company_id");
     expect(item).not.toHaveProperty("ticket_id");
+  });
+});
+
+describe("backoffice list routes ignore the ?companyId= override (IDOR regression)", () => {
+  it("GET /tickets ignores ?companyId= and returns only the session company's rows", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/tickets?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: Array<{ companyId: string; id: string }> };
+    expect(body.items.find((t) => t.id === "tkt-bo-test")).toBeTruthy();
+    expect(body.items.find((t) => t.id === "tkt-bo-other")).toBeUndefined();
+    expect(body.items.every((t) => t.companyId === COMPANY_ID)).toBe(true);
+  });
+
+  it("GET /actions ignores ?companyId= and returns only the session company's rows", async () => {
+    await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      policy: "require-approval",
+      proposed: { summary: "mine" },
+      ticketId: "tkt-bo-test",
+    });
+    await proposeAction(env.DB, {
+      actionType: "worker_deliverable",
+      companyId: OTHER_COMPANY_ID,
+      policy: "require-approval",
+      proposed: { summary: "theirs" },
+      ticketId: "tkt-bo-other",
+    });
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/actions?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: Array<{ companyId: string }> };
+    expect(body.items.length).toBeGreaterThan(0);
+    expect(body.items.every((a) => a.companyId === COMPANY_ID)).toBe(true);
+  });
+
+  it("GET /activity ignores ?companyId= and returns only the session company's rows", async () => {
+    await logActivity({ DB: env.DB }, {
+      companyId: COMPANY_ID,
+      refId: "tkt-bo-test",
+      refType: "ticket",
+      summary: "mine",
+      type: "TICKET_DONE",
+    });
+    await logActivity({ DB: env.DB }, {
+      companyId: OTHER_COMPANY_ID,
+      refId: "tkt-bo-other",
+      refType: "ticket",
+      summary: "theirs",
+      type: "TICKET_DONE",
+    });
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/activity?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: Array<{ companyId: string }> };
+    expect(body.items.length).toBeGreaterThan(0);
+    expect(body.items.every((a) => a.companyId === COMPANY_ID)).toBe(true);
   });
 });
 
