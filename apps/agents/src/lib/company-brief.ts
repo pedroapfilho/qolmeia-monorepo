@@ -93,5 +93,22 @@ const parseBrief = (raw: string | null | undefined): Partial<CompanyBrief> => {
   }
 };
 
-export { BRIEF_SCHEMA_VERSION, companyBriefSchema, mergeBrief, parseBrief };
+// True when the brief carries no meaningful business info — only then does
+// the Planner open the conversation. locale/schemaVersion are defaults.
+const isBriefEmpty = (brief: Partial<CompanyBrief> | null | undefined): boolean => {
+  if (!brief) {
+    return true;
+  }
+  const brand = brief.brand;
+  const hasBrand = !!brand && (!!brand.palette || !!brand.voice || !!brand.references);
+  return (
+    !brief.industry &&
+    !brief.primaryGoal &&
+    !brief.audience &&
+    (!brief.channels || brief.channels.length === 0) &&
+    !hasBrand
+  );
+};
+
+export { BRIEF_SCHEMA_VERSION, companyBriefSchema, isBriefEmpty, mergeBrief, parseBrief };
 export type { CompanyBrief, CompanyBriefPartial };

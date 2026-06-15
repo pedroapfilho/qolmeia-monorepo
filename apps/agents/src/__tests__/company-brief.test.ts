@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BRIEF_SCHEMA_VERSION,
   companyBriefSchema,
+  isBriefEmpty,
   mergeBrief,
   parseBrief,
 } from "@/lib/company-brief";
@@ -66,5 +67,28 @@ describe("parseBrief", () => {
     const parsed = parseBrief(json);
     expect(parsed.industry).toBe("SaaS");
     expect(parsed.primaryGoal).toBe("leads");
+  });
+});
+
+describe("isBriefEmpty", () => {
+  it("treats an empty brief as empty", () => {
+    expect(isBriefEmpty(parseBrief(null))).toBe(true);
+    expect(isBriefEmpty({})).toBe(true);
+  });
+
+  it("treats schema defaults (locale/schemaVersion only) as empty", () => {
+    expect(isBriefEmpty({ locale: "pt-BR", schemaVersion: 1 })).toBe(true);
+  });
+
+  it("treats any meaningful field as non-empty", () => {
+    expect(isBriefEmpty({ industry: "alimentação" })).toBe(false);
+    expect(isBriefEmpty({ primaryGoal: "mais vendas" })).toBe(false);
+    expect(isBriefEmpty({ audience: "donos de cafeteria" })).toBe(false);
+    expect(isBriefEmpty({ channels: ["instagram"] })).toBe(false);
+    expect(isBriefEmpty({ brand: { voice: "acolhedora" } })).toBe(false);
+  });
+
+  it("treats an empty channels array as empty", () => {
+    expect(isBriefEmpty({ channels: [] })).toBe(true);
   });
 });
