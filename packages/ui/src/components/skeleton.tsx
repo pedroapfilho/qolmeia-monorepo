@@ -49,7 +49,6 @@ const Skeleton = ({
   );
 };
 
-// Skeleton container for grouping multiple skeletons
 type SkeletonContainerProps = HTMLAttributes<HTMLDivElement> & {
   count?: number;
   spacing?: "sm" | "md" | "lg";
@@ -85,7 +84,6 @@ const SkeletonContainer = ({
   );
 };
 
-// Pre-built skeleton patterns
 const SkeletonCard = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => {
   return (
     <div className={cn("space-y-3 rounded-lg border p-4", className)} {...props}>

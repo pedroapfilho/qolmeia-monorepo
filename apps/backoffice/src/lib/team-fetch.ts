@@ -1,4 +1,3 @@
-// apps/backoffice/src/lib/team-fetch.ts
 // Backoffice-side fetchers. Same shapes as the customer side; different
 // endpoint prefix.
 
