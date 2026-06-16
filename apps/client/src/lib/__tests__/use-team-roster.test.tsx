@@ -50,7 +50,6 @@ describe("useTeamRoster", () => {
   it("fetches on mount", async () => {
     const { result } = renderRoster();
 
-    // Wait for the initial fetch to complete and status to be ready
     await vi.waitFor(() => expect(result.current.status).toBe("ready"));
 
     expect(mockFetchTeam).toHaveBeenCalledOnce();
@@ -70,7 +69,6 @@ describe("useTeamRoster", () => {
     await vi.waitFor(() => expect(result.current.status).toBe("ready"));
     expect(mockFetchTeam).toHaveBeenCalledOnce();
 
-    // Trigger team:roster frame
     act(() => {
       capturedOnMessage?.({
         data: JSON.stringify({ companyId: "co1", reason: "hired", type: "team:roster" }),
@@ -102,14 +100,12 @@ describe("useTeamRoster", () => {
 
     const callArgs = mockUseAgent.mock.calls[0][0];
 
-    // Verify the expected hooks are wired
     expect(callArgs).toMatchObject({
       agent: "correspondent",
       name: "co1",
       query: { cf_session: "tok" },
     });
 
-    // Verify onMessage exists and is a function
     expect(typeof callArgs.onMessage).toBe("function");
     expect(typeof callArgs.onOpen).toBe("function");
     expect(typeof callArgs.onClose).toBe("function");
