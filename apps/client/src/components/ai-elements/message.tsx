@@ -2,7 +2,12 @@
 
 import { cn } from "@repo/ui/lib/utils";
 import type { UIMessage } from "ai";
-import type { ComponentProps, HTMLAttributes, ImgHTMLAttributes } from "react";
+import type {
+  AnchorHTMLAttributes,
+  ComponentProps,
+  HTMLAttributes,
+  ImgHTMLAttributes,
+} from "react";
 import { memo } from "react";
 import { Streamdown } from "streamdown";
 
@@ -59,8 +64,30 @@ const PlainImage = ({ alt, className, src }: ImgOverrideProps) => (
   <img alt={alt ?? ""} className={cn("max-h-80 rounded-md object-contain", className)} src={src} />
 );
 
+// Same problem as the image wrapper: Streamdown's default link renders a
+// "link safety" dialog (<div class="fixed inset-0">…<p>…) around the anchor.
+// Inline inside a markdown paragraph that nests block content inside the
+// paragraph's <p> — invalid HTML + a hydration error. A bare <a> is legal
+// phrasing content inside <p>. opener/referrer hardened since these URLs come
+// from the agent.
+type AnchorOverrideProps = AnchorHTMLAttributes<HTMLAnchorElement> & { node?: unknown };
+
+const PlainLink = ({ children, className, href }: AnchorOverrideProps) => (
+  <a
+    className={cn(
+      "font-medium text-primary underline underline-offset-2 hover:text-primary/80",
+      className,
+    )}
+    href={href}
+    rel="noopener noreferrer"
+    target="_blank"
+  >
+    {children}
+  </a>
+);
+
 type StreamdownComponents = NonNullable<ComponentProps<typeof Streamdown>["components"]>;
-const STREAMDOWN_COMPONENTS = { img: PlainImage } as unknown as StreamdownComponents;
+const STREAMDOWN_COMPONENTS = { a: PlainLink, img: PlainImage } as unknown as StreamdownComponents;
 
 type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
