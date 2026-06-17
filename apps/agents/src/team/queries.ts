@@ -198,6 +198,8 @@ const getCatalogue = async (
 };
 
 type DetailRow = RosterRow & {
+  company_name: string;
+  created_at: number;
   description: string | null;
   system_prompt: string | null;
 };
@@ -210,9 +212,10 @@ const getMemberDetail = async (
   const row = await db
     .prepare(
       `SELECT a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,
-              t.worker_kind, t.description, t.system_prompt
+              a.created_at, t.worker_kind, t.description, t.system_prompt, c.name AS company_name
          FROM agent_instance a
          LEFT JOIN template t ON t.id = a.template_id
+         JOIN company c ON c.id = a.company_id
         WHERE a.id = ? AND a.company_id = ?`,
     )
     .bind(agentInstanceId, companyId)
@@ -256,6 +259,8 @@ const getMemberDetail = async (
   const role = toRole(row.role);
   const detailExtras = {
     capabilities: row.description ?? "",
+    companyName: row.company_name,
+    createdAt: row.created_at,
     promptOverride: row.prompt_override,
     promptOverrideUpdatedAt: editedRow?.created_at ?? null,
     templateSystemPrompt: row.system_prompt ?? "",

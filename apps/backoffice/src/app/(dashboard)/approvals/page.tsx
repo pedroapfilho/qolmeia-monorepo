@@ -6,6 +6,7 @@ import { Inbox } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionsResponse } from "@/lib/api-types";
 import { formatDurationSeconds } from "@/lib/format";
@@ -43,16 +44,17 @@ const ApprovalsPage = async () => {
           />
         ) : (
           <div>
-            <div className="grid grid-cols-[1fr_180px_110px_92px] items-center gap-3 border-b border-border bg-secondary/40 px-5 py-3 font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">
+            <div className="grid grid-cols-[1fr_180px_150px_110px_92px] items-center gap-3 border-b border-border bg-secondary/40 px-5 py-3 font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">
               <span>Ação</span>
               <span>Empresa</span>
+              <span>Agente</span>
               <span>Aguardando</span>
               <span />
             </div>
             <ul className="flex flex-col">
               {res.items.map((action) => (
                 <li
-                  className="grid grid-cols-[1fr_180px_110px_92px] items-center gap-3 border-b border-border/60 px-5 py-3.5 last:border-b-0"
+                  className="grid grid-cols-[1fr_180px_150px_110px_92px] items-center gap-3 border-b border-border/60 px-5 py-3.5 last:border-b-0"
                   key={action.id}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -67,6 +69,17 @@ const ApprovalsPage = async () => {
                     </div>
                   </div>
                   <span className="truncate text-sm text-muted-foreground">{action.companyId}</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={`flex size-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
+                    >
+                      {agentInitials(action.agent.name)}
+                    </span>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {action.agent.name}
+                    </span>
+                  </div>
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
                     {action.ageSeconds === undefined
                       ? "—"

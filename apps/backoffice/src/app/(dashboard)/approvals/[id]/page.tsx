@@ -8,10 +8,11 @@ import { getActionRenderer } from "@/components/action-renderers";
 import { BackLink } from "@/components/back-link";
 import { DecisionForm } from "@/components/decision-form";
 import { StatusPill } from "@/components/status-pill";
+import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionDetailResponse } from "@/lib/api-types";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatDateTime, formatDurationSeconds, formatRelative } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Revisar aprovação" };
 
@@ -40,10 +41,11 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
     notFound();
   }
 
-  const { action, ticket } = detail;
+  const { action, ageSeconds, ticket } = detail;
   const summary = typeof action.proposed.summary === "string" ? action.proposed.summary : null;
   const policyCopy = POLICY_COPY[action.policy] ?? action.policy;
   const TypedRenderer = getActionRenderer(action.actionType);
+  const waited = formatDurationSeconds(Math.max(0, ageSeconds));
 
   return (
     <div className="flex flex-col gap-5">
@@ -101,8 +103,16 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
                 <dd className="truncate font-medium text-foreground">{action.companyId}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">Política</dt>
-                <dd className="font-medium text-foreground">{policyCopy}</dd>
+                <dt className="text-muted-foreground">Agente</dt>
+                <dd className="flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`flex size-5 flex-none items-center justify-center rounded-lg text-[9px] font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
+                  >
+                    {agentInitials(action.agent.name)}
+                  </span>
+                  <span className="truncate font-medium text-foreground">{action.agent.name}</span>
+                </dd>
               </div>
               {ticket && (
                 <div className="flex items-center justify-between gap-3">
@@ -117,6 +127,14 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
                   </dd>
                 </div>
               )}
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Aguardando</dt>
+                <dd className="font-medium text-foreground">{waited}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Política</dt>
+                <dd className="font-medium text-foreground">{policyCopy}</dd>
+              </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted-foreground">Criado</dt>
                 <dd className="font-medium text-foreground">{formatDateTime(action.createdAt)}</dd>

@@ -31,6 +31,8 @@ type TeamMemberView = TeamMemberNonWorker | TeamMemberWorker;
 
 type TeamMemberDetailExtras = {
   capabilities: string;
+  companyName: string;
+  createdAt: number;
   promptOverride: string | null;
   promptOverrideUpdatedAt: number | null;
   templateSystemPrompt: string;

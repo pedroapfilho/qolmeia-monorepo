@@ -37,9 +37,21 @@ type TeamMemberView = TeamMemberNonWorker | TeamMemberWorker;
 
 type TeamMemberDetailView = TeamMemberView & {
   capabilities: string;
+  companyName: string;
+  createdAt: number;
   promptOverride: string | null;
   promptOverrideUpdatedAt: number | null;
   templateSystemPrompt: string;
+};
+
+type CompanyStatus = "active" | "onboarding" | "paused";
+
+type CompanyOverview = {
+  briefPercent: number;
+  id: string;
+  members: ReadonlyArray<TeamMemberView>;
+  name: string;
+  status: CompanyStatus;
 };
 
 const fetchTeam = async (companyId: string, cookie: string): Promise<Array<TeamMemberView>> => {
@@ -79,9 +91,28 @@ const fetchMember = async (
   return ((await res.json()) as { member: TeamMemberDetailView }).member;
 };
 
-export { fetchMember, fetchTeam };
+// Operator-wide overview: every company + its roster. Spans tenants (the back
+// office is Qolmeia staff), gated server-side by the OWNER/STAFF check.
+const fetchCompanies = async (cookie: string): Promise<Array<CompanyOverview>> => {
+  const res = await fetch(`${AGENTS_SERVER_URL}/api/backoffice/companies`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body);
+  }
+  return ((await res.json()) as { companies: Array<CompanyOverview> }).companies;
+};
+
+export { fetchCompanies, fetchMember, fetchTeam };
 export type {
   AgentDisplayStatus,
+  CompanyOverview,
+  CompanyStatus,
   OpenTicketSlim,
   TeamMemberBase,
   TeamMemberDetailView,

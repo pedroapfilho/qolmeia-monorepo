@@ -68,7 +68,11 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
   const [name, setName] = useState(initialMember.displayName);
   const [busy, setBusy] = useState(false);
 
-  const patch = async (body: { displayName?: string; promptOverride?: string | null }) => {
+  const patch = async (body: {
+    displayName?: string;
+    promptOverride?: string | null;
+    status?: "active" | "paused";
+  }) => {
     setBusy(true);
     try {
       const data = await apiSend<{ member: TeamMemberDetailView }>(
@@ -109,7 +113,21 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
     }
   };
 
+  const handleTogglePause = async () => {
+    const next = member.status === "paused" ? "active" : "paused";
+    try {
+      await patch({ status: next });
+      toast.success(next === "paused" ? "Agente pausado." : "Agente retomado.");
+    } catch (error) {
+      toast.error(String(error));
+    }
+  };
+
   const monogram = (member.displayName.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
+  const memberSince = new Date(member.createdAt).toLocaleDateString("pt-BR", {
+    month: "short",
+    year: "numeric",
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -137,10 +155,15 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
             />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {companyId}
+            {member.companyName}
             {member.templateId ? ` · ${member.templateId}` : ""}
           </p>
         </div>
+        {member.role === "worker" ? (
+          <Button disabled={busy} onClick={handleTogglePause} variant="outline">
+            {member.status === "paused" ? "Retomar" : "Pausar"}
+          </Button>
+        ) : null}
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -162,9 +185,9 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
         </Card>
         <Card>
           <CardContent>
-            <div className="text-[12.5px] text-muted-foreground">Prompt</div>
+            <div className="text-[12.5px] text-muted-foreground">No time desde</div>
             <div className="mt-1.5 font-display text-2xl font-bold tracking-tight text-foreground">
-              {member.hasPromptOverride ? "Custom" : "Padrão"}
+              {memberSince}
             </div>
           </CardContent>
         </Card>

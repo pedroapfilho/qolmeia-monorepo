@@ -9,8 +9,19 @@ type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | 
 
 type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
+type AgentRole = "correspondent" | "planner" | "worker";
+
+// The agent that owns the action's ticket (action → ticket → agent_instance).
+// Lets the operator views show the role-keyed avatar + agent name.
+type ActionAgent = {
+  name: string;
+  role: AgentRole;
+  workerKind: string | null;
+};
+
 type Action = {
   actionType: string;
+  agent: ActionAgent;
   companyId: string;
   createdAt: number;
   decidedAt: number | null;
@@ -25,6 +36,8 @@ type Action = {
 
 type ActionRow = {
   action_type: string;
+  agent_name: string;
+  agent_role: string;
   company_id: string;
   created_at: number;
   decided_at: number | null;
@@ -35,7 +48,19 @@ type ActionRow = {
   proposed: string;
   status: string;
   ticket_id: string;
+  worker_kind: string | null;
 };
+
+const toAgentRole = (raw: string): AgentRole =>
+  raw === "correspondent" || raw === "planner" || raw === "worker" ? raw : "worker";
+
+// action.* + the owning agent, joined through the ticket. Qualify the shared
+// column names (id/company_id/status/created_at) with `action.` in callers.
+const ACTION_WITH_AGENT_FROM = `FROM action
+       JOIN ticket tk ON tk.id = action.ticket_id
+       JOIN agent_instance ai ON ai.id = tk.agent_instance_id
+       LEFT JOIN template tpl ON tpl.id = ai.template_id`;
+const ACTION_WITH_AGENT_COLS = `action.*, ai.display_name AS agent_name, ai.role AS agent_role, tpl.worker_kind AS worker_kind`;
 
 const toStatus = (raw: string): ActionStatus => {
   const valid: ReadonlyArray<ActionStatus> = [
@@ -55,6 +80,7 @@ const toPolicy = (raw: string): Policy => {
 
 const mapAction = (row: ActionRow): Action => ({
   actionType: row.action_type,
+  agent: { name: row.agent_name, role: toAgentRole(row.agent_role), workerKind: row.worker_kind },
   companyId: row.company_id,
   createdAt: row.created_at,
   decidedAt: row.decided_at,
@@ -144,7 +170,7 @@ const markExecuted = async (db: D1Database, actionId: string): Promise<void> => 
 
 const getAction = async (db: D1Database, actionId: string): Promise<Action | null> => {
   const row = await db
-    .prepare("SELECT * FROM action WHERE id = ?")
+    .prepare(`SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.id = ?`)
     .bind(actionId)
     .first<ActionRow>();
   return row ? mapAction(row) : null;
@@ -159,11 +185,13 @@ const listPendingActions = async (
   const cursor = options.companyId
     ? db
         .prepare(
-          "SELECT * FROM action WHERE status = 'pending' AND company_id = ? ORDER BY created_at ASC LIMIT ?",
+          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.status = 'pending' AND action.company_id = ? ORDER BY action.created_at ASC LIMIT ?`,
         )
         .bind(options.companyId, limit)
     : db
-        .prepare("SELECT * FROM action WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?")
+        .prepare(
+          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.status = 'pending' ORDER BY action.created_at ASC LIMIT ?`,
+        )
         .bind(limit);
   const { results } = await cursor.all<ActionRow>();
   return results.map(mapAction);
@@ -177,7 +205,9 @@ const listActions = async (
 ): Promise<ReadonlyArray<Action>> => {
   const limit = Math.min(options.limit ?? 200, 500);
   const { results } = await db
-    .prepare("SELECT * FROM action WHERE company_id = ? ORDER BY created_at DESC LIMIT ?")
+    .prepare(
+      `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.company_id = ? ORDER BY action.created_at DESC LIMIT ?`,
+    )
     .bind(options.companyId, limit)
     .all<ActionRow>();
   return results.map(mapAction);
@@ -189,7 +219,9 @@ const listActionsForTicket = async (
   ticketId: string,
 ): Promise<ReadonlyArray<Action>> => {
   const { results } = await db
-    .prepare("SELECT * FROM action WHERE ticket_id = ? ORDER BY created_at ASC")
+    .prepare(
+      `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.ticket_id = ? ORDER BY action.created_at ASC`,
+    )
     .bind(ticketId)
     .all<ActionRow>();
   return results.map(mapAction);
@@ -204,4 +236,11 @@ export {
   markExecuted,
   proposeAction,
 };
-export type { Action, ActionStatus, DecideActionInput, DecisionOutcome, ProposeActionInput };
+export type {
+  Action,
+  ActionAgent,
+  ActionStatus,
+  DecideActionInput,
+  DecisionOutcome,
+  ProposeActionInput,
+};

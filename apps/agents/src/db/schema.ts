@@ -2,6 +2,8 @@
 // parameterized statements. D1's generic `first<T>()` / `all<T>()` give the
 // snake_case row type; mapping functions convert to the camelCase domain shape.
 
+import { briefCompleteness, parseBrief } from "@/lib/company-brief";
+
 type CompanyStatus = "onboarding" | "active" | "paused";
 type MessageRole = "user" | "agent" | "system";
 
@@ -114,6 +116,26 @@ const getCompany = async (db: D1Database, id: string): Promise<Company | null> =
   return row ? mapCompany(row) : null;
 };
 
+type CompanyOverview = {
+  briefPercent: number;
+  id: string;
+  name: string;
+  status: CompanyStatus;
+};
+
+// Every company + its brief completeness — the operator "Times" overview.
+const listCompaniesOverview = async (db: D1Database): Promise<Array<CompanyOverview>> => {
+  const { results } = await db
+    .prepare("SELECT id, name, status, brief FROM company ORDER BY created_at ASC")
+    .all<{ brief: string | null; id: string; name: string; status: string }>();
+  return results.map((row) => ({
+    briefPercent: briefCompleteness(parseBrief(row.brief)).percent,
+    id: row.id,
+    name: row.name,
+    status: toCompanyStatus(row.status),
+  }));
+};
+
 type UpsertConversationInput = {
   companyId: string;
   externalThreadId: string;
@@ -221,5 +243,12 @@ const insertMemoryFact = async (db: D1Database, input: InsertMemoryFactInput): P
     .run();
 };
 
-export { getCompany, insertMemoryFact, insertMessage, listMessages, upsertConversation };
-export type { Company, Conversation, Message, MessageRole };
+export {
+  getCompany,
+  insertMemoryFact,
+  insertMessage,
+  listCompaniesOverview,
+  listMessages,
+  upsertConversation,
+};
+export type { Company, CompanyOverview, Conversation, Message, MessageRole };

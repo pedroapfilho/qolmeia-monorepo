@@ -33,8 +33,16 @@ type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | 
 
 type ActionPolicy = "auto-execute" | "notify-only" | "require-approval";
 
+// The agent that owns the action's ticket — drives the role-keyed avatar.
+type ActionAgent = {
+  name: string;
+  role: "correspondent" | "planner" | "worker";
+  workerKind: string | null;
+};
+
 type Action = {
   actionType: string;
+  agent: ActionAgent;
   companyId: string;
   createdAt: number;
   decidedAt: number | null;
@@ -67,7 +75,7 @@ type TicketsResponse = { items: ReadonlyArray<TicketListRow> };
 type ActionsResponse = { items: ReadonlyArray<ActionListRow> };
 type ActivityResponse = { items: ReadonlyArray<ActivityEntry> };
 type TicketDetailResponse = { actions: ReadonlyArray<Action>; ticket: Ticket };
-type ActionDetailResponse = { action: Action; ticket: Ticket | null };
+type ActionDetailResponse = { action: Action; ageSeconds: number; ticket: Ticket | null };
 
 type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
@@ -89,6 +97,7 @@ type MeResponse = {
 
 export type {
   Action,
+  ActionAgent,
   ActionDetailResponse,
   ActionListRow,
   ActionPolicy,

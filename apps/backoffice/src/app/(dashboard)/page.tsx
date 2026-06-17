@@ -4,11 +4,14 @@ import { PageHeader } from "@repo/ui/components/page-header";
 import { cn } from "@repo/ui/lib/utils";
 import { Activity, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 
+import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionsResponse, ActivityResponse, TicketsResponse } from "@/lib/api-types";
-import { formatDurationSeconds, formatRelative, truncate } from "@/lib/format";
+import { formatDurationSeconds, formatRelative } from "@/lib/format";
+import { fetchCompanies } from "@/lib/team-fetch";
 
 export const metadata: Metadata = { title: "Início" };
 
@@ -69,24 +72,41 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
 };
 
 const Home = async () => {
+  // fetchCompanies needs the forwarded cookie; apiGetServer reads it itself.
+  const headersList = await headers();
+  const cookie = headersList.get("cookie") ?? "";
+
   // Parallel fetch — Promise.allSettled so a transient failure on one
   // endpoint doesn't blank the entire dashboard.
-  const [pendingRes, ticketsRes, activityRes] = await Promise.allSettled([
+  const [pendingRes, ticketsRes, activityRes, companiesRes] = await Promise.allSettled([
     apiGetServer<ActionsResponse>("/actions?status=pending&sort=age"),
     apiGetServer<TicketsResponse>("/tickets?limit=10"),
     apiGetServer<ActivityResponse>("/activity?limit=8"),
+    fetchCompanies(cookie),
   ]);
 
   const pending = pendingRes.status === "fulfilled" ? pendingRes.value.items : [];
   const tickets = ticketsRes.status === "fulfilled" ? ticketsRes.value.items : [];
   const activity = activityRes.status === "fulfilled" ? activityRes.value.items : [];
+  const companies = companiesRes.status === "fulfilled" ? companiesRes.value : null;
 
   const openTickets = tickets.filter((t) =>
     ["in_progress", "open", "awaiting_approval"].includes(t.status),
   ).length;
   const doneTickets = tickets.filter((t) => t.status === "done").length;
-  const activeCompanies = new Set(tickets.map((t) => t.companyId)).size;
   const oldestPendingAge = pending[0]?.ageSeconds;
+
+  // Prefer the real company roster; fall back to distinct ticket companies.
+  const activeCompanies =
+    companies === null
+      ? new Set(tickets.map((t) => t.companyId)).size
+      : companies.filter((c) => c.status === "active").length;
+  const onboardingCompanies =
+    companies === null ? null : companies.filter((c) => c.status === "onboarding").length;
+
+  const activeCompaniesLabel = activeCompanies === 1 ? "1 empresa" : `${activeCompanies} empresas`;
+  const companiesSub =
+    onboardingCompanies === null ? activeCompaniesLabel : `${onboardingCompanies} em onboarding`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,11 +139,7 @@ const Home = async () => {
           value={openTickets}
         />
         <StatCard label="Concluídos no mês" value={doneTickets} />
-        <StatCard
-          label="Empresas ativas"
-          sub={activeCompanies === 1 ? "1 empresa" : `${activeCompanies} empresas`}
-          value={activeCompanies}
-        />
+        <StatCard label="Empresas ativas" sub={companiesSub} value={activeCompanies} />
       </div>
 
       <div className="grid gap-3.5 lg:grid-cols-[1.25fr_1fr]">
@@ -146,20 +162,27 @@ const Home = async () => {
           ) : (
             <ul className="flex flex-col">
               {pending.slice(0, 4).map((action) => {
-                const summary =
-                  typeof action.proposed.summary === "string" ? action.proposed.summary : null;
                 return (
                   <li className="border-b border-border last:border-b-0" key={action.id}>
                     <Link
                       className="flex items-center gap-3 px-[18px] py-[13px] transition-colors hover:bg-highlight-surface/40"
                       href={`/approvals/${action.id}`}
                     >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "flex size-[34px] shrink-0 items-center justify-center rounded-[9px] text-[13px] font-bold text-white",
+                          agentAvatarClass(action.agent.role, action.agent.workerKind),
+                        )}
+                      >
+                        {agentInitials(action.agent.name)}
+                      </span>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate text-[13.5px] font-semibold text-foreground">
                           {action.actionType}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {summary ? truncate(summary, 80) : action.ticketId}
+                          {action.companyId} · {action.agent.name}
                         </span>
                       </div>
                       {action.ageSeconds === undefined ? null : (

@@ -3,10 +3,17 @@ import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "@/db/action";
+import { listCompaniesOverview } from "@/db/schema";
 import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
 import { emitTeamEvent } from "@/team/events";
-import { TeamMemberNotFoundError, updateMember } from "@/team/mutations";
+import {
+  pauseMember,
+  resumeMember,
+  TeamMemberNotFoundError,
+  TeamMemberNotPausableError,
+  updateMember,
+} from "@/team/mutations";
 import { getMemberDetail, getTeamRoster } from "@/team/queries";
 
 // Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
@@ -59,6 +66,7 @@ backofficeRoutes.get("/actions", async (c) => {
     // every `a` is camelCase + typed, so this stays a pure projection.
     const enriched = items.map((a) => ({
       actionType: a.actionType,
+      agent: a.agent,
       ageSeconds: Math.floor((now - a.createdAt) / 1000),
       companyId: a.companyId,
       createdAt: a.createdAt,
@@ -166,12 +174,31 @@ backofficeRoutes.get("/actions/:id", async (c) => {
     return c.text("Forbidden", 403);
   }
   const ticket = await loadTicket(c.env.DB, action.ticketId);
-  return c.json({ action, ticket });
+  const ageSeconds = Math.floor((Date.now() - action.createdAt) / 1000);
+  return c.json({ action, ageSeconds, ticket });
 });
 
 const backofficePatchSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
   promptOverride: z.union([z.string().trim().min(1).max(20_000), z.null()]).optional(),
+  status: z.enum(["active", "paused"]).optional(),
+});
+
+// Operator overview of every company + its roster. The back office is a
+// Qolmeia-staff surface (OWNER/STAFF, gated above), so it spans all tenants —
+// not just the operator's own company.
+backofficeRoutes.get("/companies", async (c) => {
+  const companies = await listCompaniesOverview(c.env.DB);
+  const withRosters = await Promise.all(
+    companies.map(async (company) => ({
+      briefPercent: company.briefPercent,
+      id: company.id,
+      members: await getTeamRoster(c.env.DB, company.id),
+      name: company.name,
+      status: company.status,
+    })),
+  );
+  return c.json({ companies: withRosters });
 });
 
 backofficeRoutes.get("/teams/:companyId/members", async (c) => {
@@ -205,6 +232,20 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     return c.json({ error: "invalid body" }, 400);
   }
   try {
+    // Pause/resume is its own transition (the "Pausar"/"Retomar" button); when
+    // present it takes precedence over the rename/prompt edit path.
+    if (parsed.data.status !== undefined) {
+      const paused = parsed.data.status === "paused";
+      const member = paused
+        ? await pauseMember(c.env.DB, companyId, id, c.get("userId"))
+        : await resumeMember(c.env.DB, companyId, id, c.get("userId"));
+      await emitTeamEvent(c.env, {
+        companyId,
+        reason: paused ? "paused" : "resumed",
+        type: "team:roster",
+      });
+      return c.json({ member });
+    }
     const member = await updateMember(c.env.DB, {
       agentInstanceId: id,
       companyId,
@@ -222,6 +263,9 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
   } catch (error) {
     if (error instanceof TeamMemberNotFoundError) {
       return c.json({ error: "not found" }, 404);
+    }
+    if (error instanceof TeamMemberNotPausableError) {
+      return c.json({ error: "not pausable" }, 409);
     }
     throw error;
   }

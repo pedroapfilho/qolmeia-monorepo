@@ -115,3 +115,64 @@ describe("backoffice team routes — cross-tenant", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("/api/backoffice/companies", () => {
+  it("returns every company with its roster + brief completeness for STAFF", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch("https://agents.test/api/backoffice/companies?cf_session=tok");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      companies: Array<{ briefPercent: number; id: string; members: Array<{ id: string }> }>;
+    };
+    const co = body.companies.find((c) => c.id === COMPANY_ID);
+    expect(co).toBeDefined();
+    expect(typeof co?.briefPercent).toBe("number");
+    expect(co?.members.some((m) => m.id === "ai_bot_d")).toBe(true);
+  });
+
+  it("403 for CUSTOMER", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await SELF.fetch("https://agents.test/api/backoffice/companies?cf_session=tok");
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("backoffice member detail extras + pause/resume", () => {
+  it("member detail exposes companyName and createdAt", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await SELF.fetch(
+      `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/ai_bot_d?cf_session=tok`,
+    );
+    const body = (await res.json()) as { member: { companyName: string; createdAt: number } };
+    expect(body.member.companyName).toBe("BT");
+    expect(typeof body.member.createdAt).toBe("number");
+  });
+
+  it("PATCH status pauses then resumes a worker", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const url = `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/ai_bot_d?cf_session=tok`;
+    const headers = { "content-type": "application/json" };
+
+    const pause = await SELF.fetch(url, {
+      body: JSON.stringify({ status: "paused" }),
+      headers,
+      method: "PATCH",
+    });
+    expect(pause.status).toBe(200);
+    expect(((await pause.json()) as { member: { status: string } }).member.status).toBe("paused");
+    const row = await env.DB.prepare(
+      "SELECT status FROM agent_instance WHERE id = 'ai_bot_d'",
+    ).first<{ status: string }>();
+    expect(row?.status).toBe("paused");
+
+    const resume = await SELF.fetch(url, {
+      body: JSON.stringify({ status: "active" }),
+      headers,
+      method: "PATCH",
+    });
+    expect(resume.status).toBe(200);
+    expect(((await resume.json()) as { member: { status: string } }).member.status).toBe(
+      "available",
+    );
+  });
+});
