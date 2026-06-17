@@ -10,3 +10,7 @@ ASSETS_SIGNING_KEY=replace-me-with-a-random-32-byte-hex-string
 # Must match apps/auth INTERNAL_SHARED_SECRET. Rotating breaks org create
 # until both sides are redeployed.
 INTERNAL_SHARED_SECRET=replace-me-with-the-same-value-as-apps-auth
+
+# Exa web-search API key (https://exa.ai) for the webSearch skill. Optional —
+# leave unset and the skill returns a clear "indisponível" error.
+EXA_API_KEY=

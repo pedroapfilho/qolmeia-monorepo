@@ -12,6 +12,7 @@ import { generateBrandImageSkill } from "@/skills/generate-brand-image";
 import { proposeTeamSkill } from "@/skills/propose-team";
 import { recallMemorySkill } from "@/skills/recall-memory";
 import { rememberFactSkill } from "@/skills/remember-fact";
+import { webSearchSkill } from "@/skills/web-search";
 
 // The skill registry — code module pattern (spec decision 10). `execute()` and
 // the zod input schema are code; the LLM-facing description, parameter hints,
@@ -44,6 +45,7 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
   listAssetsSkill,
   readAssetSkill,
   saveAssetSkill,
+  webSearchSkill,
 ];
 
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));

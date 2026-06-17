@@ -16,6 +16,9 @@ interface Env {
   // Secret used to HMAC-sign /assets/:id URLs. Set via `wrangler secret put
   // ASSETS_SIGNING_KEY` for prod or `.dev.vars` locally.
   ASSETS_SIGNING_KEY: string;
+  // Exa web-search API key (https://exa.ai). Optional — the webSearch skill
+  // throws a clear error when it's unset rather than running keyless.
+  EXA_API_KEY?: string;
   OPENROUTER_API_KEY: string;
   // Shared secret with apps/auth gating the /api/internal/* relay.
   INTERNAL_SHARED_SECRET: string;
@@ -29,6 +32,7 @@ namespace Cloudflare {
   interface Env {
     AI?: Ai;
     ASSETS_SIGNING_KEY: string;
+    EXA_API_KEY?: string;
     OPENROUTER_API_KEY: string;
     INTERNAL_SHARED_SECRET: string;
     VECTORIZE?: VectorizeIndex;
