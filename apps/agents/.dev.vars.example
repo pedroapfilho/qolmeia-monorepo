@@ -14,3 +14,9 @@ INTERNAL_SHARED_SECRET=replace-me-with-the-same-value-as-apps-auth
 # Exa web-search API key (https://exa.ai) for the webSearch skill. Optional —
 # leave unset and the skill returns a clear "indisponível" error.
 EXA_API_KEY=
+
+# Firecrawl for the fetchUrl skill (reads a webpage as markdown).
+# Cloud (https://api.firecrawl.dev) needs FIRECRAWL_API_KEY (fc-...). To run
+# keyless, self-host Firecrawl and set FIRECRAWL_BASE_URL to your instance.
+FIRECRAWL_API_KEY=
+# FIRECRAWL_BASE_URL=http://localhost:3002

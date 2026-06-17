@@ -45,6 +45,8 @@ const CORRESPONDENT_SKILLS = [
   "listAssets",
   "readAsset",
   "saveAsset",
+  "webSearch",
+  "fetchUrl",
 ] as const;
 
 type TeamEvent =

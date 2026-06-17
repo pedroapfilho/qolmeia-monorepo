@@ -19,6 +19,11 @@ interface Env {
   // Exa web-search API key (https://exa.ai). Optional — the webSearch skill
   // throws a clear error when it's unset rather than running keyless.
   EXA_API_KEY?: string;
+  // Firecrawl for the fetchUrl skill (reads a webpage as markdown).
+  // FIRECRAWL_BASE_URL defaults to the cloud (https://api.firecrawl.dev), which
+  // needs FIRECRAWL_API_KEY; point it at a self-hosted instance to run keyless.
+  FIRECRAWL_API_KEY?: string;
+  FIRECRAWL_BASE_URL?: string;
   OPENROUTER_API_KEY: string;
   // Shared secret with apps/auth gating the /api/internal/* relay.
   INTERNAL_SHARED_SECRET: string;
@@ -33,6 +38,8 @@ namespace Cloudflare {
     AI?: Ai;
     ASSETS_SIGNING_KEY: string;
     EXA_API_KEY?: string;
+    FIRECRAWL_API_KEY?: string;
+    FIRECRAWL_BASE_URL?: string;
     OPENROUTER_API_KEY: string;
     INTERNAL_SHARED_SECRET: string;
     VECTORIZE?: VectorizeIndex;
