@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -64,5 +64,51 @@ describe("signed asset URL", () => {
       const ok = await verifyAssetToken(env.ASSETS_SIGNING_KEY, "asset-xyz", token);
       expect(ok).toBe(true);
     }
+  });
+});
+
+const seedServedAsset = async (id: string, mime: string, key: string) => {
+  await uploadAsset(
+    { ASSETS: env.ASSETS },
+    { bytes: new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'/>"), key, mime },
+  );
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO company (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
+     VALUES ('co_svg', 'S', 's', 'America/Sao_Paulo', 'pt-BR', 'active', NULL, 0, 0)`,
+  ).run();
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO asset (id, company_id, kind, r2_key, sha256, mime, bytes, metadata, created_at)
+     VALUES (?, 'co_svg', 'brand_asset', ?, ?, ?, 10, NULL, 0)`,
+  )
+    .bind(id, key, `sha-${id}`, mime)
+    .run();
+};
+
+describe("asset serving headers", () => {
+  it("serves an uploaded SVG with a sandbox CSP + nosniff", async () => {
+    await seedServedAsset("svg-asset-1", "image/svg+xml", "org_co_svg/logo.svg");
+    const url = await buildSignedAssetUrl(
+      { ASSETS_SIGNING_KEY: env.ASSETS_SIGNING_KEY },
+      "https://agents.test",
+      "svg-asset-1",
+    );
+    const res = await SELF.fetch(url);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/svg+xml");
+    expect(res.headers.get("content-security-policy")).toContain("sandbox");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("does not add the sandbox CSP to a raster image", async () => {
+    await seedServedAsset("png-asset-1", "image/png", "org_co_svg/logo.png");
+    const url = await buildSignedAssetUrl(
+      { ASSETS_SIGNING_KEY: env.ASSETS_SIGNING_KEY },
+      "https://agents.test",
+      "png-asset-1",
+    );
+    const res = await SELF.fetch(url);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-security-policy")).toBeNull();
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
   });
 });

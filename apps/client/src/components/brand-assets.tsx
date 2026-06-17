@@ -26,7 +26,7 @@ import {
 
 const BRAND_QUERY_KEY = ["brand-assets"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
-const ALLOWED_MIME = ["image/gif", "image/jpeg", "image/png", "image/webp"];
+const ALLOWED_MIME = ["image/gif", "image/jpeg", "image/png", "image/svg+xml", "image/webp"];
 
 const BrandAssets = () => {
   const queryClient = useQueryClient();
@@ -69,7 +69,7 @@ const BrandAssets = () => {
       return;
     }
     if (!ALLOWED_MIME.includes(file.type)) {
-      toast.error("Formato não suportado. Use PNG, JPG, WEBP ou GIF.");
+      toast.error("Formato não suportado. Use PNG, JPG, WEBP, GIF ou SVG.");
       return;
     }
     if (file.size > MAX_BYTES) {

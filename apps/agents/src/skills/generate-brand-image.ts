@@ -78,8 +78,10 @@ type BrandRefRow = { mime: string; r2_key: string };
 // missing R2 object is skipped, not fatal.
 const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> => {
   const { results } = await ctx.env.DB.prepare(
+    // Exclude SVG: the image model takes raster references only; a vector data
+    // URL would error the generation call.
     `SELECT r2_key, mime FROM asset
-       WHERE company_id = ? AND kind = 'brand_asset'
+       WHERE company_id = ? AND kind = 'brand_asset' AND mime != 'image/svg+xml'
        ORDER BY created_at DESC
        LIMIT ?`,
   )

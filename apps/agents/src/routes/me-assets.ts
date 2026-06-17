@@ -88,11 +88,20 @@ meAssetsRoutes.get("/assets", async (c) => {
 // generated images (kind='user_upload') so they show up in the Assets tab
 // alongside the Designer's output.
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const ALLOWED_UPLOAD_MIME = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
+// SVG is allowed for brand identity (logos/marks). It's served with a sandbox
+// CSP (routes/assets.ts) so it can't execute scripts when opened directly.
+const ALLOWED_UPLOAD_MIME = new Set([
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/svg+xml",
+  "image/webp",
+]);
 const EXT_BY_MIME: Record<string, string> = {
   "image/gif": "gif",
   "image/jpeg": "jpg",
   "image/png": "png",
+  "image/svg+xml": "svg",
   "image/webp": "webp",
 };
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;

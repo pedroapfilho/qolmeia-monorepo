@@ -10,6 +10,22 @@ const assetsRoutes = new Hono<{ Bindings: Env }>();
 
 type AssetRow = { mime: string; r2_key: string };
 
+// SVGs are XSS-capable: opened directly (the gallery links assets in a new tab)
+// an SVG runs embedded <script>. A `sandbox` CSP + `default-src 'none'` blocks
+// script execution and external fetches on navigation, while <img> still
+// renders it (img-loaded SVGs never run scripts anyway). nosniff on everything.
+const buildAssetHeaders = (mime: string): Record<string, string> => {
+  const headers: Record<string, string> = {
+    "Cache-Control": "private, max-age=3600",
+    "Content-Type": mime,
+    "X-Content-Type-Options": "nosniff",
+  };
+  if (mime === "image/svg+xml") {
+    headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+  }
+  return headers;
+};
+
 assetsRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
   const token = c.req.query("token");
@@ -35,10 +51,7 @@ assetsRoutes.get("/:id", async (c) => {
   }
 
   return new Response(object.body, {
-    headers: {
-      "Cache-Control": "private, max-age=3600",
-      "Content-Type": row.mime,
-    },
+    headers: buildAssetHeaders(row.mime),
   });
 });
 
