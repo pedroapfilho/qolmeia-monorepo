@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("validateSession", () => {
-  it("resolves a CUSTOMER session from /api/v1/me", async () => {
+  it("resolves a CUSTOMER session from /api/me", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
     const result = await validateSession(buildRequest("tok"), env);
     expect(result).toEqual({ companyId: "co_1", role: "CUSTOMER", userId: "u_1" });
@@ -62,7 +62,7 @@ describe("validateSession", () => {
     expect(outboundAuthHeader(fetchSpy.mock.calls[0]?.[1])).toBe("Bearer header-tok");
   });
 
-  it("returns null when /api/v1/me responds 401", async () => {
+  it("returns null when /api/me responds 401", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(new Response("Unauthorized", { status: 401 })));
     expect(await validateSession(buildRequest("tok"), env)).toBeNull();
   });
@@ -72,7 +72,7 @@ describe("validateSession", () => {
     globalThis.fetch = vi.fn(() => Promise.reject(new Error("ECONNREFUSED")));
     expect(await validateSession(buildRequest("tok"), env)).toBeNull();
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/me request failed"),
+      expect.stringContaining("/api/me request failed"),
       expect.objectContaining({ error: expect.any(Error) }),
     );
     consoleSpy.mockRestore();

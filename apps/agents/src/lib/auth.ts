@@ -7,7 +7,7 @@ type ValidatedSession = {
   userId: string;
 };
 
-// Session gate. Validates a Better Auth session via `/api/v1/me` on the
+// Session gate. Validates a Better Auth session via `/api/me` on the
 // auth service and returns the resolved membership.
 //
 // Path-level role enforcement (CUSTOMER on agent paths, OWNER/STAFF on
@@ -61,10 +61,10 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
 
   let response: Response;
   try {
-    response = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/me`, { headers });
+    response = await fetch(`${env.AUTH_SERVICE_URL}/api/me`, { headers });
   } catch (error) {
     // oxlint-disable-next-line no-console
-    console.error("[auth] /api/v1/me request failed", { error });
+    console.error("[auth] /api/me request failed", { error });
     return null;
   }
   if (!response.ok) {

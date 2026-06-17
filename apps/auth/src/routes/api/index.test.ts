@@ -6,7 +6,7 @@ import type { AuthSession } from "@/middleware/require-staff";
 import { buildMeRoutes } from "./me";
 import { buildOrgsRoutes } from "./orgs";
 
-import { buildV1Routes } from "./index";
+import { buildApiRoutes } from "./index";
 
 const sessionA: AuthSession = {
   session: { id: "sess_a", userId: "user_a" },
@@ -63,7 +63,7 @@ const buildV1WithMocks = (
   guard: MiddlewareHandler,
   prisma: ReturnType<typeof buildMockPrisma>,
 ): Hono =>
-  buildV1Routes({
+  buildApiRoutes({
     memberGuard: guard,
     routes: {
       me: buildMeRoutes({ prisma: prisma as never }),
@@ -75,7 +75,7 @@ const buildV1WithMocks = (
     },
   });
 
-describe("/api/v1 post-P7.2 surface", () => {
+describe("/api post-P7.2 surface", () => {
   it("returns 401 from /me when guard rejects", async () => {
     const app = buildV1WithMocks(buildRejectGuard(), buildMockPrisma());
     const res = await app.fetch(new Request("http://localhost/me"));

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { requireStaff } from "@/lib/auth-helpers";
 
-// All dashboard routes require OWNER or STAFF. requireStaff hits /api/v1/me
+// All dashboard routes require OWNER or STAFF. requireStaff hits /api/me
 // on every render — the proxy already gates on session presence, so this
 // covers the role-check that the proxy can't perform without DB context.
 const DashboardLayout = async ({ children }: { children: ReactNode }) => {

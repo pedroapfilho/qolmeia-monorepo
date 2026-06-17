@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { ZodError } from "zod";
 
-// Canonical error/list response shapes for /api/v1/*. Keeping every list
+// Canonical error/list response shapes for /api/*. Keeping every list
 // route on `{ items, nextCursor }` and every error on `{ error: { code, message } }`
 // means the backoffice client can share one fetch wrapper across all
 // endpoints.

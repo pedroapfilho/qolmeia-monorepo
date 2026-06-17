@@ -20,7 +20,7 @@ import {
   standardRateLimit,
 } from "./middleware/security";
 import { authRoutes } from "./routes/auth";
-import { buildV1Routes } from "./routes/v1";
+import { buildApiRoutes } from "./routes/api";
 
 initApiLogger({ service: "auth" });
 
@@ -54,12 +54,14 @@ app.use(
 );
 
 app.use("/api/*", standardRateLimit);
-app.use("/api/v1/*", apiRateLimit);
+// Stricter per-IP limit on our own endpoints (not Better Auth's /api/auth/*).
+app.use("/api/me", apiRateLimit);
+app.use("/api/orgs", apiRateLimit);
 // Better Auth's basePath is "/api/auth"; mounting authRoutes at "/api" wires
 // the full sign-in/sign-up/get-session surface.
 app.route("/api", authRoutes);
-// /api/v1 — slim post-cutover surface: /me + /orgs (the org-create relay).
-app.route("/api/v1", buildV1Routes());
+// Our slim API surface: /me + /orgs (the org-create relay).
+app.route("/api", buildApiRoutes());
 
 const healthRoute = createRoute({
   description: "Liveness probe — does not touch the database.",
