@@ -6,7 +6,7 @@ import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
 import { Loader2, MessageSquare, Paperclip, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   Conversation,
@@ -55,7 +55,7 @@ const ALLOWED_UPLOAD_MIME = ["image/gif", "image/jpeg", "image/png", "image/webp
 // chat interface. History, streaming, and reconnection are handled by the
 // agents SDK. The `agent` prop picks which DO class to talk to — default is
 // "correspondent"; onboarding sets it to "planner".
-const Chat = ({
+const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
@@ -284,6 +284,37 @@ const Chat = ({
       </div>
     </div>
   );
+};
+
+// `useAgent`/`useAgentChat` are browser-only: on the server `partysocket` has no
+// `window.location.host`, falls back to a placeholder host, and its initial
+// fetch throws `ENOTFOUND dummy-domain.com`. Gate the real chat behind a
+// client-only flag so the SDK hooks never run during SSR. `useSyncExternalStore`
+// returns the server snapshot (false) during SSR and the client snapshot (true)
+// after hydration without a setState-in-effect. The skeleton mirrors the final
+// layout to avoid layout shift on hydration.
+const subscribeNoop = () => () => {};
+const Chat = (props: ChatProps) => {
+  const isClient = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
+
+  if (!isClient) {
+    return (
+      <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+        <div className="flex flex-1 items-center justify-center">
+          <Loader size={20} />
+        </div>
+        <div className="border-t border-border bg-card p-3">
+          <div className="h-16 rounded-md bg-muted/40" />
+        </div>
+      </div>
+    );
+  }
+
+  return <ChatInner {...props} />;
 };
 
 export { Chat };

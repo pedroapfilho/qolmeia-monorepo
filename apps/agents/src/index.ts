@@ -6,6 +6,7 @@ import { CorrespondentAgent } from "@/agents/correspondent";
 import { PlannerAgent } from "@/agents/planner";
 import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
+import { logError } from "@/lib/logger";
 import { assetsRoutes } from "@/routes/assets";
 import { backofficeRoutes } from "@/routes/backoffice";
 import { internalRoutes } from "@/routes/internal";
@@ -13,6 +14,7 @@ import { meRoutes } from "@/routes/me";
 import { meAssetsRoutes } from "@/routes/me-assets";
 import { teamsRoutes } from "@/routes/teams";
 import { webhooksRoutes } from "@/routes/webhooks";
+import { runProactiveSweep } from "@/scheduled";
 import { WorkerJobWorkflow } from "@/workflows/worker-job";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -29,6 +31,18 @@ app.use(
     },
   }),
 );
+
+// Safety net for unhandled throws (e.g. the team routes re-throw unexpected
+// errors): log + consistent JSON 500 instead of a raw stack. Routes still
+// return their own status codes for expected errors; this catches the tail.
+app.onError((error, c) => {
+  logError("worker.unhandled", {
+    error: error instanceof Error ? error.message : String(error),
+    method: c.req.method,
+    path: new URL(c.req.url).pathname,
+  });
+  return c.json({ error: "internal error" }, 500);
+});
 
 app.get("/healthz", (c) => c.json({ status: "ok" }));
 app.route("/api/backoffice", backofficeRoutes);
@@ -93,11 +107,24 @@ export default {
       if (session.role !== "CUSTOMER") {
         return new Response("Forbidden", { headers: agentCors, status: 403 });
       }
+      // Tenant isolation: the DO is keyed by the <companyId> path segment
+      // (/agents/<name>/<companyId>), so never trust the path — a CUSTOMER must
+      // only reach their OWN company's agent. REST /api/me/* already routes by
+      // session.companyId; this closes the same hole on the agent path.
+      const pathCompanyId = new URL(request.url).pathname.split("/")[3];
+      if (pathCompanyId !== session.companyId) {
+        return new Response("Forbidden", { headers: agentCors, status: 403 });
+      }
       const routed =
         (await routeAgentRequest(request, env)) ?? new Response("Not found", { status: 404 });
       return withAgentCors(routed, agentCors);
     }
     return app.fetch(request, env, ctx);
+  },
+  // Cron trigger (wrangler.jsonc `triggers.crons`) → weekly proactive sweep:
+  // the Correspondent suggests next work to active companies with a full brief.
+  async scheduled(_controller, env): Promise<void> {
+    await runProactiveSweep(env);
   },
 } satisfies ExportedHandler<Env>;
 

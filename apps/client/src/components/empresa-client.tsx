@@ -8,11 +8,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
+import { PageContainer } from "@repo/ui/components/page-container";
+import { PageHeader } from "@repo/ui/components/page-header";
 import { toast } from "@repo/ui/lib/toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { AgentCard } from "@/components/agent-card";
+import { BrandAssets } from "@/components/brand-assets";
+import { CompanyBriefForm } from "@/components/company-brief-form";
 import { HireDialog } from "@/components/hire-dialog";
 import { PromptEditor } from "@/components/prompt-editor";
 import {
@@ -115,20 +119,22 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Minha empresa</h1>
-        <p className="text-sm text-muted-foreground">
-          Veja seu time e contrate mais agentes. Personalize o comportamento de cada um.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        description="Veja seu time e contrate mais agentes. Personalize o comportamento de cada um."
+        title="Minha empresa"
+      />
+
+      <CompanyBriefForm />
+
+      <BrandAssets />
 
       <section aria-label="Meu time" className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Meu time</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {members.map((m) => (
             <Card key={m.id}>
-              <CardContent className="flex flex-col gap-3 pt-6">
+              <CardContent className="flex flex-col gap-4">
                 <AgentCard member={m} variant="detailed" />
                 <div className="flex flex-wrap gap-2">
                   {m.role === "worker" && (
@@ -197,7 +203,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
         open={hireTemplate !== null}
         template={hireTemplate}
       />
-    </div>
+    </PageContainer>
   );
 };
 

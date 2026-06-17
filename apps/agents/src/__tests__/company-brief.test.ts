@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BRIEF_SCHEMA_VERSION,
+  briefCompleteness,
   companyBriefSchema,
   isBriefEmpty,
   mergeBrief,
@@ -90,5 +91,45 @@ describe("isBriefEmpty", () => {
 
   it("treats an empty channels array as empty", () => {
     expect(isBriefEmpty({ channels: [] })).toBe(true);
+  });
+});
+
+describe("briefCompleteness", () => {
+  it("reports 0% and all 7 fields missing for an empty brief", () => {
+    const c = briefCompleteness({});
+    expect(c.percent).toBe(0);
+    expect(c.isComplete).toBe(false);
+    expect(c.missing).toHaveLength(7);
+    expect(c.filled).toHaveLength(0);
+  });
+
+  it("counts each filled required field, including nested brand fields", () => {
+    const c = briefCompleteness({
+      brand: { voice: "acolhedora" },
+      channels: ["instagram"],
+      industry: "alimentação",
+    });
+    // industry + channels + brand.voice = 3 of 7
+    expect(c.filled).toEqual(expect.arrayContaining(["industry", "channels", "brand.voice"]));
+    expect(c.filled).toHaveLength(3);
+    expect(c.percent).toBe(43);
+    expect(c.isComplete).toBe(false);
+  });
+
+  it("treats an empty channels array as missing", () => {
+    expect(briefCompleteness({ channels: [] }).missing).toContain("channels");
+  });
+
+  it("is complete only when all 7 fields are present", () => {
+    const c = briefCompleteness({
+      audience: "donos de cafeteria",
+      brand: { palette: "marrom", references: "Starbucks", voice: "acolhedora" },
+      channels: ["instagram"],
+      industry: "alimentação",
+      primaryGoal: "vender mais",
+    });
+    expect(c.isComplete).toBe(true);
+    expect(c.percent).toBe(100);
+    expect(c.missing).toHaveLength(0);
   });
 });

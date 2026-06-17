@@ -1,6 +1,14 @@
 import type { ModelMessage, UIMessage } from "ai";
 
 import type { RecentTurn } from "@/agents/recent-turns";
+import {
+  BRIEF_FIELD_LABELS,
+  type BriefCompleteness,
+  briefCompleteness,
+  type BriefFieldId,
+  type CompanyBrief,
+  parseBrief,
+} from "@/lib/company-brief";
 import type { ScoredRecord } from "@/lib/memory";
 
 // Constants + small helpers extracted from correspondent.ts so the DO file
@@ -39,12 +47,84 @@ const extractImages = (message: UIMessage): ReadonlyArray<AttachedImage> =>
     return [{ mediaType, url: part.url }];
   });
 
-const buildSystemPrompt = (facts: ReadonlyArray<ScoredRecord>): string => {
-  if (facts.length === 0) {
-    return BASE_SYSTEM_PROMPT;
+const BRIEF_FIELD_VALUE: Record<BriefFieldId, (brief: Partial<CompanyBrief>) => string> = {
+  audience: (brief) => brief.audience ?? "",
+  "brand.palette": (brief) => brief.brand?.palette ?? "",
+  "brand.references": (brief) => brief.brand?.references ?? "",
+  "brand.voice": (brief) => brief.brand?.voice ?? "",
+  channels: (brief) => brief.channels?.join(", ") ?? "",
+  industry: (brief) => brief.industry ?? "",
+  primaryGoal: (brief) => brief.primaryGoal ?? "",
+};
+
+const briefFieldValue = (brief: Partial<CompanyBrief>, field: BriefFieldId): string =>
+  BRIEF_FIELD_VALUE[field](brief);
+
+// Brief block injected each turn: lists known fields (so the model never
+// re-asks them) and, while incomplete, tells it to ask about ONE missing field.
+const buildBriefBlock = (
+  brief: Partial<CompanyBrief>,
+  completeness: BriefCompleteness,
+  brandAssetCount: number,
+): string => {
+  const known = completeness.filled
+    .map((field) => `- ${BRIEF_FIELD_LABELS[field]}: ${briefFieldValue(brief, field)}`)
+    .join("\n");
+  const knownSection =
+    known.length > 0
+      ? `O que você já sabe sobre a empresa do cliente:\n${known}`
+      : "Você ainda não sabe nada sobre a empresa do cliente.";
+  const brandLine =
+    brandAssetCount > 0
+      ? `\nO cliente enviou ${brandAssetCount} referência(s) de marca (logo/posts/exemplos); o Designer as usa automaticamente ao gerar imagens.`
+      : "\nO cliente ainda não enviou referências de marca — sugira que ele adicione o logo e exemplos em \"Minha empresa\" para deixar as entregas mais alinhadas.";
+
+  if (completeness.isComplete) {
+    return `## Brief da empresa\n${knownSection}${brandLine}\n\nO brief está completo — não pergunte mais sobre os dados básicos da empresa; use o que já sabe.`;
   }
-  const block = facts.map((fact) => `- [${fact.kind}] ${fact.content}`).join("\n");
-  return `${BASE_SYSTEM_PROMPT}\n\nFatos relevantes lembrados:\n${block}`;
+
+  const missing = completeness.missing.map((field) => BRIEF_FIELD_LABELS[field]).join(", ");
+  return `## Brief da empresa\n${knownSection}${brandLine}\n\nVocê ainda não conhece: ${missing}.\nEnquanto o brief não estiver completo, encaixe de forma natural UMA pergunta curta sobre UM desses itens ao final da sua resposta — sem bloquear nem adiar o pedido do cliente. Assim que aprender algo novo sobre a empresa, chame a skill extractBrief para registrar. Quando tudo estiver preenchido, pare de perguntar.`;
+};
+
+type BriefContext = {
+  brandAssetCount: number;
+  brief: Partial<CompanyBrief>;
+  completeness: BriefCompleteness;
+};
+
+// Reads the brief + brand-asset count fresh from D1 so manual edits on /empresa
+// and facts the agent learned in chat both feed the prompt immediately.
+const loadBriefContext = async (env: Env, companyId: string): Promise<BriefContext> => {
+  const row = await env.DB.prepare("SELECT brief FROM company WHERE id = ?")
+    .bind(companyId)
+    .first<{ brief: string | null }>();
+  const brandRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM asset WHERE company_id = ? AND kind = 'brand_asset'",
+  )
+    .bind(companyId)
+    .first<{ n: number }>();
+  const brief = parseBrief(row?.brief);
+  return {
+    brandAssetCount: brandRow?.n ?? 0,
+    brief,
+    completeness: briefCompleteness(brief),
+  };
+};
+
+const buildSystemPrompt = (
+  facts: ReadonlyArray<ScoredRecord>,
+  briefContext?: BriefContext,
+): string => {
+  let prompt = BASE_SYSTEM_PROMPT;
+  if (briefContext) {
+    prompt += `\n\n${buildBriefBlock(briefContext.brief, briefContext.completeness, briefContext.brandAssetCount)}`;
+  }
+  if (facts.length > 0) {
+    const block = facts.map((fact) => `- [${fact.kind}] ${fact.content}`).join("\n");
+    prompt += `\n\nFatos relevantes lembrados:\n${block}`;
+  }
+  return prompt;
 };
 
 // Build the ModelMessage[] the Correspondent sends to the model. The recent
@@ -85,9 +165,10 @@ export {
   buildSystemPrompt,
   extractImages,
   extractText,
+  loadBriefContext,
   MEMORY_MIN_SCORE,
   MEMORY_TOP_K,
   RECENT_TURNS_KEEP,
   RECENT_TURNS_WINDOW,
 };
-export type { AttachedImage };
+export type { AttachedImage, BriefContext };

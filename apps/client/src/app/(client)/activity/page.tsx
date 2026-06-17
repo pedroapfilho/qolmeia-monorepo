@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
+import { PageContainer } from "@repo/ui/components/page-container";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { Activity } from "lucide-react";
 import type { Metadata } from "next";
@@ -47,7 +48,7 @@ const ActivityPage = async () => {
   const rows = await loadActivity();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <PageContainer>
       <PageHeader
         description="Tudo que rolou no seu chat — mensagens trocadas, execuções dos agentes, ações concluídas."
         title="Atividade"
@@ -78,7 +79,7 @@ const ActivityPage = async () => {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 };
 
