@@ -7,7 +7,7 @@ import { auth as defaultAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
 
-// POST /api/v1/orgs — create an Organization + OWNER OrgMembership for the
+// POST /api/orgs — create an Organization + OWNER OrgMembership for the
 // signed-in user, then relay the new company id to apps/agents to provision
 // the matching D1 `company` row.
 //

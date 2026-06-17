@@ -5,7 +5,7 @@ import { z } from "zod";
 const ROLES = ["OWNER", "STAFF", "CUSTOMER"] as const;
 type Role = (typeof ROLES)[number];
 
-// Strict subset of /api/v1/me — we only parse what the Worker needs. The
+// Strict subset of /api/me — we only parse what the Worker needs. The
 // auth service may add fields; ignoring them keeps the contract narrow.
 const meResponseSchema = z.object({
   currentOrg: z

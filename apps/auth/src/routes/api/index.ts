@@ -13,11 +13,11 @@ type V1RouteDeps = {
   };
 };
 
-// Slim post-P7.2 /api/v1 surface:
+// Slim /api surface (mounted at /api by index.ts):
 //   - /me   — any authenticated member (OWNER + STAFF + CUSTOMER)
 //   - /orgs — authenticated; creates Organization + OrgMembership and
 //             relays to apps/agents to provision the D1 company row.
-const buildV1Routes = (deps: V1RouteDeps = {}): Hono => {
+const buildApiRoutes = (deps: V1RouteDeps = {}): Hono => {
   const app = new Hono();
   const memberGuard = deps.memberGuard ?? requireAnyMember();
 
@@ -33,5 +33,5 @@ const buildV1Routes = (deps: V1RouteDeps = {}): Hono => {
   return app;
 };
 
-export { buildV1Routes };
+export { buildApiRoutes };
 export type { V1RouteDeps };

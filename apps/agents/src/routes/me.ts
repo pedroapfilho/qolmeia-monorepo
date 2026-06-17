@@ -29,7 +29,7 @@ import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
 // GET /api/me relays the full MeResponse from the auth service so the Next
 // apps target apps/agents uniformly. The response is cached in KV for
 // `RELAY_CACHE_TTL_SECONDS` so multiple page renders in quick succession
-// don't drive Better Auth's per-IP rate limit (100/15min on /api/v1/me).
+// don't drive Better Auth's per-IP rate limit (100/15min on /api/me).
 //
 // The customer's asset gallery + upload live in routes/me-assets.ts —
 // they have a different shape (multipart, multi-step transaction) from
@@ -72,7 +72,7 @@ meRoutes.get("/", async (c) => {
   }
   let response: Response;
   try {
-    response = await fetch(`${c.env.AUTH_SERVICE_URL}/api/v1/me`, { headers });
+    response = await fetch(`${c.env.AUTH_SERVICE_URL}/api/me`, { headers });
   } catch (error) {
     logError("me.relay.err", {
       error: error instanceof Error ? error.message : String(error),

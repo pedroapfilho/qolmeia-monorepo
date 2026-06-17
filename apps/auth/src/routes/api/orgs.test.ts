@@ -49,7 +49,7 @@ const postOrgs = (
     ),
   );
 
-describe("POST /api/v1/orgs", () => {
+describe("POST /api/orgs", () => {
   it("401 when no session", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(null),
