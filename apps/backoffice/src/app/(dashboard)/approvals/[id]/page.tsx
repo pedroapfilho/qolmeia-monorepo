@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
+import { Card } from "@repo/ui/components/card";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -46,96 +46,120 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
   const TypedRenderer = getActionRenderer(action.actionType);
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink href="/approvals">Voltar para aprovações</BackLink>
+    <div className="flex flex-col gap-5">
+      <BackLink href="/approvals">Aprovações</BackLink>
 
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            {action.actionType}
-          </h1>
-          <StatusPill status={action.status} />
+      <header className="flex flex-wrap items-start gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
+              Revisar ação
+            </h1>
+            <span className="font-mono text-xs text-muted-foreground">{action.id}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {action.actionType} · {policyCopy} · {formatRelative(action.createdAt)}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {policyCopy} · {formatRelative(action.createdAt)} ·{" "}
-          <span className="text-foreground/60">criado em {formatDateTime(action.createdAt)}</span>
-        </p>
+        <StatusPill status={action.status} />
       </header>
 
-      {ticket && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Ticket de origem</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                className="font-mono text-sm font-medium text-primary transition-colors hover:text-primary/80"
-                href={`/tickets/${ticket.id}`}
-              >
-                {ticket.id}
-              </Link>
-              <StatusPill status={ticket.status} />
-            </div>
-            <p className="text-sm leading-relaxed text-foreground">{ticket.brief}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {TypedRenderer && createElement(TypedRenderer, { proposed: action.proposed })}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Proposta</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {summary && (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{summary}</p>
+      <div className="grid items-start gap-4 lg:grid-cols-[1.25fr_1fr]">
+        <div className="flex flex-col gap-4">
+          {TypedRenderer ? (
+            createElement(TypedRenderer, { proposed: action.proposed })
+          ) : (
+            <Card className="gap-4 p-5">
+              <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                Proposta
+              </span>
+              {summary && (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                  {summary}
+                </p>
+              )}
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer text-sm font-medium text-foreground/80 transition-colors select-none hover:text-foreground">
+                  Ver proposta completa (JSON)
+                </summary>
+                <pre className="mt-3 max-h-96 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 text-xs">
+                  {JSON.stringify(action.proposed, null, 2)}
+                </pre>
+              </details>
+            </Card>
           )}
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer text-sm font-medium text-foreground/80 transition-colors select-none hover:text-foreground">
-              Ver proposta completa (JSON)
-            </summary>
-            <pre className="mt-3 max-h-96 overflow-auto rounded-md border border-border bg-muted/50 p-3 text-xs">
-              {JSON.stringify(action.proposed, null, 2)}
-            </pre>
-          </details>
-        </CardContent>
-      </Card>
+        </div>
 
-      {action.status === "pending" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Decisão</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DecisionForm actionId={action.id} />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Decidido</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Status final:</span>
-              <StatusPill status={action.status} />
-            </div>
-            {action.decidedAt && (
-              <p className="text-xs text-muted-foreground">
-                Decisão em {formatDateTime(action.decidedAt)}
-                {action.decidedByUserId ? ` por ${action.decidedByUserId}` : ""}
+        <div className="flex flex-col gap-4">
+          <Card className="gap-3 p-5">
+            <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              Contexto
+            </span>
+            <dl className="flex flex-col gap-2.5 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Empresa</dt>
+                <dd className="truncate font-medium text-foreground">{action.companyId}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Política</dt>
+                <dd className="font-medium text-foreground">{policyCopy}</dd>
+              </div>
+              {ticket && (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Ticket</dt>
+                  <dd>
+                    <Link
+                      className="font-mono text-xs text-primary transition-colors hover:text-primary/80"
+                      href={`/tickets/${ticket.id}`}
+                    >
+                      {ticket.id}
+                    </Link>
+                  </dd>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Criado</dt>
+                <dd className="font-medium text-foreground">{formatDateTime(action.createdAt)}</dd>
+              </div>
+            </dl>
+            {ticket && (
+              <p className="border-t border-border/60 pt-3 text-sm leading-relaxed text-muted-foreground">
+                {ticket.brief}
               </p>
             )}
-            {action.feedback && (
-              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
-                {action.feedback}
+          </Card>
+
+          {action.status === "pending" ? (
+            <Card className="gap-3 p-5">
+              <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                Decisão
+              </span>
+              <DecisionForm actionId={action.id} />
+            </Card>
+          ) : (
+            <Card className="gap-3 p-5">
+              <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                Decidido
+              </span>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Status final:</span>
+                <StatusPill status={action.status} />
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {action.decidedAt && (
+                <p className="text-xs text-muted-foreground">
+                  Decisão em {formatDateTime(action.decidedAt)}
+                  {action.decidedByUserId ? ` por ${action.decidedByUserId}` : ""}
+                </p>
+              )}
+              {action.feedback && (
+                <div className="rounded-lg border border-border bg-secondary/40 p-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                  {action.feedback}
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

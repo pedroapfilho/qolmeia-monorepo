@@ -63,8 +63,8 @@ const ChatPage = async () => {
       token,
     );
     return (
-      <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-        <div className="flex-1 overflow-hidden">
+      <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col bg-background">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <Chat agent="planner" agentsUrl={AGENTS_URL} companyId={companyId} sessionToken={token} />
         </div>
         <OnboardingActions
@@ -78,7 +78,7 @@ const ChatPage = async () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-1">
+    <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-1 bg-background">
       <div className="flex min-w-0 flex-1 flex-col">
         <Chat
           agent="correspondent"

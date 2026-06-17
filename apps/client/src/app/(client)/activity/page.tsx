@@ -66,13 +66,19 @@ const ActivityPage = async () => {
             <ul className="flex flex-col">
               {rows.map((row) => (
                 <li
-                  className="flex flex-col gap-1 border-b border-border px-6 py-4 last:border-b-0"
+                  className="flex gap-3 border-b border-border px-6 py-4 last:border-b-0"
                   key={row.id}
                 >
-                  <p className="text-sm leading-relaxed text-foreground">{row.summary}</p>
-                  <time className="text-xs text-muted-foreground" dateTime={row.createdAt}>
-                    {formatTime(row.createdAt)}
-                  </time>
+                  <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="text-sm leading-relaxed text-foreground">{row.summary}</p>
+                    <time
+                      className="font-mono text-xs tracking-wide text-muted-foreground uppercase"
+                      dateTime={row.createdAt}
+                    >
+                      {formatTime(row.createdAt)}
+                    </time>
+                  </div>
                 </li>
               ))}
             </ul>

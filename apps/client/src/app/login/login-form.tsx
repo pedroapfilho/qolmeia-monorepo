@@ -54,9 +54,11 @@ const LoginForm = () => {
 
   if (sent) {
     return (
-      <Card>
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
+          <CardTitle className="font-display text-2xl tracking-tight">
+            Verifique seu e-mail
+          </CardTitle>
           <CardDescription>
             Enviamos um link mágico para você. Abra o e-mail e clique no link para entrar.
           </CardDescription>
@@ -78,9 +80,9 @@ const LoginForm = () => {
   }
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl">Entrar</CardTitle>
+        <CardTitle className="font-display text-2xl tracking-tight">Entrar</CardTitle>
         <CardDescription>
           Use o e-mail no qual você recebeu o convite. Vamos te enviar um link mágico.
         </CardDescription>

@@ -74,16 +74,18 @@ const OnboardingActions = ({
   };
 
   return (
-    <div className="border-t border-border bg-card">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
+    <div className="flex-none border-t border-border bg-card">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-5">
         <div className="flex items-center gap-2">
-          <Sparkles aria-hidden className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground">Especialistas disponíveis</h2>
+          <Sparkles aria-hidden className="size-4 text-primary" />
+          <h2 className="font-display text-base font-bold tracking-tight text-foreground">
+            Monte seu Time
+          </h2>
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           Escolha quem você quer no seu Time e clique em Confirmar.
         </p>
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid gap-2.5 sm:grid-cols-2">
           {templates.map((t) => {
             const checked = selected.has(t.id);
             const inputId = `template-${t.id}`;
@@ -92,23 +94,23 @@ const OnboardingActions = ({
                 <label
                   aria-label={t.displayName}
                   className={cn(
-                    "flex h-full cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors",
+                    "flex h-full cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-colors",
                     checked
-                      ? "border-primary bg-primary/5 ring-1 ring-primary/40"
-                      : "border-border hover:border-border/80 hover:bg-muted/40",
+                      ? "border-primary bg-highlight-surface"
+                      : "border-border hover:border-input hover:bg-accent",
                   )}
                   htmlFor={inputId}
                 >
                   <input
                     aria-label={t.displayName}
                     checked={checked}
-                    className="mt-1 size-4 accent-primary"
+                    className="mt-0.5 size-4 accent-primary"
                     id={inputId}
                     onChange={() => toggle(t.id)}
                     type="checkbox"
                   />
                   <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-foreground">{t.displayName}</span>
+                    <span className="text-sm font-semibold text-foreground">{t.displayName}</span>
                     <span className="text-xs leading-relaxed text-muted-foreground">
                       {t.description}
                     </span>
@@ -119,10 +121,11 @@ const OnboardingActions = ({
           })}
         </ul>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <span className="font-mono text-xs tracking-wide text-muted-foreground uppercase tabular-nums">
             {selected.size} de {templates.length} selecionado{templates.length === 1 ? "" : "s"}
           </span>
           <Button
+            className="rounded-lg"
             disabled={submitting || selected.size === 0}
             onClick={handleConfirm}
             size="lg"

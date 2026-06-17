@@ -47,7 +47,7 @@ const AssetsPage = async () => {
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 lg:grid-cols-4">
           {assets.map((asset) => (
             <li key={asset.id}>
-              <Card className="gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+              <Card className="gap-0 overflow-hidden rounded-xl py-0 transition-shadow hover:shadow-sm">
                 {asset.mimeType.startsWith("image/") ? (
                   // oxlint-disable-next-line no-img-element
                   <img
@@ -56,12 +56,12 @@ const AssetsPage = async () => {
                     src={asset.url}
                   />
                 ) : (
-                  <div className="flex aspect-square w-full items-center justify-center bg-muted text-xs text-muted-foreground">
+                  <div className="flex aspect-square w-full items-center justify-center bg-muted font-mono text-xs tracking-wide text-muted-foreground">
                     {asset.mimeType}
                   </div>
                 )}
-                <div className="border-t border-border px-3 py-2">
-                  <p className="truncate text-xs text-muted-foreground">
+                <div className="border-t border-border px-3 py-2.5">
+                  <p className="truncate font-mono text-xs tracking-wide text-muted-foreground uppercase">
                     {new Date(asset.createdAt).toLocaleDateString("pt-BR")}
                   </p>
                 </div>

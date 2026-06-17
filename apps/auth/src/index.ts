@@ -19,8 +19,8 @@ import {
   securityHeaders,
   standardRateLimit,
 } from "./middleware/security";
-import { authRoutes } from "./routes/auth";
 import { buildApiRoutes } from "./routes/api";
+import { authRoutes } from "./routes/auth";
 
 initApiLogger({ service: "auth" });
 

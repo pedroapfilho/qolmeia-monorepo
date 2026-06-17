@@ -1,55 +1,72 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
+import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
-import { Activity, ArrowRight, Inbox, Ticket as TicketIcon } from "lucide-react";
+import { cn } from "@repo/ui/lib/utils";
+import { Activity, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ActivityRow } from "@/components/activity-row";
-import { StatusPill } from "@/components/status-pill";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionsResponse, ActivityResponse, TicketsResponse } from "@/lib/api-types";
-import { formatDurationSeconds, truncate } from "@/lib/format";
+import { formatDurationSeconds, formatRelative, truncate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Início" };
 
-type StatCardProps = {
-  cta: string;
-  ctaHref: string;
-  icon: React.ReactNode;
-  label: string;
-  subValue?: string;
-  value: number;
+// Color-key each event dot by its type prefix — same prefix→category
+// mapping the activity row uses, so the two surfaces stay consistent.
+const eventDotClass = (type: string): string => {
+  if (type.startsWith("ACTION_")) {
+    return "bg-primary";
+  }
+  if (type.startsWith("TICKET_")) {
+    return "bg-info";
+  }
+  if (type.startsWith("WORKER_")) {
+    return "bg-cyan-surface-foreground";
+  }
+  if (type.startsWith("TEAM_")) {
+    return "bg-success";
+  }
+  if (type.startsWith("MEMBER_")) {
+    return "bg-destructive";
+  }
+  return "bg-muted-foreground";
 };
 
-const StatCard = ({ cta, ctaHref, icon, label, subValue, value }: StatCardProps) => (
-  <Card>
-    <CardHeader className="flex flex-row items-start justify-between gap-2 [.border-b]:pb-6">
-      <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-      <span
-        aria-hidden
-        className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground [&_svg]:size-4"
+type StatCardProps = {
+  accent?: boolean;
+  href?: string;
+  label: string;
+  sub?: string;
+  value: number | string;
+};
+
+const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
+  const body = (
+    <Card
+      className={cn("gap-0 px-5 py-4", href ? "transition-colors hover:border-input" : undefined)}
+    >
+      <p className="text-[13px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-2 font-display text-3xl font-bold tracking-tight tabular-nums",
+          accent ? "text-destructive" : "text-foreground",
+        )}
       >
-        {icon}
-      </span>
-    </CardHeader>
-    <CardContent className="flex items-end justify-between">
-      <p className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
         {value}
-        {subValue ? (
-          <span className="ml-1.5 text-base font-normal text-muted-foreground">{subValue}</span>
-        ) : null}
       </p>
-      <Link
-        className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-        href={ctaHref}
-      >
-        {cta}
-        <ArrowRight aria-hidden className="size-3.5" />
-      </Link>
-    </CardContent>
-  </Card>
-);
+      {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
+    </Card>
+  );
+
+  return href ? (
+    <Link className="block" href={href}>
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+};
 
 const Home = async () => {
   // Parallel fetch — Promise.allSettled so a transient failure on one
@@ -67,89 +84,101 @@ const Home = async () => {
   const openTickets = tickets.filter((t) =>
     ["in_progress", "open", "awaiting_approval"].includes(t.status),
   ).length;
+  const doneTickets = tickets.filter((t) => t.status === "done").length;
+  const activeCompanies = new Set(tickets.map((t) => t.companyId)).size;
+  const oldestPendingAge = pending[0]?.ageSeconds;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <PageHeader
-        description="Visão operacional: aprovações pendentes, tickets em curso e atividade recente."
+        actions={
+          <span className="rounded-lg border border-border bg-card px-3 py-2 text-[13px] font-semibold text-foreground">
+            Últimos 7 dias
+          </span>
+        }
+        description="Visão operacional · todas as empresas"
         title="Início"
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         <StatCard
-          cta="Decidir"
-          ctaHref="/approvals"
-          icon={<Inbox aria-hidden />}
+          accent
+          href="/approvals"
           label="Aprovações pendentes"
+          sub={
+            oldestPendingAge === undefined
+              ? undefined
+              : `a mais antiga há ${formatDurationSeconds(oldestPendingAge)}`
+          }
           value={pending.length}
         />
         <StatCard
-          cta="Ver tickets"
-          ctaHref="/tickets"
-          icon={<TicketIcon aria-hidden />}
-          label="Tickets em curso"
-          subValue={`/ ${tickets.length}`}
+          href="/tickets"
+          label="Tickets abertos"
+          sub={`de ${tickets.length} no total`}
           value={openTickets}
+        />
+        <StatCard label="Concluídos no mês" value={doneTickets} />
+        <StatCard
+          label="Empresas ativas"
+          sub={activeCompanies === 1 ? "1 empresa" : `${activeCompanies} empresas`}
+          value={activeCompanies}
         />
       </div>
 
-      {pending.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Próximas aprovações</CardTitle>
-          </CardHeader>
-          <CardContent className="px-0">
+      <div className="grid gap-3.5 lg:grid-cols-[1.25fr_1fr]">
+        <Card className="gap-0 overflow-hidden p-0">
+          <div className="flex items-center border-b border-border px-[18px] py-[15px]">
+            <h2 className="text-[14.5px] font-bold text-foreground">Próximas aprovações</h2>
+            <Link
+              className="ml-auto text-[12.5px] font-semibold text-primary transition-colors hover:text-primary/80"
+              href="/approvals"
+            >
+              Ver todas
+            </Link>
+          </div>
+          {pending.length === 0 ? (
+            <EmptyState
+              description="Quando um agente propuser uma ação, ela aparece aqui para decisão."
+              icon={<ArrowRight aria-hidden />}
+              title="Nenhuma aprovação pendente"
+            />
+          ) : (
             <ul className="flex flex-col">
-              {pending.slice(0, 5).map((action) => {
+              {pending.slice(0, 4).map((action) => {
                 const summary =
                   typeof action.proposed.summary === "string" ? action.proposed.summary : null;
                 return (
-                  <li
-                    className="flex items-start justify-between gap-4 border-b border-border px-6 py-4 last:border-b-0"
-                    key={action.id}
-                  >
-                    <div className="flex min-w-0 flex-col gap-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">
-                          {action.actionType}
-                        </span>
-                        <StatusPill status={action.status} />
-                        {action.ageSeconds !== undefined && (
-                          <span className="text-xs text-muted-foreground">
-                            há {formatDurationSeconds(action.ageSeconds)}
-                          </span>
-                        )}
-                      </div>
-                      {summary ? (
-                        <p className="text-sm text-muted-foreground">{truncate(summary, 180)}</p>
-                      ) : null}
-                    </div>
+                  <li className="border-b border-border last:border-b-0" key={action.id}>
                     <Link
-                      className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+                      className="flex items-center gap-3 px-[18px] py-[13px] transition-colors hover:bg-highlight-surface/40"
                       href={`/approvals/${action.id}`}
                     >
-                      Decidir
-                      <ArrowRight aria-hidden className="size-3.5" />
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-[13.5px] font-semibold text-foreground">
+                          {action.actionType}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {summary ? truncate(summary, 80) : action.ticketId}
+                        </span>
+                      </div>
+                      {action.ageSeconds === undefined ? null : (
+                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                          {formatDurationSeconds(action.ageSeconds)}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );
               })}
             </ul>
-          </CardContent>
+          )}
         </Card>
-      )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 [.border-b]:pb-6">
-          <CardTitle>Eventos recentes</CardTitle>
-          <Link
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            href="/activity"
-          >
-            Ver tudo
-          </Link>
-        </CardHeader>
-        <CardContent className="px-0">
+        <Card className="gap-0 overflow-hidden p-0">
+          <div className="border-b border-border px-[18px] py-[15px]">
+            <h2 className="text-[14.5px] font-bold text-foreground">Eventos recentes</h2>
+          </div>
           {activity.length === 0 ? (
             <EmptyState
               description="Quando os agentes começarem a trabalhar, os eventos aparecem aqui."
@@ -157,14 +186,31 @@ const Home = async () => {
               title="Nada para mostrar ainda"
             />
           ) : (
-            <ul className="flex flex-col">
-              {activity.map((row) => (
-                <ActivityRow key={row.id} row={row} />
+            <ul className="flex flex-col px-[18px] py-1.5">
+              {activity.slice(0, 6).map((row) => (
+                <li
+                  className="flex gap-[11px] border-b border-border py-2.5 last:border-b-0"
+                  key={row.id}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "mt-1.5 size-[7px] shrink-0 rounded-full",
+                      eventDotClass(row.type),
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[13px] leading-snug text-foreground">{row.summary}</p>
+                    <p className="mt-[3px] font-mono text-[10px] text-muted-foreground">
+                      {row.type} · {formatRelative(row.createdAt)}
+                    </p>
+                  </div>
+                </li>
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

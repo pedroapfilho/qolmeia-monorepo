@@ -130,7 +130,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
       <BrandAssets />
 
       <section aria-label="Meu time" className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Meu time</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Meu time</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {members.map((m) => (
             <Card key={m.id}>
@@ -152,7 +152,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
                         disabled={busyId === m.id}
                         onClick={() => handleTogglePause(m.id, m.status !== "paused")}
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                       >
                         {m.status === "paused" ? "Retomar" : "Pausar"}
                       </Button>
@@ -176,7 +176,9 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
       </section>
 
       <section aria-label="Contratar mais agentes" className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Contratar mais agentes</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">
+          Contratar mais agentes
+        </h2>
         <div className="grid gap-3 md:grid-cols-2">
           {catalogue.map((t) => (
             <Card key={t.id}>
@@ -184,8 +186,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
                 <CardTitle className="text-base">{t.displayName}</CardTitle>
                 <CardDescription>{t.description}</CardDescription>
               </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
+              <CardContent className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs tracking-wide text-muted-foreground">
                   {t.hiredCount > 0 ? `Você já tem ${t.hiredCount}` : "Nenhum ainda"}
                 </span>
                 <Button onClick={() => setHireTemplate(t)} size="sm">

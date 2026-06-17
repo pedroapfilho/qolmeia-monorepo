@@ -6,6 +6,17 @@
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
+/* Status "Trabalhando" dot — matches the design's qpulse (opacity 1 → .35, 1.4s). */
+@keyframes qpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 @layer base {
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -30,57 +41,62 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.147 0.004 49.25);
+  /* Qolmeia design system — violet primary on warm neutrals (light-first).
+     Hexes are the exact warm-neutral ramp from the design handoff. */
+  --background: oklch(0.978 0.004 84);
+  --foreground: oklch(0.23 0.006 65);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.147 0.004 49.25);
+  --card-foreground: oklch(0.23 0.006 65);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.147 0.004 49.25);
+  --popover-foreground: oklch(0.23 0.006 65);
   --primary: oklch(0.491 0.27 292.581);
-  --primary-foreground: oklch(0.969 0.016 293.756);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071);
-  --accent: oklch(0.97 0.001 106.424);
-  --accent-foreground: oklch(0.216 0.006 56.043);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --destructive-surface: oklch(96.9% 0.015 12.422);
-  --destructive-surface-foreground: oklch(51.4% 0.222 16.935);
-  --success: oklch(69.6% 0.17 162.48);
-  --success-foreground: oklch(0.985 0 0);
-  --success-surface: oklch(97.9% 0.021 166.113);
-  --success-surface-foreground: oklch(50.8% 0.118 165.612);
-  --warning: oklch(76.9% 0.188 70.08);
-  --warning-foreground: oklch(0.145 0 0);
-  --warning-surface: oklch(98.7% 0.022 95.277);
-  --warning-surface-foreground: oklch(47.3% 0.137 46.201);
-  --info: oklch(62.3% 0.214 259.815);
-  --info-foreground: oklch(0.985 0 0);
-  --info-surface: oklch(97% 0.014 254.604);
-  --info-surface-foreground: oklch(48.8% 0.243 264.376);
-  --highlight: oklch(60.6% 0.25 292.717);
-  --highlight-foreground: oklch(0.985 0 0);
-  --highlight-surface: oklch(96.9% 0.016 293.756);
-  --highlight-surface-foreground: oklch(49.1% 0.27 292.581);
-  --border: oklch(0.923 0.003 48.717);
-  --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.709 0.01 56.259);
-  --chart-1: oklch(0.905 0.182 98.111);
-  --chart-2: oklch(0.795 0.184 86.047);
-  --chart-3: oklch(0.681 0.162 75.834);
-  --chart-4: oklch(0.554 0.135 66.442);
-  --chart-5: oklch(0.476 0.114 61.907);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.945 0.007 80);
+  --secondary-foreground: oklch(0.23 0.006 65);
+  --muted: oklch(0.945 0.007 80);
+  --muted-foreground: oklch(0.54 0.012 65);
+  --accent: oklch(0.962 0.005 84);
+  --accent-foreground: oklch(0.23 0.006 65);
+  --destructive: oklch(0.6 0.18 22);
+  --destructive-foreground: oklch(1 0 0);
+  --destructive-surface: oklch(0.96 0.04 22);
+  --destructive-surface-foreground: oklch(0.5 0.14 22);
+  --success: oklch(0.62 0.13 155);
+  --success-foreground: #ffffff;
+  --success-surface: oklch(0.96 0.035 155);
+  --success-surface-foreground: oklch(0.45 0.11 155);
+  --warning: oklch(0.72 0.14 70);
+  --warning-foreground: #1b1916;
+  --warning-surface: oklch(0.96 0.045 75);
+  --warning-surface-foreground: oklch(0.5 0.13 62);
+  --info: oklch(0.58 0.14 255);
+  --info-foreground: #ffffff;
+  --info-surface: oklch(0.96 0.03 255);
+  --info-surface-foreground: oklch(0.48 0.13 262);
+  /* Cyan accent — the WORKER_* activity category (distinct from TICKET_* blue). */
+  --cyan-surface: oklch(0.96 0.025 200);
+  --cyan-surface-foreground: oklch(0.5 0.14 200);
+  --highlight: oklch(0.491 0.27 292.581);
+  --highlight-foreground: #ffffff;
+  --highlight-surface: oklch(0.95 0.03 292);
+  --highlight-surface-foreground: oklch(0.491 0.27 292.581);
+  --border: oklch(0.925 0.007 80);
+  --input: oklch(0.882 0.009 80);
+  --ring: oklch(0.491 0.27 292.581);
+  --chart-1: oklch(0.491 0.27 292.581);
+  --chart-2: oklch(0.58 0.14 255);
+  --chart-3: oklch(0.62 0.13 155);
+  --chart-4: oklch(0.72 0.14 70);
+  --chart-5: oklch(0.6 0.16 25);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0.001 106.423);
-  --sidebar-foreground: oklch(0.147 0.004 49.25);
-  --sidebar-primary: oklch(0.541 0.281 293.009);
-  --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
-  --sidebar-accent: oklch(0.97 0.001 106.424);
-  --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-  --sidebar-border: oklch(0.923 0.003 48.717);
-  --sidebar-ring: oklch(0.709 0.01 56.259);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.23 0.006 65);
+  --sidebar-primary: oklch(0.491 0.27 292.581);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0.03 292);
+  --sidebar-accent-foreground: oklch(0.491 0.27 292.581);
+  --sidebar-border: oklch(0.925 0.007 80);
+  --sidebar-ring: oklch(0.491 0.27 292.581);
 }
 
 .dark {
@@ -137,6 +153,12 @@
 }
 
 @theme inline {
+  /* Type — Sora (display/brand), Hanken Grotesk (body/UI), JetBrains Mono (labels/IDs).
+     The per-font CSS vars are injected by next/font in each app's root layout. */
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sora), var(--font-hanken), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "JetBrains Mono", monospace;
+  --animate-qpulse: qpulse 1.4s ease-in-out infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -167,19 +189,22 @@
   --color-info-foreground: var(--info-foreground);
   --color-info-surface: var(--info-surface);
   --color-info-surface-foreground: var(--info-surface-foreground);
+  --color-cyan-surface: var(--cyan-surface);
+  --color-cyan-surface-foreground: var(--cyan-surface-foreground);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
   --color-highlight-surface: var(--highlight-surface);
   --color-highlight-surface-foreground: var(--highlight-surface-foreground);
-  /* Decorative avatar palette — fixed hues in both themes, white initials on top. */
-  --color-avatar-1: oklch(64.5% 0.246 16.439);
-  --color-avatar-2: oklch(70.5% 0.213 47.604);
-  --color-avatar-3: oklch(76.9% 0.188 70.08);
-  --color-avatar-4: oklch(69.6% 0.17 162.48);
-  --color-avatar-5: oklch(70.4% 0.14 182.503);
-  --color-avatar-6: oklch(68.5% 0.169 237.323);
-  --color-avatar-7: oklch(58.5% 0.233 277.117);
-  --color-avatar-8: oklch(66.7% 0.295 322.15);
+  /* Role-keyed avatar hues from the design — white monogram on top.
+     1 correspondent · 2 designer · 3 estrategista · 4 redator · 5 social · 6 planner · 7 company · 8 spare */
+  --color-avatar-1: oklch(0.491 0.27 292.581);
+  --color-avatar-2: oklch(0.55 0.16 200);
+  --color-avatar-3: oklch(0.6 0.15 130);
+  --color-avatar-4: oklch(0.6 0.16 25);
+  --color-avatar-5: oklch(0.55 0.15 255);
+  --color-avatar-6: oklch(0.66 0.14 70);
+  --color-avatar-7: oklch(0.6 0.13 40);
+  --color-avatar-8: oklch(0.6 0.16 330);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -207,7 +232,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
   }
 }
 

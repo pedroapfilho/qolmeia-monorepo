@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@repo/ui/components/button";
-import { Field, FieldDescription, FieldLabel } from "@repo/ui/components/field";
+import { Field, FieldDescription } from "@repo/ui/components/field";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useState } from "react";
 
@@ -35,16 +35,26 @@ const PromptEditor = ({
   const dirty = value !== (initialValue ?? "");
 
   return (
-    <section aria-label="Comportamento do agente" className="flex flex-col gap-3">
-      <details className="rounded-md border border-border p-3">
-        <summary className="cursor-pointer text-sm font-medium">Padrão do template</summary>
+    <section aria-label="Prompt do agente" className="flex flex-col gap-3">
+      <div className="flex items-center">
+        <span className="text-sm font-bold text-foreground">Prompt do agente</span>
+        <span className="ml-auto font-mono text-[10.5px] tracking-wide text-muted-foreground">
+          editável
+        </span>
+      </div>
+
+      <details className="rounded-lg border border-border p-3">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">
+          Padrão do template
+        </summary>
         <pre className="mt-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
           {templatePrompt}
         </pre>
       </details>
+
       <Field>
-        <FieldLabel htmlFor="prompt-editor">Sua personalização</FieldLabel>
         <Textarea
+          className="min-h-[150px] resize-y text-[13.5px] leading-relaxed"
           disabled={busy}
           id="prompt-editor"
           onChange={(e) => setValue(e.target.value)}
@@ -58,19 +68,20 @@ const PromptEditor = ({
             : "Mudanças passam a valer na próxima interação."}
         </FieldDescription>
       </Field>
-      <div className="flex justify-end gap-2">
+
+      <div className="flex gap-2">
+        <Button disabled={busy || !dirty} onClick={() => onSave(value)}>
+          Salvar prompt
+        </Button>
         <Button
           disabled={busy || !overridden}
           onClick={async () => {
             await onReset();
             setValue("");
           }}
-          variant="outline"
+          variant="ghost"
         >
-          Restaurar padrão
-        </Button>
-        <Button disabled={busy || !dirty} onClick={() => onSave(value)}>
-          Salvar
+          Descartar
         </Button>
       </div>
     </section>

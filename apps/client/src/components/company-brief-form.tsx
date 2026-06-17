@@ -1,16 +1,15 @@
 "use client";
 
-import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
 import { Field, FieldLabel } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
 import { Skeleton } from "@repo/ui/components/skeleton";
+import { StatusPill } from "@repo/ui/components/status-pill";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -84,7 +83,7 @@ const MissingMark = ({ show }: { show: boolean }) =>
   show ? (
     <span
       aria-label="A preencher"
-      className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle"
+      className="ml-1.5 inline-block size-2 rounded-full bg-warning align-middle"
     />
   ) : null;
 
@@ -133,12 +132,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
       <CardHeader className="flex flex-row items-center justify-between gap-2 [.border-b]:pb-6">
         <CardTitle>Sobre a empresa</CardTitle>
         {isComplete ? (
-          <Badge variant="success">
-            <Check aria-hidden className="size-3" />
-            Completo
-          </Badge>
+          <StatusPill dotless label="Completo" tone="success" />
         ) : (
-          <Badge variant="muted">{percent}% completo</Badge>
+          <StatusPill dotless label={`${percent}% completo`} tone="neutral" />
         )}
       </CardHeader>
       <CardContent>

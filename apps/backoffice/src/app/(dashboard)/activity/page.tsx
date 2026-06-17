@@ -14,11 +14,22 @@ const ActivityPage = async () => {
   const res = await apiGetServer<ActivityResponse>("/activity?limit=50");
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        description="Linha do tempo unificada dos eventos da sua organização."
-        title="Atividade"
-      />
+    <div className="flex flex-col gap-5">
+      <PageHeader description="Registro completo do operador" title="Atividade" />
+
+      <div className="flex flex-wrap gap-2">
+        <span className="cursor-pointer rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+          Tudo
+        </span>
+        {["ACTION_*", "TICKET_*", "WORKER_*", "TEAM_*", "MEMBER_*"].map((label) => (
+          <span
+            className="cursor-pointer rounded-full border border-border bg-card px-3 py-1.5 font-mono text-[11.5px] font-medium tracking-wide text-muted-foreground"
+            key={label}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
 
       <Card>
         <CardContent className="px-0">

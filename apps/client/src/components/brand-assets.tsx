@@ -93,7 +93,7 @@ const BrandAssets = () => {
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             Categoria
             <select
-              className="h-9 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
               onChange={(e) => setCategory(e.currentTarget.value as BrandCategory)}
               value={category}
             >

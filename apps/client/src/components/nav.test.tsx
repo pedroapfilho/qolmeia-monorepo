@@ -23,14 +23,15 @@ describe("Nav", () => {
     expect(screen.getByRole("link", { name: /Atividade/v })).toHaveAttribute("href", "/activity");
   });
 
-  it("renders the supplied org name in the brand slot", () => {
+  it("renders the supplied org name in the company slot", () => {
     render(<Nav orgName="Salão da Maria" />);
-    expect(screen.getByRole("link", { name: "Salão da Maria" })).toBeInTheDocument();
+    expect(screen.getByText("Salão da Maria")).toBeInTheDocument();
   });
 
-  it("falls back to 'Qolmeia' when the org name is null", () => {
+  it("links the logo home and falls back to 'Qolmeia' when the org name is null", () => {
     render(<Nav orgName={null} />);
-    expect(screen.getByRole("link", { name: "Qolmeia" })).toBeInTheDocument();
+    // The brand slot is now the logo (aria-label "Qolmeia"), which links home.
+    expect(screen.getByRole("link", { name: "Qolmeia" })).toHaveAttribute("href", "/");
   });
 
   it("marks the active route with aria-current=page", () => {

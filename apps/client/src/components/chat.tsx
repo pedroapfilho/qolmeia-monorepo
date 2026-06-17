@@ -2,6 +2,7 @@
 
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { Button } from "@repo/ui/components/button";
+import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
@@ -168,10 +169,29 @@ const ChatInner = ({
   const canSubmit =
     !isThinking && !uploading && (input.trim().length > 0 || attachments.length > 0);
 
+  const isCorrespondent = agentName === "correspondent";
+
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
+      {isCorrespondent ? (
+        <header className="flex h-[54px] flex-none items-center gap-3 border-b border-border bg-card px-6">
+          <span
+            aria-hidden
+            className="flex size-8 flex-none items-center justify-center rounded-lg bg-avatar-1 text-[13px] font-bold text-white"
+          >
+            C
+          </span>
+          <div className="min-w-0">
+            <div className="font-display text-sm font-bold tracking-tight text-foreground">
+              Correspondente
+            </div>
+            <div className="text-xs text-muted-foreground">Seu ponto de contato</div>
+          </div>
+          <StatusPill className="ml-auto" label="Disponível" tone="success" />
+        </header>
+      ) : null}
       <Conversation>
-        <ConversationContent>
+        <ConversationContent className="gap-4">
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="Os agentes da Qolmeia respondem em segundos."
@@ -179,46 +199,59 @@ const ChatInner = ({
               title="Comece a conversa"
             />
           ) : (
-            messages.map((message) => (
-              <Message from={message.role} key={message.id}>
-                <MessageContent>
-                  {message.parts.map((part, index) => {
-                    if (part.type === "text") {
-                      return (
-                        <MessageResponse key={`${message.id}-${index}`}>
-                          {part.text}
-                        </MessageResponse>
-                      );
-                    }
-                    if (part.type === "file" && part.mediaType?.startsWith("image/")) {
-                      return (
-                        // Asset URL is HMAC-signed by the Worker; a plain <img>
-                        // is correct — no CORS needed for image loads.
-                        // oxlint-disable-next-line no-img-element
-                        <img
-                          alt={part.filename ?? "Imagem"}
-                          className="max-h-80 rounded-md object-contain"
-                          key={`${message.id}-${index}`}
-                          src={part.url}
-                        />
-                      );
-                    }
-                    return null;
-                  })}
-                </MessageContent>
-              </Message>
-            ))
+            messages.map((message) => {
+              const isUser = message.role === "user";
+              return (
+                <div className="flex items-start gap-2.5" key={message.id}>
+                  {isUser ? null : (
+                    <span
+                      aria-hidden
+                      className="mt-0.5 flex size-7 flex-none items-center justify-center rounded-lg bg-avatar-1 text-[11px] font-bold text-white"
+                    >
+                      C
+                    </span>
+                  )}
+                  <Message from={message.role}>
+                    <MessageContent className="group-[.is-assistant]:rounded-xl group-[.is-assistant]:rounded-tl-sm group-[.is-assistant]:rounded-bl-xl group-[.is-assistant]:border group-[.is-assistant]:border-border group-[.is-assistant]:bg-card group-[.is-assistant]:px-3.5 group-[.is-assistant]:py-2.5 group-[.is-assistant]:text-foreground group-[.is-user]:rounded-xl group-[.is-user]:rounded-tr-sm group-[.is-user]:rounded-br-xl group-[.is-user]:px-3.5 group-[.is-user]:py-2.5">
+                      {message.parts.map((part, index) => {
+                        if (part.type === "text") {
+                          return (
+                            <MessageResponse key={`${message.id}-${index}`}>
+                              {part.text}
+                            </MessageResponse>
+                          );
+                        }
+                        if (part.type === "file" && part.mediaType?.startsWith("image/")) {
+                          return (
+                            // Asset URL is HMAC-signed by the Worker; a plain <img>
+                            // is correct — no CORS needed for image loads.
+                            // oxlint-disable-next-line no-img-element
+                            <img
+                              alt={part.filename ?? "Imagem"}
+                              className="max-h-80 rounded-lg object-contain"
+                              key={`${message.id}-${index}`}
+                              src={part.url}
+                            />
+                          );
+                        }
+                        return null;
+                      })}
+                    </MessageContent>
+                  </Message>
+                </div>
+              );
+            })
           )}
           {isThinking ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader size={16} />
-              <span>Um agente está respondendo…</span>
+            <div className="flex items-center gap-2.5 pl-[38px]">
+              <Loader className="text-muted-foreground" size={16} />
+              <span className="text-sm text-muted-foreground">Um agente está respondendo…</span>
             </div>
           ) : null}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="border-t border-border bg-card p-3">
+      <div className="flex-none border-t border-border bg-card px-6 py-4">
         <input
           accept={ALLOWED_UPLOAD_MIME.join(",")}
           aria-label="Anexar imagem"
@@ -228,17 +261,20 @@ const ChatInner = ({
           tabIndex={-1}
           type="file"
         />
-        <PromptInput onSubmit={handleSubmit}>
+        <PromptInput
+          className="rounded-xl border-input bg-background shadow-none"
+          onSubmit={handleSubmit}
+        >
           <PromptInputBody>
             {attachments.length > 0 ? (
               <ul className="flex flex-wrap gap-2 px-2 pb-2">
                 {attachments.map((attachment) => (
                   <li
-                    className="flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1"
+                    className="flex items-center gap-1 rounded-lg border border-border bg-secondary px-2 py-1"
                     key={attachment.id}
                   >
                     {/* oxlint-disable-next-line no-img-element */}
-                    <img alt="" className="size-8 rounded object-cover" src={attachment.url} />
+                    <img alt="" className="size-8 rounded-md object-cover" src={attachment.url} />
                     <span className="max-w-32 truncate text-xs text-muted-foreground">
                       {attachment.name}
                     </span>
@@ -259,13 +295,14 @@ const ChatInner = ({
               autoComplete="off"
               disabled={isThinking}
               onChange={(event) => setInput(event.currentTarget.value)}
-              placeholder="Escreva sua mensagem…"
+              placeholder="Escreva uma mensagem…"
               value={input}
             />
           </PromptInputBody>
           <PromptInputToolbar>
             <Button
               aria-label="Anexar imagem"
+              className="mr-auto rounded-lg"
               disabled={isThinking || uploading}
               onClick={handleAttachClick}
               size="icon"
@@ -278,7 +315,7 @@ const ChatInner = ({
                 <Paperclip aria-hidden className="size-4" />
               )}
             </Button>
-            <PromptInputSubmit disabled={!canSubmit} status={status} />
+            <PromptInputSubmit className="rounded-lg" disabled={!canSubmit} status={status} />
           </PromptInputToolbar>
         </PromptInput>
       </div>
@@ -303,12 +340,12 @@ const Chat = (props: ChatProps) => {
 
   if (!isClient) {
     return (
-      <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+      <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
         <div className="flex flex-1 items-center justify-center">
-          <Loader size={20} />
+          <Loader className="text-muted-foreground" size={20} />
         </div>
-        <div className="border-t border-border bg-card p-3">
-          <div className="h-16 rounded-md bg-muted/40" />
+        <div className="flex-none border-t border-border bg-card px-6 py-4">
+          <div className="h-16 rounded-xl border border-input bg-background" />
         </div>
       </div>
     );

@@ -1,24 +1,22 @@
 "use client";
 
+import { Logo } from "@repo/ui/components/logo";
 import { cn } from "@repo/ui/lib/utils";
-import { Activity, Building2, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/components/sign-out-button";
 
 type NavItem = {
   href: string;
-  icon: ReactNode;
   label: string;
 };
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
-  { href: "/", icon: <MessageCircle aria-hidden />, label: "Chat" },
-  { href: "/empresa", icon: <Building2 aria-hidden />, label: "Empresa" },
-  { href: "/assets", icon: <ImageIcon aria-hidden />, label: "Assets" },
-  { href: "/activity", icon: <Activity aria-hidden />, label: "Atividade" },
+  { href: "/", label: "Chat" },
+  { href: "/empresa", label: "Empresa" },
+  { href: "/assets", label: "Assets" },
+  { href: "/activity", label: "Atividade" },
 ];
 
 const isActive = (pathname: string, href: string): boolean => {
@@ -28,6 +26,14 @@ const isActive = (pathname: string, href: string): boolean => {
   return pathname === href || pathname.startsWith(`${href}/`);
 };
 
+const getInitials = (name: string): string =>
+  name
+    .split(/\s+/v)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.at(0)?.toUpperCase() ?? "")
+    .join("") || "Q";
+
 type NavProps = {
   orgName: string | null;
 };
@@ -36,24 +42,19 @@ type NavProps = {
 // vertical space, so a slim header is friendlier on mobile and laptop.
 const Nav = ({ orgName }: NavProps) => {
   const pathname = usePathname();
+  const org = orgName ?? "Qolmeia";
 
   return (
     <header
       aria-label="Navegação principal"
-      className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4"
+      className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-5"
     >
-      <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+      <div className="flex min-w-0 items-center gap-5 sm:gap-7">
         <Link
-          className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+          className="inline-flex shrink-0 items-center transition-opacity hover:opacity-80"
           href="/"
         >
-          <span
-            aria-hidden
-            className="flex size-6 items-center justify-center rounded-md bg-foreground text-[10px] font-bold text-background"
-          >
-            Q
-          </span>
-          <span className="truncate">{orgName ?? "Qolmeia"}</span>
+          <Logo className="h-6 w-auto" />
         </Link>
         <nav>
           <ul className="flex items-center gap-1">
@@ -64,22 +65,14 @@ const Nav = ({ orgName }: NavProps) => {
                   <Link
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
+                      "flex items-center rounded-lg px-3 py-1.5 text-sm transition-colors",
                       active
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                        ? "bg-highlight-surface font-semibold text-primary"
+                        : "font-medium text-muted-foreground hover:text-foreground",
                     )}
                     href={item.href}
                   >
-                    <span
-                      className={cn(
-                        "[&_svg]:size-4",
-                        active ? "text-foreground" : "text-muted-foreground/70",
-                      )}
-                    >
-                      {item.icon}
-                    </span>
-                    <span className="hidden sm:inline">{item.label}</span>
+                    {item.label}
                   </Link>
                 </li>
               );
@@ -87,7 +80,21 @@ const Nav = ({ orgName }: NavProps) => {
           </ul>
         </nav>
       </div>
-      <SignOutButton />
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="hidden truncate text-sm font-semibold text-foreground sm:inline">
+            {org}
+          </span>
+          <span
+            aria-hidden
+            className="flex size-[30px] shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+            style={{ background: "var(--color-avatar-7)" }}
+          >
+            {getInitials(org)}
+          </span>
+        </div>
+        <SignOutButton />
+      </div>
     </header>
   );
 };

@@ -42,13 +42,21 @@ const OPTIONS: ReadonlyArray<{
   },
 ];
 
+// Submit label adapts to the chosen decision so the primary action reads
+// like the operator's intent rather than a generic "enviar".
+const SUBMIT_LABEL: Record<DecisionOutcome, string> = {
+  approved: "Aprovar e executar",
+  changes_requested: "Pedir ajustes",
+  rejected: "Rejeitar ação",
+};
+
 const MAX_FEEDBACK = 2000;
 
 // Decision form for /approvals/[id]. POSTs to the agents Worker, refreshes
 // the RSC list, and routes back to /approvals so the operator can keep
 // triaging without a manual click.
 const DecisionForm = ({ actionId }: DecisionFormProps) => {
-  const { back, push, refresh } = useRouter();
+  const { push, refresh } = useRouter();
   const [decision, setDecision] = useState<DecisionOutcome>("approved");
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -90,51 +98,53 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
   };
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+    <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-sm font-medium text-foreground">Decisão</legend>
-        <div className="grid gap-2">
-          {OPTIONS.map((opt) => {
-            const inputId = `decision-${opt.value}`;
-            const selected = decision === opt.value;
-            return (
-              <label
+        <legend className="sr-only">Decisão</legend>
+        {OPTIONS.map((opt) => {
+          const inputId = `decision-${opt.value}`;
+          const selected = decision === opt.value;
+          return (
+            <label
+              aria-label={opt.label}
+              className={cn(
+                "flex cursor-pointer items-center gap-2.5 rounded-lg border p-3 transition-colors",
+                selected
+                  ? "border-primary bg-highlight-surface ring-1 ring-primary/40"
+                  : "border-border hover:border-input hover:bg-accent",
+              )}
+              htmlFor={inputId}
+              key={opt.value}
+            >
+              <input
                 aria-label={opt.label}
+                checked={selected}
+                className="sr-only"
+                id={inputId}
+                name="decision"
+                onChange={() => setDecision(opt.value)}
+                type="radio"
+                value={opt.value}
+              />
+              <span
+                aria-hidden
                 className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors",
-                  selected
-                    ? "border-primary bg-primary/5 ring-1 ring-primary/40"
-                    : "border-border hover:border-border/80 hover:bg-muted/40",
+                  "flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
+                  selected ? "border-primary" : "border-input",
                 )}
-                htmlFor={inputId}
-                key={opt.value}
               >
-                <input
-                  aria-label={opt.label}
-                  checked={selected}
-                  className="mt-1 size-4 accent-primary"
-                  id={inputId}
-                  name="decision"
-                  onChange={() => setDecision(opt.value)}
-                  type="radio"
-                  value={opt.value}
-                />
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-foreground">{opt.label}</span>
-                  <span className="text-xs leading-relaxed text-muted-foreground">
-                    {opt.description}
-                  </span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
+                {selected && <span className="size-2 rounded-full bg-primary" />}
+              </span>
+              <span className="text-sm font-semibold text-foreground">{opt.label}</span>
+            </label>
+          );
+        })}
       </fieldset>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
         <label className="flex items-center justify-between" htmlFor="decision-feedback">
           <span className="text-sm font-medium text-foreground">
-            Feedback{" "}
+            Observações{" "}
             <span
               className={cn(
                 "ml-1 text-xs font-normal",
@@ -157,20 +167,12 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={submitting} size="lg" type="submit">
-          {submitting ? "Enviando…" : "Enviar decisão"}
-        </Button>
-        <Button
-          disabled={submitting}
-          onClick={() => back()}
-          size="lg"
-          type="button"
-          variant="ghost"
-        >
-          Cancelar
-        </Button>
-      </div>
+      <Button className="w-full" disabled={submitting} size="lg" type="submit">
+        {submitting ? "Enviando…" : SUBMIT_LABEL[decision]}
+      </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        A decisão retoma o fluxo de trabalho do agente.
+      </p>
     </form>
   );
 };

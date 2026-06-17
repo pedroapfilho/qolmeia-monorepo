@@ -1,10 +1,10 @@
 "use client";
 
-import { Avatar } from "@repo/ui/components/avatar";
-import { Badge } from "@repo/ui/components/badge";
+import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
+import { cn } from "@repo/ui/lib/utils";
 import { Pencil } from "lucide-react";
 
-import { STATUS_LABEL, STATUS_VARIANT, type TeamMemberView } from "@/lib/team";
+import { STATUS_LABEL, type AgentDisplayStatus, type TeamMemberView } from "@/lib/team";
 
 type Variant = "compact" | "detailed";
 
@@ -27,40 +27,83 @@ const roleLabel = (m: TeamMemberView): string => {
   return m.role;
 };
 
+// Role-keyed avatar hue. The design assigns a fixed --color-avatar-* per role so
+// agents read as a consistent identity (Correspondent violet, Designer cyan…),
+// not a hashed rotation. Worker kinds map by keyword; unknown kinds cycle the
+// remaining slots so two distinct workers stay visually distinct.
+const WORKER_KIND_AVATAR: ReadonlyArray<{ cls: string; match: RegExp }> = [
+  { cls: "bg-avatar-2", match: /design|art|imagem/iv },
+  { cls: "bg-avatar-3", match: /estrateg|strateg|plano/iv },
+  { cls: "bg-avatar-4", match: /redat|copy|escrit|texto/iv },
+  { cls: "bg-avatar-5", match: /social|m[ií]dia|community/iv },
+];
+
+const avatarClass = (m: TeamMemberView): string => {
+  if (m.role === "correspondent") {
+    return "bg-avatar-1";
+  }
+  if (m.role === "planner") {
+    return "bg-avatar-6";
+  }
+  const kind = m.workerKind ?? "";
+  const hit = WORKER_KIND_AVATAR.find((w) => w.match.test(kind));
+  return hit?.cls ?? "bg-avatar-8";
+};
+
+const monogramOf = (name: string): string => (name.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
+
+const STATUS_TONE: Record<AgentDisplayStatus, StatusTone> = {
+  available: "success",
+  awaiting_approval: "warning",
+  paused: "neutral",
+  working: "info",
+};
+
 // Surface-agnostic: renders only the avatar + identity layout. The caller owns
 // the surface (a Card on the empresa page, a bordered list item in the sidebar)
 // so we never nest a bordered box inside another bordered box.
-const AgentCard = ({ member, variant }: AgentCardProps) => (
-  <article className="flex items-start gap-3">
-    <Avatar
-      name={member.displayName}
-      seed={member.id}
-      size={variant === "detailed" ? "lg" : "md"}
-    />
-    <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-2">
-        <h3 className="truncate text-sm font-medium">{member.displayName}</h3>
-        {member.hasPromptOverride && (
-          <Pencil aria-label="Prompt personalizado" className="size-3 text-muted-foreground" />
+const AgentCard = ({ member, variant }: AgentCardProps) => {
+  const detailed = variant === "detailed";
+  const tone = STATUS_TONE[member.status];
+  return (
+    <article className="flex items-center gap-3">
+      <span
+        aria-hidden
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-[10px] font-display font-bold text-white",
+          avatarClass(member),
+          detailed ? "size-11 text-base" : "size-10 text-sm",
         )}
-      </div>
-      <p className="text-xs text-muted-foreground">{roleLabel(member)}</p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <Badge variant={STATUS_VARIANT[member.status]}>{STATUS_LABEL[member.status]}</Badge>
-        {member.currentWork[0] && (
-          <span className="truncate text-xs text-muted-foreground">
-            → {member.currentWork[0].summary}
-          </span>
-        )}
-      </div>
-      {variant === "detailed" && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Tickets concluídos: {member.lifetimeDone}
+      >
+        {monogramOf(member.displayName)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <h3 className="truncate text-sm font-semibold">{member.displayName}</h3>
+          {member.hasPromptOverride && (
+            <Pencil aria-label="Prompt personalizado" className="size-3 text-muted-foreground" />
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {detailed
+            ? `${roleLabel(member)} · ${member.lifetimeDone} entregas`
+            : `${member.lifetimeDone} entregas`}
         </p>
-      )}
-    </div>
-  </article>
-);
+        {detailed && member.currentWork[0] && (
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            → {member.currentWork[0].summary}
+          </p>
+        )}
+      </div>
+      <StatusPill
+        className="shrink-0"
+        label={STATUS_LABEL[member.status]}
+        pulse={member.status === "working"}
+        tone={tone}
+      />
+    </article>
+  );
+};
 
 export { AgentCard };
 export type { AgentCardProps };
