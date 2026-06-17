@@ -11,6 +11,7 @@
 import { Hono } from "hono";
 
 import { safeJson } from "@/db/mappers";
+import { assetName } from "@/lib/asset-store";
 import type { ValidatedSession } from "@/lib/auth";
 import { validateSession } from "@/lib/auth";
 import { buildSignedAssetUrl, uploadAsset } from "@/lib/r2";
@@ -32,6 +33,7 @@ type AssetRow = {
   bytes: number;
   created_at: number;
   id: string;
+  kind: string;
   metadata: string | null;
   mime: string;
 };
@@ -53,7 +55,7 @@ meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");
   const limit = parsePositiveInt(c.req.query("limit"), 100, 200);
   const { results } = await c.env.DB.prepare(
-    `SELECT id, mime, bytes, metadata, created_at
+    `SELECT id, kind, mime, bytes, metadata, created_at
        FROM asset
        WHERE company_id = ?
        ORDER BY created_at DESC
@@ -66,8 +68,10 @@ meAssetsRoutes.get("/assets", async (c) => {
     results.map(async (row) => ({
       createdAt: new Date(row.created_at).toISOString(),
       id: row.id,
+      kind: row.kind,
       metadata: safeJson<unknown>(row.metadata, null),
       mimeType: row.mime,
+      name: assetName(safeJson<unknown>(row.metadata, null), row.id, row.kind),
       size: row.bytes,
       url: await buildSignedAssetUrl(
         { ASSETS_SIGNING_KEY: c.env.ASSETS_SIGNING_KEY },

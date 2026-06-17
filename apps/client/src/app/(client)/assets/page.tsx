@@ -1,10 +1,8 @@
-import { Card, CardContent } from "@repo/ui/components/card";
-import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageContainer } from "@repo/ui/components/page-container";
 import { PageHeader } from "@repo/ui/components/page-header";
-import { ImageIcon } from "lucide-react";
 import type { Metadata } from "next";
 
+import { AssetsGallery } from "@/components/assets-gallery";
 import { apiGetServer } from "@/lib/api-server";
 import type { ListResponse, WebChatAsset } from "@/lib/api-types";
 import { log } from "@/lib/observability";
@@ -15,7 +13,7 @@ export const metadata: Metadata = {
 
 const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
   try {
-    const result = await apiGetServer<ListResponse<WebChatAsset>>("/api/me/assets?limit=100");
+    const result = await apiGetServer<ListResponse<WebChatAsset>>("/api/me/assets?limit=200");
     return result.items;
   } catch (error) {
     log.error({ error, message: "assets: failed to load" });
@@ -29,47 +27,10 @@ const AssetsPage = async () => {
   return (
     <PageContainer>
       <PageHeader
-        description="Tudo que os agentes da Qolmeia já criaram ou anotaram para o seu negócio."
-        title="Assets de marca"
+        description="A biblioteca da sua empresa — tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
+        title="Assets"
       />
-
-      {assets.length === 0 ? (
-        <Card>
-          <CardContent className="px-0">
-            <EmptyState
-              description="Quando o Designer criar algo para você, ele aparece aqui."
-              icon={<ImageIcon aria-hidden />}
-              title="Nenhum asset ainda"
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 lg:grid-cols-4">
-          {assets.map((asset) => (
-            <li key={asset.id}>
-              <Card className="gap-0 overflow-hidden rounded-xl py-0 transition-shadow hover:shadow-sm">
-                {asset.mimeType.startsWith("image/") ? (
-                  // oxlint-disable-next-line no-img-element
-                  <img
-                    alt="Asset de marca"
-                    className="aspect-square w-full bg-muted object-cover"
-                    src={asset.url}
-                  />
-                ) : (
-                  <div className="flex aspect-square w-full items-center justify-center bg-muted font-mono text-xs tracking-wide text-muted-foreground">
-                    {asset.mimeType}
-                  </div>
-                )}
-                <div className="border-t border-border px-3 py-2.5">
-                  <p className="truncate font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                    {new Date(asset.createdAt).toLocaleDateString("pt-BR")}
-                  </p>
-                </div>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AssetsGallery assets={assets} />
     </PageContainer>
   );
 };

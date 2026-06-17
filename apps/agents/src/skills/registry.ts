@@ -3,6 +3,7 @@ import type { ZodType } from "zod";
 
 import { listSkillOverlays, type SkillOverlay } from "@/db/template";
 import { logError, logInfo } from "@/lib/logger";
+import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "@/skills/assets";
 import { decideActionSkill } from "@/skills/decide-action";
 import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
 import { draftSocialPostSkill } from "@/skills/draft-social-post";
@@ -40,6 +41,9 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
   decideActionSkill,
   extractBriefSkill,
   proposeTeamSkill,
+  listAssetsSkill,
+  readAssetSkill,
+  saveAssetSkill,
 ];
 
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));

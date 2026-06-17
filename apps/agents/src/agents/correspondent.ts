@@ -42,6 +42,9 @@ const CORRESPONDENT_SKILLS = [
   "recallMemory",
   "delegateToWorker",
   "extractBrief",
+  "listAssets",
+  "readAsset",
+  "saveAsset",
 ] as const;
 
 type TeamEvent =

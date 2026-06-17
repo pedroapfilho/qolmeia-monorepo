@@ -1,0 +1,77 @@
+import { z } from "zod";
+
+import { listCompanyAssets, persistTextAsset, readAssetText } from "@/lib/asset-store";
+import type { SkillContext, UnknownSkill } from "@/skills/registry";
+
+// Agent access to the company asset library. `listAssets` + `readAsset` let an
+// agent pull information and past deliverables into context; `saveAsset` lets it
+// store a file it just produced (worker deliverables are also captured
+// automatically by the workflow). All three are tenant-scoped to ctx.companyId.
+
+const ASSET_KINDS = [
+  "audio",
+  "brand_asset",
+  "generated_image",
+  "knowledge_doc",
+  "user_upload",
+] as const;
+
+const listAssetsInputSchema = z.object({
+  kind: z.enum(ASSET_KINDS).optional().describe("Filtrar por tipo. Omita para listar tudo."),
+});
+
+const listAssetsSkill: UnknownSkill = {
+  description:
+    "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads) — use para descobrir o que já foi criado antes.",
+  async execute(input: unknown, ctx: SkillContext): Promise<{ assets: unknown }> {
+    const { kind } = listAssetsInputSchema.parse(input);
+    const assets = await listCompanyAssets(ctx.env.DB, ctx.companyId, { kind });
+    return { assets };
+  },
+  id: "listAssets",
+  inputSchema: listAssetsInputSchema,
+};
+
+const readAssetInputSchema = z.object({
+  assetId: z.string().min(1).describe("O id do asset (veja listAssets)."),
+});
+
+const readAssetSkill: UnknownSkill = {
+  description:
+    "Lê o conteúdo de um documento de texto da biblioteca (markdown, texto, JSON, CSV). Imagens e binários não podem ser lidos — referencie o asset pelo id.",
+  async execute(
+    input: unknown,
+    ctx: SkillContext,
+  ): Promise<{ content: string; name: string } | { error: string }> {
+    const { assetId } = readAssetInputSchema.parse(input);
+    const asset = await readAssetText(ctx.env, ctx.companyId, assetId);
+    if (!asset) {
+      return { error: "Asset não encontrado ou não é um documento de texto legível." };
+    }
+    return { content: asset.content, name: asset.name };
+  },
+  id: "readAsset",
+  inputSchema: readAssetInputSchema,
+};
+
+const saveAssetInputSchema = z.object({
+  content: z.string().min(1).describe("O conteúdo do arquivo (texto/markdown)."),
+  mime: z
+    .enum(["application/json", "text/csv", "text/markdown", "text/plain"])
+    .optional()
+    .describe("Tipo do conteúdo. Default: text/markdown."),
+  name: z.string().min(1).max(160).describe("Um nome claro para o arquivo."),
+});
+
+const saveAssetSkill: UnknownSkill = {
+  description:
+    "Salva um documento de texto na biblioteca da empresa para que o cliente e os outros agentes possam acessá-lo depois.",
+  execute(input: unknown, ctx: SkillContext): Promise<{ assetId: string }> {
+    const { content, mime, name } = saveAssetInputSchema.parse(input);
+    return persistTextAsset(ctx.env, { companyId: ctx.companyId, mime, name, text: content });
+  },
+  id: "saveAsset",
+  inputSchema: saveAssetInputSchema,
+};
+
+export { listAssetsSkill, readAssetSkill, saveAssetSkill };

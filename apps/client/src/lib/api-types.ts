@@ -5,8 +5,12 @@
 type WebChatAsset = {
   createdAt: string;
   id: string;
+  // Asset kind: generated_image | brand_asset | user_upload | knowledge_doc | audio.
+  kind: string;
   metadata: unknown;
   mimeType: string;
+  // Human label (from metadata, original filename, or a kind stub).
+  name: string;
   size: number;
   // Pre-signed URL for fetching the bytes. Short-lived (15min default) —
   // refetch the list to renew. Built server-side via buildSignedAssetUrl.

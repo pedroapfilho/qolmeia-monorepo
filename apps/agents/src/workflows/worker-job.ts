@@ -10,6 +10,7 @@ import { getCompany } from "@/db/schema";
 import { getTemplate } from "@/db/template";
 import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "@/db/ticket";
 import { getModel } from "@/lib/ai-gateway";
+import { persistTextAsset } from "@/lib/asset-store";
 import { logError, logInfo } from "@/lib/logger";
 import { buildSkillTools } from "@/skills/registry";
 import { emitTeamEvent } from "@/team/events";
@@ -57,6 +58,37 @@ type DecisionEvent = {
 };
 
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
+  // Capture a completed deliverable into the company asset library as a
+  // knowledge_doc, so every agent output (not just images) shows up in /assets
+  // and can be recalled later. Best-effort + idempotent (sha256 dedup); a
+  // capture failure must never fail the job. Trivial one-liners are skipped.
+  private async captureDeliverable(
+    companyId: string,
+    ticketId: string,
+    text: string,
+  ): Promise<void> {
+    if (text.trim().length < 40) {
+      return;
+    }
+    try {
+      const row = await this.env.DB.prepare("SELECT title FROM ticket WHERE id = ?")
+        .bind(ticketId)
+        .first<{ title: string }>();
+      await persistTextAsset(this.env, {
+        companyId,
+        extraMeta: { ticketId },
+        name: row?.title ?? "Entrega",
+        text,
+      });
+    } catch (error) {
+      logError("workflow.captureDeliverable.err", {
+        companyId,
+        error: error instanceof Error ? error.message : String(error),
+        ticketId,
+      });
+    }
+  }
+
   // Cloudflare Workflows entrypoint — the runtime invokes run().
   // fallow-ignore-next-line unused-class-member
   async run(event: Readonly<WorkflowEvent<WorkerJobParams>>, step: WorkflowStep): Promise<unknown> {
@@ -154,6 +186,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 
       if (policy === "auto-execute") {
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
+        await this.captureDeliverable(companyId, ticketId, generated.summary);
         await emitTeamEvent(this.env, {
           companyId,
           reason: "ticket_changed",
@@ -276,6 +309,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       if (evt.payload.decision === "approved") {
         await markExecuted(this.env.DB, actionId);
         await markTicketDone(this.env.DB, ticketId, { summary: generated.summary });
+        await this.captureDeliverable(companyId, ticketId, generated.summary);
         await emitTeamEvent(this.env, {
           companyId,
           reason: "ticket_changed",
