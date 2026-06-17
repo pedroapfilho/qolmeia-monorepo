@@ -32,10 +32,7 @@ const proactiveGate = (input: {
   return { ok: true, reason: "" };
 };
 
-const lastProactiveSuggestionAt = async (
-  env: Env,
-  companyId: string,
-): Promise<number | null> => {
+const lastProactiveSuggestionAt = async (env: Env, companyId: string): Promise<number | null> => {
   const row = await env.DB.prepare(
     `SELECT MAX(created_at) AS at FROM activity_log
        WHERE company_id = ? AND type = 'WORKER_PROACTIVE_SUGGESTION'`,

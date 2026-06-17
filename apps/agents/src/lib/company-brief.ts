@@ -180,7 +180,6 @@ const briefCompleteness = (brief: Partial<CompanyBrief> | null | undefined): Bri
 
 export {
   BRIEF_FIELD_LABELS,
-  BRIEF_REQUIRED_FIELDS,
   BRIEF_SCHEMA_VERSION,
   briefCompleteness,
   companyBriefSchema,

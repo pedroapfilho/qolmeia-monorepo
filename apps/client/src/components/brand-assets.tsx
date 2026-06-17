@@ -2,7 +2,13 @@
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
 import { Skeleton } from "@repo/ui/components/skeleton";
 import { toast } from "@repo/ui/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -78,8 +84,8 @@ const BrandAssets = () => {
       <CardHeader>
         <CardTitle>Identidade da marca</CardTitle>
         <CardDescription>
-          Envie seu logo, posts e referências visuais. O Designer usa essas imagens para
-          manter as entregas alinhadas à sua marca.
+          Envie seu logo, posts e referências visuais. O Designer usa essas imagens para manter as
+          entregas alinhadas à sua marca.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

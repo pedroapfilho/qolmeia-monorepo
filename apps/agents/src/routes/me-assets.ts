@@ -259,9 +259,8 @@ meAssetsRoutes.post("/brand-assets", async (c) => {
     return c.json({ error: validated.error }, validated.status);
   }
   const rawCategory = form.get("category");
-  const category = typeof rawCategory === "string" && BRAND_CATEGORIES.has(rawCategory)
-    ? rawCategory
-    : "other";
+  const category =
+    typeof rawCategory === "string" && BRAND_CATEGORIES.has(rawCategory) ? rawCategory : "other";
 
   const { assetId, bytes, mime } = await persistImageAsset(c.env, {
     companyId: session.companyId,

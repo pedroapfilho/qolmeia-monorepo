@@ -77,7 +77,7 @@ const buildBriefBlock = (
   const brandLine =
     brandAssetCount > 0
       ? `\nO cliente enviou ${brandAssetCount} referência(s) de marca (logo/posts/exemplos); o Designer as usa automaticamente ao gerar imagens.`
-      : "\nO cliente ainda não enviou referências de marca — sugira que ele adicione o logo e exemplos em \"Minha empresa\" para deixar as entregas mais alinhadas.";
+      : '\nO cliente ainda não enviou referências de marca — sugira que ele adicione o logo e exemplos em "Minha empresa" para deixar as entregas mais alinhadas.';
 
   if (completeness.isComplete) {
     return `## Brief da empresa\n${knownSection}${brandLine}\n\nO brief está completo — não pergunte mais sobre os dados básicos da empresa; use o que já sabe.`;

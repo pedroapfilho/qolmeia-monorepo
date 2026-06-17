@@ -30,10 +30,7 @@ const TeamSidebar = ({ companyId, sessionToken }: TeamSidebarProps) => {
       )}
       <ul className="flex flex-col gap-2">
         {members.map((m) => (
-          <li
-            className="rounded-lg border border-border bg-card p-3"
-            key={m.id}
-          >
+          <li className="rounded-lg border border-border bg-card p-3" key={m.id}>
             <AgentCard member={m} variant="compact" />
           </li>
         ))}
