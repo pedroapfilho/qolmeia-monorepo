@@ -98,6 +98,16 @@ type MemberPromptResetEvent = {
   type: "MEMBER_PROMPT_RESET";
 };
 
+// Agent-initiated proactive outreach (the weekly "suggest next work" sweep).
+// WORKER_ prefix so the backoffice prefix-based categoriser buckets it with
+// other agent-work events. refId is the Correspondent agent_instance id.
+type WorkerProactiveSuggestionEvent = {
+  payload?: undefined;
+  refId: string;
+  refType: "agent_instance";
+  type: "WORKER_PROACTIVE_SUGGESTION";
+};
+
 type ActivityEvent =
   | ActionProposedEvent
   | ActionExecutedEvent
@@ -110,7 +120,8 @@ type ActivityEvent =
   | MemberResumedEvent
   | MemberRenamedEvent
   | MemberPromptEditedEvent
-  | MemberPromptResetEvent;
+  | MemberPromptResetEvent
+  | WorkerProactiveSuggestionEvent;
 
 type ActivityType = ActivityEvent["type"];
 

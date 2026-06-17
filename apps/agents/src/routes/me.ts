@@ -4,7 +4,7 @@ import { z } from "zod";
 import { listActivity } from "@/activity/log";
 import { listActiveTemplates } from "@/db/template";
 import { validateSession, type ValidatedSession } from "@/lib/auth";
-import { parseBrief } from "@/lib/company-brief";
+import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "@/lib/company-brief";
 import { logError } from "@/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
 import { emitTeamEvent } from "@/team/events";
@@ -109,13 +109,45 @@ meRoutes.get("/company", async (c) => {
   if (!row) {
     return c.json({ error: "company not found" }, 404);
   }
+  const brief = parseBrief(row.brief);
   return c.json({
     company: {
-      brief: parseBrief(row.brief),
+      brief,
       id: row.id,
       slug: row.slug,
       status: row.status,
     },
+    completeness: briefCompleteness(brief),
+  });
+});
+
+// Empty strings would fail the `.min(1)` text fields, so the client omits blank
+// fields entirely. Channels and brand objects are sent whole (full replacement)
+// because the form owns every field it renders.
+const briefPatchSchema = companyBriefSchema.partial();
+
+meRoutes.patch("/company", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const parsed = briefPatchSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  const row = await c.env.DB.prepare("SELECT id, status, brief, slug FROM company WHERE id = ?")
+    .bind(session.companyId)
+    .first<{ brief: string | null; id: string; slug: string; status: string }>();
+  if (!row) {
+    return c.json({ error: "company not found" }, 404);
+  }
+  const merged = mergeBrief(parseBrief(row.brief), parsed.data);
+  await c.env.DB.prepare("UPDATE company SET brief = ?, updated_at = ? WHERE id = ?")
+    .bind(JSON.stringify(merged), Date.now(), session.companyId)
+    .run();
+  return c.json({
+    company: { brief: merged, id: row.id, slug: row.slug, status: row.status },
+    completeness: briefCompleteness(merged),
   });
 });
 
@@ -133,8 +165,16 @@ meRoutes.get("/templates", async (c) => {
 
 meRoutes.get("/team", async (c) => {
   const { companyId } = c.get("session");
-  const members = await getTeamRoster(c.env.DB, companyId);
-  return c.json({ members });
+  try {
+    const members = await getTeamRoster(c.env.DB, companyId);
+    return c.json({ members });
+  } catch (error) {
+    logError("me.team.failed", {
+      companyId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return c.json({ error: "failed to load team" }, 500);
+  }
 });
 
 meRoutes.get("/catalogue", async (c) => {

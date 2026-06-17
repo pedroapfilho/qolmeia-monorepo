@@ -27,8 +27,11 @@ const roleLabel = (m: TeamMemberView): string => {
   return m.role;
 };
 
+// Surface-agnostic: renders only the avatar + identity layout. The caller owns
+// the surface (a Card on the empresa page, a bordered list item in the sidebar)
+// so we never nest a bordered box inside another bordered box.
 const AgentCard = ({ member, variant }: AgentCardProps) => (
-  <article className="flex items-start gap-3 rounded-md border border-border bg-card p-3">
+  <article className="flex items-start gap-3">
     <Avatar
       name={member.displayName}
       seed={member.id}

@@ -3,10 +3,15 @@
 -- agent_instance so that multiple workers of the same template can coexist
 -- per company (multi-hire). SQLite doesn't support DROP CONSTRAINT, so we
 -- recreate the table without the constraint and copy all existing data.
--- FK enforcement is deferred until commit so the table rebuild can run inside
--- D1's per-migration transaction.
-
-PRAGMA defer_foreign_keys = ON;
+--
+-- agent_instance has INBOUND foreign keys (team_member, ticket, memory_fact all
+-- REFERENCE it). `PRAGMA defer_foreign_keys = ON` does NOT survive the
+-- DROP TABLE + RENAME of a referenced table: it commits a phantom FOREIGN KEY
+-- violation even though the rebuilt rows are clean (PRAGMA foreign_key_check
+-- reports nothing). The canonical SQLite table-rebuild guard is
+-- `PRAGMA foreign_keys = OFF` around the rebuild, re-enabled after — verified to
+-- commit cleanly where the deferred form failed.
+PRAGMA foreign_keys = OFF;
 
 CREATE TABLE agent_instance_new (
   id               TEXT PRIMARY KEY,
@@ -34,3 +39,4 @@ DROP TABLE agent_instance;
 ALTER TABLE agent_instance_new RENAME TO agent_instance;
 
 PRAGMA foreign_key_check;
+PRAGMA foreign_keys = ON;

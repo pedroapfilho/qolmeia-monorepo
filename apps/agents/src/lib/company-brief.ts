@@ -110,5 +110,81 @@ const isBriefEmpty = (brief: Partial<CompanyBrief> | null | undefined): boolean 
   );
 };
 
-export { BRIEF_SCHEMA_VERSION, companyBriefSchema, isBriefEmpty, mergeBrief, parseBrief };
-export type { CompanyBrief, CompanyBriefPartial };
+// The fields the customer must fill before the Correspondent stops asking.
+// Order is the display/ask order. brand.* are nested under `brand`.
+const BRIEF_REQUIRED_FIELDS = [
+  "industry",
+  "primaryGoal",
+  "audience",
+  "channels",
+  "brand.voice",
+  "brand.palette",
+  "brand.references",
+] as const;
+
+type BriefFieldId = (typeof BRIEF_REQUIRED_FIELDS)[number];
+
+// pt-BR labels for prompts and any server-side rendering. The client mirrors
+// these in its own form copy.
+const BRIEF_FIELD_LABELS: Record<BriefFieldId, string> = {
+  audience: "Público-alvo",
+  "brand.palette": "Cores da marca",
+  "brand.references": "Referências de marca",
+  "brand.voice": "Tom da marca",
+  channels: "Canais",
+  industry: "Setor",
+  primaryGoal: "Objetivo principal (próximos 3 meses)",
+};
+
+const BRIEF_FIELD_FILLED: Record<BriefFieldId, (brief: Partial<CompanyBrief>) => boolean> = {
+  audience: (brief) => !!brief.audience,
+  "brand.palette": (brief) => !!brief.brand?.palette,
+  "brand.references": (brief) => !!brief.brand?.references,
+  "brand.voice": (brief) => !!brief.brand?.voice,
+  channels: (brief) => !!brief.channels && brief.channels.length > 0,
+  industry: (brief) => !!brief.industry,
+  primaryGoal: (brief) => !!brief.primaryGoal,
+};
+
+const isBriefFieldFilled = (brief: Partial<CompanyBrief>, field: BriefFieldId): boolean =>
+  BRIEF_FIELD_FILLED[field](brief);
+
+type BriefCompleteness = {
+  filled: Array<BriefFieldId>;
+  isComplete: boolean;
+  missing: Array<BriefFieldId>;
+  percent: number;
+};
+
+// Completeness over the required-field set — the single definition both the
+// API (what the form shows) and the Correspondent prompt (what to ask next)
+// read from, so they never drift.
+const briefCompleteness = (brief: Partial<CompanyBrief> | null | undefined): BriefCompleteness => {
+  const safe = brief ?? {};
+  const filled: Array<BriefFieldId> = [];
+  const missing: Array<BriefFieldId> = [];
+  for (const field of BRIEF_REQUIRED_FIELDS) {
+    if (isBriefFieldFilled(safe, field)) {
+      filled.push(field);
+    } else {
+      missing.push(field);
+    }
+  }
+  return {
+    filled,
+    isComplete: missing.length === 0,
+    missing,
+    percent: Math.round((filled.length / BRIEF_REQUIRED_FIELDS.length) * 100),
+  };
+};
+
+export {
+  BRIEF_FIELD_LABELS,
+  BRIEF_SCHEMA_VERSION,
+  briefCompleteness,
+  companyBriefSchema,
+  isBriefEmpty,
+  mergeBrief,
+  parseBrief,
+};
+export type { BriefCompleteness, BriefFieldId, CompanyBrief, CompanyBriefPartial };

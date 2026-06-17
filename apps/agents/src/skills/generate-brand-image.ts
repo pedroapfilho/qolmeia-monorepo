@@ -60,6 +60,47 @@ const decodeBase64 = (b64: string): Uint8Array => {
   return out;
 };
 
+const encodeBase64 = (bytes: Uint8Array): string => {
+  let bin = "";
+  for (const byte of bytes) {
+    bin += String.fromCodePoint(byte);
+  }
+  return btoa(bin);
+};
+
+// Cap the number of brand references sent so the request payload stays bounded.
+const MAX_BRAND_REFS = 3;
+
+type BrandRefRow = { mime: string; r2_key: string };
+
+// Loads the company's brand assets from R2 as data URLs so the image model can
+// use them as visual references (cores, estilo, logotipo). Best-effort: a
+// missing R2 object is skipped, not fatal.
+const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> => {
+  const { results } = await ctx.env.DB.prepare(
+    `SELECT r2_key, mime FROM asset
+       WHERE company_id = ? AND kind = 'brand_asset'
+       ORDER BY created_at DESC
+       LIMIT ?`,
+  )
+    .bind(ctx.companyId, MAX_BRAND_REFS)
+    .all<BrandRefRow>();
+
+  const settled = await Promise.allSettled(
+    results.map(async (row) => {
+      const object = await ctx.env.ASSETS.get(row.r2_key);
+      if (!object) {
+        return null;
+      }
+      const bytes = new Uint8Array(await object.arrayBuffer());
+      return `data:${row.mime};base64,${encodeBase64(bytes)}`;
+    }),
+  );
+  return settled.flatMap((result) =>
+    result.status === "fulfilled" && result.value ? [result.value] : [],
+  );
+};
+
 // Pulls the `data:image/png;base64,…` payload out of a data URL. Returns
 // null when the URL isn't a data URL we can decode locally (e.g. if a
 // future model returns an https://… link, the caller should fetch + upload
@@ -100,11 +141,25 @@ const generateBrandImageSkill: UnknownSkill = {
     const { aspectRatio = "1:1", prompt } = generateBrandImageInputSchema.parse(input);
     const fullPrompt = `${prompt}${aspectHint(aspectRatio)}`;
 
+    // When the company uploaded brand assets, send them as visual references so
+    // the output matches the brand. Falls back to a plain text prompt otherwise.
+    const brandRefs = await loadBrandReferences(ctx);
+    const userContent =
+      brandRefs.length > 0
+        ? [
+            {
+              text: `${fullPrompt}\n\nUse as imagens de referência da marca anexadas para manter a identidade visual (cores, estilo, logotipo).`,
+              type: "text",
+            },
+            ...brandRefs.map((url) => ({ image_url: { url }, type: "image_url" })),
+          ]
+        : fullPrompt;
+
     let response: Response;
     try {
       response = await fetch(OPENROUTER_CHAT_URL, {
         body: JSON.stringify({
-          messages: [{ content: fullPrompt, role: "user" }],
+          messages: [{ content: userContent, role: "user" }],
           modalities: ["image", "text"],
           model: ctx.env.IMAGE_GEN_MODEL,
         }),

@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
+import { PageContainer } from "@repo/ui/components/page-container";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { ImageIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -26,7 +27,7 @@ const AssetsPage = async () => {
   const assets = await loadAssets();
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <PageContainer>
       <PageHeader
         description="Tudo que os agentes da Qolmeia já criaram ou anotaram para o seu negócio."
         title="Assets de marca"
@@ -69,7 +70,7 @@ const AssetsPage = async () => {
           ))}
         </ul>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

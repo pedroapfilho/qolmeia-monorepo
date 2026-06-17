@@ -8,6 +8,11 @@ import {
   type ToolSet,
 } from "ai";
 
+import {
+  presentResult as presentAgentResult,
+  type ProactiveOutcome,
+  suggestNextWork as runSuggestNextWork,
+} from "@/agents/agent-outbound";
 import { resolveImagesToDataUrls } from "@/agents/asset-url-resolver";
 import {
   type AttachedImage,
@@ -15,6 +20,7 @@ import {
   buildSystemPrompt,
   extractImages,
   extractText,
+  loadBriefContext,
   MEMORY_MIN_SCORE,
   MEMORY_TOP_K,
   RECENT_TURNS_KEEP,
@@ -31,7 +37,12 @@ import { logError, logInfo } from "@/lib/logger";
 import { getMemoryAdapter } from "@/lib/memory";
 import { buildSkillTools } from "@/skills/registry";
 
-const CORRESPONDENT_SKILLS = ["rememberFact", "recallMemory", "delegateToWorker"] as const;
+const CORRESPONDENT_SKILLS = [
+  "rememberFact",
+  "recallMemory",
+  "delegateToWorker",
+  "extractBrief",
+] as const;
 
 type TeamEvent =
   | {
@@ -166,13 +177,12 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     const tools = await buildSkillTools({ agentInstanceId, companyId, env: this.env }, [
       ...CORRESPONDENT_SKILLS,
     ]);
-
     return {
       messages,
       recordAgentReply: async (reply: string) => {
         await this.recordTurn("agent", input.conversationId, crypto.randomUUID(), reply);
       },
-      system: buildSystemPrompt(retrieved),
+      system: buildSystemPrompt(retrieved, await loadBriefContext(this.env, companyId)),
       tools,
     };
   }
@@ -210,56 +220,16 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     }
   }
 
-  // Called by the WorkerJob Workflow once a deliverable is ready to ship
-  // to the customer. "Ready" means one of:
-  //   - policy = auto-execute → the work ran without a gate.
-  //   - policy = require-approval AND an operator approved on /approvals
-  //     (the customer never sees the pending proposal — operators decide).
-  //
-  // The deliverable text is the Worker's own LLM output (markdown, with
-  // inline image URLs already rendered by the Designer's generateBrandImage
-  // skill). We just persist it as a regular agent turn everywhere a future
-  // turn looks: D1, the SDK's message list (auto-broadcast to connected WS
-  // clients), and the recent-turns buffer.
-  // Called through the DO RPC stub by the worker-job Workflow — invisible to static analysis.
+  // Agent-initiated outbound turns live in agent-outbound.ts; these are the
+  // DO RPC entrypoints the Workflow and the cron sweep call on the live instance.
   // fallow-ignore-next-line unused-class-member
-  async presentResult(args: { result: string; ticketId: string }): Promise<void> {
-    const text = args.result.trim();
-    if (text.length === 0) {
-      logInfo("agent.presentResult.skip", { reason: "empty result", ticketId: args.ticketId });
-      return;
-    }
+  presentResult(args: { result: string; ticketId: string }): Promise<void> {
+    return presentAgentResult(this, this.env, args);
+  }
 
-    const companyId = this.name;
-    const agentInstanceId = `corr-${companyId}`;
-    const conversationId = `web-${companyId}`;
-    const messageId = crypto.randomUUID();
-
-    logInfo("agent.presentResult", {
-      agentInstanceId,
-      companyId,
-      replyText: text,
-      ticketId: args.ticketId,
-    });
-
-    await upsertConversation(this.env.DB, {
-      companyId,
-      externalThreadId: "web",
-      id: conversationId,
-    });
-    await insertMessage(this.env.DB, {
-      agentInstanceId,
-      companyId,
-      content: text,
-      conversationId,
-      id: messageId,
-      role: "agent",
-    });
-    appendTurn(this, "agent", text);
-    await this.saveMessages([
-      ...this.messages,
-      { id: messageId, parts: [{ text, type: "text" }], role: "assistant" },
-    ]);
+  // fallow-ignore-next-line unused-class-member
+  suggestNextWork(): Promise<ProactiveOutcome> {
+    return runSuggestNextWork(this, this.env);
   }
 
   // Called by the webhooks route when a NormalizedMessage arrives from an

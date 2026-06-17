@@ -5,6 +5,9 @@
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Weekly proactive "suggest next work" sweep (Mondays 13:00 UTC ≈ 10:00 BRT).
+  // → src/index.ts scheduled() → runProactiveSweep.
+  "triggers": { "crons": ["0 13 * * 1"] },
   "durable_objects": {
     "bindings": [
       { "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" },
