@@ -23,6 +23,7 @@ type Ticket = {
 };
 
 type TicketListRow = Ticket & {
+  companyName: string;
   createdAt: number;
   origin: string;
   title: string;
@@ -44,6 +45,7 @@ type Action = {
   actionType: string;
   agent: ActionAgent;
   companyId: string;
+  companyName: string;
   createdAt: number;
   decidedAt: number | null;
   decidedByUserId: string | null;
@@ -62,6 +64,7 @@ type ActionListRow = Action & {
 type ActivityEntry = {
   actorId: string | null;
   companyId: string;
+  companyName: string;
   createdAt: number;
   id: string;
   payload: Record<string, unknown> | null;

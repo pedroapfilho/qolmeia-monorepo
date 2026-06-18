@@ -100,7 +100,7 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
             <dl className="flex flex-col gap-2.5 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted-foreground">Empresa</dt>
-                <dd className="truncate font-medium text-foreground">{action.companyId}</dd>
+                <dd className="truncate font-medium text-foreground">{action.companyName}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted-foreground">Agente</dt>

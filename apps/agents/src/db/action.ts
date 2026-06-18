@@ -23,6 +23,7 @@ type Action = {
   actionType: string;
   agent: ActionAgent;
   companyId: string;
+  companyName: string;
   createdAt: number;
   decidedAt: number | null;
   decidedByUserId: string | null;
@@ -39,6 +40,7 @@ type ActionRow = {
   agent_name: string;
   agent_role: string;
   company_id: string;
+  company_name: string;
   created_at: number;
   decided_at: number | null;
   decided_by_user_id: string | null;
@@ -54,13 +56,16 @@ type ActionRow = {
 const toAgentRole = (raw: string): AgentRole =>
   raw === "correspondent" || raw === "planner" || raw === "worker" ? raw : "worker";
 
-// action.* + the owning agent, joined through the ticket. Qualify the shared
-// column names (id/company_id/status/created_at) with `action.` in callers.
+// action.* + the owning agent, joined through the ticket, plus the company
+// name — the backoffice queue spans all tenants, so every row must say which
+// company it belongs to. Qualify the shared column names
+// (id/company_id/status/created_at) with `action.` in callers.
 const ACTION_WITH_AGENT_FROM = `FROM action
        JOIN ticket tk ON tk.id = action.ticket_id
        JOIN agent_instance ai ON ai.id = tk.agent_instance_id
-       LEFT JOIN template tpl ON tpl.id = ai.template_id`;
-const ACTION_WITH_AGENT_COLS = `action.*, ai.display_name AS agent_name, ai.role AS agent_role, tpl.worker_kind AS worker_kind`;
+       LEFT JOIN template tpl ON tpl.id = ai.template_id
+       JOIN company co ON co.id = action.company_id`;
+const ACTION_WITH_AGENT_COLS = `action.*, ai.display_name AS agent_name, ai.role AS agent_role, tpl.worker_kind AS worker_kind, co.name AS company_name`;
 
 const toStatus = (raw: string): ActionStatus => {
   const valid: ReadonlyArray<ActionStatus> = [
@@ -82,6 +87,7 @@ const mapAction = (row: ActionRow): Action => ({
   actionType: row.action_type,
   agent: { name: row.agent_name, role: toAgentRole(row.agent_role), workerKind: row.worker_kind },
   companyId: row.company_id,
+  companyName: row.company_name,
   createdAt: row.created_at,
   decidedAt: row.decided_at,
   decidedByUserId: row.decided_by_user_id,
@@ -198,18 +204,25 @@ const listPendingActions = async (
 };
 
 // Any-status list, newest-first. The "no query filter" branch of the
-// backoffice /actions endpoint.
+// backoffice /actions endpoint. Cross-tenant by default (the operator queue
+// spans every company); an explicit companyId narrows it to one tenant.
 const listActions = async (
   db: D1Database,
-  options: { companyId: string; limit?: number },
+  options: { companyId?: string; limit?: number } = {},
 ): Promise<ReadonlyArray<Action>> => {
   const limit = Math.min(options.limit ?? 200, 500);
-  const { results } = await db
-    .prepare(
-      `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.company_id = ? ORDER BY action.created_at DESC LIMIT ?`,
-    )
-    .bind(options.companyId, limit)
-    .all<ActionRow>();
+  const cursor = options.companyId
+    ? db
+        .prepare(
+          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.company_id = ? ORDER BY action.created_at DESC LIMIT ?`,
+        )
+        .bind(options.companyId, limit)
+    : db
+        .prepare(
+          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} ORDER BY action.created_at DESC LIMIT ?`,
+        )
+        .bind(limit);
+  const { results } = await cursor.all<ActionRow>();
   return results.map(mapAction);
 };
 

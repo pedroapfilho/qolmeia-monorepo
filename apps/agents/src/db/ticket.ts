@@ -27,6 +27,7 @@ type Ticket = {
 // that the loadTicket-by-id path doesn't read. Kept as a superset of Ticket
 // so the list and detail responses share the typed mapper.
 type TicketListItem = Ticket & {
+  companyName: string;
   createdAt: number;
   origin: string;
   title: string;
@@ -44,6 +45,7 @@ type TicketRow = {
 };
 
 type TicketListRow = TicketRow & {
+  company_name: string;
   created_at: number;
   origin: string;
   title: string;
@@ -91,6 +93,7 @@ const loadTicket = async (db: D1Database, id: string): Promise<Ticket | null> =>
 
 const mapTicketListItem = (row: TicketListRow): TicketListItem => ({
   ...mapTicket(row),
+  companyName: row.company_name,
   createdAt: row.created_at,
   origin: row.origin,
   title: row.title,
@@ -98,31 +101,44 @@ const mapTicketListItem = (row: TicketListRow): TicketListItem => ({
 });
 
 type ListTicketsOptions = {
-  companyId: string;
+  companyId?: string;
   limit?: number;
   status?: string;
 };
 
 // Operator-facing ticket list. Returns the typed shape (camelCase) — the
 // raw snake_case columns are mapped at the DB boundary so the backoffice
-// only ever deals with one casing convention.
+// only ever deals with one casing convention. Cross-tenant by default (the
+// queue spans every company); companyId narrows to one. The company JOIN
+// carries the name so a cross-tenant list can label each row.
 const listTickets = async (
   db: D1Database,
-  options: ListTicketsOptions,
+  options: ListTicketsOptions = {},
 ): Promise<ReadonlyArray<TicketListItem>> => {
   const limit = Math.min(options.limit ?? 50, 200);
-  const baseSelect =
-    "SELECT id, company_id, agent_instance_id, title, brief, status, origin, workflow_id, result, created_at, updated_at FROM ticket";
-  const cursor = options.status
-    ? db
-        .prepare(
-          `${baseSelect} WHERE company_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?`,
-        )
-        .bind(options.companyId, options.status, limit)
-    : db
-        .prepare(`${baseSelect} WHERE company_id = ? ORDER BY created_at DESC LIMIT ?`)
-        .bind(options.companyId, limit);
-  const { results } = await cursor.all<TicketListRow>();
+  const clauses: Array<string> = [];
+  const params: Array<number | string> = [];
+  if (options.companyId) {
+    clauses.push("t.company_id = ?");
+    params.push(options.companyId);
+  }
+  if (options.status) {
+    clauses.push("t.status = ?");
+    params.push(options.status);
+  }
+  params.push(limit);
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const { results } = await db
+    .prepare(
+      `SELECT t.id, t.company_id, t.agent_instance_id, t.title, t.brief, t.status,
+              t.origin, t.workflow_id, t.result, t.created_at, t.updated_at,
+              co.name AS company_name
+         FROM ticket t
+         JOIN company co ON co.id = t.company_id
+         ${where} ORDER BY t.created_at DESC LIMIT ?`,
+    )
+    .bind(...params)
+    .all<TicketListRow>();
   return results.map(mapTicketListItem);
 };
 

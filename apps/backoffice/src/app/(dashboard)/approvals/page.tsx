@@ -68,7 +68,9 @@ const ApprovalsPage = async () => {
                       </div>
                     </div>
                   </div>
-                  <span className="truncate text-sm text-muted-foreground">{action.companyId}</span>
+                  <span className="truncate text-sm text-muted-foreground">
+                    {action.companyName}
+                  </span>
                   <div className="flex min-w-0 items-center gap-2">
                     <span
                       aria-hidden

@@ -65,7 +65,7 @@ const ActivityRow = ({ row }: ActivityRowProps) => {
         </span>
         <span className="min-w-0 flex-1 truncate text-sm text-foreground">{row.summary}</span>
         <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">
-          {row.companyId}
+          {row.companyName}
         </span>
         <time className="w-[54px] shrink-0 text-right font-mono text-[11px] whitespace-nowrap text-muted-foreground/80">
           {formatRelative(row.createdAt)}
