@@ -86,4 +86,19 @@
       "id": "PLACEHOLDER-sessions-namespace-id",
     },
   ],
+  // ── PROD-ONLY (uncomment + provision at deploy; see docs/deploy.md) ─────────
+  // These stay commented so local `wrangler dev` and a pre-provisioning
+  // `wrangler deploy` don't fail on resources/zones that don't exist yet.
+  //
+  // Custom domain — the Worker's public origin (api.qolmeia.com). Requires the
+  // qolmeia.com zone to be active on this Cloudflare account. Also set
+  // WORKER_PUBLIC_URL=https://api.qolmeia.com in `vars` above.
+  // "routes": [{ "pattern": "api.qolmeia.com", "custom_domain": true }],
+  //
+  // Agent Memory backend (ADR 0007): Workers AI for embeddings + Vectorize for
+  // recall. Without these, the memory adapter falls back to an in-process store
+  // that's lost on DO eviction. Provision:
+  //   wrangler vectorize create qolmeia-memory --dimensions=1024 --metric=cosine
+  // "ai": { "binding": "AI" },
+  // "vectorize": [{ "binding": "VECTORIZE", "index_name": "qolmeia-memory" }],
 }

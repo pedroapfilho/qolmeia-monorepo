@@ -182,7 +182,7 @@ const Home = async () => {
                           {action.actionType}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {action.companyId} · {action.agent.name}
+                          {action.companyName} · {action.agent.name}
                         </span>
                       </div>
                       {action.ageSeconds === undefined ? null : (

@@ -23,6 +23,7 @@ type Ticket = {
 };
 
 type TicketListRow = Ticket & {
+  companyName: string;
   createdAt: number;
   origin: string;
   title: string;
@@ -44,6 +45,7 @@ type Action = {
   actionType: string;
   agent: ActionAgent;
   companyId: string;
+  companyName: string;
   createdAt: number;
   decidedAt: number | null;
   decidedByUserId: string | null;
@@ -62,6 +64,7 @@ type ActionListRow = Action & {
 type ActivityEntry = {
   actorId: string | null;
   companyId: string;
+  companyName: string;
   createdAt: number;
   id: string;
   payload: Record<string, unknown> | null;
@@ -78,6 +81,21 @@ type TicketDetailResponse = { actions: ReadonlyArray<Action>; ticket: Ticket };
 type ActionDetailResponse = { action: Action; ageSeconds: number; ticket: Ticket | null };
 
 type DecisionOutcome = "approved" | "changes_requested" | "rejected";
+
+// ADR 0005 operator coverage. `assigned` is the operator's current set;
+// `options` are the pickable companies + disciplines (template worker_kinds).
+type OperatorCoverage = {
+  companies: ReadonlyArray<string>;
+  disciplines: ReadonlyArray<string>;
+};
+
+type CoverageResponse = {
+  assigned: OperatorCoverage;
+  options: {
+    companies: ReadonlyArray<{ id: string; name: string }>;
+    disciplines: ReadonlyArray<string>;
+  };
+};
 
 type MeResponse = {
   currentOrg: {
@@ -105,8 +123,10 @@ export type {
   ActionStatus,
   ActivityEntry,
   ActivityResponse,
+  CoverageResponse,
   DecisionOutcome,
   MeResponse,
+  OperatorCoverage,
   Ticket,
   TicketDetailResponse,
   TicketListRow,

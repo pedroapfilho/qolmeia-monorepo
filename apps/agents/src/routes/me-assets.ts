@@ -54,10 +54,11 @@ const parsePositiveInt = (raw: string | undefined, fallback: number, max: number
 meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");
   const limit = parsePositiveInt(c.req.query("limit"), 100, 200);
+  // Only the customer folder (ADR 0007) — agent working material stays hidden.
   const { results } = await c.env.DB.prepare(
     `SELECT id, kind, mime, bytes, metadata, created_at
        FROM asset
-       WHERE company_id = ?
+       WHERE company_id = ? AND visibility = 'customer'
        ORDER BY created_at DESC
        LIMIT ?`,
   )
@@ -128,7 +129,10 @@ const persistImageAsset = async (
   const bytes = new Uint8Array(buffer);
   const sha = await sha256OfBytes(bytes);
   const ext = EXT_BY_MIME[file.type] ?? "bin";
-  const r2Key = `org_${companyId}/${sha}.${ext}`;
+  // Customer-folder uploads (ADR 0007); brand identity lives in its subfolder.
+  // visibility defaults to 'customer' at the column, so it isn't set here.
+  const folder = kind === "brand_asset" ? "customer/brand" : "customer";
+  const r2Key = `org_${companyId}/${folder}/${sha}.${ext}`;
 
   await uploadAsset(
     { ASSETS: env.ASSETS },

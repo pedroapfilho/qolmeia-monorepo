@@ -8,25 +8,16 @@ import { Skeleton } from "@repo/ui/components/skeleton";
 import { StatusPill } from "@repo/ui/components/status-pill";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/lib/toast";
-import { cn } from "@repo/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import {
-  CHANNELS,
-  type BriefPatch,
-  type ChannelValue,
-  type CompanyBrief,
-  fetchCompany,
-  patchCompanyBrief,
-} from "@/lib/company";
+import { type BriefPatch, type CompanyBrief, fetchCompany, patchCompanyBrief } from "@/lib/company";
 
 const COMPANY_QUERY_KEY = ["company"] as const;
-const REQUIRED_COUNT = 7;
+const REQUIRED_COUNT = 6;
 
 type FormState = {
   audience: string;
-  channels: Set<ChannelValue>;
   industry: string;
   palette: string;
   primaryGoal: string;
@@ -36,7 +27,6 @@ type FormState = {
 
 const briefToForm = (brief: CompanyBrief): FormState => ({
   audience: brief.audience ?? "",
-  channels: new Set(brief.channels),
   industry: brief.industry ?? "",
   palette: brief.brand?.palette ?? "",
   primaryGoal: brief.primaryGoal ?? "",
@@ -45,10 +35,10 @@ const briefToForm = (brief: CompanyBrief): FormState => ({
 });
 
 // Build the PATCH payload. Blank text fields are omitted (the server's `.min(1)`
-// rejects empty strings, and the goal is to fill, not clear); channels and brand
-// are sent whole since the form owns every field it renders.
+// rejects empty strings, and the goal is to fill, not clear); brand is sent
+// whole since the form owns every field it renders.
 const buildPatch = (f: FormState): BriefPatch => {
-  const patch: BriefPatch = { channels: [...f.channels] };
+  const patch: BriefPatch = {};
   if (f.industry.trim()) {
     patch.industry = f.industry.trim();
   }
@@ -66,14 +56,13 @@ const buildPatch = (f: FormState): BriefPatch => {
   return patch;
 };
 
-// Live count of the 7 required fields, purely for the responsive badge. The
+// Live count of the 6 required fields, purely for the responsive badge. The
 // server's completeness stays canonical — it's what the Correspondent reads.
 const liveFilledCount = (f: FormState): number =>
   [
     f.industry.trim(),
     f.primaryGoal.trim(),
     f.audience.trim(),
-    f.channels.size > 0 ? "x" : "",
     f.voice.trim(),
     f.palette.trim(),
     f.references.trim(),
@@ -108,19 +97,8 @@ const BriefCard = ({ initial }: BriefCardProps) => {
   const percent = Math.round((filled / REQUIRED_COUNT) * 100);
   const isComplete = filled === REQUIRED_COUNT;
 
-  const setField = (key: keyof Omit<FormState, "channels">) => (value: string) =>
+  const setField = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-
-  const toggleChannel = (value: ChannelValue) =>
-    setForm((prev) => {
-      const channels = new Set(prev.channels);
-      if (channels.has(value)) {
-        channels.delete(value);
-      } else {
-        channels.add(value);
-      }
-      return { ...prev, channels };
-    });
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -182,38 +160,6 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               value={form.audience}
             />
           </Field>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">
-              Canais
-              <MissingMark show={form.channels.size === 0} />
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {CHANNELS.map((channel) => {
-                const checked = form.channels.has(channel.value);
-                return (
-                  <label
-                    className={cn(
-                      "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors",
-                      checked
-                        ? "border-primary bg-primary/5 text-foreground"
-                        : "border-border text-muted-foreground hover:bg-muted/40",
-                    )}
-                    key={channel.value}
-                  >
-                    <input
-                      aria-label={channel.label}
-                      checked={checked}
-                      className="size-4 accent-primary"
-                      onChange={() => toggleChannel(channel.value)}
-                      type="checkbox"
-                    />
-                    {channel.label}
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
 
           <div className="grid gap-5 sm:grid-cols-2">
             <Field>

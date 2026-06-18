@@ -85,46 +85,45 @@ describe("isBriefEmpty", () => {
     expect(isBriefEmpty({ industry: "alimentação" })).toBe(false);
     expect(isBriefEmpty({ primaryGoal: "mais vendas" })).toBe(false);
     expect(isBriefEmpty({ audience: "donos de cafeteria" })).toBe(false);
-    expect(isBriefEmpty({ channels: ["instagram"] })).toBe(false);
     expect(isBriefEmpty({ brand: { voice: "acolhedora" } })).toBe(false);
   });
 
-  it("treats an empty channels array as empty", () => {
-    expect(isBriefEmpty({ channels: [] })).toBe(true);
+  it("ignores channels — they left the brief, so channels-only is still empty", () => {
+    expect(isBriefEmpty({ channels: ["instagram"] })).toBe(true);
   });
 });
 
 describe("briefCompleteness", () => {
-  it("reports 0% and all 7 fields missing for an empty brief", () => {
+  it("reports 0% and all 6 fields missing for an empty brief", () => {
     const c = briefCompleteness({});
     expect(c.percent).toBe(0);
     expect(c.isComplete).toBe(false);
-    expect(c.missing).toHaveLength(7);
+    expect(c.missing).toHaveLength(6);
     expect(c.filled).toHaveLength(0);
   });
 
   it("counts each filled required field, including nested brand fields", () => {
     const c = briefCompleteness({
       brand: { voice: "acolhedora" },
-      channels: ["instagram"],
       industry: "alimentação",
     });
-    // industry + channels + brand.voice = 3 of 7
-    expect(c.filled).toEqual(expect.arrayContaining(["industry", "channels", "brand.voice"]));
-    expect(c.filled).toHaveLength(3);
-    expect(c.percent).toBe(43);
+    // industry + brand.voice = 2 of 6
+    expect(c.filled).toEqual(expect.arrayContaining(["industry", "brand.voice"]));
+    expect(c.filled).toHaveLength(2);
+    expect(c.percent).toBe(33);
     expect(c.isComplete).toBe(false);
   });
 
-  it("treats an empty channels array as missing", () => {
-    expect(briefCompleteness({ channels: [] }).missing).toContain("channels");
+  it("does not count channels — they're no longer part of the brief", () => {
+    const c = briefCompleteness({ channels: ["instagram"] });
+    expect(c.filled).toHaveLength(0);
+    expect(c.missing).not.toContain("channels");
   });
 
-  it("is complete only when all 7 fields are present", () => {
+  it("is complete only when all 6 fields are present", () => {
     const c = briefCompleteness({
       audience: "donos de cafeteria",
       brand: { palette: "marrom", references: "Starbucks", voice: "acolhedora" },
-      channels: ["instagram"],
       industry: "alimentação",
       primaryGoal: "vender mais",
     });

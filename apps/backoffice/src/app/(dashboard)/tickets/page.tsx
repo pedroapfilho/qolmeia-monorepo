@@ -57,7 +57,7 @@ const TicketsPage = async () => {
                         </div>
                       </div>
                       <span className="truncate text-[13px] text-foreground/70">
-                        {ticket.origin}
+                        {ticket.companyName}
                       </span>
                       <div className="flex items-center gap-2">
                         <span

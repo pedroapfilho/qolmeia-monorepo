@@ -71,6 +71,13 @@ export const createAuth = (config: AuthConfig) => {
     secret,
   } = config;
 
+  // Prod runs auth, client, and backoffice on sibling subdomains of one parent
+  // (ADR 0008): when COOKIE_DOMAIN is set (e.g. ".qolmeia.com") the session
+  // cookie is written on the parent so every subdomain sends it. Unset in dev,
+  // where the `.localhost` proxy keeps each app same-origin — so this stays off
+  // and cookie behavior is unchanged.
+  const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
+
   return betterAuth({
     account: {
       accountLinking: {
@@ -81,6 +88,9 @@ export const createAuth = (config: AuthConfig) => {
 
     advanced: {
       cookiePrefix: "qolmeia",
+      // See cookieDomain above. Same-site (shared parent domain) means the
+      // `lax` attribute below still sends the cookie on cross-subdomain fetches.
+      crossSubDomainCookies: cookieDomain ? { domain: cookieDomain, enabled: true } : undefined,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax" as const,

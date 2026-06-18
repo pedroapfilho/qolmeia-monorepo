@@ -49,6 +49,7 @@ const logActivity = async (env: { DB: D1Database }, input: LogActivityInput): Pr
 type ActivityEntry = {
   actorId: string | null;
   companyId: string;
+  companyName: string;
   createdAt: number;
   id: string;
   // The reader-side stays string-typed so legacy rows (older event-type
@@ -64,6 +65,7 @@ type ActivityEntry = {
 type ActivityRow = {
   actor_id: string | null;
   company_id: string;
+  company_name: string;
   created_at: number;
   id: string;
   payload: string | null;
@@ -76,6 +78,7 @@ type ActivityRow = {
 const mapActivity = (row: ActivityRow): ActivityEntry => ({
   actorId: row.actor_id,
   companyId: row.company_id,
+  companyName: row.company_name,
   createdAt: row.created_at,
   id: row.id,
   payload: safeJson<Record<string, unknown> | null>(row.payload, null),
@@ -87,7 +90,7 @@ const mapActivity = (row: ActivityRow): ActivityEntry => ({
 
 type ListActivityOptions = {
   before?: number;
-  companyId: string;
+  companyId?: string;
   limit?: number;
   since?: number;
 };
@@ -95,26 +98,37 @@ type ListActivityOptions = {
 // Two-axis paging. `since` returns entries at-or-after a floor (the
 // "what's new" subscription) while `before` returns entries strictly older
 // than a ceiling (the "load older" pagination button). Both axes default
-// to absent → unbounded.
+// to absent → unbounded. companyId is optional: the customer feed always
+// scopes to one company, while the operator feed spans every tenant (the
+// company JOIN labels each row).
 const listActivity = async (
   db: D1Database,
-  options: ListActivityOptions,
+  options: ListActivityOptions = {},
 ): Promise<ReadonlyArray<ActivityEntry>> => {
   const limit = options.limit ?? 100;
-  const clauses: Array<string> = ["company_id = ?"];
-  const params: Array<number | string> = [options.companyId];
+  const clauses: Array<string> = [];
+  const params: Array<number | string> = [];
+  if (options.companyId) {
+    clauses.push("al.company_id = ?");
+    params.push(options.companyId);
+  }
   if (options.since !== undefined) {
-    clauses.push("created_at >= ?");
+    clauses.push("al.created_at >= ?");
     params.push(options.since);
   }
   if (options.before !== undefined) {
-    clauses.push("created_at < ?");
+    clauses.push("al.created_at < ?");
     params.push(options.before);
   }
   params.push(limit);
-  const where = clauses.join(" AND ");
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
   const { results } = await db
-    .prepare(`SELECT * FROM activity_log WHERE ${where} ORDER BY created_at DESC LIMIT ?`)
+    .prepare(
+      `SELECT al.*, co.name AS company_name
+         FROM activity_log al
+         JOIN company co ON co.id = al.company_id
+         ${where} ORDER BY al.created_at DESC LIMIT ?`,
+    )
     .bind(...params)
     .all<ActivityRow>();
   return results.map(mapActivity);

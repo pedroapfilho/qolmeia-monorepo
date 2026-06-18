@@ -44,7 +44,15 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
   // the hook for the safety poll to re-arm.
   const [isSocketOpen, setIsSocketOpen] = useState(false);
 
-  const query = useQuery({
+  // Destructure only the fields we read so TanStack's tracked-property
+  // optimization can skip re-renders for fields this hook ignores.
+  const {
+    data,
+    error,
+    isError,
+    isPending,
+    refetch: queryRefetch,
+  } = useQuery({
     meta: { errorToast: "Falha ao sincronizar time" },
     queryFn: fetchTeam,
     queryKey: teamQueryKey(companyId),
@@ -83,14 +91,14 @@ const useTeamRoster = (companyId: string, sessionToken: string): UseTeamRosterRe
   });
 
   const refetch = async (): Promise<void> => {
-    await query.refetch();
+    await queryRefetch();
   };
 
   return {
-    error: query.error,
-    members: query.data ?? [],
+    error,
+    members: data ?? [],
     refetch,
-    status: rosterStatus(query),
+    status: rosterStatus({ isError, isPending }),
   };
 };
 

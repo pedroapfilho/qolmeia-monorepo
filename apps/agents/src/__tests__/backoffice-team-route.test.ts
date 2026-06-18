@@ -85,24 +85,29 @@ describe("/api/backoffice/teams/:companyId/members", () => {
   });
 });
 
+// ADR 0005: operators are cross-tenant Qolmeia staff, so reaching another
+// company is allowed — there is no 403 wall. A company/member that doesn't
+// exist resolves to an empty roster / 404, never a tenancy rejection.
 describe("backoffice team routes — cross-tenant", () => {
-  it("403 when STAFF queries a different company's members list", async () => {
+  it("STAFF queries another company's members list (empty when it has none)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await SELF.fetch(
       `https://agents.test/api/backoffice/teams/co_other_company/members?cf_session=tok`,
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { members: Array<{ id: string }> };
+    expect(body.members).toEqual([]);
   });
 
-  it("403 when STAFF reads a member from a different company", async () => {
+  it("404 (not 403) when STAFF reads a member that doesn't exist in that company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await SELF.fetch(
       `https://agents.test/api/backoffice/teams/co_other_company/members/ai_bot_d?cf_session=tok`,
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
-  it("403 when STAFF PATCHes a member from a different company", async () => {
+  it("404 (not 403) when STAFF PATCHes a member that doesn't exist in that company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await SELF.fetch(
       `https://agents.test/api/backoffice/teams/co_other_company/members/ai_bot_d?cf_session=tok`,
@@ -112,7 +117,7 @@ describe("backoffice team routes — cross-tenant", () => {
         method: "PATCH",
       },
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 });
 

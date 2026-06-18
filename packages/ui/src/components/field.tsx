@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentProps, createContext, use, useId } from "react";
+import { type ComponentProps, createContext, use, useId, useMemo } from "react";
 
 import { cn } from "../lib/utils";
 
@@ -10,8 +10,10 @@ const useFieldContext = () => use(FieldContext);
 
 const Field = ({ className, ...props }: ComponentProps<"div">) => {
   const id = useId();
+  // Memoize so FieldLabel consumers don't re-render on every Field render.
+  const value = useMemo<FieldContextValue>(() => ({ id }), [id]);
   return (
-    <FieldContext value={{ id }}>
+    <FieldContext value={value}>
       <div className={cn("flex flex-col gap-2", className)} {...props} />
     </FieldContext>
   );

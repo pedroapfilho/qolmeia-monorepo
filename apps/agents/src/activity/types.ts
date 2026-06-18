@@ -38,6 +38,34 @@ type ActionChangesRequestedEvent = {
   type: "ACTION_CHANGES_REQUESTED";
 };
 
+// The Worker regenerated after a request-changes decision (the revise loop).
+// refId is the *new* action id proposed for the revised deliverable.
+type ActionRevisedEvent = {
+  payload: { feedback: string | null; revision: number };
+  refId: string;
+  refType: "action";
+  type: "ACTION_REVISED";
+};
+
+// The revise loop hit its soft cap — the Worker stops regenerating; the
+// operator approves or rejects the last version. refId is the action id.
+type ActionRevisionCappedEvent = {
+  payload: { revisions: number };
+  refId: string;
+  refType: "action";
+  type: "ACTION_REVISION_CAPPED";
+};
+
+// notify-only policy: the action ran immediately (no gate) but is surfaced to
+// the operator monitoring feed for after-the-fact spot-check. refId is the
+// ticket id (notify-only mints no blocking action row).
+type ActionNotifyEvent = {
+  payload: { summary: string };
+  refId: string;
+  refType: "ticket";
+  type: "ACTION_NOTIFY";
+};
+
 type TicketDoneEvent = {
   payload?: undefined;
   refId: string;
@@ -113,6 +141,9 @@ type ActivityEvent =
   | ActionExecutedEvent
   | ActionRejectedEvent
   | ActionChangesRequestedEvent
+  | ActionRevisedEvent
+  | ActionRevisionCappedEvent
+  | ActionNotifyEvent
   | TicketDoneEvent
   | TeamConfirmedEvent
   | MemberHiredEvent

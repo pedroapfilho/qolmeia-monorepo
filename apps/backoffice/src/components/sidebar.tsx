@@ -61,12 +61,21 @@ const ActivityIcon = (
   </svg>
 );
 
+const CoverageIcon = (
+  <svg aria-hidden fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 18 18">
+    <circle cx="9" cy="9" r="6.6" />
+    <circle cx="9" cy="9" r="3.1" />
+    <circle cx="9" cy="9" r="0.4" />
+  </svg>
+);
+
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/", icon: HomeIcon, label: "Início" },
   { href: "/approvals", icon: ApprovalsIcon, label: "Aprovações" },
   { href: "/tickets", icon: TicketsIcon, label: "Tickets" },
   { href: "/teams", icon: TeamsIcon, label: "Times" },
   { href: "/activity", icon: ActivityIcon, label: "Atividade" },
+  { href: "/cobertura", icon: CoverageIcon, label: "Cobertura" },
 ];
 
 const isActive = (pathname: string, href: string): boolean => {

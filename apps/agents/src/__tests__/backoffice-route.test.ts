@@ -96,13 +96,14 @@ describe("backoffice auth gate", () => {
 });
 
 describe("backoffice listing endpoints", () => {
-  it("lists tickets scoped to the staff's company (camelCase shape)", async () => {
+  it("lists tickets across all tenants (camelCase shape + company label)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await SELF.fetch("https://agents.test/api/backoffice/tickets?cf_session=tok");
     const body = (await res.json()) as {
       items: Array<{
         agentInstanceId: string;
         companyId: string;
+        companyName: string;
         createdAt: number;
         id: string;
         origin: string;
@@ -115,10 +116,14 @@ describe("backoffice listing endpoints", () => {
     // the backoffice UI consumes the typed shape directly.
     expect(ticket?.agentInstanceId).toBe("agent-bo-test");
     expect(ticket?.companyId).toBe(COMPANY_ID);
+    expect(ticket?.companyName).toBe("BO Test");
     expect(ticket?.origin).toBe("delegation");
     expect(typeof ticket?.createdAt).toBe("number");
     expect(ticket).not.toHaveProperty("agent_instance_id");
     expect(ticket).not.toHaveProperty("created_at");
+    // ADR 0005: the operator queue spans every company, so a second tenant's
+    // ticket shows up in the same unfiltered list.
+    expect(body.items.find((t) => t.id === "tkt-bo-other")).toBeTruthy();
   });
 
   it("lists pending actions sorted by age (oldest first)", async () => {
@@ -172,20 +177,30 @@ describe("backoffice listing endpoints", () => {
   });
 });
 
-describe("backoffice list routes ignore the ?companyId= override (IDOR regression)", () => {
-  it("GET /tickets ignores ?companyId= and returns only the session company's rows", async () => {
+// ADR 0005: the backoffice is Qolmeia-staff (OWNER/STAFF), cross-tenant by
+// design. `?companyId=` is a legitimate narrowing filter, not a scope wall —
+// the IDOR concern lives on the customer surface (/api/me, /agents/*), which
+// authorizes companyId against the session and is unaffected by these routes.
+describe("backoffice list routes span tenants and honor the ?companyId= filter", () => {
+  it("GET /tickets?companyId= narrows to that company; unfiltered spans all", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const filtered = await SELF.fetch(
       `https://agents.test/api/backoffice/tickets?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { items: Array<{ companyId: string; id: string }> };
-    expect(body.items.find((t) => t.id === "tkt-bo-test")).toBeTruthy();
-    expect(body.items.find((t) => t.id === "tkt-bo-other")).toBeUndefined();
-    expect(body.items.every((t) => t.companyId === COMPANY_ID)).toBe(true);
+    expect(filtered.status).toBe(200);
+    const filteredBody = (await filtered.json()) as {
+      items: Array<{ companyId: string; id: string }>;
+    };
+    expect(filteredBody.items.find((t) => t.id === "tkt-bo-other")).toBeTruthy();
+    expect(filteredBody.items.every((t) => t.companyId === OTHER_COMPANY_ID)).toBe(true);
+
+    const all = await SELF.fetch("https://agents.test/api/backoffice/tickets?cf_session=tok");
+    const allBody = (await all.json()) as { items: Array<{ id: string }> };
+    expect(allBody.items.find((t) => t.id === "tkt-bo-test")).toBeTruthy();
+    expect(allBody.items.find((t) => t.id === "tkt-bo-other")).toBeTruthy();
   });
 
-  it("GET /actions ignores ?companyId= and returns only the session company's rows", async () => {
+  it("GET /actions?companyId= narrows to that company; unfiltered spans all", async () => {
     await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
@@ -201,16 +216,21 @@ describe("backoffice list routes ignore the ?companyId= override (IDOR regressio
       ticketId: "tkt-bo-other",
     });
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const filtered = await SELF.fetch(
       `https://agents.test/api/backoffice/actions?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { items: Array<{ companyId: string }> };
-    expect(body.items.length).toBeGreaterThan(0);
-    expect(body.items.every((a) => a.companyId === COMPANY_ID)).toBe(true);
+    expect(filtered.status).toBe(200);
+    const filteredBody = (await filtered.json()) as { items: Array<{ companyId: string }> };
+    expect(filteredBody.items.length).toBeGreaterThan(0);
+    expect(filteredBody.items.every((a) => a.companyId === OTHER_COMPANY_ID)).toBe(true);
+
+    const all = await SELF.fetch("https://agents.test/api/backoffice/actions?cf_session=tok");
+    const allBody = (await all.json()) as { items: Array<{ companyId: string }> };
+    expect(allBody.items.some((a) => a.companyId === COMPANY_ID)).toBe(true);
+    expect(allBody.items.some((a) => a.companyId === OTHER_COMPANY_ID)).toBe(true);
   });
 
-  it("GET /activity ignores ?companyId= and returns only the session company's rows", async () => {
+  it("GET /activity?companyId= narrows to that company; unfiltered spans all", async () => {
     await logActivity(
       { DB: env.DB },
       {
@@ -232,13 +252,18 @@ describe("backoffice list routes ignore the ?companyId= override (IDOR regressio
       },
     );
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const filtered = await SELF.fetch(
       `https://agents.test/api/backoffice/activity?companyId=${OTHER_COMPANY_ID}&cf_session=tok`,
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { items: Array<{ companyId: string }> };
-    expect(body.items.length).toBeGreaterThan(0);
-    expect(body.items.every((a) => a.companyId === COMPANY_ID)).toBe(true);
+    expect(filtered.status).toBe(200);
+    const filteredBody = (await filtered.json()) as { items: Array<{ companyId: string }> };
+    expect(filteredBody.items.length).toBeGreaterThan(0);
+    expect(filteredBody.items.every((a) => a.companyId === OTHER_COMPANY_ID)).toBe(true);
+
+    const all = await SELF.fetch("https://agents.test/api/backoffice/activity?cf_session=tok");
+    const allBody = (await all.json()) as { items: Array<{ companyId: string }> };
+    expect(allBody.items.some((a) => a.companyId === COMPANY_ID)).toBe(true);
+    expect(allBody.items.some((a) => a.companyId === OTHER_COMPANY_ID)).toBe(true);
   });
 });
 

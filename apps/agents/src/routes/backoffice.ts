@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "@/db/action";
+import { listCoverage, listDisciplines, setCoverage } from "@/db/assignment";
 import { listCompaniesOverview } from "@/db/schema";
 import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
@@ -20,9 +21,14 @@ import { getMemberDetail, getTeamRoster } from "@/team/queries";
 // agent paths, just with a different role guard. Every write — including the
 // operator override on /actions/:id/decide — goes through the same
 // `sendEvent` path the Correspondent uses; no privileged shortcut.
+//
+// Operators are Qolmeia platform staff, not customers (ADR 0005): they span
+// every tenant and are authorized purely by role. The session's companyId is
+// the operator's own internal org — it has no customer data and is never used
+// to scope these reads/writes. Cross-tenant access is the point of the surface;
+// per-company narrowing is an explicit `?companyId=` filter, not a wall.
 
 type Vars = {
-  companyId: string;
   role: string;
   userId: string;
 };
@@ -37,14 +43,13 @@ backofficeRoutes.use("*", async (c, next) => {
   if (session.role !== "OWNER" && session.role !== "STAFF") {
     return c.text("Forbidden", 403);
   }
-  c.set("companyId", session.companyId);
   c.set("role", session.role);
   c.set("userId", session.userId);
   return next();
 });
 
 backofficeRoutes.get("/tickets", async (c) => {
-  const companyId = c.get("companyId");
+  const companyId = c.req.query("companyId");
   const status = c.req.query("status");
   const limitParam = Number(c.req.query("limit") ?? 50);
   const items = await listTickets(c.env.DB, { companyId, limit: limitParam, status });
@@ -56,10 +61,20 @@ backofficeRoutes.get("/tickets", async (c) => {
 backofficeRoutes.get("/actions", async (c) => {
   const status = c.req.query("status");
   const sort = c.req.query("sort");
-  const companyId = c.get("companyId");
+  const companyId = c.req.query("companyId");
 
   if (status === "pending") {
-    const items = await listPendingActions(c.env.DB, { companyId });
+    // The queue narrows to the operator's coverage (ADR 0005); an explicit
+    // ?companyId= is a deliberate drill into one company that bypasses it.
+    const items = companyId
+      ? await listPendingActions(c.env.DB, { companyId })
+      : await (async () => {
+          const coverage = await listCoverage(c.env.DB, c.get("userId"));
+          return listPendingActions(c.env.DB, {
+            companyIds: coverage.companies,
+            disciplines: coverage.disciplines,
+          });
+        })();
     const now = Date.now();
     // Explicit field copy (not `{...a, ageSeconds}`) — oxlint's no-map-spread
     // forbids spread inside .map. The `mapAction` boundary above guarantees
@@ -69,6 +84,7 @@ backofficeRoutes.get("/actions", async (c) => {
       agent: a.agent,
       ageSeconds: Math.floor((now - a.createdAt) / 1000),
       companyId: a.companyId,
+      companyName: a.companyName,
       createdAt: a.createdAt,
       decidedAt: a.decidedAt,
       decidedByUserId: a.decidedByUserId,
@@ -112,9 +128,6 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
   if (!action) {
     return c.text("Not found", 404);
   }
-  if (action.companyId !== c.get("companyId")) {
-    return c.text("Forbidden", 403);
-  }
   if (action.status !== "pending") {
     return c.json({ error: `action already ${action.status}` }, 409);
   }
@@ -138,7 +151,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
 });
 
 backofficeRoutes.get("/activity", async (c) => {
-  const companyId = c.get("companyId");
+  const companyId = c.req.query("companyId");
   const sinceRaw = c.req.query("since");
   const beforeRaw = c.req.query("before");
   const since = sinceRaw ? Number(sinceRaw) : undefined;
@@ -156,9 +169,6 @@ backofficeRoutes.get("/tickets/:id", async (c) => {
   if (!ticket) {
     return c.text("Not found", 404);
   }
-  if (ticket.companyId !== c.get("companyId")) {
-    return c.text("Forbidden", 403);
-  }
   const actions = await listActionsForTicket(c.env.DB, id);
   return c.json({ actions, ticket });
 });
@@ -169,9 +179,6 @@ backofficeRoutes.get("/actions/:id", async (c) => {
   const action = await getAction(c.env.DB, id);
   if (!action) {
     return c.text("Not found", 404);
-  }
-  if (action.companyId !== c.get("companyId")) {
-    return c.text("Forbidden", 403);
   }
   const ticket = await loadTicket(c.env.DB, action.ticketId);
   const ageSeconds = Math.floor((Date.now() - action.createdAt) / 1000);
@@ -201,19 +208,46 @@ backofficeRoutes.get("/companies", async (c) => {
   return c.json({ companies: withRosters });
 });
 
+// The operator's own coverage (ADR 0005): the companies + disciplines they
+// cover, plus the option lists to populate the picker. Self-service — keyed on
+// the session user, never another operator (an admin-assigns-others surface
+// waits on the operator directory, which doesn't exist yet).
+backofficeRoutes.get("/assignments/me", async (c) => {
+  const [coverage, disciplines, companies] = await Promise.all([
+    listCoverage(c.env.DB, c.get("userId")),
+    listDisciplines(c.env.DB),
+    listCompaniesOverview(c.env.DB),
+  ]);
+  return c.json({
+    assigned: coverage,
+    options: {
+      companies: companies.map((co) => ({ id: co.id, name: co.name })),
+      disciplines,
+    },
+  });
+});
+
+const coverageBodySchema = z.object({
+  companies: z.array(z.string().min(1)).max(1000),
+  disciplines: z.array(z.string().min(1)).max(100),
+});
+
+backofficeRoutes.put("/assignments/me", async (c) => {
+  const parsed = coverageBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  await setCoverage(c.env.DB, c.get("userId"), parsed.data);
+  return c.json({ assigned: parsed.data });
+});
+
 backofficeRoutes.get("/teams/:companyId/members", async (c) => {
   const companyId = c.req.param("companyId");
-  if (companyId !== c.get("companyId")) {
-    return c.text("Forbidden", 403);
-  }
   const members = await getTeamRoster(c.env.DB, companyId);
   return c.json({ members });
 });
 
 backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
-  if (c.req.param("companyId") !== c.get("companyId")) {
-    return c.text("Forbidden", 403);
-  }
   const member = await getMemberDetail(c.env.DB, c.req.param("companyId"), c.req.param("id"));
   if (!member) {
     return c.json({ error: "not found" }, 404);
@@ -223,9 +257,6 @@ backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
 
 backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
   const companyId = c.req.param("companyId");
-  if (companyId !== c.get("companyId")) {
-    return c.text("Forbidden", 403);
-  }
   const id = c.req.param("id");
   const parsed = backofficePatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
