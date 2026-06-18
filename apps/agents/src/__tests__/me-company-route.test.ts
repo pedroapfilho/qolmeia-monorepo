@@ -46,7 +46,7 @@ describe("PATCH /api/me/company", () => {
   it("merges a partial brief and recomputes completeness", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
     const res = await SELF.fetch("https://agents.test/api/me/company?cf_session=tok", {
-      body: JSON.stringify({ channels: ["instagram"], industry: "alimentação" }),
+      body: JSON.stringify({ industry: "alimentação" }),
       headers: { "content-type": "application/json" },
       method: "PATCH",
     });
@@ -54,8 +54,8 @@ describe("PATCH /api/me/company", () => {
     const body = (await res.json()) as CompanyBody;
     expect(body.company.brief.industry).toBe("alimentação");
     expect(body.completeness.missing).toContain("primaryGoal");
-    // industry + channels filled = 2 of 7
-    expect(body.completeness.percent).toBe(29);
+    // industry filled = 1 of 6
+    expect(body.completeness.percent).toBe(17);
   });
 
   it("preserves earlier fields across successive patches", async () => {

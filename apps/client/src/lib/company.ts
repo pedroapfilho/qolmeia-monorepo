@@ -1,8 +1,10 @@
 // Customer-side API surface for the company brief. Types mirror the agents
-// API output; the channel list mirrors the server's channelEnum (small, stable).
+// API output.
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
+// Kept for the stored-but-no-longer-edited `channels` data (it was removed from
+// the brief form); mirrors the server's channelEnum.
 type ChannelValue =
   | "discord"
   | "email"
@@ -12,17 +14,6 @@ type ChannelValue =
   | "telegram"
   | "web"
   | "whatsapp";
-
-const CHANNELS: ReadonlyArray<{ label: string; value: ChannelValue }> = [
-  { label: "Instagram", value: "instagram" },
-  { label: "WhatsApp", value: "whatsapp" },
-  { label: "Telegram", value: "telegram" },
-  { label: "E-mail", value: "email" },
-  { label: "Site / Web", value: "web" },
-  { label: "Slack", value: "slack" },
-  { label: "Discord", value: "discord" },
-  { label: "Outro", value: "other" },
-];
 
 type Brand = {
   palette?: string;
@@ -45,7 +36,6 @@ type BriefFieldId =
   | "brand.palette"
   | "brand.references"
   | "brand.voice"
-  | "channels"
   | "industry"
   | "primaryGoal";
 
@@ -152,7 +142,6 @@ const deleteBrandAsset = async (id: string): Promise<void> => {
 export {
   BRAND_CATEGORIES,
   BRAND_CATEGORY_LABEL,
-  CHANNELS,
   deleteBrandAsset,
   fetchBrandAssets,
   fetchCompany,

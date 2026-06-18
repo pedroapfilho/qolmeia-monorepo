@@ -101,22 +101,18 @@ const isBriefEmpty = (brief: Partial<CompanyBrief> | null | undefined): boolean 
   }
   const brand = brief.brand;
   const hasBrand = !!brand && (!!brand.palette || !!brand.voice || !!brand.references);
-  return (
-    !brief.industry &&
-    !brief.primaryGoal &&
-    !brief.audience &&
-    (!brief.channels || brief.channels.length === 0) &&
-    !hasBrand
-  );
+  return !brief.industry && !brief.primaryGoal && !brief.audience && !hasBrand;
 };
 
 // The fields the customer must fill before the Correspondent stops asking.
 // Order is the display/ask order. brand.* are nested under `brand`.
+// `channels` is intentionally NOT here: it stays in the schema (optional, for
+// data already stored and a possible future use) but is no longer part of the
+// brief the customer fills out — it didn't belong in the brand/business brief.
 const BRIEF_REQUIRED_FIELDS = [
   "industry",
   "primaryGoal",
   "audience",
-  "channels",
   "brand.voice",
   "brand.palette",
   "brand.references",
@@ -131,7 +127,6 @@ const BRIEF_FIELD_LABELS: Record<BriefFieldId, string> = {
   "brand.palette": "Cores da marca",
   "brand.references": "Referências de marca",
   "brand.voice": "Tom da marca",
-  channels: "Canais",
   industry: "Setor",
   primaryGoal: "Objetivo principal (próximos 3 meses)",
 };
@@ -141,7 +136,6 @@ const BRIEF_FIELD_FILLED: Record<BriefFieldId, (brief: Partial<CompanyBrief>) =>
   "brand.palette": (brief) => !!brief.brand?.palette,
   "brand.references": (brief) => !!brief.brand?.references,
   "brand.voice": (brief) => !!brief.brand?.voice,
-  channels: (brief) => !!brief.channels && brief.channels.length > 0,
   industry: (brief) => !!brief.industry,
   primaryGoal: (brief) => !!brief.primaryGoal,
 };

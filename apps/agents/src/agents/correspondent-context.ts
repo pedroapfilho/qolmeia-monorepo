@@ -52,7 +52,6 @@ const BRIEF_FIELD_VALUE: Record<BriefFieldId, (brief: Partial<CompanyBrief>) => 
   "brand.palette": (brief) => brief.brand?.palette ?? "",
   "brand.references": (brief) => brief.brand?.references ?? "",
   "brand.voice": (brief) => brief.brand?.voice ?? "",
-  channels: (brief) => brief.channels?.join(", ") ?? "",
   industry: (brief) => brief.industry ?? "",
   primaryGoal: (brief) => brief.primaryGoal ?? "",
 };
