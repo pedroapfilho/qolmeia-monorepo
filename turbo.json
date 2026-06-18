@@ -1,12 +1,22 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalDependencies": ["**/.env.*local"],
-  "globalEnv": ["NODE_ENV"],
+  "globalDependencies": [
+    "**/.env.*local"
+  ],
+  "globalEnv": [
+    "NODE_ENV"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ],
       "env": [
         "AGENTS_INTERNAL_URL",
         "AUTH_ALLOWED_HOSTS",
@@ -23,18 +33,87 @@
         "WEB_APP_URL"
       ]
     },
-    "lint": { "dependsOn": ["^build"], "outputs": [] },
-    "typecheck": { "dependsOn": ["^build"] },
-    "format:check": { "cache": false },
-    "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true },
-    "deploy": { "dependsOn": ["^build"], "cache": false },
-    "start": { "dependsOn": ["^build"], "cache": false },
-    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
-    "test:watch": { "dependsOn": ["^build"], "cache": false, "persistent": true },
-    "test:coverage": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
-    "clean": { "cache": false },
-    "db:generate": { "cache": false, "env": ["DATABASE_URL"] },
-    "db:push": { "cache": false, "env": ["DATABASE_URL"] },
-    "db:seed": { "cache": false, "env": ["DATABASE_URL"] }
+    "lint": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "format:check": {
+      "cache": false
+    },
+    "dev": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "deploy": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "start": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ],
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    "test:watch": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "test:coverage": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ],
+      "cache": false
+    },
+    "clean": {
+      "cache": false
+    },
+    "db:generate": {
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    "db:push": {
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    "db:seed": {
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
+    }
   }
 }
