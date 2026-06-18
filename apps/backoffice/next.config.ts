@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // Same-origin auth: browsers treat `.localhost` as a public suffix, so under
-// portless dev (qolmeia.backoffice.localhost vs qolmeia.auth.localhost) the
+// portless dev (qolmeia.backoffice.localhost vs qolmeia.api.localhost) the
 // registrable domains differ and NO shareable cookie domain exists — a
 // session cookie set by the auth origin is invisible here. Rewriting
 // /api/auth/* to the auth service keeps every browser auth call first-party

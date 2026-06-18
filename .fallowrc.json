@@ -6,7 +6,7 @@
   "entry": [
     "oxlint.config.ts",
     "**/prisma.config.ts",
-    "apps/auth/src/lib/vitest-setup.ts",
+    "apps/api/src/lib/vitest-setup.ts",
     "apps/*/src/lib/observability.ts",
     "packages/transactional/src/emails/**/*.tsx",
     "scripts/e2e-*.mjs"
@@ -14,7 +14,7 @@
   "ignorePatterns": [],
   "ignoreExports": [
     {
-      "file": "apps/auth/src/middleware/error-handler.ts",
+      "file": "apps/api/src/middleware/error-handler.ts",
       "exports": ["isPrismaKnownError"]
     }
   ],

@@ -1,6 +1,6 @@
 // Client-side fetch helpers targeting apps/agents (the live product runtime).
 // All product data — company state, assets, activity, uploads — lives on the
-// agents Worker; the auth service (apps/auth) is reached only by Better Auth's
+// agents Worker; the auth service (apps/api) is reached only by Better Auth's
 // own client (see auth-client.ts).
 //
 // Default is "" (same-origin): next.config.ts rewrites /api/me/* and

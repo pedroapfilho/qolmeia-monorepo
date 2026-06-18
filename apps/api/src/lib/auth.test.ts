@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { auth } from "./auth";
 
-describe("apps/auth auth singleton", () => {
+describe("apps/api auth singleton", () => {
   it("exposes a Fetch-style handler", () => {
     expect(typeof auth.handler).toBe("function");
   });

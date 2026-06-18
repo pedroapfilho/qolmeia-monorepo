@@ -219,7 +219,7 @@ export const createAuth = (config: AuthConfig) => {
       sendOnSignIn: true,
       // Same no-op-without-Resend pattern as sendResetPassword above.
       sendVerificationEmail: async ({ url, user }, request) => {
-        // Auth runs on its own origin (apps/auth), so a relative callbackURL
+        // Auth runs on its own origin (apps/api), so a relative callbackURL
         // would resolve against the auth service. Rebuild it against the web
         // app origin that initiated the request (register form / unverified
         // sign-in / change-email confirmation), preserving the caller's
