@@ -1,4 +1,11 @@
-import type { PrismaClient } from "@repo/db";
+import type { db } from "@repo/db";
+import {
+  account as accountTable,
+  rateLimit as rateLimitTable,
+  session as sessionTable,
+  user as userTable,
+  verification as verificationTable,
+} from "@repo/db";
 import { log } from "@repo/observability";
 import {
   sendChangeEmailConfirmation,
@@ -8,7 +15,7 @@ import {
   sendWelcomeEmail,
 } from "@repo/transactional";
 import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins/bearer";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { username } from "better-auth/plugins/username";
@@ -57,7 +64,7 @@ export const safeCallbackPath = (value: string | null): string => {
 type AuthConfig = {
   extraPlugins?: Array<BetterAuthPlugin>;
   fromEmail?: string;
-  prisma: PrismaClient;
+  db: typeof db;
   resendApiKey?: string;
   secret: string;
 };
@@ -66,7 +73,7 @@ export const createAuth = (config: AuthConfig) => {
   const {
     extraPlugins = [],
     fromEmail = "noreply@qolmeia.ai",
-    prisma,
+    db: database,
     resendApiKey,
     secret,
   } = config;
@@ -128,8 +135,15 @@ export const createAuth = (config: AuthConfig) => {
       protocol: "auto",
     },
 
-    database: prismaAdapter(prisma, {
-      provider: "postgresql",
+    database: drizzleAdapter(database, {
+      provider: "pg",
+      schema: {
+        account: accountTable,
+        rateLimit: rateLimitTable,
+        session: sessionTable,
+        user: userTable,
+        verification: verificationTable,
+      },
     }),
 
     emailAndPassword: {

@@ -1,7 +1,8 @@
 import "dotenv/config";
 
 import { createAuth } from "@repo/auth/server";
-import { prisma } from "@repo/db";
+import { db, orgMembership, organization, user as userTable } from "@repo/db";
+import { eq } from "drizzle-orm";
 
 import { env } from "../lib/env";
 
@@ -37,23 +38,25 @@ const CUSTOMER_NAME = "Cliente Demo";
 const CUSTOMER_PASSWORD = "Qolmeia-Dev-CustomerPass!";
 
 const auth = createAuth({
-  prisma,
+  db,
   resendApiKey: env.RESEND_API_KEY,
   secret: env.BETTER_AUTH_SECRET,
 });
 
 const upsertOrg = async () => {
-  const existing = await prisma.organization.findUnique({ where: { id: ORG_ID } });
+  const [existing] = await db
+    .select()
+    .from(organization)
+    .where(eq(organization.id, ORG_ID))
+    .limit(1);
   if (existing) {
     return existing;
   }
-  return prisma.organization.create({
-    data: {
-      id: ORG_ID,
-      name: ORG_NAME,
-      slug: ORG_SLUG,
-    },
-  });
+  const [created] = await db
+    .insert(organization)
+    .values({ id: ORG_ID, name: ORG_NAME, slug: ORG_SLUG })
+    .returning();
+  return created;
 };
 
 const upsertUser = async (
@@ -61,10 +64,11 @@ const upsertUser = async (
   name: string,
   password: string,
 ): Promise<{ created: boolean; userId: string }> => {
-  const existing = await prisma.user.findUnique({
-    select: { id: true },
-    where: { email },
-  });
+  const [existing] = await db
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(eq(userTable.email, email))
+    .limit(1);
   if (existing) {
     return { created: false, userId: existing.id };
   }
@@ -79,11 +83,13 @@ const upsertMembership = async (
   userId: string,
   role: "OWNER" | "STAFF" | "CUSTOMER",
 ): Promise<void> => {
-  await prisma.orgMembership.upsert({
-    create: { orgId: ORG_ID, role, userId },
-    update: { role },
-    where: { userId_orgId: { orgId: ORG_ID, userId } },
-  });
+  await db
+    .insert(orgMembership)
+    .values({ orgId: ORG_ID, role, userId })
+    .onConflictDoUpdate({
+      target: [orgMembership.userId, orgMembership.orgId],
+      set: { role, updatedAt: new Date().toISOString() },
+    });
 };
 
 const main = async () => {
@@ -110,4 +116,3 @@ const main = async () => {
 };
 
 await main();
-await prisma.$disconnect();

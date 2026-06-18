@@ -1,4 +1,4 @@
-import { prisma } from "@repo/db";
+import { db } from "@repo/db";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createAuth, safeCallbackPath } from "./server";
@@ -10,7 +10,7 @@ describe("Auth Server Configuration", () => {
   let auth: ReturnType<typeof createAuth>;
 
   beforeAll(() => {
-    auth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    auth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
   });
 
   afterEach(() => {
@@ -52,13 +52,13 @@ describe("Auth Server Configuration", () => {
 
   it("should set useSecureCookies when WEB_APP_URL is HTTPS", () => {
     vi.stubEnv("WEB_APP_URL", "https://qolmeia.web.localhost");
-    const httpsAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const httpsAuth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
     expect(httpsAuth.options.advanced?.useSecureCookies).toBe(true);
   });
 
   it("should NOT set useSecureCookies when WEB_APP_URL is HTTP", () => {
     vi.stubEnv("WEB_APP_URL", "http://localhost:3000");
-    const httpAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const httpAuth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
     expect(httpAuth.options.advanced?.useSecureCookies).toBe(false);
   });
 
@@ -77,7 +77,7 @@ describe("Auth Server Configuration", () => {
   it("should extend baseURL.allowedHosts from AUTH_ALLOWED_HOSTS env", () => {
     vi.stubEnv("AUTH_ALLOWED_HOSTS", "qolmeia.ai,*.qolmeia.ai,*.vercel.app");
 
-    const envAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const envAuth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
     const baseURL = envAuth.options.baseURL;
     if (typeof baseURL !== "object" || baseURL === null) {
       throw new Error("expected dynamic baseURL object");
@@ -89,7 +89,7 @@ describe("Auth Server Configuration", () => {
 
   it("should require email verification when Resend is configured", () => {
     const verifyingAuth = createAuth({
-      prisma,
+      db,
       resendApiKey: "re_test_key",
       secret: "test-secret-minimum-32-characters-long",
     });
@@ -97,7 +97,7 @@ describe("Auth Server Configuration", () => {
   });
 
   it("should NOT require email verification when Resend is absent", () => {
-    const noResendAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const noResendAuth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
     expect(noResendAuth.options.emailAndPassword?.requireEmailVerification).toBe(false);
   });
 
@@ -142,14 +142,14 @@ describe("Auth Server Configuration", () => {
     // CI=true on the runner, so we must clear it for the production path
     // to evaluate true under test.
     vi.stubEnv("CI", "");
-    const prodAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const prodAuth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
     expect(prodAuth.options.rateLimit?.enabled).toBe(true);
   });
 
   it("should concat TRUSTED_ORIGINS env values with loopback defaults", () => {
     vi.stubEnv("TRUSTED_ORIGINS", "https://app.qolmeia.ai,https://api.qolmeia.ai");
 
-    const envAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const envAuth = createAuth({ db, secret: "test-secret-minimum-32-characters-long" });
     const trusted = envAuth.options.trustedOrigins;
     expect(trusted).toContain("https://app.qolmeia.ai"); // env value
     expect(trusted).toContain("https://api.qolmeia.ai"); // env value
@@ -167,7 +167,7 @@ describe("Auth Server Configuration", () => {
 
   it("should configure reset password email when resendApiKey is provided", () => {
     const emailAuth = createAuth({
-      prisma,
+      db,
       resendApiKey: "re_test_key",
       secret: "test-secret-minimum-32-characters-long",
     });
@@ -186,7 +186,7 @@ describe("Auth Server Configuration", () => {
     const mockPlugin = { id: "test-plugin", init: () => ({}) } as unknown as Plugin;
     const extendedAuth = createAuth({
       extraPlugins: [mockPlugin],
-      prisma,
+      db,
       secret: "test-secret-minimum-32-characters-long",
     });
     const plugins = extendedAuth.options.plugins ?? [];
@@ -201,7 +201,7 @@ describe("Auth Server Configuration", () => {
 
   it("should configure verification email when resendApiKey is provided", () => {
     const emailAuth = createAuth({
-      prisma,
+      db,
       resendApiKey: "re_test_key",
       secret: "test-secret-minimum-32-characters-long",
     });
