@@ -1,18 +1,45 @@
-import type { PrismaClient } from "@repo/db";
-import { prisma as defaultPrisma } from "@repo/db";
+import { db as defaultDb, orgMembership, user } from "@repo/db";
+import { asc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { notFound } from "@/lib/api-response";
 import type { AnyMemberContextVars } from "@/middleware/require-staff";
 
-type MePrisma = Pick<PrismaClient, "orgMembership" | "user">;
+type DbLike = {
+  query: {
+    orgMembership: {
+      findMany: (args: unknown) => Promise<
+        ReadonlyArray<{
+          orgId: string;
+          role: "OWNER" | "STAFF" | "CUSTOMER";
+          createdAt: string;
+          org: { id: string; name: string; slug: string };
+        }>
+      >;
+    };
+    user: {
+      findFirst: (args: unknown) => Promise<
+        | {
+            id: string;
+            email: string;
+            emailVerified: boolean;
+            name: string;
+            image: string | null;
+            username: string | null;
+            displayName: string | null;
+          }
+        | undefined
+      >;
+    };
+  };
+};
 
 type MeRouteDeps = {
-  prisma?: MePrisma;
+  db?: DbLike;
 };
 
 const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: AnyMemberContextVars }> => {
-  const prisma = deps.prisma ?? defaultPrisma;
+  const db = deps.db ?? defaultDb;
   const app = new Hono<{ Variables: AnyMemberContextVars }>();
 
   // GET /me — the current user, their memberships, and the currently
@@ -23,9 +50,9 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: AnyMemberConte
     const currentOrgId = c.get("orgId");
     const role = c.get("role");
 
-    const [user, memberships] = await Promise.all([
-      prisma.user.findUnique({
-        select: {
+    const [userRow, memberships] = await Promise.all([
+      db.query.user.findFirst({
+        columns: {
           displayName: true,
           email: true,
           emailVerified: true,
@@ -34,18 +61,18 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: AnyMemberConte
           name: true,
           username: true,
         },
-        where: { id: session.user.id },
+        where: eq(user.id, session.user.id),
       }),
-      prisma.orgMembership.findMany({
-        include: {
-          org: { select: { id: true, name: true, slug: true } },
+      db.query.orgMembership.findMany({
+        orderBy: asc(orgMembership.createdAt),
+        where: eq(orgMembership.userId, session.user.id),
+        with: {
+          org: { columns: { id: true, name: true, slug: true } },
         },
-        orderBy: { createdAt: "asc" },
-        where: { userId: session.user.id },
       }),
     ]);
 
-    if (!user) {
+    if (!userRow) {
       // Defensive — the middleware already resolved a session, so the user
       // row must exist. If it doesn't (race with deletion), return 404.
       return notFound(c, "User not found");
@@ -70,13 +97,13 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: AnyMemberConte
       })),
       role,
       user: {
-        displayName: user.displayName,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        id: user.id,
-        image: user.image,
-        name: user.name,
-        username: user.username,
+        displayName: userRow.displayName,
+        email: userRow.email,
+        emailVerified: userRow.emailVerified,
+        id: userRow.id,
+        image: userRow.image,
+        name: userRow.name,
+        username: userRow.username,
       },
     });
   });

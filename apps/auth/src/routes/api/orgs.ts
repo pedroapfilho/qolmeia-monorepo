@@ -1,5 +1,5 @@
-import type { PrismaClient } from "@repo/db";
-import { Prisma, prisma as defaultPrisma } from "@repo/db";
+import { db as defaultDb, orgMembership, organization } from "@repo/db";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -12,7 +12,7 @@ import { log } from "@/lib/logger";
 // the matching D1 `company` row.
 //
 // This is the org-create hook called out in P7.2: today seeds are hand-rolled
-// with the Prisma row and the D1 row created out-of-band; production needs
+// with the Drizzle row and the D1 row created out-of-band; production needs
 // the relay so signing up just-works without a one-shot script.
 //
 // The relay uses INTERNAL_SHARED_SECRET as a Bearer token against the agents
@@ -22,11 +22,25 @@ import { log } from "@/lib/logger";
 // reconcile. (D1 rows are cheap; the user-facing failure mode is bad UX, not
 // data corruption.)
 
-// `$transaction` is needed so the org + OWNER membership commit atomically (no
-// orphaned tenant if the membership write fails). It lives on the full
-// PrismaClient, so the injectable type widens to include it alongside the two
-// models the route writes.
-type OrgsPrisma = Pick<PrismaClient, "$transaction" | "organization" | "orgMembership">;
+// `transaction` is needed so the org + OWNER membership commit atomically (no
+// orphaned tenant if the membership write fails).
+
+type PostgresError = { code: string };
+
+const isPostgresError = (err: unknown): err is PostgresError =>
+  err instanceof Error && "code" in err && typeof (err as PostgresError).code === "string";
+
+type DbLike = {
+  transaction: <T>(fn: (tx: DbLike) => Promise<T>) => Promise<T>;
+  insert: (
+    table: unknown,
+  ) => { values: (data: unknown) => { returning: () => Promise<ReadonlyArray<unknown>> } };
+  query: {
+    organization: {
+      findFirst: (args: unknown) => Promise<{ id: string; name: string; slug: string } | undefined>;
+    };
+  };
+};
 
 type AuthLike = {
   api: {
@@ -40,7 +54,7 @@ type AuthLike = {
 type OrgsRouteDeps = {
   auth?: AuthLike;
   fetch?: typeof fetch;
-  prisma?: OrgsPrisma;
+  db?: DbLike;
 };
 
 // Slug validator. Not a regex because oxlint's /v parser and V8's /v parser
@@ -113,7 +127,7 @@ const provisionD1Company = async (args: {
 };
 
 const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
-  const prisma = deps.prisma ?? defaultPrisma;
+  const db = deps.db ?? defaultDb;
   const auth = deps.auth ?? (defaultAuth as unknown as AuthLike);
   const fetchImpl = deps.fetch ?? fetch;
   const app = new Hono();
@@ -138,11 +152,13 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       );
     }
 
-    // Fast, friendly 409 for the common case. The transaction's P2002 catch
+    // Fast, friendly 409 for the common case. The transaction's 23505 catch
     // below is the real guard against the check-then-act slug race (two
     // concurrent creates both pass this check; the loser hits the unique
     // constraint).
-    const existing = await prisma.organization.findUnique({ where: { slug: parsed.data.slug } });
+    const existing = await db.query.organization.findFirst({
+      where: eq(organization.slug, parsed.data.slug),
+    });
     if (existing) {
       return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
     }
@@ -151,17 +167,19 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
     try {
       // Org + OWNER membership commit together or not at all — a failed
       // membership write must never leave an owner-less, unreachable tenant.
-      org = await prisma.$transaction(async (tx) => {
-        const created = await tx.organization.create({
-          data: { name: parsed.data.name, slug: parsed.data.slug },
-        });
-        await tx.orgMembership.create({
-          data: { orgId: created.id, role: "OWNER", userId: session.user.id },
-        });
-        return created;
+      org = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(organization)
+          .values({ name: parsed.data.name, slug: parsed.data.slug })
+          .returning();
+        await tx
+          .insert(orgMembership)
+          .values({ orgId: (created as { id: string }).id, role: "OWNER", userId: session.user.id })
+          .returning();
+        return created as { id: string; name: string; slug: string };
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (isPostgresError(error) && error.code === "23505") {
         return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
       }
       throw error;

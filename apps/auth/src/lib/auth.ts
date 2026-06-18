@@ -1,5 +1,5 @@
 import { createAuth } from "@repo/auth/server";
-import { prisma } from "@repo/db";
+import { db } from "@repo/db";
 
 import { env } from "./env";
 
@@ -9,7 +9,7 @@ import { env } from "./env";
 // errors fail fast on boot rather than mid-request.
 const auth = createAuth({
   fromEmail: env.AUTH_FROM_EMAIL ?? "noreply@qolmeia.ai",
-  prisma,
+  db,
   resendApiKey: env.RESEND_API_KEY,
   secret: env.BETTER_AUTH_SECRET,
 });

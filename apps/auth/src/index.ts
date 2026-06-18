@@ -1,7 +1,8 @@
 import { serve } from "@hono/node-server";
 import { createRoute, z } from "@hono/zod-openapi";
-import { prisma } from "@repo/db";
+import { db } from "@repo/db";
 import { createIdentify } from "@repo/observability/auth";
+import { sql } from "drizzle-orm";
 import { honoEvlog, initApiLogger } from "@repo/observability/hono";
 import { createMarkdownFromOpenApi } from "@scalar/openapi-to-markdown";
 import { compress } from "hono/compress";
@@ -124,7 +125,7 @@ const readyzRoute = createRoute({
 
 app.openapi(readyzRoute, async (c) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await db.execute(sql`SELECT 1`);
 
     return c.json(
       {
@@ -176,14 +177,12 @@ serve({
   port,
 });
 
-process.on("SIGTERM", async () => {
+process.on("SIGTERM", () => {
   log.info("server", "SIGTERM received, shutting down gracefully...");
-  await prisma.$disconnect();
   process.exit(0);
 });
 
-process.on("SIGINT", async () => {
+process.on("SIGINT", () => {
   log.info("server", "SIGINT received, shutting down gracefully...");
-  await prisma.$disconnect();
   process.exit(0);
 });

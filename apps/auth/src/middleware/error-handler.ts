@@ -1,14 +1,13 @@
-import type { Prisma } from "@repo/db";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
 
 import { env } from "@/lib/env";
 
-export const isPrismaKnownError = (
-  err: unknown,
-): err is InstanceType<typeof Prisma.PrismaClientKnownRequestError> =>
-  err instanceof Error && "code" in err && "clientVersion" in err;
+type PostgresError = { code: string };
+
+const isPostgresError = (err: unknown): err is PostgresError =>
+  err instanceof Error && "code" in err && typeof (err as PostgresError).code === "string";
 
 export class AppError extends Error {
   public readonly statusCode: number;
@@ -77,8 +76,8 @@ export const errorHandler = (err: Error, c: Context) => {
     );
   }
 
-  if (isPrismaKnownError(err)) {
-    if (err.code === "P2002") {
+  if (isPostgresError(err)) {
+    if (err.code === "23505") {
       return c.json(
         {
           error: {
@@ -87,18 +86,6 @@ export const errorHandler = (err: Error, c: Context) => {
           },
         },
         409 as const,
-      );
-    }
-
-    if (err.code === "P2025") {
-      return c.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "Record not found",
-          },
-        },
-        404 as const,
       );
     }
   }

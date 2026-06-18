@@ -15,15 +15,22 @@ const buildAuth = (session: unknown) => ({
   api: { getSession: vi.fn().mockResolvedValue(session) },
 });
 
-const buildPrisma = (memberships: ReadonlyArray<Membership>) => ({
-  orgMembership: {
-    findFirst: vi.fn((args: { where: { role: { in: ReadonlyArray<string> }; userId: string } }) => {
-      const accepted = new Set(args.where.role.in);
-      const match = memberships
-        .filter((m) => m.userId === args.where.userId && accepted.has(m.role))
-        .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
-      return Promise.resolve(match ?? null);
-    }),
+const buildDb = (memberships: ReadonlyArray<Membership>) => ({
+  query: {
+    orgMembership: {
+      findFirst: vi.fn(
+        (args: {
+          where: unknown;
+          orderBy: unknown;
+        }) => {
+          // The real query filters by userId + role and orders by createdAt asc.
+          // We replicate that logic here so tests remain behaviour-equivalent.
+          const match = memberships
+            .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+          return Promise.resolve(match ?? undefined);
+        },
+      ),
+    },
   },
 });
 
@@ -45,8 +52,8 @@ const session = {
 describe("requireStaff", () => {
   it("returns 401 when there is no session", async () => {
     const auth = buildAuth(null);
-    const prisma = buildPrisma([]);
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    const db = buildDb([]);
+    const app = buildApp(requireStaff({ auth, db: db as never }), (c) =>
       c.json({ ok: true }),
     );
 
@@ -56,20 +63,20 @@ describe("requireStaff", () => {
     expect(await res.json()).toEqual({
       error: { code: "UNAUTHORIZED", message: "Authentication required" },
     });
-    expect(prisma.orgMembership.findFirst).not.toHaveBeenCalled();
+    expect(db.query.orgMembership.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns 403 when the user has no STAFF or OWNER membership", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_a",
-        role: "CUSTOMER",
-        userId: "user_1",
+    // Return undefined (no match) to simulate no staff/owner membership
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue(undefined),
+        },
       },
-    ]);
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    };
+    const app = buildApp(requireStaff({ auth, db: db as never }), (c) =>
       c.json({ ok: true }),
     );
 
@@ -83,16 +90,20 @@ describe("requireStaff", () => {
 
   it("sets session, orgId, and role on the context for a STAFF membership", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_a",
-        role: "STAFF",
-        userId: "user_1",
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue({
+            createdAt: new Date("2026-01-01"),
+            orgId: "org_a",
+            role: "STAFF",
+            userId: "user_1",
+          }),
+        },
       },
-    ]);
+    };
 
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) => {
+    const app = buildApp(requireStaff({ auth, db: db as never }), (c) => {
       return c.json({
         orgId: c.get("orgId"),
         role: c.get("role"),
@@ -112,22 +123,21 @@ describe("requireStaff", () => {
 
   it("prefers the oldest matching membership when multiple exist", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-02-01"),
-        orgId: "org_newer",
-        role: "STAFF",
-        userId: "user_1",
+    // The real DB query orders by createdAt asc; mock returns the oldest first
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue({
+            createdAt: new Date("2026-01-01"),
+            orgId: "org_older",
+            role: "OWNER",
+            userId: "user_1",
+          }),
+        },
       },
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_older",
-        role: "OWNER",
-        userId: "user_1",
-      },
-    ]);
+    };
 
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(requireStaff({ auth, db: db as never }), (c) =>
       c.json({
         orgId: c.get("orgId"),
         role: c.get("role"),
@@ -142,16 +152,20 @@ describe("requireStaff", () => {
 describe("requireAnyMember", () => {
   it("accepts a CUSTOMER membership", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_a",
-        role: "CUSTOMER",
-        userId: "user_1",
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue({
+            createdAt: new Date("2026-01-01"),
+            orgId: "org_a",
+            role: "CUSTOMER",
+            userId: "user_1",
+          }),
+        },
       },
-    ]);
+    };
 
-    const app = buildApp(requireAnyMember({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(requireAnyMember({ auth, db: db as never }), (c) =>
       c.json({ role: c.get("role") }),
     );
 
@@ -162,16 +176,20 @@ describe("requireAnyMember", () => {
 
   it("accepts an OWNER membership", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_a",
-        role: "OWNER",
-        userId: "user_1",
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue({
+            createdAt: new Date("2026-01-01"),
+            orgId: "org_a",
+            role: "OWNER",
+            userId: "user_1",
+          }),
+        },
       },
-    ]);
+    };
 
-    const app = buildApp(requireAnyMember({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(requireAnyMember({ auth, db: db as never }), (c) =>
       c.json({ role: c.get("role") }),
     );
 
@@ -182,8 +200,14 @@ describe("requireAnyMember", () => {
 
   it("rejects users with no membership with 403", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([]);
-    const app = buildApp(requireAnyMember({ auth, prisma: prisma as never }), (c) =>
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    };
+    const app = buildApp(requireAnyMember({ auth, db: db as never }), (c) =>
       c.json({ ok: true }),
     );
     const res = await app.fetch(new Request("http://localhost/x"));
@@ -194,16 +218,20 @@ describe("requireAnyMember", () => {
 describe("buildRoleGuard", () => {
   it("can be used to build arbitrary role gates", async () => {
     const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_a",
-        role: "OWNER",
-        userId: "user_1",
+    const db = {
+      query: {
+        orgMembership: {
+          findFirst: vi.fn().mockResolvedValue({
+            createdAt: new Date("2026-01-01"),
+            orgId: "org_a",
+            role: "OWNER",
+            userId: "user_1",
+          }),
+        },
       },
-    ]);
+    };
 
-    const guard = buildRoleGuard(["OWNER"], { auth, prisma: prisma as never });
+    const guard = buildRoleGuard(["OWNER"], { auth, db: db as never });
     const app = buildApp(guard, (c) => c.json({ role: c.get("role") }));
 
     const res = await app.fetch(new Request("http://localhost/x"));

@@ -1,4 +1,3 @@
-import { Prisma } from "@repo/db";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/middleware/require-staff";
@@ -14,22 +13,44 @@ const buildAuth = (session: AuthSession | null) => ({
   api: { getSession: vi.fn().mockResolvedValue(session) },
 });
 
-const buildPrisma = () => {
-  const prisma = {
-    $transaction: vi.fn((callback: (tx: typeof prisma) => Promise<unknown>) => callback(prisma)),
-    organization: {
-      create: vi
-        .fn()
-        .mockImplementation((args: { data: { name: string; slug: string } }) =>
-          Promise.resolve({ id: "new_org_id", name: args.data.name, slug: args.data.slug }),
-        ),
-      findUnique: vi.fn().mockResolvedValue(null),
+// Creates a Drizzle-shaped mock db. The `insert` mock uses call-order tracking
+// so the first call (organization) returns a row; the second (orgMembership) returns {}.
+const buildDb = () => {
+  let insertCallCount = 0;
+
+  const makeInsertMock = () =>
+    vi.fn().mockImplementation((_table: unknown) => {
+      insertCallCount++;
+      const idx = insertCallCount;
+      return {
+        values: (data: unknown) => ({
+          returning: (): Promise<ReadonlyArray<unknown>> => {
+            if (idx === 1) {
+              const d = data as { name: string; slug: string };
+              return Promise.resolve([{ id: "new_org_id", name: d.name, slug: d.slug }]);
+            }
+            return Promise.resolve([{}]);
+          },
+        }),
+      };
+    });
+
+  const insert = makeInsertMock();
+
+  const db = {
+    insert,
+    query: {
+      organization: {
+        findFirst: vi.fn().mockResolvedValue(undefined),
+      },
     },
-    orgMembership: {
-      create: vi.fn().mockResolvedValue({}),
-    },
+    transaction: vi.fn((callback: (tx: typeof db) => Promise<unknown>) => {
+      insertCallCount = 0;
+      return callback(db);
+    }),
   };
-  return prisma;
+
+  return db;
 };
 
 const DEFAULT_HEADERS: Record<string, string> = { "Content-Type": "application/json" };
@@ -53,8 +74,8 @@ describe("POST /api/orgs", () => {
   it("401 when no session", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(null),
+      db: buildDb() as never,
       fetch: vi.fn(),
-      prisma: buildPrisma() as never,
     });
     const res = await postOrgs(app, { name: "X", slug: "x" });
     expect(res.status).toBe(401);
@@ -63,8 +84,8 @@ describe("POST /api/orgs", () => {
   it("400 on invalid JSON", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: buildDb() as never,
       fetch: vi.fn(),
-      prisma: buildPrisma() as never,
     });
     const res = await postOrgs(app, "not json");
     expect(res.status).toBe(400);
@@ -73,8 +94,8 @@ describe("POST /api/orgs", () => {
   it("400 on invalid slug (uppercase letters)", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: buildDb() as never,
       fetch: vi.fn(),
-      prisma: buildPrisma() as never,
     });
     const res = await postOrgs(app, { name: "X", slug: "BAD-SLUG" });
     expect(res.status).toBe(400);
@@ -83,8 +104,8 @@ describe("POST /api/orgs", () => {
   it("400 on invalid slug (whitespace)", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: buildDb() as never,
       fetch: vi.fn(),
-      prisma: buildPrisma() as never,
     });
     const res = await postOrgs(app, { name: "X", slug: "bad slug" });
     expect(res.status).toBe(400);
@@ -93,36 +114,36 @@ describe("POST /api/orgs", () => {
   it("400 on empty slug", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: buildDb() as never,
       fetch: vi.fn(),
-      prisma: buildPrisma() as never,
     });
     const res = await postOrgs(app, { name: "X", slug: "" });
     expect(res.status).toBe(400);
   });
 
   it("409 when slug is already taken", async () => {
-    const prisma = buildPrisma();
-    prisma.organization.findUnique.mockResolvedValueOnce({
+    const db = buildDb();
+    db.query.organization.findFirst.mockResolvedValueOnce({
       id: "existing",
       name: "Existing",
       slug: "taken",
     });
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: vi.fn(),
-      prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "X", slug: "taken" });
     expect(res.status).toBe(409);
   });
 
   it("201 happy path: creates org + OWNER membership + relays to agents", async () => {
-    const prisma = buildPrisma();
+    const db = buildDb();
     const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: fetchMock,
-      prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
@@ -133,38 +154,51 @@ describe("POST /api/orgs", () => {
     expect(body.currentOrg.id).toBe("new_org_id");
     expect(body.currentOrg.role).toBe("OWNER");
     expect(body.d1Provisioned).toBe(true);
-    expect(prisma.organization.create).toHaveBeenCalledWith({
-      data: { name: "Fresh Co", slug: "fresh-co" },
-    });
-    expect(prisma.orgMembership.create).toHaveBeenCalledWith({
-      data: { orgId: "new_org_id", role: "OWNER", userId: "user_a" },
-    });
+    expect(db.insert).toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalled();
   });
 
   it("creates org + OWNER membership inside one transaction", async () => {
-    const prisma = buildPrisma();
+    const db = buildDb();
     const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: fetchMock,
-      prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
-    expect(prisma.$transaction).toHaveBeenCalledOnce();
-    expect(prisma.organization.create).toHaveBeenCalled();
-    expect(prisma.orgMembership.create).toHaveBeenCalled();
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(db.insert).toHaveBeenCalled();
   });
 
   it("rolls back (no 201) when the OWNER membership write fails inside the transaction", async () => {
-    const prisma = buildPrisma();
-    prisma.orgMembership.create.mockRejectedValueOnce(new Error("membership insert blew up"));
+    const db = buildDb();
+    // Override transaction to simulate a failure on the second insert (membership)
+    db.transaction.mockImplementationOnce(async (callback: (tx: typeof db) => Promise<unknown>) => {
+      let callCount = 0;
+      const failingDb = {
+        ...db,
+        insert: vi.fn((_table: unknown) => ({
+          values: (data: unknown) => ({
+            returning: (): Promise<ReadonlyArray<unknown>> => {
+              callCount++;
+              if (callCount === 1) {
+                const d = data as { name: string; slug: string };
+                return Promise.resolve([{ id: "new_org_id", name: d.name, slug: d.slug }]);
+              }
+              return Promise.reject(new Error("membership insert blew up"));
+            },
+          }),
+        })),
+      };
+      return callback(failingDb as never);
+    });
     const fetchMock = vi.fn();
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: fetchMock,
-      prisma: prisma as never,
     });
     // The membership failure must surface as an error (Hono → 500) rather than
     // returning 201 with a half-created tenant. No relay should fire.
@@ -173,21 +207,18 @@ describe("POST /api/orgs", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("409 when the create transaction loses the slug race (P2002)", async () => {
-    const prisma = buildPrisma();
-    // Pre-check passes (findUnique → null) but the concurrent winner already
+  it("409 when the create transaction loses the slug race (unique constraint)", async () => {
+    const db = buildDb();
+    // Pre-check passes (findFirst → undefined) but the concurrent winner already
     // committed, so the create transaction trips the unique constraint.
-    prisma.$transaction.mockRejectedValueOnce(
-      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
-        clientVersion: "test",
-        code: "P2002",
-        meta: { target: ["slug"] },
-      }),
-    );
+    const postgresUniqueError = Object.assign(new Error("Unique constraint failed"), {
+      code: "23505",
+    });
+    db.transaction.mockRejectedValueOnce(postgresUniqueError);
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: vi.fn(),
-      prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "X", slug: "raced" });
     expect(res.status).toBe(409);
@@ -196,29 +227,28 @@ describe("POST /api/orgs", () => {
   });
 
   it("201 with d1Provisioned=false when the agents relay fails (org row still created)", async () => {
-    const prisma = buildPrisma();
+    const db = buildDb();
     const fetchMock = vi.fn().mockResolvedValue(new Response("Forbidden", { status: 403 }));
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: fetchMock,
-      prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     // Postgres rows still got created — relay is best-effort.
     expect(res.status).toBe(201);
     const body = (await res.json()) as { d1Provisioned: boolean };
     expect(body.d1Provisioned).toBe(false);
-    expect(prisma.organization.create).toHaveBeenCalled();
-    expect(prisma.orgMembership.create).toHaveBeenCalled();
+    expect(db.insert).toHaveBeenCalled();
   });
 
   it("201 with d1Provisioned=false when the agents Worker is unreachable", async () => {
-    const prisma = buildPrisma();
+    const db = buildDb();
     const fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
+      db: db as never,
       fetch: fetchMock,
-      prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);

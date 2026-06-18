@@ -24,37 +24,39 @@ const buildAppWithGuard = (vars: StaffContextVars, routes: ReturnType<typeof bui
 
 describe("GET /me", () => {
   it("returns the user, all orgs, and the current org", async () => {
-    const prisma = {
-      orgMembership: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            createdAt: new Date("2026-01-01"),
-            org: { id: "org_a", name: "Salon A", slug: "salon-a" },
-            orgId: "org_a",
-            role: "OWNER",
-          },
-          {
-            createdAt: new Date("2026-02-01"),
-            org: { id: "org_b", name: "Salon B", slug: "salon-b" },
-            orgId: "org_b",
-            role: "STAFF",
-          },
-        ]),
-      },
-      user: {
-        findUnique: vi.fn().mockResolvedValue({
-          displayName: null,
-          email: "u@example.com",
-          emailVerified: true,
-          id: "user_1",
-          image: null,
-          name: "Pedro",
-          username: "pedro",
-        }),
+    const db = {
+      query: {
+        orgMembership: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              createdAt: new Date("2026-01-01"),
+              org: { id: "org_a", name: "Salon A", slug: "salon-a" },
+              orgId: "org_a",
+              role: "OWNER",
+            },
+            {
+              createdAt: new Date("2026-02-01"),
+              org: { id: "org_b", name: "Salon B", slug: "salon-b" },
+              orgId: "org_b",
+              role: "STAFF",
+            },
+          ]),
+        },
+        user: {
+          findFirst: vi.fn().mockResolvedValue({
+            displayName: null,
+            email: "u@example.com",
+            emailVerified: true,
+            id: "user_1",
+            image: null,
+            name: "Pedro",
+            username: "pedro",
+          }),
+        },
       },
     } as never;
 
-    const routes = buildMeRoutes({ prisma });
+    const routes = buildMeRoutes({ db });
     const app = buildAppWithGuard({ orgId: "org_a", role: "OWNER", session }, routes);
 
     const res = await app.fetch(new Request("http://localhost/"));
@@ -77,22 +79,24 @@ describe("GET /me", () => {
   });
 
   it("returns null for currentOrg when there's no matching membership row", async () => {
-    const prisma = {
-      orgMembership: { findMany: vi.fn().mockResolvedValue([]) },
-      user: {
-        findUnique: vi.fn().mockResolvedValue({
-          displayName: null,
-          email: "u@example.com",
-          emailVerified: true,
-          id: "user_1",
-          image: null,
-          name: "Pedro",
-          username: "pedro",
-        }),
+    const db = {
+      query: {
+        orgMembership: { findMany: vi.fn().mockResolvedValue([]) },
+        user: {
+          findFirst: vi.fn().mockResolvedValue({
+            displayName: null,
+            email: "u@example.com",
+            emailVerified: true,
+            id: "user_1",
+            image: null,
+            name: "Pedro",
+            username: "pedro",
+          }),
+        },
       },
     } as never;
 
-    const routes = buildMeRoutes({ prisma });
+    const routes = buildMeRoutes({ db });
     const app = buildAppWithGuard({ orgId: "org_missing", role: "OWNER", session }, routes);
 
     const res = await app.fetch(new Request("http://localhost/"));
@@ -101,12 +105,14 @@ describe("GET /me", () => {
   });
 
   it("returns 404 when the user row has been deleted under us", async () => {
-    const prisma = {
-      orgMembership: { findMany: vi.fn().mockResolvedValue([]) },
-      user: { findUnique: vi.fn().mockResolvedValue(null) },
+    const db = {
+      query: {
+        orgMembership: { findMany: vi.fn().mockResolvedValue([]) },
+        user: { findFirst: vi.fn().mockResolvedValue(undefined) },
+      },
     } as never;
 
-    const routes = buildMeRoutes({ prisma });
+    const routes = buildMeRoutes({ db });
     const app = buildAppWithGuard({ orgId: "org_a", role: "OWNER", session }, routes);
 
     const res = await app.fetch(new Request("http://localhost/"));

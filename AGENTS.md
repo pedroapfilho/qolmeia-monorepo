@@ -22,8 +22,8 @@ pnpm format:check                 # oxfmt (check only, used in CI)
 # Testing
 pnpm test                         # vitest unit tests across all packages
 
-# Database (Prisma — used only by the auth service; agents Worker uses D1)
-pnpm db:generate                  # generate Prisma client
+# Database (Drizzle — used only by the auth service; agents Worker uses D1)
+pnpm db:generate                  # generate Drizzle migrations (no-op for existing schema)
 pnpm db:push                      # push schema to Postgres
 ```
 
@@ -49,14 +49,14 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 - **D1 is the system of record for product data**: `company`, `ticket`, `action`, `activity_log`, `agent_instance`, `template`, `skill`, `team`, `team_member`, `memory_fact`, `connector`, `webhook_event`, `asset`. Schema in `apps/agents/migrations/*.sql`.
 - **R2 holds binary assets** (`ASSETS` binding), served via HMAC-signed URLs from `/assets/:id`.
 - **KV holds connector secrets** (`CONNECTOR_SECRETS` binding) so Telegram/etc. configs don't sit in env vars.
-- **Postgres remains** for Better Auth's tables only. Legacy product models still exist in `packages/db/prisma/schema.prisma` but are unused by `agents`.
+- **Postgres remains** for Better Auth's tables only, managed via Drizzle ORM (`@repo/db`).
 
 ### Packages
 
 | Package                   | Purpose                                                                                                              |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `@repo/auth`              | `createAuth` factory wrapping Better Auth (magic-link + email/password). Consumed by `auth`, `backoffice`, `client`. |
-| `@repo/db`                | Prisma client singleton + schema (auth-only domain).                                                                 |
+| `@repo/db`                | Drizzle client singleton + schema (auth-only domain).                                                                |
 | `@repo/transactional`     | React Email templates + Resend sender.                                                                               |
 | `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps.                                        |
 | `@repo/config-vitest`     | Shared Vitest config.                                                                                                |
@@ -87,7 +87,7 @@ Each app has its own `.env.example`:
 
 - **apps/auth** — `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit — Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
 - **apps/agents** — `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
-- **apps/client** — `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
+- **apps/client** — `BETTER_AUTH_SECRET` (matches `apps/auth`), `DATABASE_URL` (Next `proxy.ts` validates sessions). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
 - **apps/backoffice** — same as client (its Worker rewrite covers `/api/backoffice/*`).
 
 `.env` files are git-ignored; `.env.example` is committed.
@@ -100,7 +100,7 @@ Bring the stack up (assumes envs are copied from each `.env.example`):
 # 1. Postgres on :5436 (Redis on :6382 is unused but still in compose)
 docker compose up -d
 
-# 2. Push the auth-only Prisma schema
+# 2. Push the auth-only Drizzle schema
 DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
   pnpm --filter=@repo/db db:push
 

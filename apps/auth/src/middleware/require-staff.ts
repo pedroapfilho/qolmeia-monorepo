@@ -1,5 +1,7 @@
-import type { OrgRole, PrismaClient } from "@repo/db";
-import { prisma as defaultPrisma } from "@repo/db";
+import { db as defaultDb, orgMembership, orgRole } from "@repo/db";
+import { and, asc, eq, inArray } from "drizzle-orm";
+
+type OrgRole = (typeof orgRole.enumValues)[number];
 import type { Context, MiddlewareHandler, Next } from "hono";
 
 import { auth as defaultAuth } from "@/lib/auth";
@@ -9,7 +11,13 @@ type AuthSession = {
   user: { email: string; id: string; name: string };
 };
 
-type RoleGuardPrisma = Pick<PrismaClient, "orgMembership">;
+type DbLike = {
+  query: {
+    orgMembership: {
+      findFirst: (args: unknown) => Promise<typeof orgMembership.$inferSelect | undefined>;
+    };
+  };
+};
 
 type AuthLike = {
   api: {
@@ -19,7 +27,7 @@ type AuthLike = {
 
 type RoleGuardDeps = {
   auth?: AuthLike;
-  prisma?: RoleGuardPrisma;
+  db?: DbLike;
 };
 
 type StaffContextVars = {
@@ -41,7 +49,7 @@ const buildRoleGuard = (
   deps: RoleGuardDeps = {},
 ): MiddlewareHandler => {
   const auth = deps.auth ?? (defaultAuth as unknown as AuthLike);
-  const prisma = deps.prisma ?? defaultPrisma;
+  const db = deps.db ?? defaultDb;
 
   return async (c: Context, next: Next) => {
     const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -49,12 +57,12 @@ const buildRoleGuard = (
       return unauthorized(c);
     }
 
-    const membership = await prisma.orgMembership.findFirst({
-      orderBy: { createdAt: "asc" },
-      where: {
-        role: { in: [...acceptedRoles] },
-        userId: session.user.id,
-      },
+    const membership = await db.query.orgMembership.findFirst({
+      orderBy: asc(orgMembership.createdAt),
+      where: and(
+        eq(orgMembership.userId, session.user.id),
+        inArray(orgMembership.role, [...acceptedRoles]),
+      ),
     });
 
     if (!membership) {
@@ -81,4 +89,4 @@ const requireAnyMember = (deps: RoleGuardDeps = {}): MiddlewareHandler =>
   buildRoleGuard(["OWNER", "STAFF", "CUSTOMER"], deps);
 
 export { buildRoleGuard, requireAnyMember, requireStaff };
-export type { AnyMemberContextVars, AuthLike, AuthSession, RoleGuardDeps, StaffContextVars };
+export type { AnyMemberContextVars, AuthLike, AuthSession, DbLike, RoleGuardDeps, StaffContextVars };

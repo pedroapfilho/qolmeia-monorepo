@@ -1,5 +1,5 @@
 import { createAuth } from "@repo/auth/server";
-import { prisma } from "@repo/db";
+import { db } from "@repo/db";
 import { nextCookies } from "better-auth/next-js";
 
 // Thin auth instance for server-side session validation only (RSC, proxy).
@@ -23,7 +23,7 @@ export const getAuth = (): Auth => {
     }
     cachedAuth = createAuth({
       extraPlugins: [nextCookies()],
-      prisma,
+      db,
       resendApiKey: process.env.RESEND_API_KEY,
       secret,
     });

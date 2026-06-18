@@ -115,11 +115,10 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle P2002 as 409 DUPLICATE_ENTRY", async () => {
+  it("should handle Postgres unique_violation (23505) as 409 DUPLICATE_ENTRY", async () => {
     const c = createMockContext();
     const err = Object.assign(new Error("Unique constraint failed"), {
-      clientVersion: "7.0.0",
-      code: "P2002",
+      code: "23505",
     });
 
     await errorHandler(err, c);
@@ -127,21 +126,6 @@ describe("errorHandler", () => {
     expect(c.json).toHaveBeenCalledWith(
       { error: { code: "DUPLICATE_ENTRY", message: "A record with this value already exists" } },
       409,
-    );
-  });
-
-  it("should handle P2025 as 404 NOT_FOUND", async () => {
-    const c = createMockContext();
-    const err = Object.assign(new Error("Record not found"), {
-      clientVersion: "7.0.0",
-      code: "P2025",
-    });
-
-    await errorHandler(err, c);
-
-    expect(c.json).toHaveBeenCalledWith(
-      { error: { code: "NOT_FOUND", message: "Record not found" } },
-      404,
     );
   });
 

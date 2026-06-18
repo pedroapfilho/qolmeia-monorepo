@@ -43,7 +43,7 @@ const nextConfig: NextConfig = {
       },
     ]),
 
-  serverExternalPackages: ["@prisma/client", "@repo/db"],
+  serverExternalPackages: ["pg", "@repo/db"],
 
   transpilePackages: ["@repo/ui"],
 };

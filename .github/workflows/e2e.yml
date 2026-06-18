@@ -51,7 +51,6 @@ jobs:
         with:
           runtime: node@24
           cache: true
-      - run: pnpm db:generate
       - run: pnpm db:push
       # Build auth + the two Next apps. `agents` (Cloudflare Worker) isn't
       # under test here — the auth flows we exercise terminate on the auth
