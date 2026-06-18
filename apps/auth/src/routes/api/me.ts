@@ -10,23 +10,23 @@ type DbLike = {
     orgMembership: {
       findMany: (args: unknown) => Promise<
         ReadonlyArray<{
-          orgId: string;
-          role: "OWNER" | "STAFF" | "CUSTOMER";
           createdAt: string;
           org: { id: string; name: string; slug: string };
+          orgId: string;
+          role: "OWNER" | "STAFF" | "CUSTOMER";
         }>
       >;
     };
     user: {
       findFirst: (args: unknown) => Promise<
         | {
-            id: string;
+            displayName: string | null;
             email: string;
             emailVerified: boolean;
-            name: string;
+            id: string;
             image: string | null;
+            name: string;
             username: string | null;
-            displayName: string | null;
           }
         | undefined
       >;

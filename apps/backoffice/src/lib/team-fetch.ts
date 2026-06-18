@@ -108,6 +108,7 @@ const fetchCompanies = async (cookie: string): Promise<Array<CompanyOverview>> =
   return ((await res.json()) as { companies: Array<CompanyOverview> }).companies;
 };
 
+// fallow-ignore-next-line unused-export
 export { fetchCompanies, fetchMember, fetchTeam };
 export type {
   AgentDisplayStatus,

@@ -62,18 +62,18 @@ export const safeCallbackPath = (value: string | null): string => {
 };
 
 type AuthConfig = {
+  db: typeof db;
   extraPlugins?: Array<BetterAuthPlugin>;
   fromEmail?: string;
-  db: typeof db;
   resendApiKey?: string;
   secret: string;
 };
 
 export const createAuth = (config: AuthConfig) => {
   const {
+    db: database,
     extraPlugins = [],
     fromEmail = "noreply@qolmeia.ai",
-    db: database,
     resendApiKey,
     secret,
   } = config;

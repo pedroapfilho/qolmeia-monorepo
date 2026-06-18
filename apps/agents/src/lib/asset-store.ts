@@ -170,5 +170,6 @@ const readAssetText = async (
   };
 };
 
+// fallow-ignore-next-line unused-export
 export { assetName, isTextMime, listCompanyAssets, persistTextAsset, readAssetText };
 export type { AssetKind, AssetSummary };

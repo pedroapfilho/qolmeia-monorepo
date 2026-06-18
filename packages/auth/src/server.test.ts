@@ -185,8 +185,8 @@ describe("Auth Server Configuration", () => {
   it("should include extra plugins in the resolved plugin list", () => {
     const mockPlugin = { id: "test-plugin", init: () => ({}) } as unknown as Plugin;
     const extendedAuth = createAuth({
-      extraPlugins: [mockPlugin],
       db,
+      extraPlugins: [mockPlugin],
       secret: "test-secret-minimum-32-characters-long",
     });
     const plugins = extendedAuth.options.plugins ?? [];

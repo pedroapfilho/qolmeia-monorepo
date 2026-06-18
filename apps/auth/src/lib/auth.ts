@@ -8,8 +8,8 @@ import { env } from "./env";
 // plugin set, rate-limit window). Constructed at module load so config
 // errors fail fast on boot rather than mid-request.
 const auth = createAuth({
-  fromEmail: env.AUTH_FROM_EMAIL ?? "noreply@qolmeia.ai",
   db,
+  fromEmail: env.AUTH_FROM_EMAIL ?? "noreply@qolmeia.ai",
   resendApiKey: env.RESEND_API_KEY,
   secret: env.BETTER_AUTH_SECRET,
 });

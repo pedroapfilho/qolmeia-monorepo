@@ -1,10 +1,11 @@
-import { db as defaultDb, orgMembership, orgRole } from "@repo/db";
+import { db as defaultDb, orgMembership } from "@repo/db";
+import type { orgRole } from "@repo/db";
 import { and, asc, eq, inArray } from "drizzle-orm";
-
-type OrgRole = (typeof orgRole.enumValues)[number];
 import type { Context, MiddlewareHandler, Next } from "hono";
 
 import { auth as defaultAuth } from "@/lib/auth";
+
+type OrgRole = (typeof orgRole.enumValues)[number];
 
 type AuthSession = {
   session: { id: string; userId: string };
@@ -89,4 +90,11 @@ const requireAnyMember = (deps: RoleGuardDeps = {}): MiddlewareHandler =>
   buildRoleGuard(["OWNER", "STAFF", "CUSTOMER"], deps);
 
 export { buildRoleGuard, requireAnyMember, requireStaff };
-export type { AnyMemberContextVars, AuthLike, AuthSession, DbLike, RoleGuardDeps, StaffContextVars };
+export type {
+  AnyMemberContextVars,
+  AuthLike,
+  AuthSession,
+  DbLike,
+  RoleGuardDeps,
+  StaffContextVars,
+};

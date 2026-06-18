@@ -31,15 +31,15 @@ const isPostgresError = (err: unknown): err is PostgresError =>
   err instanceof Error && "code" in err && typeof (err as PostgresError).code === "string";
 
 type DbLike = {
-  transaction: <T>(fn: (tx: DbLike) => Promise<T>) => Promise<T>;
-  insert: (
-    table: unknown,
-  ) => { values: (data: unknown) => { returning: () => Promise<ReadonlyArray<unknown>> } };
+  insert: (table: unknown) => {
+    values: (data: unknown) => { returning: () => Promise<ReadonlyArray<unknown>> };
+  };
   query: {
     organization: {
       findFirst: (args: unknown) => Promise<{ id: string; name: string; slug: string } | undefined>;
     };
   };
+  transaction: <T>(fn: (tx: DbLike) => Promise<T>) => Promise<T>;
 };
 
 type AuthLike = {
@@ -53,8 +53,8 @@ type AuthLike = {
 
 type OrgsRouteDeps = {
   auth?: AuthLike;
-  fetch?: typeof fetch;
   db?: DbLike;
+  fetch?: typeof fetch;
 };
 
 // Slug validator. Not a regex because oxlint's /v parser and V8's /v parser

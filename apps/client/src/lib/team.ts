@@ -127,16 +127,9 @@ const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> =
   return ((await res.json()) as { member: TeamMemberView }).member;
 };
 
-export {
-  AGENTS_URL,
-  fetchCatalogue,
-  fetchTeam,
-  hireMember,
-  patchMember,
-  setPaused,
-  STATUS_LABEL,
-  STATUS_VARIANT,
-};
+export { AGENTS_URL, fetchCatalogue, fetchTeam, hireMember, patchMember, setPaused, STATUS_LABEL };
+// fallow-ignore-next-line unused-export
+export { STATUS_VARIANT };
 export type {
   AgentDisplayStatus,
   HireableTemplate,

@@ -22,8 +22,8 @@ export const getAuth = (): Auth => {
       throw new Error("BETTER_AUTH_SECRET environment variable is required");
     }
     cachedAuth = createAuth({
-      extraPlugins: [nextCookies()],
       db,
+      extraPlugins: [nextCookies()],
       resendApiKey: process.env.RESEND_API_KEY,
       secret,
     });

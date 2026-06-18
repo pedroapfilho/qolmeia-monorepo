@@ -18,65 +18,80 @@ export const orgRole = pgEnum("OrgRole", ["OWNER", "STAFF", "CUSTOMER"]);
 export const organization = pgTable(
   "Organization",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    name: text().notNull(),
-    slug: text().notNull(),
-    timezone: text().notNull().default("America/Sao_Paulo"),
-    currency: text().notNull().default("BRL"),
     createdAt: timestamp({ mode: "string", precision: 3 })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
+    currency: text().notNull().default("BRL"),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    name: text().notNull(),
+    slug: text().notNull(),
+    timezone: text().notNull().default("America/Sao_Paulo"),
     updatedAt: timestamp({ mode: "string", precision: 3 })
       .notNull()
       .$onUpdate(() => new Date().toISOString()),
   },
   (table) => [
     index("Organization_slug_idx").using("btree", table.slug.asc().nullsLast().op("text_ops")),
-    uniqueIndex("Organization_slug_key").using("btree", table.slug.asc().nullsLast().op("text_ops")),
+    uniqueIndex("Organization_slug_key").using(
+      "btree",
+      table.slug.asc().nullsLast().op("text_ops"),
+    ),
   ],
 );
 
 export const user = pgTable(
   "User",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    email: text().notNull(),
-    emailVerified: boolean().default(false).notNull(),
-    name: text().notNull(),
-    image: text(),
-    username: text(),
-    displayUsername: text(),
-    displayName: text(),
     createdAt: timestamp({ mode: "string", precision: 3 })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
+    displayName: text(),
+    displayUsername: text(),
+    email: text().notNull(),
+    emailVerified: boolean().default(false).notNull(),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    image: text(),
+    name: text().notNull(),
     updatedAt: timestamp({ mode: "string", precision: 3 })
       .notNull()
       .$onUpdate(() => new Date().toISOString()),
+    username: text(),
   },
   (table) => [
     index("User_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
     uniqueIndex("User_email_key").using("btree", table.email.asc().nullsLast().op("text_ops")),
-    uniqueIndex("User_username_key").using("btree", table.username.asc().nullsLast().op("text_ops")),
+    uniqueIndex("User_username_key").using(
+      "btree",
+      table.username.asc().nullsLast().op("text_ops"),
+    ),
   ],
 );
 
 export const session = pgTable(
   "Session",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    userId: text().notNull(),
-    expiresAt: timestamp({ mode: "string", precision: 3 }).notNull(),
-    token: text().notNull(),
-    ipAddress: text(),
-    userAgent: text(),
-    impersonatedBy: text(),
     createdAt: timestamp({ mode: "string", precision: 3 })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
+    expiresAt: timestamp({ mode: "string", precision: 3 }).notNull(),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    impersonatedBy: text(),
+    ipAddress: text(),
+    token: text().notNull(),
     updatedAt: timestamp({ mode: "string", precision: 3 })
       .notNull()
       .$onUpdate(() => new Date().toISOString()),
+    userAgent: text(),
+    userId: text().notNull(),
   },
   (table) => [
     uniqueIndex("Session_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
@@ -94,23 +109,26 @@ export const session = pgTable(
 export const account = pgTable(
   "Account",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    userId: text().notNull(),
-    accountId: text().notNull(),
-    providerId: text().notNull(),
     accessToken: text(),
-    refreshToken: text(),
-    idToken: text(),
     accessTokenExpiresAt: timestamp({ mode: "string", precision: 3 }),
-    refreshTokenExpiresAt: timestamp({ mode: "string", precision: 3 }),
-    scope: text(),
-    password: text(),
+    accountId: text().notNull(),
     createdAt: timestamp({ mode: "string", precision: 3 })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    idToken: text(),
+    password: text(),
+    providerId: text().notNull(),
+    refreshToken: text(),
+    refreshTokenExpiresAt: timestamp({ mode: "string", precision: 3 }),
+    scope: text(),
     updatedAt: timestamp({ mode: "string", precision: 3 })
       .notNull()
       .$onUpdate(() => new Date().toISOString()),
+    userId: text().notNull(),
   },
   (table) => [
     index("Account_providerId_accountId_idx").using(
@@ -132,16 +150,19 @@ export const account = pgTable(
 export const verification = pgTable(
   "Verification",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    identifier: text().notNull(),
-    value: text().notNull(),
-    expiresAt: timestamp({ mode: "string", precision: 3 }).notNull(),
     createdAt: timestamp({ mode: "string", precision: 3 })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
+    expiresAt: timestamp({ mode: "string", precision: 3 }).notNull(),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    identifier: text().notNull(),
     updatedAt: timestamp({ mode: "string", precision: 3 })
       .notNull()
       .$onUpdate(() => new Date().toISOString()),
+    value: text().notNull(),
   },
   (table) => [
     index("Verification_identifier_idx").using(
@@ -154,9 +175,12 @@ export const verification = pgTable(
 export const rateLimit = pgTable(
   "RateLimit",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    key: text().notNull(),
     count: integer().notNull(),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    key: text().notNull(),
     lastRequest: bigint({ mode: "number" }).notNull(),
   },
   (table) => [
@@ -167,16 +191,19 @@ export const rateLimit = pgTable(
 export const orgMembership = pgTable(
   "OrgMembership",
   {
-    id: text().primaryKey().notNull().$defaultFn(() => createId()),
-    userId: text().notNull(),
-    orgId: text().notNull(),
-    role: orgRole().notNull(),
     createdAt: timestamp({ mode: "string", precision: 3 })
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
+    id: text()
+      .primaryKey()
+      .notNull()
+      .$defaultFn(() => createId()),
+    orgId: text().notNull(),
+    role: orgRole().notNull(),
     updatedAt: timestamp({ mode: "string", precision: 3 })
       .notNull()
       .$onUpdate(() => new Date().toISOString()),
+    userId: text().notNull(),
   },
   (table) => [
     index("OrgMembership_orgId_role_idx").using(

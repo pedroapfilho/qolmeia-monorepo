@@ -1,8 +1,13 @@
 {
   "name": "@repo/db",
-  "files": ["dist/**", "src/**"],
+  "files": [
+    "dist/**",
+    "src/**"
+  ],
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsdown",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
@@ -15,7 +20,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-"db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",

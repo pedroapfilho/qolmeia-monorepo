@@ -4,11 +4,11 @@ The repo only codifies the Worker deploy; auth and the Next apps had no target, 
 
 **Decision — hosting:**
 
-| Piece | Host | Notes |
-| --- | --- | --- |
-| `apps/agents` (worker-bees) | **Cloudflare** | `wrangler deploy`; D1, R2, KV, Vectorize, Workflows |
-| `apps/auth` + **Postgres** | **Railway** | Hono/Node service + managed Postgres (Better Auth tables) |
-| `apps/client`, `apps/backoffice` | **Vercel** | two Next 16 projects |
+| Piece                            | Host           | Notes                                                     |
+| -------------------------------- | -------------- | --------------------------------------------------------- |
+| `apps/agents` (worker-bees)      | **Cloudflare** | `wrangler deploy`; D1, R2, KV, Vectorize, Workflows       |
+| `apps/auth` + **Postgres**       | **Railway**    | Hono/Node service + managed Postgres (Better Auth tables) |
+| `apps/client`, `apps/backoffice` | **Vercel**     | two Next 16 projects                                      |
 
 **Decision — domains + auth cookie:** everything under **`qolmeia.com`** (e.g. `app.` = client, `admin.` = backoffice, `auth.` = auth, `api.` = Worker; exact names TBD). The session is a **cross-subdomain cookie on `.qolmeia.com`**:
 
@@ -26,5 +26,5 @@ Chosen over **proxying** (the dev model, where each Next app rewrites `/api/auth
 
 ## Consequences
 
-- Better Auth needs `crossSubDomainCookies` + `trustedOrigins` for the prod subdomains; prod differs from dev in the auth *model* (cross-origin), not just URLs — the one place dev and prod diverge.
+- Better Auth needs `crossSubDomainCookies` + `trustedOrigins` for the prod subdomains; prod differs from dev in the auth _model_ (cross-origin), not just URLs — the one place dev and prod diverge.
 - A future CD pipeline (currently only check workflows exist) would wire these three deploys; until then it's manual.

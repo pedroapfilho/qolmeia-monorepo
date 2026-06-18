@@ -1,12 +1,12 @@
 # Asset library: customer/agent folders, kept separate from agent memory
 
-`/assets` started as one shared pile that conflated three different things: files the customer should see, working material only the agents need, and "things the agent should remember." Auto-capture made it worse by dumping *every* Worker text deliverable in as a `knowledge_doc`.
+`/assets` started as one shared pile that conflated three different things: files the customer should see, working material only the agents need, and "things the agent should remember." Auto-capture made it worse by dumping _every_ Worker text deliverable in as a `knowledge_doc`.
 
 **Decision:** there are **three distinct stores**, and we stop merging them.
 
 ## 1. Library — files in R2, split into two folders per Company
 
-- **`customer` folder** — visible to the customer *and* the agents. Finished deliverables and the customer's own uploads live here.
+- **`customer` folder** — visible to the customer _and_ the agents. Finished deliverables and the customer's own uploads live here.
   - Contains a **`brand/` subfolder** = brand identity (logo, palette, references). The "Identidade da Marca" settings section writes here; this is today's `brand_asset` kind.
 - **`agent` folder** — agent-only working material: raw `fetchUrl` scrapes, intermediate drafts, scratch files. The customer never sees it.
 - Assets gain a **`visibility`** field (`customer` | `agent`). `/api/me/assets` returns only `customer`; the agent skills (`listAssets`/`readAsset`/`saveAsset`) reach both. R2 keys move under the folder prefix: `org_<companyId>/customer/...` and `org_<companyId>/agent/...`. Structure within each folder can evolve.

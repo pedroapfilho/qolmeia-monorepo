@@ -2,9 +2,9 @@ import { serve } from "@hono/node-server";
 import { createRoute, z } from "@hono/zod-openapi";
 import { db } from "@repo/db";
 import { createIdentify } from "@repo/observability/auth";
-import { sql } from "drizzle-orm";
 import { honoEvlog, initApiLogger } from "@repo/observability/hono";
 import { createMarkdownFromOpenApi } from "@scalar/openapi-to-markdown";
+import { sql } from "drizzle-orm";
 import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 

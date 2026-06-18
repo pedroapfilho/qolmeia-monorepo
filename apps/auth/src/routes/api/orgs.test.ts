@@ -175,7 +175,7 @@ describe("POST /api/orgs", () => {
   it("rolls back (no 201) when the OWNER membership write fails inside the transaction", async () => {
     const db = buildDb();
     // Override transaction to simulate a failure on the second insert (membership)
-    db.transaction.mockImplementationOnce(async (callback: (tx: typeof db) => Promise<unknown>) => {
+    db.transaction.mockImplementationOnce((callback: (tx: typeof db) => Promise<unknown>) => {
       let callCount = 0;
       const failingDb = {
         ...db,

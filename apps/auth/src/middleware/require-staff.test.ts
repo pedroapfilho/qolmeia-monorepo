@@ -18,18 +18,14 @@ const buildAuth = (session: unknown) => ({
 const buildDb = (memberships: ReadonlyArray<Membership>) => ({
   query: {
     orgMembership: {
-      findFirst: vi.fn(
-        (args: {
-          where: unknown;
-          orderBy: unknown;
-        }) => {
-          // The real query filters by userId + role and orders by createdAt asc.
-          // We replicate that logic here so tests remain behaviour-equivalent.
-          const match = memberships
-            .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
-          return Promise.resolve(match ?? undefined);
-        },
-      ),
+      findFirst: vi.fn((_args: { orderBy: unknown; where: unknown }) => {
+        // The real query filters by userId + role and orders by createdAt asc.
+        // We replicate that logic here so tests remain behaviour-equivalent.
+        const match = memberships.toSorted(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+        )[0];
+        return Promise.resolve(match ?? undefined);
+      }),
     },
   },
 });
@@ -53,9 +49,7 @@ describe("requireStaff", () => {
   it("returns 401 when there is no session", async () => {
     const auth = buildAuth(null);
     const db = buildDb([]);
-    const app = buildApp(requireStaff({ auth, db: db as never }), (c) =>
-      c.json({ ok: true }),
-    );
+    const app = buildApp(requireStaff({ auth, db: db as never }), (c) => c.json({ ok: true }));
 
     const res = await app.fetch(new Request("http://localhost/x"));
 
@@ -76,9 +70,7 @@ describe("requireStaff", () => {
         },
       },
     };
-    const app = buildApp(requireStaff({ auth, db: db as never }), (c) =>
-      c.json({ ok: true }),
-    );
+    const app = buildApp(requireStaff({ auth, db: db as never }), (c) => c.json({ ok: true }));
 
     const res = await app.fetch(new Request("http://localhost/x"));
 
@@ -207,9 +199,7 @@ describe("requireAnyMember", () => {
         },
       },
     };
-    const app = buildApp(requireAnyMember({ auth, db: db as never }), (c) =>
-      c.json({ ok: true }),
-    );
+    const app = buildApp(requireAnyMember({ auth, db: db as never }), (c) => c.json({ ok: true }));
     const res = await app.fetch(new Request("http://localhost/x"));
     expect(res.status).toBe(403);
   });

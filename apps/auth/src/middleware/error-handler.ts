@@ -76,18 +76,16 @@ export const errorHandler = (err: Error, c: Context) => {
     );
   }
 
-  if (isPostgresError(err)) {
-    if (err.code === "23505") {
-      return c.json(
-        {
-          error: {
-            code: "DUPLICATE_ENTRY",
-            message: "A record with this value already exists",
-          },
+  if (isPostgresError(err) && err.code === "23505") {
+    return c.json(
+      {
+        error: {
+          code: "DUPLICATE_ENTRY",
+          message: "A record with this value already exists",
         },
-        409 as const,
-      );
-    }
+      },
+      409 as const,
+    );
   }
 
   const message = env.NODE_ENV === "production" ? "An unexpected error occurred" : err.message;

@@ -27,7 +27,7 @@ const buildMockDb = () => {
   let insertCallCount = 0;
 
   const db = {
-    insert: vi.fn((table: unknown) => {
+    insert: vi.fn((_table: unknown) => {
       insertCallCount++;
       const callIndex = insertCallCount;
       return {
@@ -69,20 +69,15 @@ const buildMockDb = () => {
         }),
       },
     },
-    transaction: vi.fn(
-      (callback: (tx: typeof db) => Promise<unknown>): Promise<unknown> => {
-        insertCallCount = 0;
-        return callback(db);
-      },
-    ),
+    transaction: vi.fn((callback: (tx: typeof db) => Promise<unknown>): Promise<unknown> => {
+      insertCallCount = 0;
+      return callback(db);
+    }),
   };
   return db;
 };
 
-const buildV1WithMocks = (
-  guard: MiddlewareHandler,
-  db: ReturnType<typeof buildMockDb>,
-): Hono =>
+const buildV1WithMocks = (guard: MiddlewareHandler, db: ReturnType<typeof buildMockDb>): Hono =>
   buildApiRoutes({
     memberGuard: guard,
     routes: {

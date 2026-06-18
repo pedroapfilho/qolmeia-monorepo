@@ -87,8 +87,8 @@ const upsertMembership = async (
     .insert(orgMembership)
     .values({ orgId: ORG_ID, role, userId })
     .onConflictDoUpdate({
-      target: [orgMembership.userId, orgMembership.orgId],
       set: { role, updatedAt: new Date().toISOString() },
+      target: [orgMembership.userId, orgMembership.orgId],
     });
 };
 

@@ -134,12 +134,8 @@
           "name": "Account_userId_fkey",
           "tableFrom": "Account",
           "tableTo": "User",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -246,12 +242,8 @@
           "name": "OrgMembership_userId_fkey",
           "tableFrom": "OrgMembership",
           "tableTo": "User",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -259,12 +251,8 @@
           "name": "OrgMembership_orgId_fkey",
           "tableFrom": "OrgMembership",
           "tableTo": "Organization",
-          "columnsFrom": [
-            "orgId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["orgId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -519,12 +507,8 @@
           "name": "Session_userId_fkey",
           "tableFrom": "Session",
           "tableTo": "User",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -731,11 +715,7 @@
     "public.OrgRole": {
       "name": "OrgRole",
       "schema": "public",
-      "values": [
-        "OWNER",
-        "STAFF",
-        "CUSTOMER"
-      ]
+      "values": ["OWNER", "STAFF", "CUSTOMER"]
     }
   },
   "schemas": {},
