@@ -62,6 +62,19 @@ describe("Auth Server Configuration", () => {
     expect(httpAuth.options.advanced?.useSecureCookies).toBe(false);
   });
 
+  it("should NOT set crossSubDomainCookies without COOKIE_DOMAIN (dev stays same-origin)", () => {
+    expect(auth.options.advanced?.crossSubDomainCookies).toBeUndefined();
+  });
+
+  it("should enable crossSubDomainCookies on the parent when COOKIE_DOMAIN is set", () => {
+    vi.stubEnv("COOKIE_DOMAIN", ".qolmeia.com");
+    const prodAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    expect(prodAuth.options.advanced?.crossSubDomainCookies).toEqual({
+      domain: ".qolmeia.com",
+      enabled: true,
+    });
+  });
+
   it("should configure dynamic baseURL with allowedHosts + protocol auto", () => {
     const baseURL = auth.options.baseURL;
     if (typeof baseURL !== "object" || baseURL === null) {
