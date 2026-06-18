@@ -195,7 +195,8 @@ const generateBrandImageSkill: UnknownSkill = {
     }
     const { bytes, mime } = decoded;
     const sha = await sha256Hex(bytes);
-    const key = `org_${ctx.companyId}/${sha}.${extByMime(mime)}`;
+    // Generated images are customer deliverables (ADR 0007) — customer folder.
+    const key = `org_${ctx.companyId}/customer/${sha}.${extByMime(mime)}`;
 
     await uploadAsset(
       { ASSETS: ctx.env.ASSETS },

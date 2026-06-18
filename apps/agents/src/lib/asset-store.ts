@@ -8,6 +8,10 @@ import { fetchAsset, uploadAsset } from "@/lib/r2";
 
 type AssetKind = "audio" | "brand_asset" | "generated_image" | "knowledge_doc" | "user_upload";
 
+// Which folder an asset lives in (ADR 0007). `customer` is visible to the
+// customer and the agents; `agent` is agent-only working material.
+type AssetVisibility = "agent" | "customer";
+
 type AssetSummary = {
   bytes: number;
   createdAt: number;
@@ -15,6 +19,7 @@ type AssetSummary = {
   kind: AssetKind;
   mime: string;
   name: string;
+  visibility: AssetVisibility;
 };
 
 type AssetRow = {
@@ -24,7 +29,10 @@ type AssetRow = {
   kind: string;
   metadata: string | null;
   mime: string;
+  visibility: string;
 };
+
+const toVisibility = (raw: string): AssetVisibility => (raw === "agent" ? "agent" : "customer");
 
 const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
@@ -69,6 +77,9 @@ type PersistTextInput = {
   mime?: string;
   name: string;
   text: string;
+  // Which folder to file it under (ADR 0007). Defaults to `customer` — a saved
+  // text deliverable is something the customer should see.
+  visibility?: AssetVisibility;
 };
 
 // Persist a text deliverable (markdown by default) as a `knowledge_doc` asset.
@@ -78,10 +89,11 @@ const persistTextAsset = async (
   input: PersistTextInput,
 ): Promise<{ assetId: string }> => {
   const mime = input.mime ?? "text/markdown";
+  const visibility = input.visibility ?? "customer";
   const bytes = new TextEncoder().encode(input.text);
   const sha = await sha256Hex(bytes);
   const ext = EXT_BY_MIME[mime] ?? "txt";
-  const r2Key = `org_${input.companyId}/${sha}.${ext}`;
+  const r2Key = `org_${input.companyId}/${visibility}/${sha}.${ext}`;
 
   await uploadAsset(
     { ASSETS: env.ASSETS },
@@ -91,8 +103,8 @@ const persistTextAsset = async (
   const candidateId = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT OR IGNORE INTO asset
-       (id, company_id, kind, r2_key, sha256, mime, bytes, metadata, created_at)
-     VALUES (?, ?, 'knowledge_doc', ?, ?, ?, ?, ?, ?)`,
+       (id, company_id, kind, r2_key, sha256, mime, bytes, metadata, visibility, created_at)
+     VALUES (?, ?, 'knowledge_doc', ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       candidateId,
@@ -102,6 +114,7 @@ const persistTextAsset = async (
       mime,
       bytes.length,
       JSON.stringify({ name: input.name, ...input.extraMeta }),
+      visibility,
       Date.now(),
     )
     .run();
@@ -113,26 +126,33 @@ const persistTextAsset = async (
   return { assetId: existing?.id ?? candidateId };
 };
 
+// Lists assets for a company. Agents call this with no `visibility` and see
+// both folders; the customer surface passes `visibility: 'customer'` to hide
+// agent working material (ADR 0007).
 const listCompanyAssets = async (
   db: D1Database,
   companyId: string,
-  options: { kind?: AssetKind; limit?: number } = {},
+  options: { kind?: AssetKind; limit?: number; visibility?: AssetVisibility } = {},
 ): Promise<Array<AssetSummary>> => {
   const limit = Math.min(options.limit ?? 100, 200);
-  const cursor = options.kind
-    ? db
-        .prepare(
-          `SELECT id, kind, mime, bytes, metadata, created_at FROM asset
-            WHERE company_id = ? AND kind = ? ORDER BY created_at DESC LIMIT ?`,
-        )
-        .bind(companyId, options.kind, limit)
-    : db
-        .prepare(
-          `SELECT id, kind, mime, bytes, metadata, created_at FROM asset
-            WHERE company_id = ? ORDER BY created_at DESC LIMIT ?`,
-        )
-        .bind(companyId, limit);
-  const { results } = await cursor.all<AssetRow>();
+  const clauses: Array<string> = ["company_id = ?"];
+  const params: Array<number | string> = [companyId];
+  if (options.kind) {
+    clauses.push("kind = ?");
+    params.push(options.kind);
+  }
+  if (options.visibility) {
+    clauses.push("visibility = ?");
+    params.push(options.visibility);
+  }
+  params.push(limit);
+  const { results } = await db
+    .prepare(
+      `SELECT id, kind, mime, bytes, metadata, visibility, created_at FROM asset
+        WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC LIMIT ?`,
+    )
+    .bind(...params)
+    .all<AssetRow>();
   return results.map((row) => ({
     bytes: row.bytes,
     createdAt: row.created_at,
@@ -140,6 +160,7 @@ const listCompanyAssets = async (
     kind: toAssetKind(row.kind),
     mime: row.mime,
     name: assetName(safeJson<unknown>(row.metadata, null), row.id, row.kind),
+    visibility: toVisibility(row.visibility),
   }));
 };
 
@@ -171,4 +192,4 @@ const readAssetText = async (
 };
 
 export { assetName, isTextMime, listCompanyAssets, persistTextAsset, readAssetText };
-export type { AssetKind, AssetSummary };
+export type { AssetKind, AssetSummary, AssetVisibility };

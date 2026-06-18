@@ -56,4 +56,31 @@ describe("asset-store", () => {
     const read = await readAssetText(env as Env, "co_other_tenant", assetId);
     expect(read).toBeNull();
   });
+
+  it("defaults to the customer folder; honors the agent folder (ADR 0007)", async () => {
+    const customer = await persistTextAsset(env as Env, {
+      companyId: COMPANY_ID,
+      name: "Entrega",
+      text: "documento de entrega para o cliente",
+    });
+    const agentScratch = await persistTextAsset(env as Env, {
+      companyId: COMPANY_ID,
+      name: "Recorte",
+      text: "rascunho interno do agente",
+      visibility: "agent",
+    });
+
+    const customerOnly = await listCompanyAssets(env.DB, COMPANY_ID, { visibility: "customer" });
+    expect(customerOnly.find((a) => a.id === customer.assetId)?.visibility).toBe("customer");
+    expect(customerOnly.find((a) => a.id === agentScratch.assetId)).toBeUndefined();
+
+    const agentOnly = await listCompanyAssets(env.DB, COMPANY_ID, { visibility: "agent" });
+    expect(agentOnly.find((a) => a.id === agentScratch.assetId)?.visibility).toBe("agent");
+    expect(agentOnly.find((a) => a.id === customer.assetId)).toBeUndefined();
+
+    // No visibility filter = the agent sees both folders.
+    const both = await listCompanyAssets(env.DB, COMPANY_ID);
+    expect(both.find((a) => a.id === customer.assetId)).toBeTruthy();
+    expect(both.find((a) => a.id === agentScratch.assetId)).toBeTruthy();
+  });
 });

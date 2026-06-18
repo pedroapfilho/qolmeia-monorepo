@@ -17,15 +17,21 @@ const ASSET_KINDS = [
 ] as const;
 
 const listAssetsInputSchema = z.object({
+  folder: z
+    .enum(["agent", "customer"])
+    .optional()
+    .describe(
+      "Filtrar por pasta: 'customer' (entregas/uploads do cliente) ou 'agent' (material de trabalho). Omita para ver as duas.",
+    ),
   kind: z.enum(ASSET_KINDS).optional().describe("Filtrar por tipo. Omita para listar tudo."),
 });
 
 const listAssetsSkill: UnknownSkill = {
   description:
-    "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads) — use para descobrir o que já foi criado antes.",
+    "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads) — use para descobrir o que já foi criado antes. Você enxerga as duas pastas (cliente e agente).",
   async execute(input: unknown, ctx: SkillContext): Promise<{ assets: unknown }> {
-    const { kind } = listAssetsInputSchema.parse(input);
-    const assets = await listCompanyAssets(ctx.env.DB, ctx.companyId, { kind });
+    const { folder, kind } = listAssetsInputSchema.parse(input);
+    const assets = await listCompanyAssets(ctx.env.DB, ctx.companyId, { kind, visibility: folder });
     return { assets };
   },
   id: "listAssets",
@@ -56,6 +62,12 @@ const readAssetSkill: UnknownSkill = {
 
 const saveAssetInputSchema = z.object({
   content: z.string().min(1).describe("O conteúdo do arquivo (texto/markdown)."),
+  folder: z
+    .enum(["agent", "customer"])
+    .optional()
+    .describe(
+      "'customer' (default) = entrega que o cliente vê na biblioteca; 'agent' = material de trabalho interno (rascunhos, recortes) que o cliente não vê.",
+    ),
   mime: z
     .enum(["application/json", "text/csv", "text/markdown", "text/plain"])
     .optional()
@@ -65,10 +77,16 @@ const saveAssetInputSchema = z.object({
 
 const saveAssetSkill: UnknownSkill = {
   description:
-    "Salva um documento de texto na biblioteca da empresa para que o cliente e os outros agentes possam acessá-lo depois.",
+    "Salva um documento de texto na biblioteca da empresa. Use 'customer' para uma entrega final que o cliente deve ver, ou 'agent' para material de trabalho interno.",
   execute(input: unknown, ctx: SkillContext): Promise<{ assetId: string }> {
-    const { content, mime, name } = saveAssetInputSchema.parse(input);
-    return persistTextAsset(ctx.env, { companyId: ctx.companyId, mime, name, text: content });
+    const { content, folder, mime, name } = saveAssetInputSchema.parse(input);
+    return persistTextAsset(ctx.env, {
+      companyId: ctx.companyId,
+      mime,
+      name,
+      text: content,
+      visibility: folder,
+    });
   },
   id: "saveAsset",
   inputSchema: saveAssetInputSchema,
