@@ -54,21 +54,6 @@ type CompanyOverview = {
   status: CompanyStatus;
 };
 
-const fetchTeam = async (companyId: string, cookie: string): Promise<Array<TeamMemberView>> => {
-  const res = await fetch(`${AGENTS_SERVER_URL}/api/backoffice/teams/${companyId}/members`, {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(cookie ? { Cookie: cookie } : {}),
-    },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ApiError(res.status, body);
-  }
-  return ((await res.json()) as { members: Array<TeamMemberView> }).members;
-};
-
 const fetchMember = async (
   companyId: string,
   memberId: string,
@@ -108,7 +93,7 @@ const fetchCompanies = async (cookie: string): Promise<Array<CompanyOverview>> =
   return ((await res.json()) as { companies: Array<CompanyOverview> }).companies;
 };
 
-export { fetchCompanies, fetchMember, fetchTeam };
+export { fetchCompanies, fetchMember };
 export type {
   AgentDisplayStatus,
   CompanyOverview,

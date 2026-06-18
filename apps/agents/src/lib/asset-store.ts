@@ -191,5 +191,5 @@ const readAssetText = async (
   };
 };
 
-export { assetName, isTextMime, listCompanyAssets, persistTextAsset, readAssetText };
+export { assetName, listCompanyAssets, persistTextAsset, readAssetText };
 export type { AssetKind, AssetSummary, AssetVisibility };

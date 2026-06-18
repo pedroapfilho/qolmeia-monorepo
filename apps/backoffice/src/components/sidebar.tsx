@@ -75,7 +75,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/tickets", icon: TicketsIcon, label: "Tickets" },
   { href: "/teams", icon: TeamsIcon, label: "Times" },
   { href: "/activity", icon: ActivityIcon, label: "Atividade" },
-  { href: "/coverage", icon: CoverageIcon, label: "Cobertura" },
+  { href: "/cobertura", icon: CoverageIcon, label: "Cobertura" },
 ];
 
 const isActive = (pathname: string, href: string): boolean => {

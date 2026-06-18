@@ -54,13 +54,6 @@ const STATUS_LABEL: Record<AgentDisplayStatus, string> = {
   working: "Trabalhando",
 };
 
-const STATUS_VARIANT: Record<AgentDisplayStatus, "success" | "warning" | "info" | "muted"> = {
-  available: "success",
-  awaiting_approval: "warning",
-  paused: "muted",
-  working: "info",
-};
-
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 const apiUrl = (path: string): string => `${AGENTS_URL}${path}`;
@@ -127,16 +120,7 @@ const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> =
   return ((await res.json()) as { member: TeamMemberView }).member;
 };
 
-export {
-  AGENTS_URL,
-  fetchCatalogue,
-  fetchTeam,
-  hireMember,
-  patchMember,
-  setPaused,
-  STATUS_LABEL,
-  STATUS_VARIANT,
-};
+export { AGENTS_URL, fetchCatalogue, fetchTeam, hireMember, patchMember, setPaused, STATUS_LABEL };
 export type {
   AgentDisplayStatus,
   HireableTemplate,
