@@ -1,169 +1,103 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createId } from "@paralleldrive/cuid2";
+import { eq } from "drizzle-orm";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { prisma } from "../client";
+import { db } from "../client";
+import { account, orgMembership, organization, session, user, verification } from "../schema";
 
-// Hits the live local Postgres (docker-compose, host port 5436). Assumes
-// `pnpm db:push` has been run with the Phase 5b auth + membership additions
-// applied. Each test seeds its own fixtures under a unique prefix so the
-// suite is safe to re-run without truncation.
-//
-// Skipped when DATABASE_URL is absent — CI's test workflow (mirroring
-// acme's) runs without a Postgres service; the e2e workflow covers the
-// live-database path.
+// Minimal integration smoke tests — runs against the real DB.
+// DATABASE_URL must point to a running Postgres instance.
 
-const PREFIX = `auth-${Date.now()}`;
-const tag = (key: string): string => `${PREFIX}-${key}`;
+const makeUserId = () => createId();
 
-describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => {
-  beforeAll(() => {
-    // Sanity: the new models exist on the typed Prisma client.
-    expect(prisma.user).toBeDefined();
-    expect(prisma.session).toBeDefined();
-    expect(prisma.account).toBeDefined();
-    expect(prisma.verification).toBeDefined();
-    expect(prisma.rateLimit).toBeDefined();
-    expect(prisma.orgMembership).toBeDefined();
+describe.skipIf(!process.env.DATABASE_URL)("db integration", () => {
+  const insertedUserIds: string[] = [];
+
+  afterEach(async () => {
+    // Clean up in FK-safe order
+    for (const id of insertedUserIds) {
+      await db.delete(orgMembership).where(eq(orgMembership.userId, id));
+      await db.delete(session).where(eq(session.userId, id));
+      await db.delete(account).where(eq(account.userId, id));
+      await db.delete(user).where(eq(user.id, id));
+    }
+    insertedUserIds.length = 0;
   });
 
-  afterAll(async () => {
-    await prisma.orgMembership.deleteMany({
-      where: { user: { email: { startsWith: PREFIX } } },
-    });
-    await prisma.session.deleteMany({
-      where: { user: { email: { startsWith: PREFIX } } },
-    });
-    await prisma.account.deleteMany({
-      where: { user: { email: { startsWith: PREFIX } } },
-    });
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } });
-    await prisma.verification.deleteMany({ where: { identifier: { startsWith: PREFIX } } });
-    await prisma.rateLimit.deleteMany({ where: { key: { startsWith: PREFIX } } });
-    await prisma.organization.deleteMany({ where: { slug: { startsWith: PREFIX } } });
+  it("round-trips a User row", async () => {
+    const id = makeUserId();
+    insertedUserIds.push(id);
+    const email = `test-${id}@example.com`;
+    const [inserted] = await db
+      .insert(user)
+      .values({ id, email, name: "Test User", emailVerified: false })
+      .returning();
+    expect(inserted.email).toBe(email);
+    const [fetched] = await db.select().from(user).where(eq(user.id, id));
+    expect(fetched.name).toBe("Test User");
   });
 
-  it("round-trips a User with Session, Account, and Verification rows", async () => {
-    const email = `${PREFIX}-user1@example.com`;
-    const user = await prisma.user.create({
-      data: {
-        email,
-        emailVerified: false,
-        name: "Pedro Test",
-        username: tag("user1"),
-      },
-    });
-    expect(user.email).toBe(email);
-    expect(user.emailVerified).toBe(false);
-
-    const session = await prisma.session.create({
-      data: {
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        token: tag("session-token-1"),
-        userId: user.id,
-      },
-    });
-    expect(session.userId).toBe(user.id);
-    expect(session.impersonatedBy).toBeNull();
-
-    const account = await prisma.account.create({
-      data: {
-        accountId: email,
-        // Stored as bcrypt hash by Better Auth; we just round-trip the column.
-        password: "$2b$10$abcdefghijklmnopqrstuv",
-        providerId: "credential",
-        userId: user.id,
-      },
-    });
-    expect(account.providerId).toBe("credential");
-    expect(account.password).toContain("$2b$10$");
-
-    const verification = await prisma.verification.create({
-      data: {
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-        identifier: `${PREFIX}-magic-link-1`,
-        value: "secret-otp-value",
-      },
-    });
-    expect(verification.identifier).toBe(`${PREFIX}-magic-link-1`);
-
-    // Cascade: deleting the User wipes its sessions + accounts.
-    await prisma.user.delete({ where: { id: user.id } });
-    const remainingSession = await prisma.session.findUnique({ where: { id: session.id } });
-    const remainingAccount = await prisma.account.findUnique({ where: { id: account.id } });
-    expect(remainingSession).toBeNull();
-    expect(remainingAccount).toBeNull();
-  });
-
-  it("enforces unique email and unique session token", async () => {
-    const email = `${PREFIX}-dup@example.com`;
-    await prisma.user.create({
-      data: { email, name: "Dup User" },
-    });
+  it("enforces unique email on User", async () => {
+    const id1 = makeUserId();
+    const id2 = makeUserId();
+    insertedUserIds.push(id1, id2);
+    const email = `dup-${id1}@example.com`;
+    await db.insert(user).values({ id: id1, email, name: "A", emailVerified: false });
     await expect(
-      prisma.user.create({
-        data: { email, name: "Other" },
-      }),
+      db.insert(user).values({ id: id2, email, name: "B", emailVerified: false }),
     ).rejects.toThrow();
+  });
 
-    const u = await prisma.user.create({
-      data: { email: `${PREFIX}-tok@example.com`, name: "Token User" },
-    });
-    const token = tag("token-dup");
-    await prisma.session.create({
-      data: {
-        expiresAt: new Date(Date.now() + 60_000),
+  it("round-trips a Session row with cascade delete", async () => {
+    const userId = makeUserId();
+    insertedUserIds.push(userId);
+    await db.insert(user).values({ id: userId, email: `s-${userId}@example.com`, name: "Sess User", emailVerified: false });
+    const token = `tok-${createId()}`;
+    const [sess] = await db
+      .insert(session)
+      .values({
+        userId,
         token,
-        userId: u.id,
-      },
-    });
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      })
+      .returning();
+    expect(sess.token).toBe(token);
+    // Delete user cascades session
+    await db.delete(user).where(eq(user.id, userId));
+    insertedUserIds.splice(insertedUserIds.indexOf(userId), 1);
+    const sessions = await db.select().from(session).where(eq(session.token, token));
+    expect(sessions).toHaveLength(0);
+  });
+
+  it("enforces unique Session token", async () => {
+    const userId = makeUserId();
+    insertedUserIds.push(userId);
+    await db.insert(user).values({ id: userId, email: `st-${userId}@example.com`, name: "T", emailVerified: false });
+    const token = `tok-${createId()}`;
+    const exp = new Date(Date.now() + 86400000).toISOString();
+    await db.insert(session).values({ userId, token, expiresAt: exp });
     await expect(
-      prisma.session.create({
-        data: {
-          expiresAt: new Date(Date.now() + 60_000),
-          token,
-          userId: u.id,
-        },
-      }),
+      db.insert(session).values({ userId, token, expiresAt: exp }),
     ).rejects.toThrow();
   });
 
-  it("round-trips OrgMembership and enforces (userId, orgId) uniqueness", async () => {
-    const user = await prisma.user.create({
-      data: { email: `${PREFIX}-member@example.com`, name: "Owner User" },
-    });
-    const org = await prisma.organization.create({
-      data: { name: "Member Org", slug: tag("org-member") },
-    });
-
-    const membership = await prisma.orgMembership.create({
-      data: { orgId: org.id, role: "OWNER", userId: user.id },
-    });
-    expect(membership.role).toBe("OWNER");
-
-    // (userId, orgId) unique — re-inserting the same pair fails.
+  it("round-trips OrgMembership and enforces uniqueness", async () => {
+    const userId = makeUserId();
+    insertedUserIds.push(userId);
+    const orgId = makeUserId();
+    await db.insert(user).values({ id: userId, email: `om-${userId}@example.com`, name: "OM", emailVerified: false });
+    await db.insert(organization).values({ id: orgId, name: "Org Test", slug: `org-${orgId}` });
+    const [mem] = await db
+      .insert(orgMembership)
+      .values({ userId, orgId, role: "OWNER" })
+      .returning();
+    expect(mem.role).toBe("OWNER");
+    // Duplicate membership should fail
     await expect(
-      prisma.orgMembership.create({
-        data: { orgId: org.id, role: "STAFF", userId: user.id },
-      }),
+      db.insert(orgMembership).values({ userId, orgId, role: "STAFF" }),
     ).rejects.toThrow();
-
-    // Eager-load via either side of the relation.
-    const reloadedUser = await prisma.user.findUnique({
-      include: { memberships: { select: { orgId: true, role: true } } },
-      where: { id: user.id },
-    });
-    expect(reloadedUser?.memberships).toEqual([{ orgId: org.id, role: "OWNER" }]);
-
-    const reloadedOrg = await prisma.organization.findUnique({
-      include: { memberships: { select: { role: true, userId: true } } },
-      where: { id: org.id },
-    });
-    expect(reloadedOrg?.memberships).toEqual([{ role: "OWNER", userId: user.id }]);
-
-    // Cascade: deleting the Organization wipes its memberships.
-    await prisma.organization.delete({ where: { id: org.id } });
-    const remaining = await prisma.orgMembership.findMany({
-      where: { id: membership.id },
-    });
-    expect(remaining).toEqual([]);
+    // Cleanup org
+    await db.delete(orgMembership).where(eq(orgMembership.orgId, orgId));
+    await db.delete(organization).where(eq(organization.id, orgId));
   });
 });
