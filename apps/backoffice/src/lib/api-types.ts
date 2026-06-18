@@ -82,6 +82,21 @@ type ActionDetailResponse = { action: Action; ageSeconds: number; ticket: Ticket
 
 type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
+// ADR 0005 operator coverage. `assigned` is the operator's current set;
+// `options` are the pickable companies + disciplines (template worker_kinds).
+type OperatorCoverage = {
+  companies: ReadonlyArray<string>;
+  disciplines: ReadonlyArray<string>;
+};
+
+type CoverageResponse = {
+  assigned: OperatorCoverage;
+  options: {
+    companies: ReadonlyArray<{ id: string; name: string }>;
+    disciplines: ReadonlyArray<string>;
+  };
+};
+
 type MeResponse = {
   currentOrg: {
     id: string;
@@ -108,8 +123,10 @@ export type {
   ActionStatus,
   ActivityEntry,
   ActivityResponse,
+  CoverageResponse,
   DecisionOutcome,
   MeResponse,
+  OperatorCoverage,
   Ticket,
   TicketDetailResponse,
   TicketListRow,

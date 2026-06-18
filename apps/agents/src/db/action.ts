@@ -182,24 +182,42 @@ const getAction = async (db: D1Database, actionId: string): Promise<Action | nul
   return row ? mapAction(row) : null;
 };
 
-// Pending actions oldest-first — the stale-backlog view.
+// Pending actions oldest-first — the stale-backlog view. The operator queue
+// narrows by coverage (ADR 0005): `companyIds` / `disciplines` are the calling
+// operator's assigned set, matched against the company and the producing
+// agent's worker_kind. Empty/absent = no narrowing. A single `companyId` is
+// the explicit drill into one company (it wins over `companyIds`). Filtering in
+// SQL keeps oldest-first + limit honest across the narrowed set.
 const listPendingActions = async (
   db: D1Database,
-  options: { companyId?: string; limit?: number } = {},
+  options: {
+    companyId?: string;
+    companyIds?: ReadonlyArray<string>;
+    disciplines?: ReadonlyArray<string>;
+    limit?: number;
+  } = {},
 ): Promise<ReadonlyArray<Action>> => {
   const limit = options.limit ?? 100;
-  const cursor = options.companyId
-    ? db
-        .prepare(
-          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.status = 'pending' AND action.company_id = ? ORDER BY action.created_at ASC LIMIT ?`,
-        )
-        .bind(options.companyId, limit)
-    : db
-        .prepare(
-          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.status = 'pending' ORDER BY action.created_at ASC LIMIT ?`,
-        )
-        .bind(limit);
-  const { results } = await cursor.all<ActionRow>();
+  const clauses: Array<string> = ["action.status = 'pending'"];
+  const params: Array<number | string> = [];
+  if (options.companyId) {
+    clauses.push("action.company_id = ?");
+    params.push(options.companyId);
+  } else if (options.companyIds && options.companyIds.length > 0) {
+    clauses.push(`action.company_id IN (${options.companyIds.map(() => "?").join(", ")})`);
+    params.push(...options.companyIds);
+  }
+  if (options.disciplines && options.disciplines.length > 0) {
+    clauses.push(`tpl.worker_kind IN (${options.disciplines.map(() => "?").join(", ")})`);
+    params.push(...options.disciplines);
+  }
+  params.push(limit);
+  const { results } = await db
+    .prepare(
+      `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE ${clauses.join(" AND ")} ORDER BY action.created_at ASC LIMIT ?`,
+    )
+    .bind(...params)
+    .all<ActionRow>();
   return results.map(mapAction);
 };
 

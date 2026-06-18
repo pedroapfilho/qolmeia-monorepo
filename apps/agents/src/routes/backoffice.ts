@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { listActivity } from "@/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "@/db/action";
+import { listCoverage, listDisciplines, setCoverage } from "@/db/assignment";
 import { listCompaniesOverview } from "@/db/schema";
 import { listTickets, loadTicket } from "@/db/ticket";
 import { validateSession } from "@/lib/auth";
@@ -63,7 +64,17 @@ backofficeRoutes.get("/actions", async (c) => {
   const companyId = c.req.query("companyId");
 
   if (status === "pending") {
-    const items = await listPendingActions(c.env.DB, { companyId });
+    // The queue narrows to the operator's coverage (ADR 0005); an explicit
+    // ?companyId= is a deliberate drill into one company that bypasses it.
+    const items = companyId
+      ? await listPendingActions(c.env.DB, { companyId })
+      : await (async () => {
+          const coverage = await listCoverage(c.env.DB, c.get("userId"));
+          return listPendingActions(c.env.DB, {
+            companyIds: coverage.companies,
+            disciplines: coverage.disciplines,
+          });
+        })();
     const now = Date.now();
     // Explicit field copy (not `{...a, ageSeconds}`) — oxlint's no-map-spread
     // forbids spread inside .map. The `mapAction` boundary above guarantees
@@ -195,6 +206,39 @@ backofficeRoutes.get("/companies", async (c) => {
     })),
   );
   return c.json({ companies: withRosters });
+});
+
+// The operator's own coverage (ADR 0005): the companies + disciplines they
+// cover, plus the option lists to populate the picker. Self-service — keyed on
+// the session user, never another operator (an admin-assigns-others surface
+// waits on the operator directory, which doesn't exist yet).
+backofficeRoutes.get("/assignments/me", async (c) => {
+  const [coverage, disciplines, companies] = await Promise.all([
+    listCoverage(c.env.DB, c.get("userId")),
+    listDisciplines(c.env.DB),
+    listCompaniesOverview(c.env.DB),
+  ]);
+  return c.json({
+    assigned: coverage,
+    options: {
+      companies: companies.map((co) => ({ id: co.id, name: co.name })),
+      disciplines,
+    },
+  });
+});
+
+const coverageBodySchema = z.object({
+  companies: z.array(z.string().min(1)).max(1000),
+  disciplines: z.array(z.string().min(1)).max(100),
+});
+
+backofficeRoutes.put("/assignments/me", async (c) => {
+  const parsed = coverageBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  await setCoverage(c.env.DB, c.get("userId"), parsed.data);
+  return c.json({ assigned: parsed.data });
 });
 
 backofficeRoutes.get("/teams/:companyId/members", async (c) => {

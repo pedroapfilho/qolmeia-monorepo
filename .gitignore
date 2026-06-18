@@ -8,6 +8,9 @@ node_modules
 
 # testing
 coverage
+# …but not a route/source dir that happens to be named "coverage" (report
+# output never lives under src/).
+!**/src/**/coverage/
 
 # next.js
 .next/
