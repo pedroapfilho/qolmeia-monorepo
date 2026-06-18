@@ -43,14 +43,14 @@
     // Public URL of this Worker — used to build absolute asset URLs the client
     // can fetch. Override at deploy with the *.workers.dev / custom domain URL.
     "WORKER_PUBLIC_URL": "http://localhost:8787",
-    // Better Auth service (apps/auth); the Worker validates sessions against it.
+    // Better Auth service (apps/api); the Worker validates sessions against it.
     "AUTH_SERVICE_URL": "http://localhost:4000",
     // Comma-separated client origins allowed to call the Worker. The
     // customer app runs on :3001 and the operator backoffice on :3000.
     "CLIENT_ORIGINS": "http://localhost:3000,http://localhost:3001",
   },
   // INTERNAL_SHARED_SECRET is a Worker secret (wrangler secret put) — used
-  // to gate /api/internal/* against apps/auth's org-create relay. Defined
+  // to gate /api/internal/* against apps/api's org-create relay. Defined
   // as a placeholder var here so local dev (which reads .dev.vars) just
   // works; production sets it via `wrangler secret put`.
   "d1_databases": [
@@ -90,10 +90,10 @@
   // These stay commented so local `wrangler dev` and a pre-provisioning
   // `wrangler deploy` don't fail on resources/zones that don't exist yet.
   //
-  // Custom domain — the Worker's public origin (api.qolmeia.com). Requires the
+  // Custom domain — the Worker's public origin (agents.qolmeia.com). Requires the
   // qolmeia.com zone to be active on this Cloudflare account. Also set
-  // WORKER_PUBLIC_URL=https://api.qolmeia.com in `vars` above.
-  // "routes": [{ "pattern": "api.qolmeia.com", "custom_domain": true }],
+  // WORKER_PUBLIC_URL=https://agents.qolmeia.com in `vars` above.
+  // "routes": [{ "pattern": "agents.qolmeia.com", "custom_domain": true }],
   //
   // Agent Memory backend (ADR 0007): Workers AI for embeddings + Vectorize for
   // recall. Without these, the memory adapter falls back to an in-process store

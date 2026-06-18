@@ -4,7 +4,7 @@ import { z } from "zod";
 import { constantTimeEqual } from "@/lib/constant-time";
 
 // Internal-only endpoints, gated by a shared secret in INTERNAL_SHARED_SECRET.
-// Today's surface: POST /api/internal/companies — called by apps/auth on
+// Today's surface: POST /api/internal/companies — called by apps/api on
 // org creation to provision the matching D1 `company` row. The Better Auth
 // Organization.id IS the D1 company.id (cross-store invariant).
 

@@ -20,7 +20,7 @@ const getPortlessUrl = (name: string) => {
 // via getaddrinfo, and undici doesn't fall back to IPv4 — pin the explicit
 // loopback address. Locally portless gives us the real dev URL.
 const authUrl =
-  process.env.E2E_AUTH_URL ?? getPortlessUrl("qolmeia.auth") ?? "http://127.0.0.1:4000";
+  process.env.E2E_AUTH_URL ?? getPortlessUrl("qolmeia.api") ?? "http://127.0.0.1:4000";
 const backofficeUrl =
   process.env.E2E_BACKOFFICE_URL ?? getPortlessUrl("qolmeia.backoffice") ?? "http://127.0.0.1:3000";
 const clientUrl =
@@ -94,11 +94,11 @@ export default defineConfig({
   // CI spawns the three servers in parallel. We start them directly from
   // `node_modules/.bin/next` rather than via `pnpm --filter` so the workspace
   // state lock doesn't serialize them — the first wins, the rest hang silently
-  // for the full timeout. tsdown's output for apps/auth is `dist/index.mjs`.
+  // for the full timeout. tsdown's output for apps/api is `dist/index.mjs`.
   webServer: process.env.CI
     ? [
         {
-          command: "node apps/auth/dist/index.mjs",
+          command: "node apps/api/dist/index.mjs",
           env: {
             HOST: "127.0.0.1",
             PORT: "4000",

@@ -57,7 +57,7 @@ jobs:
       # under test here — the auth flows we exercise terminate on the auth
       # service + the Next proxies; the chat surface that talks to the
       # Worker is dead weight for these specs.
-      - run: pnpm build --filter=auth --filter=backoffice --filter=client
+      - run: pnpm build --filter=api --filter=backoffice --filter=client
       # Canonical Playwright CI pattern (playwright.dev/docs/ci): browser
       # download + apt system deps in one step. Caching is explicitly
       # *not* recommended by the docs — restore time is comparable to a

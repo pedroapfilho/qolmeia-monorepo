@@ -1,5 +1,5 @@
 {
-  "name": "auth",
+  "name": "api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
     "build": "tsdown",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
     "db:seed": "tsx src/scripts/seed-dev.ts",
-    "dev": "portless run --name qolmeia.auth --app-port 4000 tsdown --watch --on-success \"node --env-file-if-exists=.env dist/index.mjs\"",
+    "dev": "portless run --name qolmeia.api --app-port 4000 tsdown --watch --on-success \"node --env-file-if-exists=.env dist/index.mjs\"",
     "lint": "oxlint src",
     "typecheck": "tsc --noEmit",
     "start": "node --env-file-if-exists=.env dist/index.mjs",

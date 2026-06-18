@@ -25,7 +25,7 @@ interface Env {
   FIRECRAWL_API_KEY?: string;
   FIRECRAWL_BASE_URL?: string;
   OPENROUTER_API_KEY: string;
-  // Shared secret with apps/auth gating the /api/internal/* relay.
+  // Shared secret with apps/api gating the /api/internal/* relay.
   INTERNAL_SHARED_SECRET: string;
   VECTORIZE?: VectorizeIndex;
 }

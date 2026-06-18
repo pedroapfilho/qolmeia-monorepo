@@ -15,7 +15,7 @@ import { env } from "../lib/env";
 //     --local --file scripts/seed-p2.sql
 //
 // then start the four dev processes:
-//   pnpm dev --filter=auth         (https://qolmeia.auth.localhost via portless)
+//   pnpm dev --filter=api         (https://qolmeia.api.localhost via portless)
 //   pnpm dev --filter=worker-bees  (port 8787 via wrangler dev)
 //   pnpm dev --filter=client       (https://qolmeia.client.localhost)
 //   pnpm dev --filter=backoffice   (https://qolmeia.backoffice.localhost)
