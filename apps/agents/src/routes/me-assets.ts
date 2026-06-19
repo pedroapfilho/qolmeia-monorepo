@@ -9,6 +9,7 @@
 // activity).
 
 import { Hono } from "hono";
+import { z } from "zod";
 
 import { safeJson } from "@/db/mappers";
 import { assetName } from "@/lib/asset-store";
@@ -316,6 +317,47 @@ meAssetsRoutes.delete("/brand-assets/:id", async (c) => {
     .run();
   await c.env.ASSETS.delete(row.r2_key);
   return c.json({ ok: true });
+});
+
+const deleteAssetsInputSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(100),
+});
+
+// POST /api/me/assets/delete — remove one or more gallery assets (single or
+// bulk). Tenant + folder scoped: only the company's own `customer` assets can
+// be deleted from the customer surface; agent working material stays
+// untouchable. Same blob-ownership invariant as the brand delete — r2_key is
+// company-prefixed and (company_id, sha256) is UNIQUE, so each row owns its
+// blob and the D1 rows + R2 objects are removed together.
+meAssetsRoutes.post("/assets/delete", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "CUSTOMER") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const parsed = deleteAssetsInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body" }, 400);
+  }
+  const { ids } = parsed.data;
+  const placeholders = ids.map(() => "?").join(",");
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, r2_key FROM asset
+       WHERE company_id = ? AND visibility = 'customer' AND id IN (${placeholders})`,
+  )
+    .bind(session.companyId, ...ids)
+    .all<{ id: string; r2_key: string }>();
+  if (results.length === 0) {
+    return c.json({ deleted: 0 });
+  }
+  const foundIds = results.map((row) => row.id);
+  const deletePlaceholders = foundIds.map(() => "?").join(",");
+  await c.env.DB.prepare(`DELETE FROM asset WHERE company_id = ? AND id IN (${deletePlaceholders})`)
+    .bind(session.companyId, ...foundIds)
+    .run();
+  // R2 deletes are best-effort: a missing object must not fail the request —
+  // the D1 row (the only thing the gallery reads) is already gone.
+  await Promise.allSettled(results.map((row) => c.env.ASSETS.delete(row.r2_key)));
+  return c.json({ deleted: results.length });
 });
 
 export { meAssetsRoutes };

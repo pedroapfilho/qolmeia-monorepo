@@ -1,13 +1,12 @@
 "use client";
 
 import { useAgentChat } from "@cloudflare/ai-chat/react";
-import { Button } from "@repo/ui/components/button";
 import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
-import { Loader2, MessageSquare, Paperclip, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { MessageSquare } from "lucide-react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
   Conversation,
@@ -17,15 +16,8 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Loader } from "@/components/ai-elements/loader";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import {
-  PromptInput,
-  PromptInputBody,
-  type PromptInputMessage,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputToolbar,
-} from "@/components/ai-elements/prompt-input";
-import { apiSendForm } from "@/lib/api-client";
+import { ChatComposer } from "@/components/chat-composer";
+import { ResetConversationButton } from "@/components/reset-conversation-button";
 
 type ChatProps = {
   agent?: "correspondent" | "planner";
@@ -34,39 +26,18 @@ type ChatProps = {
   sessionToken: string;
 };
 
-type Attachment = {
-  id: string;
-  mediaType: string;
-  name: string;
-  url: string;
-};
-
-type UploadResponse = {
-  assetId: string;
-  mime: string;
-  size: number;
-  url: string;
-};
-
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const ALLOWED_UPLOAD_MIME = ["image/gif", "image/jpeg", "image/png", "image/webp"];
-
 // Client chat surface. `useAgent` opens a WebSocket straight to the company's
 // agent DO (named by the real org id). `useAgentChat` wraps it with the AI SDK
 // chat interface. History, streaming, and reconnection are handled by the
 // agents SDK. The `agent` prop picks which DO class to talk to — default is
-// "correspondent"; onboarding sets it to "planner".
+// "correspondent"; onboarding sets it to "planner". The composer and the reset
+// control own their own state; this shell just wires them to the agent.
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<ReadonlyArray<Attachment>>([]);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const agent = useAgent({
     agent: agentName,
     host: agentsUrl,
@@ -75,7 +46,7 @@ const ChatInner = ({
     query: { cf_session: sessionToken },
   });
 
-  const { messages, sendMessage, status } = useAgentChat({
+  const { clearHistory, messages, sendMessage, status } = useAgentChat({
     agent,
     // Surface send/stream failures where they happen instead of watching
     // the `error` state from an effect.
@@ -99,75 +70,24 @@ const ChatInner = ({
 
   const isThinking = status === "submitted" || status === "streaming";
 
-  const handleAttachClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    // Reset so re-selecting the same file fires `change` again.
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-    if (!ALLOWED_UPLOAD_MIME.includes(file.type)) {
-      toast.error("Formato não suportado. Use PNG, JPG, WEBP ou GIF.");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("Imagem grande demais (máx 10 MB).");
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const result = await apiSendForm<UploadResponse>("/api/me/uploads", form);
-      setAttachments((current) => [
-        ...current,
-        {
-          id: result.assetId,
-          mediaType: result.mime,
-          name: file.name,
-          url: result.url,
-        },
-      ]);
-    } catch {
-      toast.error("Falha no upload. Tente de novo.");
-    } finally {
-      setUploading(false);
-    }
-  }, []);
-
-  const handleRemoveAttachment = useCallback((id: string) => {
-    setAttachments((current) => current.filter((a) => a.id !== id));
-  }, []);
-
-  const handleSubmit = useCallback(
-    (message: PromptInputMessage) => {
-      const text = message.text.trim();
-      if (isThinking || uploading) {
-        return;
-      }
-      if (!text && attachments.length === 0) {
-        return;
-      }
-      const files: Array<FileUIPart> = attachments.map((a) => ({
-        filename: a.name,
-        mediaType: a.mediaType,
-        type: "file",
-        url: a.url,
-      }));
-      void sendMessage({ files, text: text || " " });
-      setInput("");
-      setAttachments([]);
+  const handleSend = useCallback(
+    (message: { files: Array<FileUIPart>; text: string }) => {
+      void sendMessage(message);
     },
-    [attachments, isThinking, sendMessage, uploading],
+    [sendMessage],
   );
 
-  const canSubmit =
-    !isThinking && !uploading && (input.trim().length > 0 || attachments.length > 0);
+  // "Start over": the SDK's clearHistory() empties its message store + the UI
+  // across tabs; the RPC empties the agent's in-context recent-turns buffer so
+  // the next turn begins fresh. Long-term memory + D1 audit are kept.
+  const handleReset = useCallback(async () => {
+    clearHistory();
+    try {
+      await agent.call("resetConversation");
+    } catch {
+      toast.error("Não foi possível recomeçar. Tente novamente.");
+    }
+  }, [agent, clearHistory]);
 
   const isCorrespondent = agentName === "correspondent";
 
@@ -187,7 +107,10 @@ const ChatInner = ({
             </div>
             <div className="text-xs text-muted-foreground">Seu ponto de contato</div>
           </div>
-          <StatusPill className="ml-auto" label="Disponível" tone="success" />
+          <div className="ml-auto flex items-center gap-2">
+            <StatusPill label="Disponível" tone="success" />
+            <ResetConversationButton onReset={handleReset} />
+          </div>
         </header>
       ) : null}
       <Conversation>
@@ -251,74 +174,7 @@ const ChatInner = ({
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="flex-none border-t border-border bg-card px-6 py-4">
-        <input
-          accept={ALLOWED_UPLOAD_MIME.join(",")}
-          aria-label="Anexar imagem"
-          className="sr-only"
-          onChange={handleFileSelected}
-          ref={fileInputRef}
-          tabIndex={-1}
-          type="file"
-        />
-        <PromptInput
-          className="rounded-xl border-input bg-background shadow-none"
-          onSubmit={handleSubmit}
-        >
-          <PromptInputBody>
-            {attachments.length > 0 ? (
-              <ul className="flex flex-wrap gap-2 px-2 pb-2">
-                {attachments.map((attachment) => (
-                  <li
-                    className="flex items-center gap-1 rounded-lg border border-border bg-secondary px-2 py-1"
-                    key={attachment.id}
-                  >
-                    {/* oxlint-disable-next-line no-img-element */}
-                    <img alt="" className="size-8 rounded-md object-cover" src={attachment.url} />
-                    <span className="max-w-32 truncate text-xs text-muted-foreground">
-                      {attachment.name}
-                    </span>
-                    <button
-                      aria-label={`Remover ${attachment.name}`}
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => handleRemoveAttachment(attachment.id)}
-                      type="button"
-                    >
-                      <X aria-hidden className="size-3" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <PromptInputTextarea
-              aria-label="Mensagem"
-              autoComplete="off"
-              disabled={isThinking}
-              onChange={(event) => setInput(event.currentTarget.value)}
-              placeholder="Escreva uma mensagem…"
-              value={input}
-            />
-          </PromptInputBody>
-          <PromptInputToolbar>
-            <Button
-              aria-label="Anexar imagem"
-              className="mr-auto rounded-lg"
-              disabled={isThinking || uploading}
-              onClick={handleAttachClick}
-              size="icon"
-              type="button"
-              variant="ghost"
-            >
-              {uploading ? (
-                <Loader2 aria-hidden className="size-4 animate-spin" />
-              ) : (
-                <Paperclip aria-hidden className="size-4" />
-              )}
-            </Button>
-            <PromptInputSubmit className="rounded-lg" disabled={!canSubmit} status={status} />
-          </PromptInputToolbar>
-        </PromptInput>
-      </div>
+      <ChatComposer disabled={isThinking} onSend={handleSend} status={status} />
     </div>
   );
 };

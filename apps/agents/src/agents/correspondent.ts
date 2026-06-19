@@ -1,4 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
+import { callable } from "agents";
 import {
   generateText,
   type ModelMessage,
@@ -26,7 +27,7 @@ import {
   RECENT_TURNS_KEEP,
   RECENT_TURNS_WINDOW,
 } from "@/agents/correspondent-context";
-import { appendTurn, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
+import { appendTurn, clearRecentTurns, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
 import { getAdapter } from "@/connectors/registry";
 import type { ConnectorType, NormalizedMessage } from "@/connectors/types";
 import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema";
@@ -416,6 +417,20 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     );
   }
 
+  // Client-invoked "start over". Empties the recent-turns buffer so the next
+  // turn starts with no recollection of the prior chat. The SDK message store
+  // and the UI are cleared separately by the client's clearHistory(); D1 audit
+  // and long-term memory are deliberately kept — the agent still knows the
+  // company. Registered as callable below the class (imperative form) to avoid
+  // stage-3 decorator syntax workerd's V8 can't parse.
+  // Invoked via the client agent.call RPC stub — invisible to static analysis.
+  // fallow-ignore-next-line unused-class-member
+  resetConversation(): { status: "reset" } {
+    clearRecentTurns(this);
+    logInfo("agent.reset", { agent: "correspondent", companyId: this.name });
+    return { status: "reset" };
+  }
+
   // AIChatAgent framework callback — the agents SDK dispatches it, not our code.
   // fallow-ignore-next-line unused-class-member
   async onChatMessage(
@@ -480,6 +495,14 @@ class CorrespondentAgent extends AIChatAgent<Env> {
     return result.toUIMessageStreamResponse();
   }
 }
+
+// Register resetConversation as a callable RPC method. Done imperatively here
+// rather than with the @callable() decorator to avoid stage-3 decorator syntax
+// that the workerd V8 runtime cannot parse when running tests.
+callable()(CorrespondentAgent.prototype.resetConversation, {
+  kind: "method",
+  name: "resetConversation",
+} as unknown as ClassMethodDecoratorContext);
 
 export { CorrespondentAgent };
 export type { TeamEvent };
