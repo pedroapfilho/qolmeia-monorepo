@@ -268,9 +268,7 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
 
   if (sets.length > 0) {
     sets.push("updated_at = ?");
-    binds.push(Date.now());
-    binds.push(input.agentInstanceId);
-    binds.push(input.companyId);
+    binds.push(Date.now(), input.agentInstanceId, input.companyId);
     await db
       .prepare(`UPDATE agent_instance SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
       .bind(...binds)
@@ -330,15 +328,12 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
   return projectMemberView(detail);
 };
 
+export { hireMember, pauseMember, resumeMember, updateMember };
 export {
   CorrespondentMissingError,
-  hireMember,
-  pauseMember,
-  resumeMember,
   TeamMemberNotFoundError,
   TeamMemberNotPausableError,
   TemplateNotFoundError,
   TemplateRetiredError,
-  updateMember,
-};
+} from "@/team/errors";
 export type { UpdateInput };

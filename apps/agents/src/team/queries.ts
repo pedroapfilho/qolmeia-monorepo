@@ -289,4 +289,4 @@ const getMemberDetail = async (
 };
 
 export { getCatalogue, getMemberDetail, getTeamRoster };
-export type { HireableTemplate, TeamMemberDetailView, TeamMemberView };
+export type { HireableTemplate, TeamMemberDetailView, TeamMemberView } from "@/team/types";

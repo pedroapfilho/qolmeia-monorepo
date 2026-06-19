@@ -71,4 +71,4 @@ const suggestNextWork = async (agent: CorrespondentAgent, env: Env): Promise<Pro
 };
 
 export { presentResult, suggestNextWork };
-export type { ProactiveOutcome };
+export type { ProactiveOutcome } from "@/agents/proactive";
