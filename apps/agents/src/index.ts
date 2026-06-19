@@ -2,9 +2,6 @@ import { routeAgentRequest } from "agents";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import { CorrespondentAgent } from "@/agents/correspondent";
-import { PlannerAgent } from "@/agents/planner";
-import { WorkerAgent } from "@/agents/worker";
 import { validateSession } from "@/lib/auth";
 import { logError } from "@/lib/logger";
 import { assetsRoutes } from "@/routes/assets";
@@ -15,7 +12,6 @@ import { meAssetsRoutes } from "@/routes/me-assets";
 import { teamsRoutes } from "@/routes/teams";
 import { webhooksRoutes } from "@/routes/webhooks";
 import { runProactiveSweep } from "@/scheduled";
-import { WorkerJobWorkflow } from "@/workflows/worker-job";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -128,4 +124,9 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-export { CorrespondentAgent, PlannerAgent, WorkerAgent, WorkerJobWorkflow };
+// Durable Object + Workflow classes the runtime binds by name — re-exported
+// straight from their modules so the entry stays a thin router.
+export { CorrespondentAgent } from "@/agents/correspondent";
+export { PlannerAgent } from "@/agents/planner";
+export { WorkerAgent } from "@/agents/worker";
+export { WorkerJobWorkflow } from "@/workflows/worker-job";

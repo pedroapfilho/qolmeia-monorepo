@@ -73,11 +73,13 @@ const buildRevisionMessages = (
 ): Array<ChatMessage> => {
   const messages: Array<ChatMessage> = [{ content: brief, role: "user" }];
   if (priorSummary && feedback) {
-    messages.push({ content: priorSummary, role: "assistant" });
-    messages.push({
-      content: `O revisor (operador da Qolmeia) pediu ajustes na entrega anterior:\n\n"${feedback}"\n\nRefaça o trabalho incorporando o pedido. Mantenha o que já estava bom e entregue a versão revisada.`,
-      role: "user",
-    });
+    messages.push(
+      { content: priorSummary, role: "assistant" },
+      {
+        content: `O revisor (operador da Qolmeia) pediu ajustes na entrega anterior:\n\n"${feedback}"\n\nRefaça o trabalho incorporando o pedido. Mantenha o que já estava bom e entregue a versão revisada.`,
+        role: "user",
+      },
+    );
   }
   return messages;
 };

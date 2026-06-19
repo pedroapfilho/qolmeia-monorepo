@@ -20,20 +20,20 @@
     "preview": "email dev --dir ./src"
   },
   "dependencies": {
-    "resend": "^6.12.3",
+    "resend": "^6.14.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@repo/config-vitest": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-email": "^6.1.1",
-    "tsdown": "^0.22.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-email": "^6.6.3",
+    "tsdown": "^0.22.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "react": "^18.3.1 || ^19.0.0",

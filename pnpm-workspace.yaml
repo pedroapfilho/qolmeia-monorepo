@@ -4,14 +4,29 @@ packages:
 
 nodeLinker: hoisted
 
+# Force a single React copy across the tree. After the dep bump a transitive
+# dep (use-sync-external-store, via @tanstack/react-store) resolved its own
+# react 19.2.6 alongside the workspace's 19.2.7, giving two React instances and
+# a null hook dispatcher ("Cannot read properties of null (reading 'useRef')")
+# in component tests. Keep these in step with the apps' react version on bump.
+overrides:
+  react: 19.2.7
+  react-dom: 19.2.7
+
 # pnpm 11 home for the former package.json `pnpm.onlyBuiltDependencies` list.
+# @mongodb-js/zstd + node-liblzma are optional native compression accelerators
+# pulled transitively via agents → just-bash. The Cloudflare Worker can't load
+# native addons (just-bash falls back to pure JS), so their builds are skipped
+# to avoid CI native-toolchain churn.
 allowBuilds:
+  "@mongodb-js/zstd": false
   "@prisma/client": true
   "@prisma/engines": true
   core-js-pure: true
   esbuild: true
   fallow: true
   msw: true
+  node-liblzma: false
   prisma: true
   sharp: true
   unrs-resolver: true

@@ -13,19 +13,19 @@
     "typecheck": "wrangler types && tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^2.0.47",
-    "@cloudflare/ai-chat": "^0.7.1",
-    "agents": "^0.13.2",
-    "ai": "^6.0.190",
-    "hono": "^4.12.18",
+    "@ai-sdk/openai-compatible": "^2.0.51",
+    "@cloudflare/ai-chat": "^0.8.6",
+    "agents": "^0.16.2",
+    "ai": "^6.0.208",
+    "hono": "^4.12.26",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.10",
-    "@cloudflare/vitest-pool-workers": "^0.16.9",
+    "@cloudflare/vitest-pool-workers": "^0.16.17",
     "@repo/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5",
-    "wrangler": "^4.94.0"
+    "vitest": "^4.1.9",
+    "wrangler": "^4.102.0"
   }
 }
