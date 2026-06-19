@@ -75,6 +75,52 @@ Ordered roughly by value. "Type" is **skill** (agent action) or **connector**
   schedule. Its `publish_post` actions route to the `social` discipline in the
   operator approval queue (ADR 0005 coverage).
 
+## Roadmap: the first non-marketing vertical (Cobrança + Comercial)
+
+Everything above is the **marketing** vertical. Per ADR 0009 the platform is
+vertical-agnostic — a new vertical is templates + skills + connectors, not a new
+engine. Customer discovery (a coworking operator) ranked **collections,
+pre-sales, and a light CRM** far above marketing, with `automação assistida +
+aprovação antes de ação sensível` as the gating requirement (already the ADR
+0006 loop). This is the first vertical to build out.
+
+### New agents (templates)
+
+- **Agente de Cobrança** (`workerKind: collections`) — open-invoice panel,
+  reminders, approved-message follow-up. `defaultActionType:
+send_collection_message`, `default_policies: { send_collection_message:
+require-approval }`.
+- **Agente Comercial / Pré-atendimento** (`workerKind: sales`) — leads,
+  orçamentos, retornos, follow-up; acts as the light CRM's system of record.
+
+### New skills
+
+| Skill                      | What it does                            | Type  | Agent     | Gating        |
+| -------------------------- | --------------------------------------- | ----- | --------- | ------------- |
+| `listOpenInvoices`         | read cobranças em aberto (synced)       | skill | Cobrança  | auto-execute  |
+| `draftCollectionReminder`  | draft an approved-tone cobrança message | skill | Cobrança  | — (LLM draft) |
+| `scheduleFollowUp`         | queue the next cobrança touch           | skill | Cobrança  | notify-only   |
+| `createLead` / `listLeads` | CRM lead capture + listing              | skill | Comercial | auto-execute  |
+| `draftQuote`               | draft an orçamento                      | skill | Comercial | — (LLM draft) |
+| `logInteraction`           | record a commercial touch               | skill | Comercial | auto-execute  |
+
+### New connectors (the gating dependency)
+
+| Connector                     | Why                                                          | Needs                                       | Gating           |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------- | ---------------- |
+| **WhatsApp** (Cloud API)      | dominant pt-BR channel — outbound cobrança + pré-atendimento | Meta WhatsApp Business creds (KV) + webhook | n/a (channel)    |
+| **Financial system** (Conexa) | read open invoices + client list (complement, not replace)   | provider API creds (KV)                     | auto (read)      |
+| **NF / prefeitura**           | emissão de nota fiscal — high-trust, later                   | municipal integration creds (KV)            | require-approval |
+
+### Smallest slice that proves the model
+
+WhatsApp **outbound** + `listOpenInvoices` (manual sync to start) +
+`draftCollectionReminder` + a `send_collection_message` action type/renderer +
+one Agente de Cobrança template. Exercises every new layer end-to-end while
+reusing the entire approval engine; matches the customer's willingness-to-pay
+(R$150 for cobrança + pré-atendimento). Reporting (cobranças em aberto / vendas
+/ DRE) and modular entitlements (ADR 0009) follow.
+
 ## How to wire a new one (checklist)
 
 **Skill:** create `src/skills/<name>.ts` (`{ id, description, inputSchema,
