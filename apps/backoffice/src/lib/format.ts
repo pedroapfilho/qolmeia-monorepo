@@ -69,4 +69,42 @@ const truncate = (value: string, limit = 120): string => {
   return `${value.slice(0, limit - 1).trimEnd()}…`;
 };
 
-export { formatDateTime, formatDurationSeconds, formatRelative, truncate };
+const ACTION_TYPE_LABEL: Record<string, string> = {
+  publish_post: "Publicar post",
+  send_collection_message: "Enviar cobrança",
+  worker_deliverable: "Entrega",
+};
+
+// Human pt-BR label for an action-type slug. Falls back to a prettified slug so
+// a new/unknown type never shows the operator raw machine text (publish_post →
+// "Publicar post"; some_new_type → "Some new type").
+const actionTypeLabel = (actionType: string): string => {
+  const known = ACTION_TYPE_LABEL[actionType];
+  if (known) {
+    return known;
+  }
+  const pretty = actionType.replaceAll(/[_\-]+/gv, " ").trim();
+  return pretty.charAt(0).toUpperCase() + pretty.slice(1);
+};
+
+// Wait-time urgency tier for the approvals queue, so an operator triages stale
+// items at a glance. Returned as data — the view pairs it with weight, never
+// colour alone. 1h → warning, 4h → urgent.
+type AgeTier = "calm" | "urgent" | "warning";
+
+const ageTier = (seconds: number | undefined): AgeTier => {
+  if (seconds === undefined || seconds < 3600) {
+    return "calm";
+  }
+  return seconds >= 4 * 3600 ? "urgent" : "warning";
+};
+
+export {
+  actionTypeLabel,
+  ageTier,
+  formatDateTime,
+  formatDurationSeconds,
+  formatRelative,
+  truncate,
+};
+export type { AgeTier };
