@@ -73,13 +73,52 @@ const buildRevisionMessages = (
 ): Array<ChatMessage> => {
   const messages: Array<ChatMessage> = [{ content: brief, role: "user" }];
   if (priorSummary && feedback) {
-    messages.push({ content: priorSummary, role: "assistant" });
-    messages.push({
-      content: `O revisor (operador da Qolmeia) pediu ajustes na entrega anterior:\n\n"${feedback}"\n\nRefaça o trabalho incorporando o pedido. Mantenha o que já estava bom e entregue a versão revisada.`,
-      role: "user",
-    });
+    messages.push(
+      { content: priorSummary, role: "assistant" },
+      {
+        content: `O revisor (operador da Qolmeia) pediu ajustes na entrega anterior:\n\n"${feedback}"\n\nRefaça o trabalho incorporando o pedido. Mantenha o que já estava bom e entregue a versão revisada.`,
+        role: "user",
+      },
+    );
   }
   return messages;
+};
+
+// Skills whose result carries a `url` that should render as an inline image.
+const IMAGE_SKILLS = ["generateBrandImage"] as const;
+
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[.*+?^$\{\}\(\)\|\[\]\\]/gv, String.raw`\$&`);
+
+// Force a generated image to render inline in chat. The image skill returns a
+// signed asset URL; the LLM often writes it as a bare link, which the client's
+// markdown renderer shows as an <a> instead of an embedded image. Promote a
+// link-or-bare occurrence of the URL to `![](url)` image markdown — appending
+// it if the model forgot to mention the image at all.
+const embedGeneratedImages = (summary: string, skillResults: Record<string, unknown>): string => {
+  let out = summary;
+  for (const skillId of IMAGE_SKILLS) {
+    const result = skillResults[skillId];
+    const url =
+      typeof result === "object" && result !== null ? (result as { url?: unknown }).url : undefined;
+    if (typeof url !== "string" || url.length === 0) {
+      continue;
+    }
+    const escaped = escapeRegExp(url);
+    // Already an inline image embed → leave it.
+    if (new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)`, "v").test(out)) {
+      continue;
+    }
+    const linkPattern = new RegExp(`\\[([^\\]]*)\\]\\(${escaped}\\)`, "v");
+    if (linkPattern.test(out)) {
+      out = out.replace(linkPattern, (_match, label: string) => `![${label}](${url})`);
+    } else if (out.includes(url)) {
+      out = out.replace(url, `![](${url})`);
+    } else {
+      out = `${out}\n\n![](${url})`;
+    }
+  }
+  return out;
 };
 
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
@@ -196,7 +235,10 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
             ),
             usage: result.usage,
           });
-          return { skillResultsJson: JSON.stringify(skillResults), summary };
+          return {
+            skillResultsJson: JSON.stringify(skillResults),
+            summary: embedGeneratedImages(summary, skillResults),
+          };
         });
       }
 

@@ -47,5 +47,13 @@ const pruneOldTurns = (agent: AIChatAgent<Env>, keep = 100): void => {
   void agent.sql`DELETE FROM recent_turns WHERE id NOT IN (SELECT id FROM recent_turns ORDER BY id DESC LIMIT ${keep})`;
 };
 
-export { appendTurn, getRecentTurns, pruneOldTurns };
+// Empties the model-context window — used by "start over" so the next turn
+// begins with no recollection of the prior chat. The SDK message store, D1
+// audit, and long-term memory are separate and untouched here.
+const clearRecentTurns = (agent: AIChatAgent<Env>): void => {
+  ensureTable(agent);
+  void agent.sql`DELETE FROM recent_turns`;
+};
+
+export { appendTurn, clearRecentTurns, getRecentTurns, pruneOldTurns };
 export type { RecentTurn };
