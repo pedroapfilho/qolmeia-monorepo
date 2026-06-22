@@ -9,7 +9,7 @@ import type { SkillContext } from "@/skills/registry";
 import { rememberFactSkill } from "@/skills/remember-fact";
 import { webSearchSkill } from "@/skills/web-search";
 
-import { skillTool } from "./skill-tool";
+import { skillTool } from "../skill-tool";
 
 // The Correspondent, ported onto Flue (replaces the AIChatAgent in
 // agents/correspondent.ts). Flue's runtime drives the chat + tool loop. The

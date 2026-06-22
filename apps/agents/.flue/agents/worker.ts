@@ -5,7 +5,7 @@ import { loadAgentInstance } from "@/db/ticket";
 import { getSkill, type SkillContext, type UnknownSkill } from "@/skills/registry";
 import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
 
-import { skillTool } from "./skill-tool";
+import { skillTool } from "../skill-tool";
 
 // The Worker agents, ported onto Flue (replaces the WorkerAgent DO +
 // WorkerJobWorkflow generate step). Each worker instance is template-driven: its

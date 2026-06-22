@@ -4,7 +4,7 @@ import { extractBriefSkill } from "@/skills/extract-brief";
 import { proposeTeamSkill } from "@/skills/propose-team";
 import type { SkillContext } from "@/skills/registry";
 
-import { skillTool } from "./skill-tool";
+import { skillTool } from "../skill-tool";
 
 // The Planner, ported onto Flue (replaces the hand-rolled AIChatAgent in
 // agents/planner.ts). Flue's runtime drives the multi-turn debrief + tool-call
