@@ -134,5 +134,9 @@ const registerSkill = (skill: UnknownSkill): void => {
   codeRegistry.set(skill.id, skill);
 };
 
-export { buildSkillTools, registerSkill };
+// Resolve a code skill by id — for template-driven agents that build their tool
+// set from `template.skill_ids`. Returns undefined for unknown ids.
+const getSkill = (id: string): UnknownSkill | undefined => codeRegistry.get(id);
+
+export { buildSkillTools, getSkill, registerSkill };
 export type { SkillContext, UnknownSkill };
