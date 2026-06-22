@@ -19,6 +19,9 @@ overrides:
 # native addons (just-bash falls back to pure JS), so their builds are skipped
 # to avoid CI native-toolchain churn.
 allowBuilds:
+  # Pulled transitively via Flue (@flue/runtime → pi-ai provider layer). Pure JS,
+  # safe to build on install.
+  '@google/genai': true
   "@mongodb-js/zstd": false
   "@prisma/client": true
   "@prisma/engines": true
@@ -28,6 +31,7 @@ allowBuilds:
   msw: true
   node-liblzma: false
   prisma: true
+  protobufjs: true
   sharp: true
   unrs-resolver: true
   vue-demi: true
