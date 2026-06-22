@@ -13,10 +13,11 @@ import {
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
-import { Download, FileText, FolderOpen, Loader2, Music, Trash2 } from "lucide-react";
+import { Eye, FileText, FolderOpen, Loader2, Music, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useReducer } from "react";
+import { useCallback, useMemo, useReducer, useState } from "react";
 
+import { AssetPreviewDialog } from "@/components/asset-preview-dialog";
 import type { WebChatAsset } from "@/lib/api-types";
 import { deleteAssets } from "@/lib/assets";
 
@@ -153,6 +154,7 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
   const router = useRouter();
   const [state, dispatch] = useReducer(galleryReducer, INITIAL_STATE);
   const { active, confirmIds, deleting, removedIds, selected } = state;
+  const [previewing, setPreviewing] = useState<WebChatAsset | null>(null);
 
   const displayed = useMemo(
     () => assets.filter((asset) => !removedIds.has(asset.id)),
@@ -268,11 +270,11 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
                   isSelected ? "ring-2 ring-primary" : "hover:shadow-sm",
                 )}
               >
-                <a
-                  className="block focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  href={asset.url}
-                  rel="noreferrer"
-                  target="_blank"
+                <button
+                  aria-label={`Pré-visualizar ${asset.name}`}
+                  className="block w-full cursor-pointer text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={() => setPreviewing(asset)}
+                  type="button"
                 >
                   <AssetPreview asset={asset} />
                   <div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
@@ -282,9 +284,9 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
                         {kindLabel(asset.kind)} · {formatBytes(asset.size)}
                       </p>
                     </div>
-                    <Download aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                    <Eye aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                   </div>
-                </a>
+                </button>
               </Card>
               <input
                 aria-label={`Selecionar ${asset.name}`}
@@ -341,6 +343,8 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AssetPreviewDialog asset={previewing} onClose={() => setPreviewing(null)} />
     </div>
   );
 };

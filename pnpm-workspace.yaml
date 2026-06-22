@@ -32,3 +32,6 @@ allowBuilds:
   unrs-resolver: true
   vue-demi: true
   workerd: true
+
+minimumReleaseAgeExclude:
+  - cnfast@0.0.8
