@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
 import { Field, FieldLabel } from "@repo/ui/components/field";
@@ -68,12 +69,13 @@ const liveFilledCount = (f: FormState): number =>
     f.references.trim(),
   ].filter(Boolean).length;
 
+// Flags a brief field still waiting on input. A Badge (not a colour-only dot)
+// so the "to fill" state is conveyed by text, not hue alone.
 const MissingMark = ({ show }: { show: boolean }) =>
   show ? (
-    <span
-      aria-label="A preencher"
-      className="ml-1.5 inline-block size-2 rounded-full bg-warning align-middle"
-    />
+    <Badge className="ml-2 align-middle" variant="warning">
+      A preencher
+    </Badge>
   ) : null;
 
 type BriefCardProps = { initial: CompanyBrief };
