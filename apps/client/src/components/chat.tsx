@@ -5,7 +5,7 @@ import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
-import { MessageSquare } from "lucide-react";
+import { Maximize2, MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
@@ -145,16 +145,45 @@ const ChatInner = ({
                           );
                         }
                         if (part.type === "file" && part.mediaType?.startsWith("image/")) {
+                          const partKey = `${message.id}-${index}`;
+                          // Customer's own attachment — plain inline preview.
+                          // Asset URL is HMAC-signed by the Worker, so a plain
+                          // <img> is correct (no CORS needed for image loads).
+                          if (isUser) {
+                            return (
+                              // oxlint-disable-next-line no-img-element
+                              <img
+                                alt={part.filename ?? "Imagem"}
+                                className="max-h-80 rounded-lg object-contain"
+                                key={partKey}
+                                src={part.url}
+                              />
+                            );
+                          }
+                          // Agent message carrying an image = a team deliverable.
+                          // Mark it as such and make it openable at full size so
+                          // the customer can recognise and download what their
+                          // team produced.
                           return (
-                            // Asset URL is HMAC-signed by the Worker; a plain <img>
-                            // is correct — no CORS needed for image loads.
-                            // oxlint-disable-next-line no-img-element
-                            <img
-                              alt={part.filename ?? "Imagem"}
-                              className="max-h-80 rounded-lg object-contain"
-                              key={`${message.id}-${index}`}
-                              src={part.url}
-                            />
+                            <figure className="flex flex-col gap-1.5" key={partKey}>
+                              <a
+                                className="block overflow-hidden rounded-lg transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                href={part.url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                {/* oxlint-disable-next-line no-img-element */}
+                                <img
+                                  alt={part.filename ?? "Entrega do time"}
+                                  className="max-h-80 w-full object-contain"
+                                  src={part.url}
+                                />
+                              </a>
+                              <figcaption className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Maximize2 aria-hidden className="size-3.5" />
+                                Entrega do seu time · abrir em tamanho real
+                              </figcaption>
+                            </figure>
                           );
                         }
                         return null;

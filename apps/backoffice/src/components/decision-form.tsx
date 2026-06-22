@@ -108,7 +108,7 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
             <label
               aria-label={opt.label}
               className={cn(
-                "flex cursor-pointer items-center gap-2.5 rounded-lg border p-3 transition-colors",
+                "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors",
                 selected
                   ? "border-primary bg-highlight-surface ring-1 ring-primary/40"
                   : "border-border hover:border-input hover:bg-accent",
@@ -129,13 +129,18 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
               <span
                 aria-hidden
                 className={cn(
-                  "flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
+                  "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
                   selected ? "border-primary" : "border-input",
                 )}
               >
                 {selected && <span className="size-2 rounded-full bg-primary" />}
               </span>
-              <span className="text-sm font-semibold text-foreground">{opt.label}</span>
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-sm font-semibold text-foreground">{opt.label}</span>
+                <span className="text-xs leading-snug text-muted-foreground">
+                  {opt.description}
+                </span>
+              </span>
             </label>
           );
         })}

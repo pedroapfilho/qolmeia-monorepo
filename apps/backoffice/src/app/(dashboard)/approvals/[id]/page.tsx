@@ -12,7 +12,12 @@ import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionDetailResponse } from "@/lib/api-types";
-import { formatDateTime, formatDurationSeconds, formatRelative } from "@/lib/format";
+import {
+  actionTypeLabel,
+  formatDateTime,
+  formatDurationSeconds,
+  formatRelative,
+} from "@/lib/format";
 
 export const metadata: Metadata = { title: "Revisar aprovação" };
 
@@ -60,7 +65,10 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
             <span className="font-mono text-xs text-muted-foreground">{action.id}</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            {action.actionType} · {policyCopy} · {formatRelative(action.createdAt)}
+            <span className="font-medium text-foreground">
+              {actionTypeLabel(action.actionType)}
+            </span>{" "}
+            · {policyCopy} · {formatRelative(action.createdAt)}
           </p>
         </div>
         <StatusPill status={action.status} />

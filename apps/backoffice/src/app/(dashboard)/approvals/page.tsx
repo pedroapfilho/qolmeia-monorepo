@@ -2,6 +2,7 @@ import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { buttonVariants } from "@repo/ui/lib/button-variants";
+import { cn } from "@repo/ui/lib/utils";
 import { Inbox } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -9,9 +10,28 @@ import Link from "next/link";
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionsResponse } from "@/lib/api-types";
-import { formatDurationSeconds } from "@/lib/format";
+import {
+  actionTypeLabel,
+  type AgeTier,
+  ageTier,
+  formatDurationSeconds,
+  truncate,
+} from "@/lib/format";
 
 export const metadata: Metadata = { title: "Aprovações" };
+
+// Wait-time tier → text treatment. Colour is paired with weight so urgency is
+// never signalled by colour alone (the duration text carries it too).
+const AGE_TIER_CLASS: Record<AgeTier, string> = {
+  calm: "text-muted-foreground",
+  urgent: "font-semibold text-destructive-surface-foreground",
+  warning: "font-semibold text-warning-surface-foreground",
+};
+
+const proposedSummary = (proposed: Record<string, unknown>): string => {
+  const summary = typeof proposed.summary === "string" ? proposed.summary : "";
+  return summary.split("\n")[0]?.trim() ?? "";
+};
 
 const ApprovalsPage = async () => {
   // `?status=pending&sort=age` returns oldest-first — the stale-backlog view.
@@ -52,49 +72,61 @@ const ApprovalsPage = async () => {
               <span />
             </div>
             <ul className="flex flex-col">
-              {res.items.map((action) => (
-                <li
-                  className="grid grid-cols-[1fr_180px_150px_110px_92px] items-center gap-3 border-b border-border/60 px-5 py-3.5 last:border-b-0"
-                  key={action.id}
-                >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span aria-hidden className="size-2 shrink-0 rounded-full bg-warning" />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-foreground">
-                        {action.actionType}
-                      </div>
-                      <div className="font-mono text-[10.5px] text-muted-foreground">
-                        {action.id}
+              {res.items.map((action) => {
+                const preview = proposedSummary(action.proposed);
+                return (
+                  <li
+                    className="grid grid-cols-[1fr_180px_150px_110px_92px] items-center gap-3 border-b border-border/60 px-5 py-3.5 last:border-b-0"
+                    key={action.id}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span aria-hidden className="size-2 shrink-0 rounded-full bg-warning" />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {actionTypeLabel(action.actionType)}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {preview ? (
+                            truncate(preview, 72)
+                          ) : (
+                            <span className="font-mono">{action.id}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <span className="truncate text-sm text-muted-foreground">
-                    {action.companyName}
-                  </span>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span
-                      aria-hidden
-                      className={`flex size-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
-                    >
-                      {agentInitials(action.agent.name)}
-                    </span>
                     <span className="truncate text-sm text-muted-foreground">
-                      {action.agent.name}
+                      {action.companyName}
                     </span>
-                  </div>
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {action.ageSeconds === undefined
-                      ? "—"
-                      : formatDurationSeconds(action.ageSeconds)}
-                  </span>
-                  <Link
-                    className={buttonVariants({ className: "w-full", size: "sm" })}
-                    href={`/approvals/${action.id}`}
-                  >
-                    Revisar
-                  </Link>
-                </li>
-              ))}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        aria-hidden
+                        className={`flex size-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
+                      >
+                        {agentInitials(action.agent.name)}
+                      </span>
+                      <span className="truncate text-sm text-muted-foreground">
+                        {action.agent.name}
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "font-mono text-xs tabular-nums",
+                        AGE_TIER_CLASS[ageTier(action.ageSeconds)],
+                      )}
+                    >
+                      {action.ageSeconds === undefined
+                        ? "—"
+                        : formatDurationSeconds(action.ageSeconds)}
+                    </span>
+                    <Link
+                      className={buttonVariants({ className: "w-full", size: "sm" })}
+                      href={`/approvals/${action.id}`}
+                    >
+                      Revisar
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
