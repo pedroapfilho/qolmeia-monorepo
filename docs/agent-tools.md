@@ -121,6 +121,29 @@ reusing the entire approval engine; matches the customer's willingness-to-pay
 (R$150 for cobrança + pré-atendimento). Reporting (cobranças em aberto / vendas
 / DRE) and modular entitlements (ADR 0009) follow.
 
+### Document previews — Extend UI (deferred to this vertical)
+
+[Extend UI](https://www.extend.ai/ui/docs) (MIT, shadcn copy-in) is the chosen
+viewer stack for when Cobrança produces **documents** — boletos / NF (PDF) and a
+DRE (XLSX). Deferred until then because today's deliverables are only images +
+markdown; the viewers would ship heavy and idle. Integration notes from a
+spike (2026-06-19):
+
+- **Do NOT use `npx shadcn add @extend/<name>`.** Even with `--yes` it stops on
+  an interactive "overwrite button.tsx?" prompt and wants to clobber our
+  customized `@repo/ui` primitives. Copy the registry JSON's source in by hand
+  instead.
+- Each viewer pulls a heavy renderer (`csv-viewer` → `@glideapps/glide-data-grid`
+  - `papaparse`; PDF → pdf.js; XLSX → sheetjs) and **Hugeicons** — swap those to
+    **lucide** to match our `iconLibrary`. Register the namespace with
+    `"registries": { "@extend": "https://www.extend.ai/ui/r/{name}.json" }` in
+    `packages/ui/components.json`.
+- `csv-viewer` also needs 5 primitives we don't have yet (`popover`, `select`,
+  `separator`, `spinner`, `tooltip`) — add them from the `base-nova` registry
+  (they don't exist, so no overwrite prompt).
+- Wire a `mime → viewer` dispatcher + a preview dialog into the Assets gallery,
+  behind `next/dynamic` so the renderers stay out of the main bundle.
+
 ## How to wire a new one (checklist)
 
 **Skill:** create `src/skills/<name>.ts` (`{ id, description, inputSchema,
