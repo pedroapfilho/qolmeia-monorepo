@@ -105,7 +105,7 @@ const AssetPreviewDialog = ({ asset, onClose }: AssetPreviewDialogProps) => {
           ) : null}
 
           {asset && isAudio(asset.mimeType) ? (
-            <audio className="w-full" controls src={asset.url}>
+            <audio aria-label={asset.name} className="w-full" controls src={asset.url}>
               <track kind="captions" />
             </audio>
           ) : null}
