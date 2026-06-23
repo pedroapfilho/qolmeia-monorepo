@@ -1,6 +1,6 @@
 import { createAgent } from "@flue/runtime";
-import type { MiddlewareHandler } from "hono";
 
+import { requireCustomerAgent } from "#/lib/agent-route-auth";
 import { extractBriefSkill } from "#/skills/extract-brief";
 import { proposeTeamSkill } from "#/skills/propose-team";
 import type { SkillContext } from "#/skills/registry";
@@ -44,7 +44,5 @@ export default createAgent<unknown, Env>((context) => {
   };
 });
 
-// Exposes the agent over HTTP at /agents/planner/:id (without a `route` export
-// Flue treats the agent as dispatch-only). Pass-through for now; the real
-// CUSTOMER session + tenant check will gate access here, mirroring requireCustomer.
-export const route: MiddlewareHandler = (_c, next) => next();
+// Exposes the agent over HTTP at /agents/planner/:id, gated to the owning CUSTOMER.
+export const route = requireCustomerAgent;

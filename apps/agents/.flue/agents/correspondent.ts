@@ -1,6 +1,6 @@
 import { createAgent } from "@flue/runtime";
-import type { MiddlewareHandler } from "hono";
 
+import { requireCustomerAgent } from "#/lib/agent-route-auth";
 import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
 import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
 import { extractBriefSkill } from "#/skills/extract-brief";
@@ -59,6 +59,5 @@ export default createAgent<unknown, Env>((context) => {
   };
 });
 
-// Exposes the agent over HTTP at /agents/<name>/:id. Pass-through for now;
-// the CUSTOMER session + tenant check will gate access here.
-export const route: MiddlewareHandler = (_c, next) => next();
+// Exposes the agent over HTTP at /agents/correspondent/:id, gated to the owning CUSTOMER.
+export const route = requireCustomerAgent;

@@ -1,5 +1,4 @@
 import { createAgent } from "@flue/runtime";
-import type { MiddlewareHandler } from "hono";
 
 import { getTemplate } from "#/db/template";
 import { loadAgentInstance } from "#/db/ticket";
@@ -54,6 +53,5 @@ export default createAgent<unknown, Env>(async (context) => {
   };
 });
 
-// Exposes the agent over HTTP at /agents/<name>/:id. Pass-through for now;
-// the CUSTOMER session + tenant check will gate access here.
-export const route: MiddlewareHandler = (_c, next) => next();
+// No `route` export: the Worker is dispatch-only (driven by the approval
+// Workflow), never reachable over HTTP.
