@@ -30,7 +30,7 @@ const CATEGORY_CLASSES: Record<Category, string> = {
   neutral: "bg-muted text-muted-foreground",
   team: "bg-success-surface text-success-surface-foreground",
   ticket: "bg-info-surface text-info-surface-foreground",
-  worker: "bg-cyan-surface text-cyan-surface-foreground",
+  worker: "bg-worker-surface text-worker-surface-foreground",
 };
 
 type ActivityRowProps = {
