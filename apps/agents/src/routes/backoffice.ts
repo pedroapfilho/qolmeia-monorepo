@@ -5,8 +5,16 @@ import { listActivity } from "#/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "#/db/action";
 import { listCoverage, listDisciplines, setCoverage } from "#/db/assignment";
 import { listCompaniesOverview } from "#/db/schema";
+import {
+  createTemplate,
+  getTemplate,
+  listAllTemplates,
+  setTemplateStatus,
+  updateTemplate,
+} from "#/db/template";
 import { listTickets, loadTicket } from "#/db/ticket";
 import { validateSession } from "#/lib/auth";
+import { isKnownSkill, listSkillCatalog } from "#/skills/registry";
 import { emitTeamEvent } from "#/team/events";
 import {
   pauseMember,
@@ -300,6 +308,81 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     }
     throw error;
   }
+});
+
+// Worker-template catalog (P9): operators add/edit worker types from the UI
+// instead of writing SQL. Never hard-deletes — "remove" is a soft retire that
+// keeps the id resolvable for agent_instances that reference it.
+
+// `skillIds` is validated against the code registry: a template that points at
+// a non-existent skill would throw at agent-build time, so reject it at write.
+const skillIdsSchema = z.array(z.string().min(1)).refine((ids) => ids.every(isKnownSkill), {
+  message: "unknown skill id",
+});
+
+const templateBodySchema = z.object({
+  defaultActionType: z.string().trim().min(1).max(80).default("worker_deliverable"),
+  defaultPolicies: z.record(z.string(), z.string()).default({}),
+  description: z.string().trim().min(1).max(2000),
+  displayName: z.string().trim().min(1).max(120),
+  model: z.string().trim().min(1).max(160),
+  skillIds: skillIdsSchema,
+  systemPrompt: z.string().trim().min(1).max(20_000),
+  workerKind: z.string().trim().min(1).max(80),
+});
+
+const templateStatusSchema = z.object({
+  status: z.enum(["active", "retired"]),
+});
+
+backofficeRoutes.get("/skills", (c) => {
+  return c.json({ items: listSkillCatalog() });
+});
+
+backofficeRoutes.get("/templates", async (c) => {
+  const items = await listAllTemplates(c.env.DB);
+  return c.json({ items });
+});
+
+backofficeRoutes.get("/templates/:id", async (c) => {
+  const template = await getTemplate(c.env.DB, c.req.param("id"));
+  if (!template) {
+    return c.json({ error: "not found" }, 404);
+  }
+  return c.json({ template });
+});
+
+backofficeRoutes.post("/templates", async (c) => {
+  const parsed = templateBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
+  }
+  const template = await createTemplate(c.env.DB, parsed.data);
+  return c.json({ template }, 201);
+});
+
+backofficeRoutes.patch("/templates/:id", async (c) => {
+  const parsed = templateBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
+  }
+  const template = await updateTemplate(c.env.DB, c.req.param("id"), parsed.data);
+  if (!template) {
+    return c.json({ error: "not found" }, 404);
+  }
+  return c.json({ template });
+});
+
+backofficeRoutes.patch("/templates/:id/status", async (c) => {
+  const parsed = templateStatusSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
+  }
+  const template = await setTemplateStatus(c.env.DB, c.req.param("id"), parsed.data.status);
+  if (!template) {
+    return c.json({ error: "not found" }, 404);
+  }
+  return c.json({ template });
 });
 
 export { backofficeRoutes };

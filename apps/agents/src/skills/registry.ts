@@ -138,5 +138,36 @@ const registerSkill = (skill: UnknownSkill): void => {
 // set from `template.skill_ids`. Returns undefined for unknown ids.
 const getSkill = (id: string): UnknownSkill | undefined => codeRegistry.get(id);
 
-export { buildSkillTools, getSkill, registerSkill };
-export type { SkillContext, UnknownSkill };
+// Whether a skill id exists in code. Templates can't reference skills that
+// don't exist, so the backoffice validates `skillIds` against this before
+// persisting a template.
+const isKnownSkill = (id: string): boolean => codeRegistry.has(id);
+
+type SkillCatalogEntry = {
+  description: string;
+  displayName: string;
+  id: string;
+};
+
+// Human label from the camelCase skill id (rememberFact -> "Remember Fact").
+const skillDisplayName = (id: string): string =>
+  id
+    .replace(/([a-z0-9])([A-Z])/gv, "$1 $2")
+    .split(/\s+/v)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1))
+    .join(" ");
+
+// The full code-owned skill catalog for the backoffice template form's
+// multi-select. Sourced from `ALL_SKILLS` (code) so every selectable id is
+// guaranteed resolvable at agent-build time — the D1 `skill` overlay is only
+// seeded for skills used by the default templates, so it would under-report.
+const listSkillCatalog = (): ReadonlyArray<SkillCatalogEntry> =>
+  ALL_SKILLS.map((s) => ({
+    description: s.description,
+    displayName: skillDisplayName(s.id),
+    id: s.id,
+  })).toSorted((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
+
+export { buildSkillTools, getSkill, isKnownSkill, listSkillCatalog, registerSkill };
+export type { SkillCatalogEntry, SkillContext, UnknownSkill };

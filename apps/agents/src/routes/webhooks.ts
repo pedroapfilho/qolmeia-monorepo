@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { getAdapter, isConnectorType } from "#/connectors/registry";
 import { upsertConversation } from "#/db/schema";
 import { getConnectorSecrets } from "#/lib/connector-secrets";
+import { logError } from "#/lib/logger";
 
 // Universal webhook endpoint. The stateless Worker is the router (spec
 // decision 7) — no per-channel DO. Telegram and any future provider hit the
@@ -87,12 +88,19 @@ webhooksRoutes.post("/:type/:connectorId", async (c) => {
   // back to the connector (e.g. a Telegram reply) is deferred until rebuilt on
   // Flue channels (/channels/:name).
   if (normalized.text) {
+    // Best-effort fire-and-forget: a dispatch failure must never surface as an
+    // uncaught rejection in waitUntil — log it and move on.
     c.executionCtx.waitUntil(
       dispatch({
         agent: "correspondent",
         id: connector.company_id,
         input: { message: normalized.text },
-      }),
+      }).catch((error: unknown) =>
+        logError("connector.dispatch.err", {
+          companyId: connector.company_id,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      ),
     );
   }
 

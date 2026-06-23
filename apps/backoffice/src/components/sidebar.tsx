@@ -61,6 +61,15 @@ const ActivityIcon = (
   </svg>
 );
 
+const TemplatesIcon = (
+  <svg aria-hidden fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 18 18">
+    <rect height="13.4" rx="2" width="10.4" x="3.8" y="2.3" />
+    <line x1="6.4" x2="11.6" y1="6" y2="6" />
+    <line x1="6.4" x2="11.6" y1="9" y2="9" />
+    <line x1="6.4" x2="9.4" y1="12" y2="12" />
+  </svg>
+);
+
 const CoverageIcon = (
   <svg aria-hidden fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 18 18">
     <circle cx="9" cy="9" r="6.6" />
@@ -74,6 +83,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/approvals", icon: ApprovalsIcon, label: "Aprovações" },
   { href: "/tickets", icon: TicketsIcon, label: "Tickets" },
   { href: "/teams", icon: TeamsIcon, label: "Times" },
+  { href: "/templates", icon: TemplatesIcon, label: "Modelos" },
   { href: "/activity", icon: ActivityIcon, label: "Atividade" },
   { href: "/cobertura", icon: CoverageIcon, label: "Cobertura" },
 ];

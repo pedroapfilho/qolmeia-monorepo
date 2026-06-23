@@ -31,6 +31,7 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /Início/v })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Aprovações/v })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Tickets/v })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Modelos/v })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Atividade/v })).toBeInTheDocument();
   });
 

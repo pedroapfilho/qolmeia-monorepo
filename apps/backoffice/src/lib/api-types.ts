@@ -97,6 +97,48 @@ type CoverageResponse = {
   };
 };
 
+// Worker-template catalog. Mirrors the agents `Template` shape (camelCase).
+type TemplateStatus = "active" | "retired";
+
+type Template = {
+  createdAt: number;
+  defaultActionType: string;
+  defaultPolicies: Record<string, string>;
+  description: string;
+  displayName: string;
+  id: string;
+  model: string;
+  skillIds: ReadonlyArray<string>;
+  status: TemplateStatus;
+  systemPrompt: string;
+  updatedAt: number;
+  version: number;
+  workerKind: string;
+};
+
+// The payload accepted by POST/PATCH /templates (no id/version/timestamps —
+// the server owns those).
+type TemplateInput = {
+  defaultActionType: string;
+  defaultPolicies: Record<string, string>;
+  description: string;
+  displayName: string;
+  model: string;
+  skillIds: ReadonlyArray<string>;
+  systemPrompt: string;
+  workerKind: string;
+};
+
+type SkillCatalogEntry = {
+  description: string;
+  displayName: string;
+  id: string;
+};
+
+type TemplatesResponse = { items: ReadonlyArray<Template> };
+type TemplateResponse = { template: Template };
+type SkillCatalogResponse = { items: ReadonlyArray<SkillCatalogEntry> };
+
 type MeResponse = {
   currentOrg: {
     id: string;
@@ -127,6 +169,13 @@ export type {
   DecisionOutcome,
   MeResponse,
   OperatorCoverage,
+  SkillCatalogEntry,
+  SkillCatalogResponse,
+  Template,
+  TemplateInput,
+  TemplateResponse,
+  TemplatesResponse,
+  TemplateStatus,
   Ticket,
   TicketDetailResponse,
   TicketListRow,
