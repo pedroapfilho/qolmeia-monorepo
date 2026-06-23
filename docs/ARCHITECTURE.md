@@ -76,7 +76,7 @@ The agents Worker owns all product data. Each store has a single purpose:
 
 ## §5. Data model (D1)
 
-Schema in [`apps/agents/migrations/*.sql`](../apps/agents/migrations) (12 migrations). Core tables:
+Schema in [`apps/agents/migrations/*.sql`](../apps/agents/migrations) — a squashed `0001_schema.sql` baseline (schema only) plus `0002_default_data.sql` (the skill-overlay catalog + the 4 default worker templates). Core tables:
 
 | Table                      | Purpose                                                                                                                                                                     |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
