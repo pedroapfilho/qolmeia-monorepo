@@ -7,7 +7,7 @@ import {
   listPendingActions,
   markExecuted,
   proposeAction,
-} from "@/db/action";
+} from "#/db/action";
 
 const COMPANY_ID = "co_action_test";
 

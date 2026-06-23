@@ -1,4 +1,4 @@
-import { getTemplate, type Template } from "@/db/template";
+import { getTemplate, type Template } from "#/db/template";
 
 // Materializes a Team in a single D1 batch: the team row, the Correspondent
 // agent_instance, one Worker agent_instance per template, and the

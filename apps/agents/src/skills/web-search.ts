@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Web search via Exa (https://exa.ai). Lets agents ground content in current
 // facts — trends, news, competitor pages — instead of stale training data.

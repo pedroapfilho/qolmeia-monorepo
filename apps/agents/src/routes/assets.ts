@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { fetchAsset, verifyAssetToken } from "@/lib/r2";
+import { fetchAsset, verifyAssetToken } from "#/lib/r2";
 
 // Serves R2 asset bytes behind a signed URL. The signed token is built by
 // `buildSignedAssetUrl` (skills/generate-brand-image.ts uses it) and verified

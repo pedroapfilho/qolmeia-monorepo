@@ -1,8 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { proposeAction } from "@/db/action";
-import { listCoverage, listDisciplines, setCoverage } from "@/db/assignment";
+import { proposeAction } from "#/db/action";
+import { listCoverage, listDisciplines, setCoverage } from "#/db/assignment";
 
 // ADR 0005 operator coverage: the cross-tenant approval queue narrows to the
 // operator's assigned companies + disciplines (worker_kinds). No coverage means

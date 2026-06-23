@@ -1,19 +1,19 @@
 import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
-import { listSkillOverlays, type SkillOverlay } from "@/db/template";
-import { logError, logInfo } from "@/lib/logger";
-import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "@/skills/assets";
-import { decideActionSkill } from "@/skills/decide-action";
-import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
-import { draftSocialPostSkill } from "@/skills/draft-social-post";
-import { extractBriefSkill } from "@/skills/extract-brief";
-import { fetchUrlSkill } from "@/skills/fetch-url";
-import { generateBrandImageSkill } from "@/skills/generate-brand-image";
-import { proposeTeamSkill } from "@/skills/propose-team";
-import { recallMemorySkill } from "@/skills/recall-memory";
-import { rememberFactSkill } from "@/skills/remember-fact";
-import { webSearchSkill } from "@/skills/web-search";
+import { listSkillOverlays, type SkillOverlay } from "#/db/template";
+import { logError, logInfo } from "#/lib/logger";
+import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
+import { decideActionSkill } from "#/skills/decide-action";
+import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
+import { draftSocialPostSkill } from "#/skills/draft-social-post";
+import { extractBriefSkill } from "#/skills/extract-brief";
+import { fetchUrlSkill } from "#/skills/fetch-url";
+import { generateBrandImageSkill } from "#/skills/generate-brand-image";
+import { proposeTeamSkill } from "#/skills/propose-team";
+import { recallMemorySkill } from "#/skills/recall-memory";
+import { rememberFactSkill } from "#/skills/remember-fact";
+import { webSearchSkill } from "#/skills/web-search";
 
 // The skill registry — code module pattern (spec decision 10). `execute()` and
 // the zod input schema are code; the LLM-facing description, parameter hints,

@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { recallMemorySkill } from "@/skills/recall-memory";
-import type { SkillContext } from "@/skills/registry";
-import { rememberFactSkill } from "@/skills/remember-fact";
+import { recallMemorySkill } from "#/skills/recall-memory";
+import type { SkillContext } from "#/skills/registry";
+import { rememberFactSkill } from "#/skills/remember-fact";
 
 const COMPANY_ID = "co_skills_test";
 const AGENT_INSTANCE_ID = "agent_skills_test";

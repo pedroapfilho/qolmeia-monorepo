@@ -1,4 +1,4 @@
-import { safeJson } from "@/db/mappers";
+import { safeJson } from "#/db/mappers";
 
 // Typed shapes + queries for the catalog (template, skill). Skills here are
 // the operator-tunable D1 overlay over the code skill registry — the code

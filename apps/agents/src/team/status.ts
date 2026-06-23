@@ -1,4 +1,4 @@
-import type { AgentDisplayStatus, OpenTicketSlim } from "@/team/types";
+import type { AgentDisplayStatus, OpenTicketSlim } from "#/team/types";
 
 type InstanceStatus = "active" | "paused";
 

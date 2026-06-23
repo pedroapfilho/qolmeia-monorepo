@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveAgentStatus } from "@/team/status";
+import { resolveAgentStatus } from "#/team/status";
 
 describe("resolveAgentStatus", () => {
   it("returns paused when instance is paused regardless of tickets", () => {

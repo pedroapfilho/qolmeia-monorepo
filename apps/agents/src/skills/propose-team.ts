@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { listActiveTemplates } from "@/db/template";
-import { parseBrief } from "@/lib/company-brief";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { listActiveTemplates } from "#/db/template";
+import { parseBrief } from "#/lib/company-brief";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Returns the live catalog of Worker templates the Planner can recommend.
 // P5 minimum: a deterministic listing with template id + display name + a

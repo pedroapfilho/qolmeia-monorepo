@@ -1,8 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logActivity } from "@/activity/log";
-import { proposeAction } from "@/db/action";
+import { logActivity } from "#/activity/log";
+import { proposeAction } from "#/db/action";
 
 const COMPANY_ID = "co_bo_test";
 const OTHER_COMPANY_ID = "co_bo_other";

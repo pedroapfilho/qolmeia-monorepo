@@ -1,13 +1,14 @@
 import { createAgent } from "@flue/runtime";
+import type { MiddlewareHandler } from "hono";
 
-import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "@/skills/assets";
-import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
-import { extractBriefSkill } from "@/skills/extract-brief";
-import { fetchUrlSkill } from "@/skills/fetch-url";
-import { recallMemorySkill } from "@/skills/recall-memory";
-import type { SkillContext } from "@/skills/registry";
-import { rememberFactSkill } from "@/skills/remember-fact";
-import { webSearchSkill } from "@/skills/web-search";
+import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
+import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
+import { extractBriefSkill } from "#/skills/extract-brief";
+import { fetchUrlSkill } from "#/skills/fetch-url";
+import { recallMemorySkill } from "#/skills/recall-memory";
+import type { SkillContext } from "#/skills/registry";
+import { rememberFactSkill } from "#/skills/remember-fact";
+import { webSearchSkill } from "#/skills/web-search";
 
 import { skillTool } from "../skill-tool";
 
@@ -34,7 +35,7 @@ Use recallMemory no início de pedidos relevantes para lembrar o que já sabe so
 // OpenRouter is registered in flue/provider.ts.
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-const correspondentAgent = createAgent<unknown, Env>((context) => {
+export default createAgent<unknown, Env>((context) => {
   const ctx: SkillContext = {
     agentInstanceId: `corr-${context.id}`,
     companyId: context.id,
@@ -58,4 +59,6 @@ const correspondentAgent = createAgent<unknown, Env>((context) => {
   };
 });
 
-export default correspondentAgent;
+// Exposes the agent over HTTP at /agents/<name>/:id. Pass-through for now;
+// the CUSTOMER session + tenant check will gate access here.
+export const route: MiddlewareHandler = (_c, next) => next();

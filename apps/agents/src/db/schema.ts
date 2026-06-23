@@ -2,7 +2,7 @@
 // parameterized statements. D1's generic `first<T>()` / `all<T>()` give the
 // snake_case row type; mapping functions convert to the camelCase domain shape.
 
-import { briefCompleteness, parseBrief } from "@/lib/company-brief";
+import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 
 type CompanyStatus = "onboarding" | "active" | "paused";
 type MessageRole = "user" | "agent" | "system";

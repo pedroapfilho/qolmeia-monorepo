@@ -1,7 +1,7 @@
 import { defineTool, type ToolDefinition } from "@flue/runtime";
 import * as z from "zod";
 
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Wraps one of our code skills (skills/registry.ts `UnknownSkill`) as a Flue
 // tool. The zod `inputSchema` converts to JSON Schema — defineTool accepts raw

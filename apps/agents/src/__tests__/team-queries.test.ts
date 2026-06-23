@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
+import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
 
 const COMPANY_ID = "co_roster_test";
 const TEAM_ID = "team_roster_test";

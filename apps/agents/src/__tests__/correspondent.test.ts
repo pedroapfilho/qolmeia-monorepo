@@ -3,8 +3,8 @@ import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { env, runInDurableObject } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { CorrespondentAgent } from "@/agents/correspondent";
-import { listMessages } from "@/db/schema";
+import type { CorrespondentAgent } from "#/agents/correspondent";
+import { listMessages } from "#/db/schema";
 
 const TEST_COMPANY_ID = "p1-demo-company";
 // Conversation id is now derived inside the DO as `web-{this.name}`.

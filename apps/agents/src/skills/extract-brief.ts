@@ -1,5 +1,5 @@
-import { companyBriefSchema, mergeBrief, parseBrief } from "@/lib/company-brief";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Persists a partial CompanyBrief during the Planner debrief. The Planner's
 // model fills in the fields it just learned and passes them via `updates` —

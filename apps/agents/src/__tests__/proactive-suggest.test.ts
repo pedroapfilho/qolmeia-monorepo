@@ -3,8 +3,8 @@ import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { env, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { CorrespondentAgent } from "@/agents/correspondent";
-import { listMessages } from "@/db/schema";
+import type { CorrespondentAgent } from "#/agents/correspondent";
+import { listMessages } from "#/db/schema";
 
 // End-to-end cover for the proactive "suggest next work" turn: the scripted
 // model is the only seam; the DO, D1 persistence, broadcast, and dedup run for

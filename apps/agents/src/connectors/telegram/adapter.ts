@@ -5,8 +5,8 @@ import type {
   SendOutboundArgs,
   SendOutboundResult,
   VerifyRequest,
-} from "@/connectors/types";
-import { constantTimeEqual } from "@/lib/constant-time";
+} from "#/connectors/types";
+import { constantTimeEqual } from "#/lib/constant-time";
 
 // Telegram Bot API. Inbound: POST /webhooks/telegram/:connectorId with a
 // `Update` payload. Outbound: POST https://api.telegram.org/bot<token>/

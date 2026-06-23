@@ -1,6 +1,6 @@
-import type { MemoryAdapter } from "@/lib/memory/adapter";
-import { InMemoryMemoryAdapter } from "@/lib/memory/in-memory";
-import { VectorizeMemoryAdapter } from "@/lib/memory/vectorize";
+import type { MemoryAdapter } from "#/lib/memory/adapter";
+import { InMemoryMemoryAdapter } from "#/lib/memory/in-memory";
+import { VectorizeMemoryAdapter } from "#/lib/memory/vectorize";
 
 // Same shape as `getModel`: production backend when the Cloudflare bindings
 // exist, in-memory fallback otherwise. The bindings are declared optional in
@@ -24,4 +24,4 @@ const getMemoryAdapter = (env: Env): MemoryAdapter => {
 };
 
 export { getMemoryAdapter };
-export type { MemoryAdapter, ScoredRecord } from "@/lib/memory/adapter";
+export type { MemoryAdapter, ScoredRecord } from "#/lib/memory/adapter";

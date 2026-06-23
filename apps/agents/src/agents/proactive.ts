@@ -1,7 +1,7 @@
 import { type LanguageModel, stepCountIs, streamText } from "ai";
 
-import { logActivity } from "@/activity/log";
-import { buildSystemPrompt, loadBriefContext } from "@/agents/correspondent-context";
+import { logActivity } from "#/activity/log";
+import { buildSystemPrompt, loadBriefContext } from "#/agents/correspondent-context";
 
 // The Correspondent's weekly proactive "suggest next work" outreach. The cron
 // sweep (scheduled.ts) wakes each active company's Correspondent DO, which runs

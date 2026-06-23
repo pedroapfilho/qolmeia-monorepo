@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getCompany, insertMessage, listMessages, upsertConversation } from "@/db/schema";
+import { getCompany, insertMessage, listMessages, upsertConversation } from "#/db/schema";
 
 const COMPANY_ID = "test-co";
 const CONVERSATION_ID = "test-conv";

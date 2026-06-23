@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { validateSession } from "@/lib/auth";
+import { validateSession } from "#/lib/auth";
 
 const originalFetch = globalThis.fetch;
 

@@ -1,21 +1,21 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { listActivity } from "@/activity/log";
-import { getAction, listActions, listActionsForTicket, listPendingActions } from "@/db/action";
-import { listCoverage, listDisciplines, setCoverage } from "@/db/assignment";
-import { listCompaniesOverview } from "@/db/schema";
-import { listTickets, loadTicket } from "@/db/ticket";
-import { validateSession } from "@/lib/auth";
-import { emitTeamEvent } from "@/team/events";
+import { listActivity } from "#/activity/log";
+import { getAction, listActions, listActionsForTicket, listPendingActions } from "#/db/action";
+import { listCoverage, listDisciplines, setCoverage } from "#/db/assignment";
+import { listCompaniesOverview } from "#/db/schema";
+import { listTickets, loadTicket } from "#/db/ticket";
+import { validateSession } from "#/lib/auth";
+import { emitTeamEvent } from "#/team/events";
 import {
   pauseMember,
   resumeMember,
   TeamMemberNotFoundError,
   TeamMemberNotPausableError,
   updateMember,
-} from "@/team/mutations";
-import { getMemberDetail, getTeamRoster } from "@/team/queries";
+} from "#/team/mutations";
+import { getMemberDetail, getTeamRoster } from "#/team/queries";
 
 // Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
 // agent paths, just with a different role guard. Every write — including the

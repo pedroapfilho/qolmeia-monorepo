@@ -1,7 +1,7 @@
 import { getAgentByName } from "agents";
 
-import { briefCompleteness, parseBrief } from "@/lib/company-brief";
-import { logInfo } from "@/lib/logger";
+import { briefCompleteness, parseBrief } from "#/lib/company-brief";
+import { logInfo } from "#/lib/logger";
 
 // Weekly proactive "suggest next work" sweep, driven by the Worker cron trigger
 // (see wrangler.jsonc `triggers.crons`). Wakes each active company's

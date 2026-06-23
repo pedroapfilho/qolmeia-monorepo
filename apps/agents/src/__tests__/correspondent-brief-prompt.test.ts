@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSystemPrompt } from "@/agents/correspondent-context";
-import { briefCompleteness, type CompanyBrief } from "@/lib/company-brief";
+import { buildSystemPrompt } from "#/agents/correspondent-context";
+import { briefCompleteness, type CompanyBrief } from "#/lib/company-brief";
 
 const ctx = (brief: Partial<CompanyBrief>) => ({
   brandAssetCount: 0,

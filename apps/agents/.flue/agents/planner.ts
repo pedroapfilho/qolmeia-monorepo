@@ -1,8 +1,9 @@
 import { createAgent } from "@flue/runtime";
+import type { MiddlewareHandler } from "hono";
 
-import { extractBriefSkill } from "@/skills/extract-brief";
-import { proposeTeamSkill } from "@/skills/propose-team";
-import type { SkillContext } from "@/skills/registry";
+import { extractBriefSkill } from "#/skills/extract-brief";
+import { proposeTeamSkill } from "#/skills/propose-team";
+import type { SkillContext } from "#/skills/registry";
 
 import { skillTool } from "../skill-tool";
 
@@ -29,7 +30,7 @@ O cliente confirma fora do chat (botão na UI). Quando isso acontecer, o Corresp
 // OpenRouter is registered in flue/provider.ts; model strings are `openrouter/<model>`.
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-const plannerAgent = createAgent<unknown, Env>((context) => {
+export default createAgent<unknown, Env>((context) => {
   const ctx: SkillContext = {
     agentInstanceId: `planner-${context.id}`,
     companyId: context.id,
@@ -43,4 +44,7 @@ const plannerAgent = createAgent<unknown, Env>((context) => {
   };
 });
 
-export default plannerAgent;
+// Exposes the agent over HTTP at /agents/planner/:id (without a `route` export
+// Flue treats the agent as dispatch-only). Pass-through for now; the real
+// CUSTOMER session + tenant check will gate access here, mirroring requireCustomer.
+export const route: MiddlewareHandler = (_c, next) => next();

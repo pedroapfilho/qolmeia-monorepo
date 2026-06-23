@@ -1,9 +1,9 @@
 import { getAgentByName } from "agents";
 import { Hono } from "hono";
 
-import { getAdapter, isConnectorType } from "@/connectors/registry";
-import { upsertConversation } from "@/db/schema";
-import { getConnectorSecrets } from "@/lib/connector-secrets";
+import { getAdapter, isConnectorType } from "#/connectors/registry";
+import { upsertConversation } from "#/db/schema";
+import { getConnectorSecrets } from "#/lib/connector-secrets";
 
 // Universal webhook endpoint. The stateless Worker is the router (spec
 // decision 7) — no per-channel DO. Telegram and any future provider hit the

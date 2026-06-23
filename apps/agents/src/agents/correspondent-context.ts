@@ -1,6 +1,6 @@
 import type { ModelMessage, UIMessage } from "ai";
 
-import type { RecentTurn } from "@/agents/recent-turns";
+import type { RecentTurn } from "#/agents/recent-turns";
 import {
   BRIEF_FIELD_LABELS,
   type BriefCompleteness,
@@ -8,8 +8,8 @@ import {
   type BriefFieldId,
   type CompanyBrief,
   parseBrief,
-} from "@/lib/company-brief";
-import type { ScoredRecord } from "@/lib/memory";
+} from "#/lib/company-brief";
+import type { ScoredRecord } from "#/lib/memory";
 
 // Constants + small helpers extracted from correspondent.ts so the DO file
 // stays under the oxlint 400-line limit. Lives alongside the DO because

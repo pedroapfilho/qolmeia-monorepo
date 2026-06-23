@@ -1,5 +1,5 @@
-import { parseMeResponse, type Role } from "@/lib/membership";
-import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
+import { parseMeResponse, type Role } from "#/lib/membership";
+import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
 
 type ValidatedSession = {
   companyId: string;

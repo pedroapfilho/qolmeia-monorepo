@@ -1,9 +1,10 @@
 import { createAgent } from "@flue/runtime";
+import type { MiddlewareHandler } from "hono";
 
-import { getTemplate } from "@/db/template";
-import { loadAgentInstance } from "@/db/ticket";
-import { getSkill, type SkillContext, type UnknownSkill } from "@/skills/registry";
-import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
+import { getTemplate } from "#/db/template";
+import { loadAgentInstance } from "#/db/ticket";
+import { getSkill, type SkillContext, type UnknownSkill } from "#/skills/registry";
+import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
 import { skillTool } from "../skill-tool";
 
@@ -18,7 +19,7 @@ import { skillTool } from "../skill-tool";
 // work, it does not own the approval loop.
 //
 // Keyed by agent instance id (context.id), same as the DO.
-const workerAgent = createAgent<unknown, Env>(async (context) => {
+export default createAgent<unknown, Env>(async (context) => {
   const agentInstanceId = context.id;
   const instance = await loadAgentInstance(context.env.DB, agentInstanceId);
   if (!instance?.templateId) {
@@ -53,4 +54,6 @@ const workerAgent = createAgent<unknown, Env>(async (context) => {
   };
 });
 
-export default workerAgent;
+// Exposes the agent over HTTP at /agents/<name>/:id. Pass-through for now;
+// the CUSTOMER session + tenant check will gate access here.
+export const route: MiddlewareHandler = (_c, next) => next();

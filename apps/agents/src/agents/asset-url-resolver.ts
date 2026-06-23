@@ -15,9 +15,9 @@
 // images are dropped with a warning rather than throwing, so a single
 // bad attachment doesn't fail the turn.
 
-import type { AttachedImage } from "@/agents/correspondent-context";
-import { logWarn } from "@/lib/logger";
-import { fetchAsset } from "@/lib/r2";
+import type { AttachedImage } from "#/agents/correspondent-context";
+import { logWarn } from "#/lib/logger";
+import { fetchAsset } from "#/lib/r2";
 
 type ResolverEnv = {
   ASSETS: Env["ASSETS"];

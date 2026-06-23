@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { listCompanyAssets, persistTextAsset, readAssetText } from "@/lib/asset-store";
+import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
 
 const COMPANY_ID = "co_asset_store_test";
 

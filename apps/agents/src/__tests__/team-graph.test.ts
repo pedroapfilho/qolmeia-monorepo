@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getDelegationTargets, isAcyclic, materializeTeam } from "@/db/team";
+import { getDelegationTargets, isAcyclic, materializeTeam } from "#/db/team";
 
 const COMPANY_ID = "co_team_test";
 

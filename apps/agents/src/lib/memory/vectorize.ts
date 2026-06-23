@@ -1,4 +1,4 @@
-import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "@/lib/memory/adapter";
+import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "#/lib/memory/adapter";
 
 // Production memory backend — Workers AI for embeddings, Vectorize for
 // storage and ANN retrieval. Per-agent isolation comes from a metadata

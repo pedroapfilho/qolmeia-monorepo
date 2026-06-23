@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { getAction } from "@/db/action";
-import { loadTicket } from "@/db/ticket";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { getAction } from "#/db/action";
+import { loadTicket } from "#/db/ticket";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Interprets the User's reply to a pending Action and sends the decision
 // event to the WorkerJob Workflow that's paused on `waitForEvent`. The

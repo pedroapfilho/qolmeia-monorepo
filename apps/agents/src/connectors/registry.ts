@@ -1,5 +1,5 @@
-import { telegramAdapter } from "@/connectors/telegram/adapter";
-import type { ConnectorAdapter, ConnectorType } from "@/connectors/types";
+import { telegramAdapter } from "#/connectors/telegram/adapter";
+import type { ConnectorAdapter, ConnectorType } from "#/connectors/types";
 
 // Registry of channel adapters. Total over the ConnectorType enum so the
 // type system makes it impossible to forget one. P6 ships Telegram in full;

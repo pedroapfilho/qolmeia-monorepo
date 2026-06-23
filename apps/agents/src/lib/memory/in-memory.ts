@@ -1,4 +1,4 @@
-import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "@/lib/memory/adapter";
+import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "#/lib/memory/adapter";
 
 // Crude bag-of-character-trigrams embedding hashed to a fixed-dim vector.
 // Quality is *intentionally* low — the point of this backend is exercising

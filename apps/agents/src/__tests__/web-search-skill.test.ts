@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { webSearchSkill } from "@/skills/web-search";
+import { webSearchSkill } from "#/skills/web-search";
 
 const originalFetch = globalThis.fetch;
 

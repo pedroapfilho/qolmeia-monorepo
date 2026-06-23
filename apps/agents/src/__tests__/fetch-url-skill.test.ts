@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchUrlSkill } from "@/skills/fetch-url";
+import { fetchUrlSkill } from "#/skills/fetch-url";
 
 const originalFetch = globalThis.fetch;
 

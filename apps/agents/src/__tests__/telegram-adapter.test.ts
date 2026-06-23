@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { telegramAdapter } from "@/connectors/telegram/adapter";
+import { telegramAdapter } from "#/connectors/telegram/adapter";
 
 const ORIGINAL_FETCH = globalThis.fetch;
 

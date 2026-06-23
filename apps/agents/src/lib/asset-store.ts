@@ -1,5 +1,5 @@
-import { safeJson } from "@/db/mappers";
-import { fetchAsset, uploadAsset } from "@/lib/r2";
+import { safeJson } from "#/db/mappers";
+import { fetchAsset, uploadAsset } from "#/lib/r2";
 
 // The company asset library — the shared store both customers (via /api/me/assets)
 // and agents (via the list/read/save skills + worker-job capture) read and write.

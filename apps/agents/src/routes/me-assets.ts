@@ -11,11 +11,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { safeJson } from "@/db/mappers";
-import { assetName } from "@/lib/asset-store";
-import type { ValidatedSession } from "@/lib/auth";
-import { validateSession } from "@/lib/auth";
-import { buildSignedAssetUrl, uploadAsset } from "@/lib/r2";
+import { safeJson } from "#/db/mappers";
+import { assetName } from "#/lib/asset-store";
+import type { ValidatedSession } from "#/lib/auth";
+import { validateSession } from "#/lib/auth";
+import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
 
 type Vars = { session: ValidatedSession };
 

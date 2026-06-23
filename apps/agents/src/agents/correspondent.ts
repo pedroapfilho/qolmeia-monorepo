@@ -13,8 +13,8 @@ import {
   presentResult as presentAgentResult,
   type ProactiveOutcome,
   suggestNextWork as runSuggestNextWork,
-} from "@/agents/agent-outbound";
-import { resolveImagesToDataUrls } from "@/agents/asset-url-resolver";
+} from "#/agents/agent-outbound";
+import { resolveImagesToDataUrls } from "#/agents/asset-url-resolver";
 import {
   type AttachedImage,
   buildModelMessages,
@@ -26,17 +26,17 @@ import {
   MEMORY_TOP_K,
   RECENT_TURNS_KEEP,
   RECENT_TURNS_WINDOW,
-} from "@/agents/correspondent-context";
-import { appendTurn, clearRecentTurns, getRecentTurns, pruneOldTurns } from "@/agents/recent-turns";
-import { getAdapter } from "@/connectors/registry";
-import type { ConnectorType, NormalizedMessage } from "@/connectors/types";
-import { insertMemoryFact, insertMessage, upsertConversation } from "@/db/schema";
-import { getModel } from "@/lib/ai-gateway";
-import type { CompanyBriefPartial } from "@/lib/company-brief";
-import { getConnectorSecrets } from "@/lib/connector-secrets";
-import { logError, logInfo } from "@/lib/logger";
-import { getMemoryAdapter } from "@/lib/memory";
-import { buildSkillTools } from "@/skills/registry";
+} from "#/agents/correspondent-context";
+import { appendTurn, clearRecentTurns, getRecentTurns, pruneOldTurns } from "#/agents/recent-turns";
+import { getAdapter } from "#/connectors/registry";
+import type { ConnectorType, NormalizedMessage } from "#/connectors/types";
+import { insertMemoryFact, insertMessage, upsertConversation } from "#/db/schema";
+import { getModel } from "#/lib/ai-gateway";
+import type { CompanyBriefPartial } from "#/lib/company-brief";
+import { getConnectorSecrets } from "#/lib/connector-secrets";
+import { logError, logInfo } from "#/lib/logger";
+import { getMemoryAdapter } from "#/lib/memory";
+import { buildSkillTools } from "#/skills/registry";
 
 const CORRESPONDENT_SKILLS = [
   "rememberFact",

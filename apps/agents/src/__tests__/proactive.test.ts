@@ -5,8 +5,8 @@ import {
   PROACTIVE_INTERVAL_MS,
   proactiveGate,
   recordProactiveSuggestion,
-} from "@/agents/proactive";
-import { runProactiveSweep } from "@/scheduled";
+} from "#/agents/proactive";
+import { runProactiveSweep } from "#/scheduled";
 
 const COMPANY_ID = "co_proactive_test";
 

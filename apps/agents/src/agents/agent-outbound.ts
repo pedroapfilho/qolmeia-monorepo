@@ -1,12 +1,12 @@
-import type { CorrespondentAgent } from "@/agents/correspondent";
+import type { CorrespondentAgent } from "#/agents/correspondent";
 import {
   prepareProactiveSuggestion,
   type ProactiveOutcome,
   recordProactiveSuggestion,
-} from "@/agents/proactive";
-import { appendTurn } from "@/agents/recent-turns";
-import { insertMessage, upsertConversation } from "@/db/schema";
-import { logInfo } from "@/lib/logger";
+} from "#/agents/proactive";
+import { appendTurn } from "#/agents/recent-turns";
+import { insertMessage, upsertConversation } from "#/db/schema";
+import { logInfo } from "#/lib/logger";
 
 // Agent-initiated outbound turns (no user prompt) for the Correspondent. Kept out
 // of the DO class so correspondent.ts stays focused. `env` is passed in because
@@ -71,4 +71,4 @@ const suggestNextWork = async (agent: CorrespondentAgent, env: Env): Promise<Pro
 };
 
 export { presentResult, suggestNextWork };
-export type { ProactiveOutcome } from "@/agents/proactive";
+export type { ProactiveOutcome } from "#/agents/proactive";

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listActivity, logActivity } from "@/activity/log";
+import { listActivity, logActivity } from "#/activity/log";
 
 const COMPANY_ID = "co_activity_test";
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { buildSignedAssetUrl, uploadAsset } from "@/lib/r2";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Image generation via OpenRouter's chat-completions endpoint with the
 // `modalities: ["image","text"]` extension. OpenRouter does NOT expose

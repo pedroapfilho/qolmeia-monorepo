@@ -2,18 +2,18 @@ import { getAgentByName } from "agents";
 import { generateText, stepCountIs } from "ai";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
-import { logActivity } from "@/activity/log";
-import { decideAction, markExecuted, proposeAction } from "@/db/action";
-import type { DecisionOutcome } from "@/db/action";
-import { resolvePolicy } from "@/db/policy";
-import { getCompany } from "@/db/schema";
-import { getTemplate } from "@/db/template";
-import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "@/db/ticket";
-import { getModel } from "@/lib/ai-gateway";
-import { logError, logInfo } from "@/lib/logger";
-import { buildSkillTools } from "@/skills/registry";
-import { emitTeamEvent } from "@/team/events";
-import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
+import { logActivity } from "#/activity/log";
+import { decideAction, markExecuted, proposeAction } from "#/db/action";
+import type { DecisionOutcome } from "#/db/action";
+import { resolvePolicy } from "#/db/policy";
+import { getCompany } from "#/db/schema";
+import { getTemplate } from "#/db/template";
+import { loadAgentInstance, loadTicket, markTicketDone, setTicketStatus } from "#/db/ticket";
+import { getModel } from "#/lib/ai-gateway";
+import { logError, logInfo } from "#/lib/logger";
+import { buildSkillTools } from "#/skills/registry";
+import { emitTeamEvent } from "#/team/events";
+import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
 // One generic Workflow class for every Worker job (decision 1 in the P4 plan).
 // The Workflow is the *task's* lifecycle; the Worker DO is the agent's

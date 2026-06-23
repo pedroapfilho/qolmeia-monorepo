@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { putConnectorSecrets } from "@/lib/connector-secrets";
+import { putConnectorSecrets } from "#/lib/connector-secrets";
 
 const COMPANY_ID = "co_webhook_test";
 const CONNECTOR_ID = "conn-tg-webhook-test";
