@@ -73,9 +73,9 @@
   --info-foreground: #ffffff;
   --info-surface: oklch(0.96 0.03 255);
   --info-surface-foreground: oklch(0.48 0.13 262);
-  /* Cyan accent — the WORKER_* activity category (distinct from TICKET_* blue). */
-  --cyan-surface: oklch(0.96 0.025 200);
-  --cyan-surface-foreground: oklch(0.5 0.14 200);
+  /* Worker accent — the WORKER_* activity category (distinct from TICKET_* blue). */
+  --worker-surface: oklch(0.96 0.025 200);
+  --worker-surface-foreground: oklch(0.5 0.14 200);
   --highlight: oklch(0.491 0.27 292.581);
   --highlight-foreground: #ffffff;
   --highlight-surface: oklch(0.95 0.03 292);
@@ -207,8 +207,8 @@
   --color-info-foreground: var(--info-foreground);
   --color-info-surface: var(--info-surface);
   --color-info-surface-foreground: var(--info-surface-foreground);
-  --color-cyan-surface: var(--cyan-surface);
-  --color-cyan-surface-foreground: var(--cyan-surface-foreground);
+  --color-worker-surface: var(--worker-surface);
+  --color-worker-surface-foreground: var(--worker-surface-foreground);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
   --color-highlight-surface: var(--highlight-surface);

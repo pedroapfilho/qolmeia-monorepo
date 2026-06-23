@@ -25,7 +25,7 @@ const eventDotClass = (type: string): string => {
     return "bg-info";
   }
   if (type.startsWith("WORKER_")) {
-    return "bg-cyan-surface-foreground";
+    return "bg-worker-surface-foreground";
   }
   if (type.startsWith("TEAM_")) {
     return "bg-success";
