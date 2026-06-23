@@ -20,7 +20,7 @@ const requireCustomerAgent: MiddlewareHandler = async (c, next) => {
   if (pathCompanyId !== session.companyId) {
     return c.text("Forbidden", 403);
   }
-  await next();
+  return next();
 };
 
 export { requireCustomerAgent };

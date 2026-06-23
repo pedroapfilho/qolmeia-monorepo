@@ -152,7 +152,7 @@ type SkillCatalogEntry = {
 // Human label from the camelCase skill id (rememberFact -> "Remember Fact").
 const skillDisplayName = (id: string): string =>
   id
-    .replace(/([a-z0-9])([A-Z])/gv, "$1 $2")
+    .replaceAll(/(?<lower>[a-z0-9])(?<upper>[A-Z])/gv, "$<lower> $<upper>")
     .split(/\s+/v)
     .filter(Boolean)
     .map((w) => w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1))

@@ -91,16 +91,20 @@ webhooksRoutes.post("/:type/:connectorId", async (c) => {
     // Best-effort fire-and-forget: a dispatch failure must never surface as an
     // uncaught rejection in waitUntil — log it and move on.
     c.executionCtx.waitUntil(
-      dispatch({
-        agent: "correspondent",
-        id: connector.company_id,
-        input: { message: normalized.text },
-      }).catch((error: unknown) =>
-        logError("connector.dispatch.err", {
-          companyId: connector.company_id,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      ),
+      (async () => {
+        try {
+          await dispatch({
+            agent: "correspondent",
+            id: connector.company_id,
+            input: { message: normalized.text },
+          });
+        } catch (error: unknown) {
+          logError("connector.dispatch.err", {
+            companyId: connector.company_id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      })(),
     );
   }
 
