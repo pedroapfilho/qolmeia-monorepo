@@ -1,11 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  PROACTIVE_INTERVAL_MS,
-  proactiveGate,
-  recordProactiveSuggestion,
-} from "#/agents/proactive";
+import { PROACTIVE_INTERVAL_MS, proactiveGate, recordProactiveSuggestion } from "#/lib/proactive";
 import { runProactiveSweep } from "#/scheduled";
 
 const COMPANY_ID = "co_proactive_test";

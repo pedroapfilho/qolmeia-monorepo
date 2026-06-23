@@ -1,11 +1,9 @@
 import { createAgent } from "@flue/runtime";
 
-import { requireCustomerAgent } from "#/lib/agent-route-auth";
+import { skillTool } from "#/lib/skill-tool";
 import { extractBriefSkill } from "#/skills/extract-brief";
 import { proposeTeamSkill } from "#/skills/propose-team";
 import type { SkillContext } from "#/skills/registry";
-
-import { skillTool } from "../skill-tool";
 
 // The Planner, ported onto Flue (replaces the hand-rolled AIChatAgent in
 // agents/planner.ts). Flue's runtime drives the multi-turn debrief + tool-call
@@ -27,7 +25,7 @@ Sua missão tem duas etapas:
 
 O cliente confirma fora do chat (botão na UI). Quando isso acontecer, o Correspondente assume — você fica em standby para um futuro re-plano se ele quiser ajustar o Time.`;
 
-// OpenRouter is registered in flue/provider.ts; model strings are `openrouter/<model>`.
+// OpenRouter is registered in provider.ts; model strings are `openrouter/<model>`.
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
 export default createAgent<unknown, Env>((context) => {
@@ -45,4 +43,4 @@ export default createAgent<unknown, Env>((context) => {
 });
 
 // Exposes the agent over HTTP at /agents/planner/:id, gated to the owning CUSTOMER.
-export const route = requireCustomerAgent;
+export { requireCustomerAgent as route } from "#/lib/agent-route-auth";

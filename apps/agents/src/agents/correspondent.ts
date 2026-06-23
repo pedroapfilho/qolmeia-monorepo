@@ -1,6 +1,6 @@
 import { createAgent } from "@flue/runtime";
 
-import { requireCustomerAgent } from "#/lib/agent-route-auth";
+import { skillTool } from "#/lib/skill-tool";
 import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
 import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
 import { extractBriefSkill } from "#/skills/extract-brief";
@@ -9,8 +9,6 @@ import { recallMemorySkill } from "#/skills/recall-memory";
 import type { SkillContext } from "#/skills/registry";
 import { rememberFactSkill } from "#/skills/remember-fact";
 import { webSearchSkill } from "#/skills/web-search";
-
-import { skillTool } from "../skill-tool";
 
 // The Correspondent, ported onto Flue (replaces the AIChatAgent in
 // agents/correspondent.ts). Flue's runtime drives the chat + tool loop. The
@@ -32,7 +30,7 @@ Ao mostrar imagens geradas, inclua a URL no formato markdown ![descrição curta
 
 Use recallMemory no início de pedidos relevantes para lembrar o que já sabe sobre o cliente, e rememberFact para guardar fatos novos importantes.`;
 
-// OpenRouter is registered in flue/provider.ts.
+// OpenRouter is registered in provider.ts.
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
 export default createAgent<unknown, Env>((context) => {
@@ -60,4 +58,4 @@ export default createAgent<unknown, Env>((context) => {
 });
 
 // Exposes the agent over HTTP at /agents/correspondent/:id, gated to the owning CUSTOMER.
-export const route = requireCustomerAgent;
+export { requireCustomerAgent as route } from "#/lib/agent-route-auth";

@@ -1,13 +1,13 @@
 import { dispatch } from "@flue/runtime";
 
+import { briefCompleteness, parseBrief } from "#/lib/company-brief";
+import { logInfo } from "#/lib/logger";
 import {
   lastProactiveSuggestionAt,
   PROACTIVE_PROMPT,
   proactiveGate,
   recordProactiveSuggestion,
-} from "#/agents/proactive";
-import { briefCompleteness, parseBrief } from "#/lib/company-brief";
-import { logInfo } from "#/lib/logger";
+} from "#/lib/proactive";
 
 // Weekly proactive "suggest next work" sweep, driven by the Worker cron trigger
 // (see wrangler.jsonc `triggers.crons`). For each eligible company it gates on
