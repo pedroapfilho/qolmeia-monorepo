@@ -15,7 +15,6 @@ import {
 import { Loader } from "@/components/ai-elements/loader";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { ChatComposer } from "@/components/chat-composer";
-import { ResetConversationButton } from "@/components/reset-conversation-button";
 import { useFlueChat } from "@/lib/use-flue-chat";
 
 type ChatProps = {
@@ -30,14 +29,16 @@ type ChatProps = {
 // reduces the event stream into renderable messages. Same-origin requests carry
 // the first-party session cookie; the `agent` prop picks which agent to talk to
 // — default is "correspondent"; onboarding sets it to "planner". The composer
-// and the reset control own their own state; this shell just wires them up.
+// owns its own state; this shell just wires it up. Conversation history is
+// managed server-side by Flue (automatic threshold compaction), so there's no
+// client "reset" — long chats summarize themselves without losing continuity.
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const { messages, reset, sendMessage, status } = useFlueChat({
+  const { messages, sendMessage, status } = useFlueChat({
     agent: agentName,
     baseUrl: agentsUrl,
     companyId,
@@ -62,14 +63,6 @@ const ChatInner = ({
     [sendMessage],
   );
 
-  // "Start over": clears the local transcript so the next turn begins fresh.
-  // TODO: Flue has no session-reset RPC yet; the agent's server-side
-  // recent-turns buffer is untouched until the Worker exposes a reset endpoint.
-  const handleReset = useCallback((): Promise<void> => {
-    reset();
-    return Promise.resolve();
-  }, [reset]);
-
   const isCorrespondent = agentName === "correspondent";
 
   return (
@@ -90,7 +83,6 @@ const ChatInner = ({
           </div>
           <div className="ml-auto flex items-center gap-2">
             <StatusPill label="Disponível" tone="success" />
-            <ResetConversationButton onReset={handleReset} />
           </div>
         </header>
       ) : null}

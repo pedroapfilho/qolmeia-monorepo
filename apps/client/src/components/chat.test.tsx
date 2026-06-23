@@ -10,7 +10,6 @@ globalThis.ResizeObserver = class {
 };
 
 const sendMessage = vi.fn();
-const reset = vi.fn();
 const chatState = {
   messages: [] as Array<unknown>,
   status: "ready" as string,
@@ -22,7 +21,6 @@ vi.mock("@/lib/use-flue-chat", () => ({
     capturedChatOptions = options;
     return {
       messages: chatState.messages,
-      reset,
       sendMessage,
       status: chatState.status,
     };
@@ -44,7 +42,6 @@ const { Chat } = await import("./chat");
 describe("Chat", () => {
   beforeEach(() => {
     sendMessage.mockReset();
-    reset.mockReset();
     toastError.mockReset();
     capturedChatOptions = {};
     chatState.messages = [];

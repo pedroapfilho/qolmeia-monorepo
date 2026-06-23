@@ -47,7 +47,6 @@ type UseFlueChatOptions = {
 
 type UseFlueChatResult = {
   messages: Array<ChatMessage>;
-  reset: () => void;
   sendMessage: (input: SendInput) => Promise<void>;
   status: FlueChatStatus;
 };
@@ -233,17 +232,7 @@ const useFlueChat = ({
     [agent, client, companyId, onError, runStream],
   );
 
-  // Best-effort local reset: clears the rendered transcript. The agent's
-  // server-side session/history is untouched.
-  // TODO: Flue session reset needs a server endpoint to clear the agent's
-  // recent-turns buffer; wire it here once the Worker exposes one.
-  const reset = useCallback(() => {
-    abortRef.current?.abort();
-    setMessages([]);
-    setStatus("ready");
-  }, []);
-
-  return { messages, reset, sendMessage, status };
+  return { messages, sendMessage, status };
 };
 
 export { useFlueChat };
