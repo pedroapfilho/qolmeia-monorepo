@@ -120,17 +120,6 @@ const BRIEF_REQUIRED_FIELDS = [
 
 type BriefFieldId = (typeof BRIEF_REQUIRED_FIELDS)[number];
 
-// pt-BR labels for prompts and any server-side rendering. The client mirrors
-// these in its own form copy.
-const BRIEF_FIELD_LABELS: Record<BriefFieldId, string> = {
-  audience: "Público-alvo",
-  "brand.palette": "Cores da marca",
-  "brand.references": "Referências de marca",
-  "brand.voice": "Tom da marca",
-  industry: "Setor",
-  primaryGoal: "Objetivo principal (próximos 3 meses)",
-};
-
 const BRIEF_FIELD_FILLED: Record<BriefFieldId, (brief: Partial<CompanyBrief>) => boolean> = {
   audience: (brief) => !!brief.audience,
   "brand.palette": (brief) => !!brief.brand?.palette,
@@ -173,7 +162,6 @@ const briefCompleteness = (brief: Partial<CompanyBrief> | null | undefined): Bri
 };
 
 export {
-  BRIEF_FIELD_LABELS,
   BRIEF_SCHEMA_VERSION,
   briefCompleteness,
   companyBriefSchema,

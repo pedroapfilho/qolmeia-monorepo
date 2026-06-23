@@ -18,8 +18,6 @@ const templateKeys = {
 
 const fetchTemplates = () => apiGet<TemplatesResponse>("/templates");
 
-const fetchTemplate = (id: string) => apiGet<TemplateResponse>(`/templates/${id}`);
-
 const fetchSkillCatalog = () => apiGet<SkillCatalogResponse>("/skills");
 
 const createTemplate = (input: TemplateInput) =>
@@ -34,7 +32,6 @@ const setTemplateStatus = (id: string, status: TemplateStatus) =>
 export {
   createTemplate,
   fetchSkillCatalog,
-  fetchTemplate,
   fetchTemplates,
   setTemplateStatus,
   templateKeys,
