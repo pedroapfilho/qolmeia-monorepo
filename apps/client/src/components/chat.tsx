@@ -28,10 +28,9 @@ type ChatProps = {
 // protocol (POST /agents/:name/:id to start, GET to tail the event stream) and
 // reduces the event stream into renderable messages. Same-origin requests carry
 // the first-party session cookie; the `agent` prop picks which agent to talk to
-// — default is "correspondent"; onboarding sets it to "planner". The composer
-// owns its own state; this shell just wires it up. Conversation history is
-// managed server-side by Flue (automatic threshold compaction), so there's no
-// client "reset" — long chats summarize themselves without losing continuity.
+// default is "correspondent"; onboarding sets it to "planner". The composer
+// owns its own state; this shell wires it up. Flue manages conversation history
+// server-side (automatic threshold compaction), so there's no client reset.
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
