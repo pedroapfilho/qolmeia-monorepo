@@ -1,4 +1,4 @@
-import { getAgentByName } from "agents";
+import { dispatch } from "@flue/runtime";
 import { generateText, stepCountIs } from "ai";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
@@ -136,8 +136,16 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
     result: string,
   ): Promise<void> {
     try {
-      const corr = await getAgentByName(this.env.CORRESPONDENT, companyId);
-      await corr.presentResult({ result, ticketId });
+      // Hand the finished deliverable to the Correspondent agent, which presents
+      // it to the customer in chat. Best-effort: a presentation failure must
+      // never fail the job.
+      await dispatch({
+        agent: "correspondent",
+        id: companyId,
+        input: {
+          message: `Um especialista do Time concluiu uma tarefa. Apresente este material ao cliente, em pt-BR, de forma calorosa e direta — mantenha as imagens em markdown e não altere o conteúdo:\n\n${result}`,
+        },
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logError("workflow.presentResult.err", { companyId, error: message, ticketId });

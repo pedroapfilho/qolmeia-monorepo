@@ -8,16 +8,14 @@
   // Weekly proactive "suggest next work" sweep (Mondays 13:00 UTC ≈ 10:00 BRT).
   // → src/index.ts scheduled() → runProactiveSweep.
   "triggers": { "crons": ["0 13 * * 1"] },
-  "durable_objects": {
-    "bindings": [{ "name": "CORRESPONDENT", "class_name": "CorrespondentAgent" }],
-  },
-  // Single from-scratch migration — no incremental history (local state is
-  // rebuilt fresh, nothing in production to preserve).
+  // All agents are Flue agents now. The Flue agent + registry Durable Object
+  // bindings are added by `flue build` when it merges this config; their SQLite
+  // migration must be declared here (flue build doesn't generate it). Single
+  // from-scratch migration — nothing in production to preserve.
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": [
-        "CorrespondentAgent",
         "FlueCorrespondentAgent",
         "FluePlannerAgent",
         "FlueWorkerAgent",

@@ -1,5 +1,5 @@
-import { env, SELF } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { env } from "cloudflare:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { validateSession } from "#/lib/auth";
 
@@ -87,13 +87,6 @@ describe("validateSession", () => {
   });
 });
 
-describe("agent path role guard", () => {
-  beforeEach(() => {
-    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-  });
-
-  it("rejects a STAFF session with 403", async () => {
-    const res = await SELF.fetch("https://agents.test/agents/correspondent/co_1?cf_session=tok");
-    expect(res.status).toBe(403);
-  });
-});
+// The agent-path role guard is now enforced inside each Flue agent's `route`
+// export (requireCustomerAgent), not the legacy index.ts fetch handler, so it's
+// exercised against the Flue worker rather than this REST-only entry.

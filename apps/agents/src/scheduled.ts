@@ -1,13 +1,18 @@
-import { getAgentByName } from "agents";
+import { dispatch } from "@flue/runtime";
 
+import {
+  lastProactiveSuggestionAt,
+  PROACTIVE_PROMPT,
+  proactiveGate,
+  recordProactiveSuggestion,
+} from "#/agents/proactive";
 import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 import { logInfo } from "#/lib/logger";
 
 // Weekly proactive "suggest next work" sweep, driven by the Worker cron trigger
-// (see wrangler.jsonc `triggers.crons`). Wakes each active company's
-// Correspondent DO; the DO is the authoritative guard for brief-completeness and
-// weekly de-duplication, so this stays a cheap fan-out. Per-DO failures are
-// isolated via allSettled — one company never blocks the rest.
+// (see wrangler.jsonc `triggers.crons`). For each eligible company it gates on
+// brief-completeness + the weekly window, then dispatches PROACTIVE_PROMPT to the
+// Correspondent agent. Per-company failures are isolated via allSettled.
 const runProactiveSweep = async (
   env: Env,
 ): Promise<{ errored: number; skipped: number; suggested: number }> => {
@@ -15,14 +20,25 @@ const runProactiveSweep = async (
     `SELECT id, brief FROM company WHERE status = 'active'`,
   ).all<{ brief: string | null; id: string }>();
 
-  // Cheap pre-filter so we only wake DOs that can possibly suggest. The DO
-  // re-checks completeness + the weekly window before messaging.
   const eligible = results.filter((row) => briefCompleteness(parseBrief(row.brief)).isComplete);
 
   const outcomes = await Promise.allSettled(
-    eligible.map(async (company) => {
-      const stub = await getAgentByName(env.CORRESPONDENT, company.id);
-      return stub.suggestNextWork();
+    eligible.map(async (company): Promise<"skipped" | "suggested"> => {
+      const gate = proactiveGate({
+        isComplete: true,
+        lastSuggestedAt: await lastProactiveSuggestionAt(env, company.id),
+        now: Date.now(),
+      });
+      if (!gate.ok) {
+        return "skipped";
+      }
+      await dispatch({
+        agent: "correspondent",
+        id: company.id,
+        input: { message: PROACTIVE_PROMPT },
+      });
+      await recordProactiveSuggestion(env, company.id);
+      return "suggested";
     }),
   );
 
@@ -32,7 +48,7 @@ const runProactiveSweep = async (
   for (const outcome of outcomes) {
     if (outcome.status === "rejected") {
       errored += 1;
-    } else if (outcome.value.status === "suggested") {
+    } else if (outcome.value === "suggested") {
       suggested += 1;
     } else {
       skipped += 1;

@@ -1,4 +1,4 @@
-import { getAgentByName } from "agents";
+import { dispatch } from "@flue/runtime";
 import { Hono } from "hono";
 
 import { getAdapter, isConnectorType } from "#/connectors/registry";
@@ -81,18 +81,20 @@ webhooksRoutes.post("/:type/:connectorId", async (c) => {
     id: conversationId,
   });
 
-  // Async handoff — return 200 to the provider immediately. The Correspondent
-  // does the agentic work in the background (via Workflow once P4 kicks in
-  // for delegated work; the chat reply itself is still inline).
-  const corr = await getAgentByName(c.env.CORRESPONDENT, connector.company_id);
-  c.executionCtx.waitUntil(
-    corr.handleInboundFromConnector({
-      connectorId,
-      connectorType: type,
-      conversationId,
-      message: normalized,
-    }),
-  );
+  // Async handoff — return 200 to the provider immediately, dispatch the inbound
+  // message to the Correspondent agent in the background.
+  // NOTE: the agent's reply currently streams to the web chat (SSE); routing it
+  // back to the connector (e.g. a Telegram reply) is deferred until rebuilt on
+  // Flue channels (/channels/:name).
+  if (normalized.text) {
+    c.executionCtx.waitUntil(
+      dispatch({
+        agent: "correspondent",
+        id: connector.company_id,
+        input: { message: normalized.text },
+      }),
+    );
+  }
 
   return c.text("OK", 200);
 });

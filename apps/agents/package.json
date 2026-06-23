@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
-    "@cloudflare/ai-chat": "^0.8.6",
     "@flue/runtime": "1.0.0-beta.2",
     "agents": "^0.16.2",
     "ai": "^6.0.208",

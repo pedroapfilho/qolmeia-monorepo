@@ -1,21 +1,15 @@
-import { type LanguageModel, stepCountIs, streamText } from "ai";
-
 import { logActivity } from "#/activity/log";
-import { buildSystemPrompt, loadBriefContext } from "#/agents/correspondent-context";
 
-// The Correspondent's weekly proactive "suggest next work" outreach. The cron
-// sweep (scheduled.ts) wakes each active company's Correspondent DO, which runs
-// this to decide — independently and idempotently — whether to message the
-// customer with concrete deliverable ideas drawn from the brief.
+// Weekly proactive "suggest next work" outreach. The cron sweep (scheduled.ts)
+// gates each active company (brief complete + not suggested this week) and, when
+// eligible, dispatches PROACTIVE_PROMPT to the company's Correspondent agent —
+// which generates the suggestion from the brief it already reads.
 
 const PROACTIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const PROACTIVE_SEED = "Inicie uma sugestão proativa de trabalho para esta semana.";
-
-const PROACTIVE_ADDENDUM = `Esta é uma mensagem proativa que VOCÊ está iniciando — o cliente não perguntou nada agora. Com base no brief da empresa, sugira de 2 a 3 entregas concretas e específicas para esta semana (por exemplo: posts para redes, peças de design, ações de marketing). Seja breve e caloroso, conecte cada ideia ao negócio do cliente, e convide-o a confirmar para você já acionar o especialista. Não chame ferramentas agora.`;
-
-type ProactiveOutcome = { reason: string; status: "skipped" } | { status: "suggested" };
-type PreparedProactive = { reason: string; status: "skipped" } | { status: "ready"; text: string };
+// The prompt the sweep dispatches. The agent treats it as an inbound turn and
+// replies with concrete weekly deliverable ideas.
+const PROACTIVE_PROMPT = `Esta é uma mensagem proativa que VOCÊ está iniciando — o cliente não perguntou nada agora. Com base no brief da empresa, sugira de 2 a 3 entregas concretas e específicas para esta semana (por exemplo: posts para redes, peças de design, ações de marketing). Seja breve e caloroso, conecte cada ideia ao negócio do cliente, e convide-o a confirmar para você já acionar o especialista.`;
 
 // Pure eligibility gate — unit-testable without D1 or a model.
 const proactiveGate = (input: {
@@ -42,38 +36,6 @@ const lastProactiveSuggestionAt = async (env: Env, companyId: string): Promise<n
   return row?.at ?? null;
 };
 
-// Decides eligibility (brief complete + not suggested this week) and, when
-// eligible, generates the proactive message text. The DO owns persistence and
-// broadcast — this returns text only.
-const prepareProactiveSuggestion = async (
-  env: Env,
-  model: LanguageModel,
-  companyId: string,
-): Promise<PreparedProactive> => {
-  const briefContext = await loadBriefContext(env, companyId);
-  const gate = proactiveGate({
-    isComplete: briefContext.completeness.isComplete,
-    lastSuggestedAt: await lastProactiveSuggestionAt(env, companyId),
-    now: Date.now(),
-  });
-  if (!gate.ok) {
-    return { reason: gate.reason, status: "skipped" };
-  }
-
-  const result = streamText({
-    messages: [{ content: PROACTIVE_SEED, role: "user" }],
-    model,
-    stopWhen: stepCountIs(1),
-    system: `${buildSystemPrompt([], briefContext)}\n\n${PROACTIVE_ADDENDUM}`,
-  });
-  const generated = await result.text;
-  const text = generated.trim();
-  if (!text) {
-    return { reason: "empty generation", status: "skipped" };
-  }
-  return { status: "ready", text };
-};
-
 const recordProactiveSuggestion = async (env: Env, companyId: string): Promise<void> => {
   await logActivity(env, {
     companyId,
@@ -85,9 +47,9 @@ const recordProactiveSuggestion = async (env: Env, companyId: string): Promise<v
 };
 
 export {
+  lastProactiveSuggestionAt,
   PROACTIVE_INTERVAL_MS,
-  prepareProactiveSuggestion,
+  PROACTIVE_PROMPT,
   proactiveGate,
   recordProactiveSuggestion,
 };
-export type { PreparedProactive, ProactiveOutcome };
