@@ -1,12 +1,10 @@
 "use client";
 
-import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
-import { useAgent } from "agents/react";
 import type { FileUIPart } from "ai";
 import { Maximize2, MessageSquare } from "lucide-react";
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import {
   Conversation,
@@ -18,6 +16,7 @@ import { Loader } from "@/components/ai-elements/loader";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { ChatComposer } from "@/components/chat-composer";
 import { ResetConversationButton } from "@/components/reset-conversation-button";
+import { useFlueChat } from "@/lib/use-flue-chat";
 
 type ChatProps = {
   agent?: "correspondent" | "planner";
@@ -26,47 +25,33 @@ type ChatProps = {
   sessionToken: string;
 };
 
-// Client chat surface. `useAgent` opens a WebSocket straight to the company's
-// agent DO (named by the real org id). `useAgentChat` wraps it with the AI SDK
-// chat interface. History, streaming, and reconnection are handled by the
-// agents SDK. The `agent` prop picks which DO class to talk to — default is
-// "correspondent"; onboarding sets it to "planner". The composer and the reset
-// control own their own state; this shell just wires them to the agent.
+// Client chat surface. `useFlueChat` admits a prompt over Flue's HTTP+SSE
+// protocol (POST /agents/:name/:id to start, GET to tail the event stream) and
+// reduces the event stream into renderable messages. Same-origin requests carry
+// the first-party session cookie; the `agent` prop picks which agent to talk to
+// — default is "correspondent"; onboarding sets it to "planner". The composer
+// and the reset control own their own state; this shell just wires them up.
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const agent = useAgent({
+  const { messages, reset, sendMessage, status } = useFlueChat({
     agent: agentName,
-    host: agentsUrl,
-    name: companyId,
-    // Session token the Worker validates against the auth service (spec §9).
-    query: { cf_session: sessionToken },
-  });
-
-  const { clearHistory, messages, sendMessage, status } = useAgentChat({
-    agent,
-    // Surface send/stream failures where they happen instead of watching
-    // the `error` state from an effect.
+    baseUrl: agentsUrl,
+    companyId,
+    // Surface send/stream failures where they happen.
     onError: () => {
       toast.error("Não foi possível enviar. Tente novamente.");
     },
+    sessionToken,
   });
 
-  // When the app has no business info yet, the Planner opens the conversation
-  // itself instead of leaving a blank chat. Best-effort: the DO re-checks the
-  // transcript + brief and no-ops if an opening isn't warranted, so an
-  // optimistic fire here is safe even before history finishes syncing.
-  const didKickoff = useRef(false);
-  useEffect(() => {
-    if (agentName !== "planner" || didKickoff.current || messages.length > 0) {
-      return;
-    }
-    didKickoff.current = true;
-    void agent.call("startOpeningTurn");
-  }, [agentName, messages.length, agent]);
+  // The Planner opening (the legacy `startOpeningTurn` RPC) has no Flue
+  // equivalent. Rather than fire a synthetic kickoff, the chat stays empty until
+  // the customer's first turn and the Planner greets in its reply — the simpler
+  // path that keeps the onboarding UX reasonable without a server RPC.
 
   const isThinking = status === "submitted" || status === "streaming";
 
@@ -77,17 +62,13 @@ const ChatInner = ({
     [sendMessage],
   );
 
-  // "Start over": the SDK's clearHistory() empties its message store + the UI
-  // across tabs; the RPC empties the agent's in-context recent-turns buffer so
-  // the next turn begins fresh. Long-term memory + D1 audit are kept.
-  const handleReset = useCallback(async () => {
-    clearHistory();
-    try {
-      await agent.call("resetConversation");
-    } catch {
-      toast.error("Não foi possível recomeçar. Tente novamente.");
-    }
-  }, [agent, clearHistory]);
+  // "Start over": clears the local transcript so the next turn begins fresh.
+  // TODO: Flue has no session-reset RPC yet; the agent's server-side
+  // recent-turns buffer is untouched until the Worker exposes a reset endpoint.
+  const handleReset = useCallback((): Promise<void> => {
+    reset();
+    return Promise.resolve();
+  }, [reset]);
 
   const isCorrespondent = agentName === "correspondent";
 
@@ -208,13 +189,12 @@ const ChatInner = ({
   );
 };
 
-// `useAgent`/`useAgentChat` are browser-only: on the server `partysocket` has no
-// `window.location.host`, falls back to a placeholder host, and its initial
-// fetch throws `ENOTFOUND dummy-domain.com`. Gate the real chat behind a
-// client-only flag so the SDK hooks never run during SSR. `useSyncExternalStore`
-// returns the server snapshot (false) during SSR and the client snapshot (true)
-// after hydration without a setState-in-effect. The skeleton mirrors the final
-// layout to avoid layout shift on hydration.
+// The Flue client resolves its relative baseUrl against `window.location.origin`
+// (and streams via fetch/SSE), so it must only run in the browser. Gate the real
+// chat behind a client-only flag so the hook never runs during SSR.
+// `useSyncExternalStore` returns the server snapshot (false) during SSR and the
+// client snapshot (true) after hydration without a setState-in-effect. The
+// skeleton mirrors the final layout to avoid layout shift on hydration.
 const subscribeNoop = () => () => {};
 const Chat = (props: ChatProps) => {
   const isClient = useSyncExternalStore(

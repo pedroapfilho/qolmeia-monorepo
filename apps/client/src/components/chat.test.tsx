@@ -10,22 +10,19 @@ globalThis.ResizeObserver = class {
 };
 
 const sendMessage = vi.fn();
+const reset = vi.fn();
 const chatState = {
   messages: [] as Array<unknown>,
   status: "ready" as string,
 };
-let capturedChatOptions: { onError?: (error: Error) => void } = {};
+let capturedChatOptions: { onError?: (error: unknown) => void } = {};
 
-const agentCall = vi.fn();
-vi.mock("agents/react", () => ({
-  useAgent: () => ({ call: agentCall, id: "test-agent" }),
-}));
-
-vi.mock("@cloudflare/ai-chat/react", () => ({
-  useAgentChat: (options: { onError?: (error: Error) => void }) => {
+vi.mock("@/lib/use-flue-chat", () => ({
+  useFlueChat: (options: { onError?: (error: unknown) => void }) => {
     capturedChatOptions = options;
     return {
       messages: chatState.messages,
+      reset,
       sendMessage,
       status: chatState.status,
     };
@@ -46,8 +43,8 @@ const { Chat } = await import("./chat");
 
 describe("Chat", () => {
   beforeEach(() => {
-    agentCall.mockClear();
     sendMessage.mockReset();
+    reset.mockReset();
     toastError.mockReset();
     capturedChatOptions = {};
     chatState.messages = [];
@@ -59,7 +56,7 @@ describe("Chat", () => {
     expect(screen.getByText("Comece a conversa")).toBeInTheDocument();
   });
 
-  it("renders messages from useAgentChat", () => {
+  it("renders messages from the chat hook", () => {
     chatState.messages = [
       { id: "m1", parts: [{ text: "oi", type: "text" }], role: "user" },
       { id: "m2", parts: [{ text: "olá!", type: "text" }], role: "assistant" },
@@ -96,24 +93,5 @@ describe("Chat", () => {
     chatState.status = "submitted";
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText(/Um agente está respondendo/v)).toBeInTheDocument();
-  });
-
-  describe("opening kickoff", () => {
-    it("opens the conversation once when planner transcript is empty", () => {
-      render(<Chat agent="planner" agentsUrl="" companyId="c1" sessionToken="t" />);
-      expect(agentCall).toHaveBeenCalledTimes(1);
-      expect(agentCall).toHaveBeenCalledWith("startOpeningTurn");
-    });
-
-    it("does not open for the correspondent", () => {
-      render(<Chat agent="correspondent" agentsUrl="" companyId="c1" sessionToken="t" />);
-      expect(agentCall).not.toHaveBeenCalled();
-    });
-
-    it("does not open when the transcript already has messages", () => {
-      chatState.messages = [{ id: "m1", parts: [{ text: "oi", type: "text" }], role: "user" }];
-      render(<Chat agent="planner" agentsUrl="" companyId="c1" sessionToken="t" />);
-      expect(agentCall).not.toHaveBeenCalled();
-    });
   });
 });

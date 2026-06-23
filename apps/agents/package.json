@@ -9,8 +9,8 @@
   "scripts": {
     "cf-typegen": "wrangler types",
     "clean": "rm -rf .turbo node_modules .wrangler",
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "deploy": "flue build --target cloudflare && wrangler deploy --config dist/worker_bees/wrangler.json",
+    "dev": "flue dev --target cloudflare --port 8787",
     "lint": "oxlint src",
     "test": "vitest run",
     "typecheck": "wrangler types && tsc --noEmit"
