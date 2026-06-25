@@ -4,7 +4,7 @@ import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import type { FileUIPart } from "ai";
 import { Maximize2, MessageSquare } from "lucide-react";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
   Conversation,
@@ -24,6 +24,9 @@ type ChatProps = {
   sessionToken: string;
 };
 
+const PLANNER_KICKOFF =
+  "O cliente acabou de abrir o chat de onboarding. Cumprimente-o de forma calorosa e breve, diga em uma frase que você vai fazer algumas perguntas para entender o negócio dele, e já faça a primeira pergunta da entrevista.";
+
 // Client chat surface. `useFlueChat` admits a prompt over Flue's HTTP+SSE
 // protocol (POST /agents/:name/:id to start, GET to tail the event stream) and
 // reduces the event stream into renderable messages. Same-origin requests carry
@@ -37,21 +40,23 @@ const ChatInner = ({
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const { messages, sendMessage, status } = useFlueChat({
+  const { kickoff, messages, sendMessage, status } = useFlueChat({
     agent: agentName,
     baseUrl: agentsUrl,
     companyId,
-    // Surface send/stream failures where they happen.
     onError: () => {
       toast.error("Não foi possível enviar. Tente novamente.");
     },
     sessionToken,
   });
 
-  // The Planner opening (the legacy `startOpeningTurn` RPC) has no Flue
-  // equivalent. Rather than fire a synthetic kickoff, the chat stays empty until
-  // the customer's first turn and the Planner greets in its reply — the simpler
-  // path that keeps the onboarding UX reasonable without a server RPC.
+  const kickedOff = useRef(false);
+  useEffect(() => {
+    if (agentName === "planner" && !kickedOff.current) {
+      kickedOff.current = true;
+      void kickoff(PLANNER_KICKOFF);
+    }
+  }, [agentName, kickoff]);
 
   const isThinking = status === "submitted" || status === "streaming";
 

@@ -46,6 +46,7 @@ type UseFlueChatOptions = {
 };
 
 type UseFlueChatResult = {
+  kickoff: (prompt: string) => Promise<void>;
   messages: Array<ChatMessage>;
   sendMessage: (input: SendInput) => Promise<void>;
   status: FlueChatStatus;
@@ -193,6 +194,20 @@ const useFlueChat = ({
     [agent, client, companyId, onError],
   );
 
+  const submit = useCallback(
+    async (message: string, images: Array<AgentPromptImage>) => {
+      setStatus("submitted");
+      try {
+        const result = await client.agents.send(agent, companyId, { images, message });
+        await runStream(result.offset, result.submissionId);
+      } catch (error) {
+        setStatus("error");
+        onError?.(error);
+      }
+    },
+    [agent, client, companyId, onError, runStream],
+  );
+
   const sendMessage = useCallback(
     async (input: SendInput) => {
       const text = input.text.trim();
@@ -216,23 +231,14 @@ const useFlueChat = ({
       }
 
       setMessages((current) => [...current, { id: nextMessageId("u"), parts, role: "user" }]);
-      setStatus("submitted");
-
-      try {
-        const result = await client.agents.send(agent, companyId, {
-          images: toPromptImages(input.files),
-          message: text,
-        });
-        await runStream(result.offset, result.submissionId);
-      } catch (error) {
-        setStatus("error");
-        onError?.(error);
-      }
+      await submit(text, toPromptImages(input.files));
     },
-    [agent, client, companyId, onError, runStream],
+    [submit],
   );
 
-  return { messages, sendMessage, status };
+  const kickoff = useCallback((prompt: string) => submit(prompt, []), [submit]);
+
+  return { kickoff, messages, sendMessage, status };
 };
 
 export { useFlueChat };
