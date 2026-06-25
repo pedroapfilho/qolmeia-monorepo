@@ -65,31 +65,31 @@ Monorepo: pnpm 11 workspaces + Turborepo, Node 24.
 
 The agents Worker owns all product data. Each store has a single purpose:
 
-| Store         | Binding                         | Holds                                                                                                   |
-| ------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| **D1**        | `DB`                            | The product system of record (see §5). SQLite at the edge.                                              |
-| **R2**        | `ASSETS`                        | Binary assets (generated images, uploads, brand files), served via HMAC-signed `/assets/:id` URLs.      |
-| **KV**        | `SESSIONS`                      | A 30s session-validation cache (keeps the auth service off the hot path).                                |
-| **Vectorize** | `VECTORIZE` (prod, optional)    | Embeddings for long-term agent memory recall. Falls back to an in-process store when unprovisioned.     |
-| **Postgres**  | (in `apps/api`)                 | **Better Auth tables only** — users, sessions, accounts, verification, org membership. No product data. |
-| **Workflows** | `WORKER_JOB`                    | `WorkerJobWorkflow` runs — the durable approval/execution loop for delegated work.                      |
+| Store         | Binding                      | Holds                                                                                                   |
+| ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **D1**        | `DB`                         | The product system of record (see §5). SQLite at the edge.                                              |
+| **R2**        | `ASSETS`                     | Binary assets (generated images, uploads, brand files), served via HMAC-signed `/assets/:id` URLs.      |
+| **KV**        | `SESSIONS`                   | A 30s session-validation cache (keeps the auth service off the hot path).                               |
+| **Vectorize** | `VECTORIZE` (prod, optional) | Embeddings for long-term agent memory recall. Falls back to an in-process store when unprovisioned.     |
+| **Postgres**  | (in `apps/api`)              | **Better Auth tables only** — users, sessions, accounts, verification, org membership. No product data. |
+| **Workflows** | `WORKER_JOB`                 | `WorkerJobWorkflow` runs — the durable approval/execution loop for delegated work.                      |
 
 ## §5. Data model (D1)
 
 Schema in [`apps/agents/migrations/*.sql`](../apps/agents/migrations) — a squashed `0001_schema.sql` baseline (schema only) plus `0002_default_data.sql` (the skill-overlay catalog + the 4 default worker templates). Core tables:
 
-| Table                      | Purpose                                                                                                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `company`                  | The tenant. `status: onboarding \| active`, `brief` (JSON — the AI-extracted business soul), slug, locale, timezone.                                                        |
-| `template`                 | System-defined agent blueprint. `worker_kind`, `system_prompt`, `model` (OpenRouter id), `skill_ids`, `default_action_type`, `default_policies`, `status`. Seeded from SQL. |
-| `agent_instance`           | A hired agent for a company. `role: correspondent \| worker`, `template_id`, `prompt_override?`, `status`. One Correspondent per active company; N workers.                 |
-| `team` / `team_member`     | The confirmed roster. `team_member.can_delegate_to` (JSON) encodes the delegation graph.                                                                                    |
-| `ticket`                   | A unit of delegated work. `status: open \| in_progress \| awaiting_approval \| done`, `origin`, `brief`, `workflow_id`, `result`.                                           |
-| `action`                   | A gated side-effect proposed by a Worker. `status: proposed \| executed \| …`, `action_type`, `payload`, decision fields. The backoffice approval card.                     |
-| `memory_fact`              | Long-term agent memory. `kind`, `content`, mirrored into Vectorize for recall.                                                                                              |
-| `asset`                    | R2 object metadata. `kind` (`generated_image`/`brand_asset`/`user_upload`/`knowledge_doc`/`audio`), `mime`, `size`, visibility, folder.                                     |
-| `activity_log`             | Append-only pt-BR timeline. `type` strings are stable, free-form; the backoffice categorises by prefix (`ACTION_*`, `TICKET_*`, `WORKER_*`, `TEAM_*`, `MEMBER_*`).          |
-| `operator_assignment`      | Which operator owns which company's approvals.                                                                                                                              |
+| Table                  | Purpose                                                                                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `company`              | The tenant. `status: onboarding \| active`, `brief` (JSON — the AI-extracted business soul), slug, locale, timezone.                                                        |
+| `template`             | System-defined agent blueprint. `worker_kind`, `system_prompt`, `model` (OpenRouter id), `skill_ids`, `default_action_type`, `default_policies`, `status`. Seeded from SQL. |
+| `agent_instance`       | A hired agent for a company. `role: correspondent \| worker`, `template_id`, `prompt_override?`, `status`. One Correspondent per active company; N workers.                 |
+| `team` / `team_member` | The confirmed roster. `team_member.can_delegate_to` (JSON) encodes the delegation graph.                                                                                    |
+| `ticket`               | A unit of delegated work. `status: open \| in_progress \| awaiting_approval \| done`, `origin`, `brief`, `workflow_id`, `result`.                                           |
+| `action`               | A gated side-effect proposed by a Worker. `status: proposed \| executed \| …`, `action_type`, `payload`, decision fields. The backoffice approval card.                     |
+| `memory_fact`          | Long-term agent memory. `kind`, `content`, mirrored into Vectorize for recall.                                                                                              |
+| `asset`                | R2 object metadata. `kind` (`generated_image`/`brand_asset`/`user_upload`/`knowledge_doc`/`audio`), `mime`, `size`, visibility, folder.                                     |
+| `activity_log`         | Append-only pt-BR timeline. `type` strings are stable, free-form; the backoffice categorises by prefix (`ACTION_*`, `TICKET_*`, `WORKER_*`, `TEAM_*`, `MEMBER_*`).          |
+| `operator_assignment`  | Which operator owns which company's approvals.                                                                                                                              |
 
 [ADR 0002](adr/0002-d1-system-of-record.md) covers why D1 (not Postgres) is the product system of record.
 
