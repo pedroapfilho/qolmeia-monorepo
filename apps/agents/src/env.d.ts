@@ -4,9 +4,10 @@
 // keys it can read from `.dev.vars`, which is git-ignored and absent in CI —
 // so a clean checkout generates an `Env` without them and typecheck breaks.
 // Declare them here instead. Both the global `Env` and `Cloudflare.Env` are
-// augmented (the constraint `AIChatAgent<Env>` enforces `Cloudflare.Env`), and
-// the two must stay structurally aligned. Optional fields mean local dev (no
-// account) just sees `undefined` and the selector falls through.
+// augmented (the agents-SDK `Agent<Env>` base that Flue's Durable Objects extend
+// resolves against `Cloudflare.Env`), and the two must stay structurally
+// aligned. Optional fields mean local dev (no account) just sees `undefined` and
+// the selector falls through.
 
 // `interface` (not `type`) is required — these declarations merge with the
 // interfaces `wrangler types` generates.
@@ -31,8 +32,8 @@ interface Env {
 }
 
 namespace Cloudflare {
-  // Intentionally mirrors the global `Env` above — the `AIChatAgent<Env>`
-  // constraint resolves against `Cloudflare.Env`, so the two must match.
+  // Intentionally mirrors the global `Env` above — the agents-SDK `Agent<Env>`
+  // base resolves against `Cloudflare.Env`, so the two must match.
   // oxlint-disable-next-line no-shadow
   interface Env {
     AI?: Ai;
