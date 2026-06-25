@@ -9,7 +9,11 @@
     "apps/api/src/lib/vitest-setup.ts",
     "apps/*/src/lib/observability.ts",
     "packages/transactional/src/emails/**/*.tsx",
-    "scripts/e2e-*.mjs"
+    "scripts/e2e-*.mjs",
+    "apps/agents/flue.config.ts",
+    "apps/agents/src/app.ts",
+    "apps/agents/src/cloudflare.ts",
+    "apps/agents/src/agents/*.ts"
   ],
   "ignorePatterns": [],
   "ignoreExports": [
@@ -25,7 +29,9 @@
     "better-auth",
     "hono",
     "react",
-    "postcss-load-config"
+    "postcss-load-config",
+    "agents",
+    "valibot"
   ],
   "rules": {
     "unused-dependencies": "warn"

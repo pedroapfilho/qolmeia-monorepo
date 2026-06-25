@@ -1,4 +1,4 @@
-import { safeJson } from "@/db/mappers";
+import { safeJson } from "#/db/mappers";
 
 // Typed shapes + queries for the catalog (template, skill). Skills here are
 // the operator-tunable D1 overlay over the code skill registry — the code
@@ -104,6 +104,110 @@ const listActiveTemplates = async (db: D1Database): Promise<ReadonlyArray<Templa
   return results.map(mapTemplate);
 };
 
+// Operator catalog view: active + retired, newest first. Retired rows stay
+// visible so an operator can restore them — the backoffice never hard-deletes
+// a template (agent_instances reference its id).
+const listAllTemplates = async (db: D1Database): Promise<ReadonlyArray<Template>> => {
+  const { results } = await db
+    .prepare("SELECT * FROM template ORDER BY created_at DESC")
+    .all<TemplateRow>();
+  return results.map(mapTemplate);
+};
+
+type TemplateInput = {
+  defaultActionType: string;
+  defaultPolicies: Record<string, string>;
+  description: string;
+  displayName: string;
+  model: string;
+  skillIds: ReadonlyArray<string>;
+  systemPrompt: string;
+  workerKind: string;
+};
+
+const createTemplate = async (db: D1Database, input: TemplateInput): Promise<Template> => {
+  const id = `tpl-${crypto.randomUUID()}`;
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO template
+         (id, worker_kind, display_name, description, system_prompt, model,
+          skill_ids, default_policies, default_action_type, status, version,
+          created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?, ?)`,
+    )
+    .bind(
+      id,
+      input.workerKind,
+      input.displayName,
+      input.description,
+      input.systemPrompt,
+      input.model,
+      JSON.stringify(input.skillIds),
+      JSON.stringify(input.defaultPolicies),
+      input.defaultActionType,
+      now,
+      now,
+    )
+    .run();
+  const created = await getTemplate(db, id);
+  if (!created) {
+    throw new Error(`Failed to create template ${id}`);
+  }
+  return created;
+};
+
+// Every edit bumps `version`: agent_instances pin a template_version, so an
+// operator change rolls forward without rewriting already-materialized agents.
+const updateTemplate = async (
+  db: D1Database,
+  id: string,
+  input: TemplateInput,
+): Promise<Template | null> => {
+  const now = Date.now();
+  const result = await db
+    .prepare(
+      `UPDATE template
+         SET worker_kind = ?, display_name = ?, description = ?, system_prompt = ?,
+             model = ?, skill_ids = ?, default_policies = ?, default_action_type = ?,
+             version = version + 1, updated_at = ?
+       WHERE id = ?`,
+    )
+    .bind(
+      input.workerKind,
+      input.displayName,
+      input.description,
+      input.systemPrompt,
+      input.model,
+      JSON.stringify(input.skillIds),
+      JSON.stringify(input.defaultPolicies),
+      input.defaultActionType,
+      now,
+      id,
+    )
+    .run();
+  if (result.meta.changes === 0) {
+    return null;
+  }
+  return getTemplate(db, id);
+};
+
+// Soft retire / restore — the only "delete" a template ever gets.
+const setTemplateStatus = async (
+  db: D1Database,
+  id: string,
+  status: TemplateStatus,
+): Promise<Template | null> => {
+  const result = await db
+    .prepare("UPDATE template SET status = ?, updated_at = ? WHERE id = ?")
+    .bind(status, Date.now(), id)
+    .run();
+  if (result.meta.changes === 0) {
+    return null;
+  }
+  return getTemplate(db, id);
+};
+
 const listSkillOverlays = async (
   db: D1Database,
   skillIds: ReadonlyArray<string>,
@@ -119,5 +223,13 @@ const listSkillOverlays = async (
   return results.map(mapSkillOverlay);
 };
 
-export { getTemplate, listActiveTemplates, listSkillOverlays };
-export type { SkillOverlay, Template, TemplateStatus };
+export {
+  createTemplate,
+  getTemplate,
+  listActiveTemplates,
+  listAllTemplates,
+  listSkillOverlays,
+  setTemplateStatus,
+  updateTemplate,
+};
+export type { SkillOverlay, Template, TemplateInput, TemplateStatus };

@@ -56,8 +56,7 @@ const emit = (level: Level, event: string, payload: LogPayload): void => {
 };
 
 const logInfo = (event: string, payload: LogPayload = {}): void => emit("info", event, payload);
-const logWarn = (event: string, payload: LogPayload = {}): void => emit("warn", event, payload);
 const logError = (event: string, payload: LogPayload = {}): void => emit("error", event, payload);
 
-export { logError, logInfo, logWarn };
+export { logError, logInfo };
 export type { LogPayload };

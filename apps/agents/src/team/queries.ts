@@ -1,11 +1,11 @@
-import { resolveAgentStatus } from "@/team/status";
+import { resolveAgentStatus } from "#/team/status";
 import type {
   HireableTemplate,
   OpenTicketSlim,
   TeamMemberBase,
   TeamMemberDetailView,
   TeamMemberView,
-} from "@/team/types";
+} from "#/team/types";
 
 type RosterRow = {
   display_name: string;
@@ -289,4 +289,4 @@ const getMemberDetail = async (
 };
 
 export { getCatalogue, getMemberDetail, getTeamRoster };
-export type { HireableTemplate, TeamMemberDetailView, TeamMemberView } from "@/team/types";
+export type { HireableTemplate, TeamMemberDetailView, TeamMemberView } from "#/team/types";

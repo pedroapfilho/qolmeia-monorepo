@@ -54,15 +54,6 @@ export default defineConfig({
         "unicorn/no-process-exit": "off",
       },
     },
-    // The Correspondent DO concentrates three coherent code paths (web-chat
-    // streaming, connector webhook, memory seed). Splitting them across files
-    // hurts readability more than the line count does — the class is the unit.
-    {
-      files: ["apps/agents/src/agents/correspondent.ts"],
-      rules: {
-        "max-lines": ["error", 510],
-      },
-    },
     // errors.ts is a dedicated domain-error registry. Multiple typed Error
     // subclasses in one file is the point — each belongs to the same domain
     // and co-locating them avoids a proliferation of single-class files.

@@ -1,8 +1,9 @@
-import { getAgentByName } from "agents";
 import { z } from "zod";
 
-import { getDelegationTargets } from "@/db/team";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { getDelegationTargets } from "#/db/team";
+import { setTicketWorkflowId } from "#/db/ticket";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import { emitTeamEvent } from "#/team/events";
 
 // Delegates a task to a specialist Worker on this Company's Team. Runs
 // asynchronously via Cloudflare Workflows — long jobs survive DO eviction
@@ -98,15 +99,20 @@ const delegateToWorkerSkill: UnknownSkill = {
       )
       .run();
 
-    const stub = await getAgentByName(ctx.env.WORKER_AGENT, target.id);
-    const result = await stub.handleTicket(ticketId);
-
-    if (!result.ok) {
-      return { error: result.error, ticketId };
-    }
-    // The Workflow runs asynchronously and pauses for approval; the deliverable
-    // arrives via Correspondent.presentResult.
-    return { status: "queued", ticketId, workflowId: result.workflowId };
+    // Kick off the approval Workflow directly (no Worker DO indirection). Long
+    // jobs survive eviction and pause at step.waitForEvent for operator approval;
+    // the Workflow surfaces the deliverable in chat once approved/auto-executed.
+    const instance = await ctx.env.WORKER_JOB.create({
+      id: ticketId,
+      params: { agentInstanceId: target.id, companyId: ctx.companyId, ticketId },
+    });
+    await setTicketWorkflowId(ctx.env.DB, ticketId, instance.id);
+    await emitTeamEvent(ctx.env, {
+      companyId: ctx.companyId,
+      reason: "ticket_changed",
+      type: "team:status",
+    });
+    return { status: "queued", ticketId, workflowId: instance.id };
   },
   id: "delegateToWorker",
   inputSchema: delegateInputSchema,

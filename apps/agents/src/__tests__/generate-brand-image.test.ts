@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateBrandImageSkill } from "@/skills/generate-brand-image";
-import type { SkillContext } from "@/skills/registry";
+import { generateBrandImageSkill } from "#/skills/generate-brand-image";
+import type { SkillContext } from "#/skills/registry";
 
 const COMPANY_ID = "co_img_test";
 const AGENT_INSTANCE_ID = "agent_img_test";

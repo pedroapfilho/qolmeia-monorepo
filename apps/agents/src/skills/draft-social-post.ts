@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Drafts a social-media post for a single platform. The skill itself is
 // thin — the LLM has already chosen the platform / tone / CTA before

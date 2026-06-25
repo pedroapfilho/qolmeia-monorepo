@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
-import type { SkillContext } from "@/skills/registry";
+import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
+import type { SkillContext } from "#/skills/registry";
 
 const COMPANY_ID = "co_multi_test";
 const CORR_ID = `corr-${COMPANY_ID}`;

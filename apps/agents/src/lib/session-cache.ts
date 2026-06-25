@@ -17,7 +17,7 @@
 // The two call sites both use 60s; the helper enforces the floor so a
 // future bug can't ship a 30s TTL that fails at PUT time.
 
-import { logError } from "@/lib/logger";
+import { logError } from "#/lib/logger";
 
 // This module deals only in opaque strings — the caller picks the
 // (de)serializer. validateSession (lib/auth.ts) JSON.parse's into

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Read a specific webpage as clean markdown via Firecrawl (https://firecrawl.dev).
 // This is the "navigate to this site and read it" tool — pair it with webSearch

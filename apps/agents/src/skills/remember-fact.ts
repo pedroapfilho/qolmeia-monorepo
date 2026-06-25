@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { insertMemoryFact } from "@/db/schema";
-import { getMemoryAdapter } from "@/lib/memory";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { insertMemoryFact } from "#/db/schema";
+import { getMemoryAdapter } from "#/lib/memory";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Persists a durable fact the agent decides is worth remembering long-term —
 // a customer preference, a brand decision, a standing constraint. The same

@@ -1,18 +1,18 @@
-import { logActivity } from "@/activity/log";
-import { safeJson } from "@/db/mappers";
-import { correspondentIdFor, teamIdFor } from "@/db/team";
-import { getTemplate } from "@/db/template";
-import { logError } from "@/lib/logger";
+import { logActivity } from "#/activity/log";
+import { safeJson } from "#/db/mappers";
+import { correspondentIdFor, teamIdFor } from "#/db/team";
+import { getTemplate } from "#/db/template";
+import { logError } from "#/lib/logger";
 import {
   CorrespondentMissingError,
   TeamMemberNotFoundError,
   TeamMemberNotPausableError,
   TemplateNotFoundError,
   TemplateRetiredError,
-} from "@/team/errors";
-import { nextDisplayName } from "@/team/naming";
-import { getMemberDetail, getTeamRoster } from "@/team/queries";
-import type { TeamMemberBase, TeamMemberDetailView, TeamMemberView } from "@/team/types";
+} from "#/team/errors";
+import { nextDisplayName } from "#/team/naming";
+import { getMemberDetail, getTeamRoster } from "#/team/queries";
+import type { TeamMemberBase, TeamMemberDetailView, TeamMemberView } from "#/team/types";
 
 const projectMemberView = (detail: TeamMemberDetailView): TeamMemberView => {
   const base: TeamMemberBase = {
@@ -335,5 +335,5 @@ export {
   TeamMemberNotPausableError,
   TemplateNotFoundError,
   TemplateRetiredError,
-} from "@/team/errors";
+} from "#/team/errors";
 export type { UpdateInput };

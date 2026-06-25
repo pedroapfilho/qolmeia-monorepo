@@ -1,19 +1,19 @@
 import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
-import { listSkillOverlays, type SkillOverlay } from "@/db/template";
-import { logError, logInfo } from "@/lib/logger";
-import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "@/skills/assets";
-import { decideActionSkill } from "@/skills/decide-action";
-import { delegateToWorkerSkill } from "@/skills/delegate-to-worker";
-import { draftSocialPostSkill } from "@/skills/draft-social-post";
-import { extractBriefSkill } from "@/skills/extract-brief";
-import { fetchUrlSkill } from "@/skills/fetch-url";
-import { generateBrandImageSkill } from "@/skills/generate-brand-image";
-import { proposeTeamSkill } from "@/skills/propose-team";
-import { recallMemorySkill } from "@/skills/recall-memory";
-import { rememberFactSkill } from "@/skills/remember-fact";
-import { webSearchSkill } from "@/skills/web-search";
+import { listSkillOverlays, type SkillOverlay } from "#/db/template";
+import { logError, logInfo } from "#/lib/logger";
+import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
+import { decideActionSkill } from "#/skills/decide-action";
+import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
+import { draftSocialPostSkill } from "#/skills/draft-social-post";
+import { extractBriefSkill } from "#/skills/extract-brief";
+import { fetchUrlSkill } from "#/skills/fetch-url";
+import { generateBrandImageSkill } from "#/skills/generate-brand-image";
+import { proposeTeamSkill } from "#/skills/propose-team";
+import { recallMemorySkill } from "#/skills/recall-memory";
+import { rememberFactSkill } from "#/skills/remember-fact";
+import { webSearchSkill } from "#/skills/web-search";
 
 // The skill registry — code module pattern (spec decision 10). `execute()` and
 // the zod input schema are code; the LLM-facing description, parameter hints,
@@ -134,5 +134,40 @@ const registerSkill = (skill: UnknownSkill): void => {
   codeRegistry.set(skill.id, skill);
 };
 
-export { buildSkillTools, registerSkill };
-export type { SkillContext, UnknownSkill };
+// Resolve a code skill by id — for template-driven agents that build their tool
+// set from `template.skill_ids`. Returns undefined for unknown ids.
+const getSkill = (id: string): UnknownSkill | undefined => codeRegistry.get(id);
+
+// Whether a skill id exists in code. Templates can't reference skills that
+// don't exist, so the backoffice validates `skillIds` against this before
+// persisting a template.
+const isKnownSkill = (id: string): boolean => codeRegistry.has(id);
+
+type SkillCatalogEntry = {
+  description: string;
+  displayName: string;
+  id: string;
+};
+
+// Human label from the camelCase skill id (rememberFact -> "Remember Fact").
+const skillDisplayName = (id: string): string =>
+  id
+    .replaceAll(/(?<lower>[a-z0-9])(?<upper>[A-Z])/gv, "$<lower> $<upper>")
+    .split(/\s+/v)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1))
+    .join(" ");
+
+// The full code-owned skill catalog for the backoffice template form's
+// multi-select. Sourced from `ALL_SKILLS` (code) so every selectable id is
+// guaranteed resolvable at agent-build time — the D1 `skill` overlay is only
+// seeded for skills used by the default templates, so it would under-report.
+const listSkillCatalog = (): ReadonlyArray<SkillCatalogEntry> =>
+  ALL_SKILLS.map((s) => ({
+    description: s.description,
+    displayName: skillDisplayName(s.id),
+    id: s.id,
+  })).toSorted((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
+
+export { buildSkillTools, getSkill, isKnownSkill, listSkillCatalog, registerSkill };
+export type { SkillCatalogEntry, SkillContext, UnknownSkill };

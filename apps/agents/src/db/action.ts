@@ -1,5 +1,5 @@
-import { safeJson } from "@/db/mappers";
-import type { Policy } from "@/db/policy";
+import { safeJson } from "#/db/mappers";
+import type { Policy } from "#/db/policy";
 
 // The `action` table is the spec's approval surface. Every gated thing a
 // Worker wants to do is proposed here; the Workflow pauses until the row

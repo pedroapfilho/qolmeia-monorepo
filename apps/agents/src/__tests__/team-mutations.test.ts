@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { hireMember, pauseMember, resumeMember, updateMember } from "@/team/mutations";
+import { hireMember, pauseMember, resumeMember, updateMember } from "#/team/mutations";
 
 const COMPANY_ID = "co_hire_test";
 const TEAM_ID = `team-${COMPANY_ID}`;

@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { proposeTeamSkill } from "@/skills/propose-team";
-import type { SkillContext } from "@/skills/registry";
+import { proposeTeamSkill } from "#/skills/propose-team";
+import type { SkillContext } from "#/skills/registry";
 
 const COMPANY_ID = "co_propose_test";
 

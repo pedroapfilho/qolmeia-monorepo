@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { InMemoryMemoryAdapter } from "@/lib/memory/in-memory";
+import { InMemoryMemoryAdapter } from "#/lib/memory/in-memory";
 
 const AGENT_A = "agent-a";
 const AGENT_B = "agent-b";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveSystemPrompt } from "@/team/resolve-system-prompt";
+import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
 describe("resolveSystemPrompt", () => {
   it("returns the template prompt when override is null", () => {

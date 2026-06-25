@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { loadAgentInstance } from "@/db/ticket";
+import { loadAgentInstance } from "#/db/ticket";
 
 const COMPANY_ID = "co_lai_test";
 const INSTANCE_ID = "ai_lai_test";

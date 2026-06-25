@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { listActivity } from "@/activity/log";
-import { listActiveTemplates } from "@/db/template";
-import { validateSession, type ValidatedSession } from "@/lib/auth";
-import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "@/lib/company-brief";
-import { logError } from "@/lib/logger";
-import { buildCacheKey, readCachedString, writeCachedString } from "@/lib/session-cache";
-import { emitTeamEvent } from "@/team/events";
+import { listActivity } from "#/activity/log";
+import { listActiveTemplates } from "#/db/template";
+import { validateSession, type ValidatedSession } from "#/lib/auth";
+import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
+import { logError } from "#/lib/logger";
+import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
+import { emitTeamEvent } from "#/team/events";
 import {
   CorrespondentMissingError,
   hireMember,
@@ -18,8 +18,8 @@ import {
   TemplateNotFoundError,
   TemplateRetiredError,
   updateMember,
-} from "@/team/mutations";
-import { getCatalogue, getMemberDetail, getTeamRoster } from "@/team/queries";
+} from "#/team/mutations";
+import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
 
 // Authenticated-user introspection endpoints — what the client needs to
 // route between the Planner and the Correspondent. The auth service still

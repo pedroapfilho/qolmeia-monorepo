@@ -1,4 +1,4 @@
-import { safeJson } from "@/db/mappers";
+import { safeJson } from "#/db/mappers";
 
 // Ticket DB helpers. Both the Worker DO (handing off) and the WorkerJob
 // Workflow (running the work) need to load + mutate tickets — pulling these

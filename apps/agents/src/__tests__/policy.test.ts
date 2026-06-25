@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolvePolicy } from "@/db/policy";
+import { resolvePolicy } from "#/db/policy";
 
 describe("resolvePolicy", () => {
   it("returns the template's policy when the action type is pinned", () => {

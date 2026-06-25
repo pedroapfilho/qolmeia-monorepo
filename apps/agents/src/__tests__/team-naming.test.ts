@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextDisplayName } from "@/team/naming";
+import { nextDisplayName } from "#/team/naming";
 
 describe("nextDisplayName", () => {
   it("returns the base name when none exists yet", () => {

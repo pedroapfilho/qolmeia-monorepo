@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { parseBrief } from "@/lib/company-brief";
-import { extractBriefSkill } from "@/skills/extract-brief";
-import type { SkillContext } from "@/skills/registry";
+import { parseBrief } from "#/lib/company-brief";
+import { extractBriefSkill } from "#/skills/extract-brief";
+import type { SkillContext } from "#/skills/registry";
 
 const COMPANY_ID = "co_extract_test";
 

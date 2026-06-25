@@ -7,7 +7,7 @@ import {
   isBriefEmpty,
   mergeBrief,
   parseBrief,
-} from "@/lib/company-brief";
+} from "#/lib/company-brief";
 
 describe("companyBriefSchema", () => {
   it("validates a complete brief", () => {

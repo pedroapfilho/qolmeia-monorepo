@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { listCompanyAssets, persistTextAsset, readAssetText } from "@/lib/asset-store";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Agent access to the company asset library. `listAssets` + `readAsset` let an
 // agent pull information and past deliverables into context; `saveAsset` lets it

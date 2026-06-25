@@ -9,8 +9,8 @@
 // event type means extending the union and adding a category case; the
 // compiler will refuse a typo or a missing renderer.
 
-import type { ActivityEvent, ActivityType } from "@/activity/types";
-import { safeJson } from "@/db/mappers";
+import type { ActivityEvent, ActivityType } from "#/activity/types";
+import { safeJson } from "#/db/mappers";
 
 type LogActivityInput = ActivityEvent & {
   actorId?: string;

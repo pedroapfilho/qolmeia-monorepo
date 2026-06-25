@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRevisionMessages, MAX_REVISIONS } from "@/workflows/worker-job";
+import { buildRevisionMessages, MAX_REVISIONS } from "#/jobs/worker-job";
 
 // The revise loop's prompt construction (ADR 0006). The full Workflow run() —
 // generate → propose → waitForEvent → decide, looping on request-changes — is

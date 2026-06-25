@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { getMemoryAdapter, type ScoredRecord } from "@/lib/memory";
-import type { SkillContext, UnknownSkill } from "@/skills/registry";
+import { getMemoryAdapter, type ScoredRecord } from "#/lib/memory";
+import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 // Explicit semantic search over the agent's memory. The chat loop already
 // retrieves top-K facts at every turn (see correspondent.onChatMessage), but

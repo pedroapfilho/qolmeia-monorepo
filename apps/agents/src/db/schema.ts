@@ -1,11 +1,10 @@
-// Typed row shapes + query helpers for the P1 D1 slice. No ORM — plain
-// parameterized statements. D1's generic `first<T>()` / `all<T>()` give the
-// snake_case row type; mapping functions convert to the camelCase domain shape.
+// Typed row shapes + query helpers for the company + memory_fact D1 tables. No
+// ORM — plain parameterized statements. D1's generic `first<T>()` / `all<T>()`
+// give the snake_case row type; mapping functions convert to camelCase.
 
-import { briefCompleteness, parseBrief } from "@/lib/company-brief";
+import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 
 type CompanyStatus = "onboarding" | "active" | "paused";
-type MessageRole = "user" | "agent" | "system";
 
 type Company = {
   brief: string | null;
@@ -17,25 +16,6 @@ type Company = {
   status: CompanyStatus;
   timezone: string;
   updatedAt: number;
-};
-
-type Conversation = {
-  companyId: string;
-  createdAt: number;
-  externalThreadId: string;
-  id: string;
-  userId: string | null;
-};
-
-type Message = {
-  agentInstanceId: string | null;
-  attachments: string | null;
-  companyId: string;
-  content: string;
-  conversationId: string;
-  createdAt: number;
-  id: string;
-  role: MessageRole;
 };
 
 type CompanyRow = {
@@ -50,35 +30,12 @@ type CompanyRow = {
   updated_at: number;
 };
 
-type ConversationRow = {
-  company_id: string;
-  created_at: number;
-  external_thread_id: string;
-  id: string;
-  user_id: string | null;
-};
-
-type MessageRow = {
-  agent_instance_id: string | null;
-  attachments: string | null;
-  company_id: string;
-  content: string;
-  conversation_id: string;
-  created_at: number;
-  id: string;
-  role: string;
-};
-
 const COMPANY_STATUSES: ReadonlyArray<CompanyStatus> = ["onboarding", "active", "paused"];
-const MESSAGE_ROLES: ReadonlyArray<MessageRole> = ["user", "agent", "system"];
 
-// The DB CHECK constraint already guarantees these; the guards keep the
-// mapping total without a type assertion.
+// The DB CHECK constraint already guarantees this; the guard keeps the mapping
+// total without a type assertion.
 const toCompanyStatus = (value: string): CompanyStatus =>
   COMPANY_STATUSES.find((status) => status === value) ?? "onboarding";
-
-const toMessageRole = (value: string): MessageRole =>
-  MESSAGE_ROLES.find((role) => role === value) ?? "system";
 
 const mapCompany = (row: CompanyRow): Company => ({
   brief: row.brief,
@@ -90,25 +47,6 @@ const mapCompany = (row: CompanyRow): Company => ({
   status: toCompanyStatus(row.status),
   timezone: row.timezone,
   updatedAt: row.updated_at,
-});
-
-const mapConversation = (row: ConversationRow): Conversation => ({
-  companyId: row.company_id,
-  createdAt: row.created_at,
-  externalThreadId: row.external_thread_id,
-  id: row.id,
-  userId: row.user_id,
-});
-
-const mapMessage = (row: MessageRow): Message => ({
-  agentInstanceId: row.agent_instance_id,
-  attachments: row.attachments,
-  companyId: row.company_id,
-  content: row.content,
-  conversationId: row.conversation_id,
-  createdAt: row.created_at,
-  id: row.id,
-  role: toMessageRole(row.role),
 });
 
 const getCompany = async (db: D1Database, id: string): Promise<Company | null> => {
@@ -136,84 +74,7 @@ const listCompaniesOverview = async (db: D1Database): Promise<Array<CompanyOverv
   }));
 };
 
-type UpsertConversationInput = {
-  companyId: string;
-  externalThreadId: string;
-  id: string;
-  userId?: string | null;
-};
-
-// Idempotent on (company_id, external_thread_id): a repeat call returns the
-// existing row rather than creating a duplicate conversation.
-const upsertConversation = async (
-  db: D1Database,
-  input: UpsertConversationInput,
-): Promise<Conversation> => {
-  await db
-    .prepare(
-      `INSERT INTO conversation (id, company_id, external_thread_id, user_id, created_at)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (company_id, external_thread_id) DO NOTHING`,
-    )
-    .bind(input.id, input.companyId, input.externalThreadId, input.userId ?? null, Date.now())
-    .run();
-
-  const row = await db
-    .prepare("SELECT * FROM conversation WHERE company_id = ? AND external_thread_id = ?")
-    .bind(input.companyId, input.externalThreadId)
-    .first<ConversationRow>();
-
-  if (!row) {
-    throw new Error(`upsertConversation: row missing after insert for ${input.externalThreadId}`);
-  }
-  return mapConversation(row);
-};
-
-type InsertMessageInput = {
-  agentInstanceId?: string | null;
-  attachments?: string | null;
-  companyId: string;
-  content: string;
-  conversationId: string;
-  id: string;
-  role: MessageRole;
-};
-
-// `INSERT OR IGNORE` keeps persistence idempotent on the message id — a
-// re-delivered chat turn never duplicates a row.
-const insertMessage = async (db: D1Database, input: InsertMessageInput): Promise<void> => {
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO message
-         (id, company_id, conversation_id, agent_instance_id, role, content, attachments, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      input.id,
-      input.companyId,
-      input.conversationId,
-      input.agentInstanceId ?? null,
-      input.role,
-      input.content,
-      input.attachments ?? null,
-      Date.now(),
-    )
-    .run();
-};
-
-const listMessages = async (
-  db: D1Database,
-  conversationId: string,
-  limit = 100,
-): Promise<ReadonlyArray<Message>> => {
-  const { results } = await db
-    .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ?")
-    .bind(conversationId, limit)
-    .all<MessageRow>();
-  return results.map(mapMessage);
-};
-
-// ── memory_fact (P2 active table) ─────────────────────────────
+// ── memory_fact ──────────────────────────────────────────────
 
 type InsertMemoryFactInput = {
   agentInstanceId: string;
@@ -243,12 +104,5 @@ const insertMemoryFact = async (db: D1Database, input: InsertMemoryFactInput): P
     .run();
 };
 
-export {
-  getCompany,
-  insertMemoryFact,
-  insertMessage,
-  listCompaniesOverview,
-  listMessages,
-  upsertConversation,
-};
-export type { Company, CompanyOverview, Conversation, Message, MessageRole };
+export { getCompany, insertMemoryFact, listCompaniesOverview };
+export type { Company, CompanyOverview };

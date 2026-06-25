@@ -1,52 +1,56 @@
-import { Agent } from "agents";
+import { createAgent } from "@flue/runtime";
 
-import { loadAgentInstance, loadTicket, setTicketWorkflowId } from "@/db/ticket";
-import { emitTeamEvent } from "@/team/events";
+import { getTemplate } from "#/db/template";
+import { loadAgentInstance } from "#/db/ticket";
+import { skillTool } from "#/lib/skill-tool";
+import { getSkill, type SkillContext, type UnknownSkill } from "#/skills/registry";
+import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
-// Task-facing agent. The WorkerAgent DO holds identity + per-agent state;
-// the heavy lifting (LLM, tool calls, approval loop) runs in a Cloudflare
-// Workflow that the DO kicks off. This split survives DO eviction during
-// long jobs and lets the approval flow pause at `step.waitForEvent` for as
-// long as the User takes.
-
-type HandleTicketResult = { error: string; ok: false } | { ok: true; workflowId: string };
-
-class WorkerAgent extends Agent<Env> {
-  // Called through the DO RPC stub by the delegateToWorker skill — invisible to static analysis.
-  // fallow-ignore-next-line unused-class-member
-  async handleTicket(ticketId: string): Promise<HandleTicketResult> {
-    const ticket = await loadTicket(this.env.DB, ticketId);
-    if (!ticket) {
-      return { error: `ticket ${ticketId} not found`, ok: false };
-    }
-    const agentInstance = await loadAgentInstance(this.env.DB, ticket.agentInstanceId);
-    if (!agentInstance?.templateId) {
-      return { error: "agent_instance has no template — cannot resolve config", ok: false };
-    }
-
-    // Idempotency: if the ticket already has a workflow_id, return it.
-    // Re-creating with the same id throws (Workflows reject duplicate ids).
-    if (ticket.workflowId) {
-      return { ok: true, workflowId: ticket.workflowId };
-    }
-
-    const instance = await this.env.WORKER_JOB.create({
-      id: ticketId,
-      params: {
-        agentInstanceId: ticket.agentInstanceId,
-        companyId: ticket.companyId,
-        ticketId,
-      },
-    });
-
-    await setTicketWorkflowId(this.env.DB, ticketId, instance.id);
-    await emitTeamEvent(this.env, {
-      companyId: ticket.companyId,
-      reason: "ticket_changed",
-      type: "team:status",
-    });
-    return { ok: true, workflowId: instance.id };
+// The Worker agents, ported onto Flue (replaces the WorkerAgent DO +
+// WorkerJobWorkflow generate step). Each worker instance is template-driven: its
+// model, system prompt, and skill set come from the D1 template, resolved at
+// agent init (createAgent supports async initialize).
+//
+// The CF approval Workflow stays: `WorkerJobWorkflow`'s `waitForEvent` gate is
+// kept as-is (highest-stakes, most-tested path). It dispatches a run to this
+// agent for the deliverable, then gates it — the agent itself only produces
+// work, it does not own the approval loop.
+//
+// Keyed by agent instance id (context.id), same as the DO.
+export default createAgent<unknown, Env>(async (context) => {
+  const agentInstanceId = context.id;
+  const instance = await loadAgentInstance(context.env.DB, agentInstanceId);
+  if (!instance?.templateId) {
+    throw new Error(`flue worker ${agentInstanceId}: agent_instance has no template`);
   }
-}
+  const template = await getTemplate(context.env.DB, instance.templateId);
+  if (!template) {
+    throw new Error(`flue worker ${agentInstanceId}: template ${instance.templateId} not found`);
+  }
+  const row = await context.env.DB.prepare("SELECT company_id FROM agent_instance WHERE id = ?")
+    .bind(agentInstanceId)
+    .first<{ company_id: string }>();
+  if (!row?.company_id) {
+    throw new Error(`flue worker ${agentInstanceId}: no company_id`);
+  }
 
-export { WorkerAgent };
+  const ctx: SkillContext = {
+    agentInstanceId,
+    companyId: row.company_id,
+    env: context.env,
+  };
+  const tools = template.skillIds
+    .map((id) => getSkill(id))
+    .filter((skill): skill is UnknownSkill => skill !== undefined)
+    .map((skill) => skillTool(skill, ctx));
+
+  return {
+    instructions: resolveSystemPrompt(instance, template),
+    // template.model is the OpenRouter model id (e.g. "anthropic/claude-...").
+    model: `openrouter/${template.model}`,
+    tools,
+  };
+});
+
+// No `route` export: the Worker is dispatch-only (driven by the approval
+// Workflow), never reachable over HTTP.

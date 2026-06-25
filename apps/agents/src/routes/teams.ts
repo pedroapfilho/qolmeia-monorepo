@@ -1,11 +1,11 @@
-import { getAgentByName } from "agents";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { logActivity } from "@/activity/log";
-import { materializeTeam } from "@/db/team";
-import { validateSession, type ValidatedSession } from "@/lib/auth";
-import { parseBrief } from "@/lib/company-brief";
+import { logActivity } from "#/activity/log";
+import { materializeTeam } from "#/db/team";
+import { validateSession, type ValidatedSession } from "#/lib/auth";
+import { parseBrief } from "#/lib/company-brief";
+import { seedCompanyMemory } from "#/team/seed-memory";
 
 // Team confirm. The customer goes through the Planner debrief, picks the
 // templates from the proposed candidates, and POSTs here to materialize the
@@ -74,14 +74,13 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
   // — the brief stays in D1, the Correspondent re-reads it on next access.
   try {
     const brief = parseBrief(company.brief);
-    const corr = await getAgentByName(c.env.CORRESPONDENT, companyId);
-    await corr.seedMemory({
+    await seedCompanyMemory(c.env, companyId, {
       brief,
       debriefSummary: "Time confirmado via onboarding.",
     });
   } catch (error) {
     // oxlint-disable-next-line no-console
-    console.error("[teams] seedMemory RPC failed (best-effort)", { companyId, error });
+    console.error("[teams] seedCompanyMemory failed (best-effort)", { companyId, error });
   }
 
   await logActivity(c.env, {

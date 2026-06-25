@@ -7,7 +7,7 @@ import {
   signAssetToken,
   uploadAsset,
   verifyAssetToken,
-} from "@/lib/r2";
+} from "#/lib/r2";
 
 describe("R2 asset upload + fetch", () => {
   it("round-trips bytes through Miniflare R2", async () => {

@@ -2,8 +2,8 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { getTemplate, listSkillOverlays } from "@/db/template";
-import { buildSkillTools, registerSkill, type UnknownSkill } from "@/skills/registry";
+import { getTemplate, listSkillOverlays } from "#/db/template";
+import { buildSkillTools, registerSkill, type UnknownSkill } from "#/skills/registry";
 
 const COMPANY_ID = "co_tpl_test";
 const AGENT_INSTANCE_ID = "agent_tpl_test";

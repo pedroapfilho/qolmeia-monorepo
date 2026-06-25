@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { constantTimeEqual } from "@/lib/constant-time";
+import { constantTimeEqual } from "#/lib/constant-time";
 
 // Internal-only endpoints, gated by a shared secret in INTERNAL_SHARED_SECRET.
 // Today's surface: POST /api/internal/companies — called by apps/api on
