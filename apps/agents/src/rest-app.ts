@@ -8,9 +8,8 @@ import { internalRoutes } from "#/routes/internal";
 import { meRoutes } from "#/routes/me";
 import { meAssetsRoutes } from "#/routes/me-assets";
 import { teamsRoutes } from "#/routes/teams";
-import { webhooksRoutes } from "#/routes/webhooks";
 
-// The REST/webhook surface as a Hono app factory. Shared by the Flue worker
+// The REST surface as a Hono app factory. Shared by the Flue worker
 // entry (src/app.ts, which also mounts the agent routes via `flue()`) and the
 // vitest/wrangler entry (src/index.ts). Each caller gets its own instance so
 // mounting `flue()` on one doesn't affect the other.
@@ -48,7 +47,6 @@ const createRestApp = (): Hono<{ Bindings: Env }> => {
   app.route("/api/me", meAssetsRoutes);
   app.route("/api/teams", teamsRoutes);
   app.route("/assets", assetsRoutes);
-  app.route("/webhooks", webhooksRoutes);
 
   return app;
 };

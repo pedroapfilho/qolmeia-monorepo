@@ -36,19 +36,19 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 | Folder            | Package name  | Framework         | Dev URL                                           | Audience                                                                                                                             |
 | ----------------- | ------------- | ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost` (portless)        | General API service — auth (`/api/auth/*` Better Auth) + `/api/v1/me` (relay target); home for future non-agent management features. |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (WebSocket), provider webhooks, REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).  |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                  |
 | `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface — CUSTOMER role.                                                                                           |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel — OWNER/STAFF roles.                                                                                                  |
 
-The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat WebSocket on client) so the Better Auth cookie stays first-party — `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.client.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
+The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat HTTP+SSE on client) so the Better Auth cookie stays first-party — `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.client.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
 
 ### Key runtime moves (P1–P7)
 
 - **Per-tenant agents are Durable Objects**: `CorrespondentAgent`, `WorkerAgent`, `PlannerAgent` (one DO instance per company id).
 - **Approvals run on Workflows**: every Worker job spawns a `WorkerJobWorkflow`; gated actions pause on `waitForEvent("decision:<actionId>")` until an operator decides via `/api/backoffice/actions/:id/decide`.
-- **D1 is the system of record for product data**: `company`, `ticket`, `action`, `activity_log`, `agent_instance`, `template`, `skill`, `team`, `team_member`, `memory_fact`, `connector`, `webhook_event`, `asset`. Schema in `apps/agents/migrations/*.sql`.
+- **D1 is the system of record for product data**: `company`, `ticket`, `action`, `activity_log`, `agent_instance`, `template`, `skill`, `team`, `team_member`, `memory_fact`, `asset`. Schema in `apps/agents/migrations/*.sql`.
 - **R2 holds binary assets** (`ASSETS` binding), served via HMAC-signed URLs from `/assets/:id`.
-- **KV holds connector secrets** (`CONNECTOR_SECRETS` binding) so Telegram/etc. configs don't sit in env vars.
+- **KV holds a session-validation cache** (`SESSIONS` binding) to keep the auth service off the hot path.
 - **Postgres remains** for Better Auth's tables only. Legacy product models still exist in `packages/db/prisma/schema.prisma` but are unused by `agents`.
 
 ### Packages

@@ -16,8 +16,7 @@ uses real subdomains of one parent and a cross-subdomain session cookie
 
 Postgres holds **only** Better Auth tables. All product data (company, ticket,
 action, asset, team, memory_fact, …) lives in Cloudflare **D1**; binary assets in
-**R2**; connector secrets + a session cache in **KV**; agent memory in
-**Vectorize**.
+**R2**; a session cache in **KV**; agent memory in **Vectorize**.
 
 ## 2. External accounts you must create
 
@@ -33,7 +32,7 @@ action, asset, team, memory_fact, …) lives in Cloudflare **D1**; binary assets
 | **Domain / DNS**                            | `qolmeia.com` + the four subdomains                                                                           | —                                          |
 
 See [`docs/agent-tools.md`](./agent-tools.md) for the full agent-integration
-catalog (current + recommended connectors and which agent uses each).
+catalog (current tools and which agent uses each).
 
 ## 3. Domains + the cross-subdomain cookie (ADR 0008)
 
@@ -58,7 +57,6 @@ Everything lives under **`qolmeia.com`**: `app.` (client), `admin.`
 ```bash
 wrangler d1 create worker-bees                          # → copy database_id
 wrangler r2 bucket create qolmeia-assets
-wrangler kv namespace create qolmeia-connector-secrets  # → copy id
 wrangler kv namespace create qolmeia-sessions           # → copy id
 wrangler vectorize create qolmeia-memory --dimensions=1024 --metric=cosine
 ```
@@ -71,7 +69,7 @@ your **account id** (`wrangler whoami`).
 Replace every `PLACEHOLDER`:
 
 - D1 `database_id` (from 4a)
-- both KV `id`s (`CONNECTOR_SECRETS`, `SESSIONS`)
+- the KV `id` (`SESSIONS`)
 - `AI_GATEWAY_ACCOUNT_ID` (your account id)
 
 Update the `vars` for prod:

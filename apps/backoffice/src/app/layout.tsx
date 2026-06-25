@@ -21,11 +21,11 @@ export const metadata: Metadata = {
   category: "technology",
   creator: "Qolmeia",
   description:
-    "Painel operacional da Qolmeia. Atenda clientes via Telegram com agentes de IA, aprove ações sensíveis e acompanhe a atividade do seu negócio em tempo real.",
+    "Painel operacional da Qolmeia. Atenda clientes com agentes de IA, aprove ações sensíveis e acompanhe a atividade do seu negócio em tempo real.",
   icons: {
     icon: "/favicon.ico",
   },
-  keywords: ["qolmeia", "backoffice", "telegram", "ai agency", "agentes"],
+  keywords: ["qolmeia", "backoffice", "ai agency", "agentes"],
   metadataBase: new URL(process.env.WEB_APP_URL ?? "https://app.qolmeia.ai"),
   openGraph: {
     description: "Painel operacional da Qolmeia.",

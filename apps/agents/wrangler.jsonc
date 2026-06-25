@@ -76,15 +76,9 @@
   ],
   "kv_namespaces": [
     {
-      "binding": "CONNECTOR_SECRETS",
-      // Miniflare emulates KV locally; deploy provisions the real namespace
-      // via `wrangler kv namespace create qolmeia-connector-secrets`.
-      "id": "PLACEHOLDER-connector-secrets-namespace-id",
-    },
-    {
       "binding": "SESSIONS",
       // 30s session cache for validateSession — keeps the auth service off
-      // the hot path of every backoffice render + every chat WS upgrade.
+      // the hot path of every backoffice render + every chat request.
       // Deploy: `wrangler kv namespace create qolmeia-sessions`.
       "id": "PLACEHOLDER-sessions-namespace-id",
     },

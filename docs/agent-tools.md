@@ -12,11 +12,10 @@ each mapped to the agent(s) that use it. Companion to
    has a hardcoded set (`CORRESPONDENT_SKILLS` in `agents/correspondent.ts`);
    **Workers** get `template.skill_ids` (D1, set via a migration). Adding a tool
    = a new skill file + registry entry + the template/correspondent skill list.
-2. **Connector** — an inbound/outbound **channel** (e.g. Telegram today). Configs
-   live in the `CONNECTOR_SECRETS` KV namespace and the `connector` table; inbound
-   messages arrive via provider webhooks and are routed to the Correspondent.
-   Adding a channel = a connector type + webhook handler + KV secret, no per-agent
-   skill change.
+2. **Channel** — how the customer reaches the Correspondent. Today the only
+   channel is the **web chat** (the Correspondent's Flue agent route, HTTP+SSE).
+   There are no external messaging connectors; Flue's `channels/` convention is
+   reserved for future inter-agent transport.
 
 Outward, hard-to-reverse tools (publishing, sending, spending) should propose a
 **gated action** (`require-approval` policy, ADR 0006) rather than firing
@@ -36,8 +35,7 @@ directly; deliverables (drafts, images, research) `auto-execute`.
 | `extractBrief` / `proposeTeam`           | onboarding                                | — (LLM)                                          | Planner                                                      |
 | `decideAction`                           | resume a gated action                     | —                                                | operator path                                                |
 
-**Inbound channel connector (infra live):** **Telegram** — webhook → Correspondent,
-secret in `CONNECTOR_SECRETS` KV.
+**Channel:** web chat only — the Correspondent's Flue agent route (HTTP+SSE).
 
 ### Agent → tools today
 

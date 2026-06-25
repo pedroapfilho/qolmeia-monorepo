@@ -74,30 +74,6 @@ CREATE TABLE company (
   updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE connector (
-  id           TEXT PRIMARY KEY,
-  company_id   TEXT NOT NULL REFERENCES company(id),
-  type         TEXT NOT NULL
-               CHECK (type IN ('web', 'telegram', 'whatsapp', 'slack', 'discord')),
-  display_name TEXT NOT NULL,
-  config_ref   TEXT NOT NULL,           
-  inbound      INTEGER NOT NULL DEFAULT 1,
-  outbound     INTEGER NOT NULL DEFAULT 1,
-  status       TEXT NOT NULL DEFAULT 'active'
-               CHECK (status IN ('active', 'disabled')),
-  created_at   INTEGER NOT NULL,
-  UNIQUE (company_id, type)
-);
-
-CREATE TABLE conversation (
-  id                 TEXT PRIMARY KEY,
-  company_id         TEXT NOT NULL REFERENCES company(id),
-  external_thread_id TEXT NOT NULL,
-  user_id            TEXT,
-  created_at         INTEGER NOT NULL,
-  UNIQUE (company_id, external_thread_id)
-);
-
 CREATE TABLE memory_fact (
   id                TEXT PRIMARY KEY,
   company_id        TEXT NOT NULL REFERENCES company(id),
@@ -105,17 +81,6 @@ CREATE TABLE memory_fact (
   kind              TEXT NOT NULL,
   content           TEXT NOT NULL,
   salience          REAL NOT NULL DEFAULT 0.5,
-  created_at        INTEGER NOT NULL
-);
-
-CREATE TABLE message (
-  id                TEXT PRIMARY KEY,
-  company_id        TEXT NOT NULL REFERENCES company(id),
-  conversation_id   TEXT NOT NULL REFERENCES conversation(id),
-  agent_instance_id TEXT,
-  role              TEXT NOT NULL CHECK (role IN ('user', 'agent', 'system')),
-  content           TEXT NOT NULL,
-  attachments       TEXT,
   created_at        INTEGER NOT NULL
 );
 
@@ -186,20 +151,12 @@ CREATE TABLE ticket (
   updated_at        INTEGER NOT NULL
 );
 
-CREATE TABLE webhook_event (
-  provider    TEXT NOT NULL,
-  external_id TEXT NOT NULL,
-  received_at INTEGER NOT NULL,
-  PRIMARY KEY (provider, external_id)
-);
-
 CREATE INDEX idx_action_company_status_age
   ON action (company_id, status, created_at);
 CREATE INDEX idx_activity_log_company_time
   ON activity_log (company_id, created_at);
 CREATE INDEX idx_memory_fact_agent_time
   ON memory_fact (agent_instance_id, created_at);
-CREATE INDEX idx_message_conversation ON message (conversation_id, created_at);
 CREATE INDEX idx_operator_assignment_user ON operator_assignment (operator_user_id);
 CREATE INDEX idx_ticket_company_agent_status
   ON ticket (company_id, agent_instance_id, status);

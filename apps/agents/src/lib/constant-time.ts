@@ -1,6 +1,6 @@
 // Constant-time string comparison. Guards INTERNAL_SHARED_SECRET (internal.ts)
-// and the Telegram webhook secret token (telegram/adapter.ts) against timing
-// attacks: a `===`/`!==` compare short-circuits on the first differing byte,
+// against timing attacks: a `===`/`!==` compare short-circuits on the first
+// differing byte,
 // leaking how many leading bytes matched and letting an attacker recover the
 // secret byte-by-byte. This XOR-accumulator never short-circuits — it folds a
 // length difference into the accumulator and walks a fixed number of bytes so

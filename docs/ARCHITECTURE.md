@@ -23,7 +23,7 @@ User-facing locale is **pt-BR** across every agent and UI.
                  │  :8787                                                         │
                  │   • Flue agents (DOs): Planner · Correspondent · Worker        │
                  │   • WorkerJobWorkflow (Cloudflare Workflow — approval gate)    │
-                 │   • REST: /api/me /api/teams /api/backoffice /assets /webhooks │
+                 │   • REST: /api/me /api/teams /api/backoffice /assets          │
                  │   • bindings: D1 · R2 · KV · (Vectorize) · Workflows           │
                  └───────────┬───────────────────────────────┬──────────────────┘
                              │ /api/v1/me (membership)        │
@@ -69,7 +69,7 @@ The agents Worker owns all product data. Each store has a single purpose:
 | ------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | **D1**        | `DB`                            | The product system of record (see §5). SQLite at the edge.                                              |
 | **R2**        | `ASSETS`                        | Binary assets (generated images, uploads, brand files), served via HMAC-signed `/assets/:id` URLs.      |
-| **KV**        | `CONNECTOR_SECRETS`, `SESSIONS` | Connector configs/secrets (so Telegram tokens don't sit in env vars) + a 30s session-validation cache.  |
+| **KV**        | `SESSIONS`                      | A 30s session-validation cache (keeps the auth service off the hot path).                                |
 | **Vectorize** | `VECTORIZE` (prod, optional)    | Embeddings for long-term agent memory recall. Falls back to an in-process store when unprovisioned.     |
 | **Postgres**  | (in `apps/api`)                 | **Better Auth tables only** — users, sessions, accounts, verification, org membership. No product data. |
 | **Workflows** | `WORKER_JOB`                    | `WorkerJobWorkflow` runs — the durable approval/execution loop for delegated work.                      |
@@ -88,9 +88,6 @@ Schema in [`apps/agents/migrations/*.sql`](../apps/agents/migrations) — a squa
 | `action`                   | A gated side-effect proposed by a Worker. `status: proposed \| executed \| …`, `action_type`, `payload`, decision fields. The backoffice approval card.                     |
 | `memory_fact`              | Long-term agent memory. `kind`, `content`, mirrored into Vectorize for recall.                                                                                              |
 | `asset`                    | R2 object metadata. `kind` (`generated_image`/`brand_asset`/`user_upload`/`knowledge_doc`/`audio`), `mime`, `size`, visibility, folder.                                     |
-| `connector`                | Per-company inbound/outbound channel config (Telegram etc.); secrets live in KV.                                                                                            |
-| `conversation` / `message` | Chat transcript persisted to D1 (system of record for messages).                                                                                                            |
-| `webhook_event`            | Idempotency ledger for provider webhooks (first write wins).                                                                                                                |
 | `activity_log`             | Append-only pt-BR timeline. `type` strings are stable, free-form; the backoffice categorises by prefix (`ACTION_*`, `TICKET_*`, `WORKER_*`, `TEAM_*`, `MEMBER_*`).          |
 | `operator_assignment`      | Which operator owns which company's approvals.                                                                                                                              |
 
@@ -112,7 +109,7 @@ All three agents run on **[Flue](https://flueframework.com)** (`@flue/runtime` 1
 
 - `POST /agents/:name/:id` with `{ "message": string, "images"?: [...] }` → `{ streamUrl, submissionId }` (202 admission).
 - `GET /agents/:name/:id` → SSE event stream (`message_start`, `text_delta`, …).
-- Server code reaches an agent with `dispatch({ agent, id, input })` (used for deliverable delivery, the proactive sweep, and connector inbound).
+- Server code reaches an agent with `dispatch({ agent, id, input })` (used for deliverable delivery and the proactive sweep).
 
 **Auth gate.** Each conversational agent exports a `route` middleware (`requireCustomerAgent`): authenticated **CUSTOMER** only, and the `:id` path segment must equal the session's companyId (tenant isolation — [ADR 0001](adr/0001-tenant-isolation-on-agent-path.md)).
 
@@ -138,11 +135,9 @@ The highest-stakes path, kept on a Cloudflare Workflow for durability ([ADR 0003
 
 A weekly **proactive sweep** (`scheduled()` cron) gates each active company on brief-completeness + a weekly window and `dispatch()`es a "suggest next work" prompt to its Correspondent.
 
-## §9. Connectors
+## §9. Channels
 
-A connector is a per-company channel adapter (Telegram first). Inbound provider webhooks hit `POST /webhooks/*`; the adapter normalizes the payload (idempotency via `webhook_event`) and `dispatch()`es the message to the company's Correspondent. Secrets live in KV (`CONNECTOR_SECRETS`).
-
-> **Status:** the inbound path is live; the **reply-back to the connector** (e.g. a Telegram reply) is deferred — the agent's reply currently streams to the web chat (SSE). Rebuilding the round-trip on Flue **channels** (`/channels/:name`) is the open item.
+The customer reaches the Correspondent over the **web chat only** — the Flue agent route (`POST`/`GET /agents/correspondent/:companyId`, HTTP+SSE). There are no external messaging connectors. Flue's `channels/` convention is reserved for future inter-agent transport; nothing uses it today.
 
 ## §10. Authentication & authorization
 
@@ -171,9 +166,7 @@ A connector is a per-company channel adapter (Telegram first). Inbound provider 
 
 The agent layer is fully on Flue; **no legacy `AIChatAgent` Durable Objects remain**. Whole-monorepo typecheck, build, and tests are green. Deferred (tracked as TODOs in code):
 
-- **Connector reply-back** on Flue channels (§9).
 - **Planner auto-open** — the onboarding chat now greets on the first customer turn rather than auto-kicking-off.
-- **Chat reset** — clears local UI state only; a server-side Flue session-reset endpoint is pending.
 - **Live team-roster updates** — now a REST poll; the old WebSocket broadcast is retired pending an SSE/channels rebuild.
 
 See also: [ADRs](adr) · [`AGENTS.md`](../AGENTS.md) (agent-facing build guide) · [`PRODUCT.md`](../PRODUCT.md).
