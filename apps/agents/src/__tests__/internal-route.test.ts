@@ -1,11 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Exercises POST /api/internal/companies — the auth → agents relay that
-// provisions a D1 company row when an Organization is created in Postgres.
-// The internal route is gated by INTERNAL_SHARED_SECRET; the test installs
-// a known secret via env stubbing for the duration of the suite.
-
 const SECRET = "test-internal-secret-rotate-me";
 let originalSecret: string | undefined;
 

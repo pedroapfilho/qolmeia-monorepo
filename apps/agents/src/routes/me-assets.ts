@@ -1,13 +1,3 @@
-// /api/me/assets + /api/me/uploads — the customer-facing asset surface.
-//
-// Split out of routes/me.ts because the upload path is materially different
-// from the rest of /api/me: it parses multipart, validates MIME + size,
-// hashes bytes, dedups against the `asset` table, mutates R2 + D1, and
-// mints a long-lived signed URL. Co-locating with the gallery list keeps
-// "what the customer can put in / pull out" in one file, and leaves
-// routes/me.ts scoped to introspection (session relay, company, templates,
-// activity).
-
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -50,12 +40,9 @@ const parsePositiveInt = (raw: string | undefined, fallback: number, max: number
   return Math.min(parsed, max);
 };
 
-// GET /api/me/assets — asset gallery. URLs re-sign per request (default
-// 15-min TTL) since this list re-renders on every RSC pass.
 meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");
   const limit = parsePositiveInt(c.req.query("limit"), 100, 200);
-  // Only the customer folder (ADR 0007) — agent working material stays hidden.
   const { results } = await c.env.DB.prepare(
     `SELECT id, kind, mime, bytes, metadata, created_at
        FROM asset
@@ -86,12 +73,7 @@ meAssetsRoutes.get("/assets", async (c) => {
   return c.json({ items, nextCursor: null });
 });
 
-// User-uploaded chat attachments. Lives behind the same R2/asset pipeline as
-// generated images (kind='user_upload') so they show up in the Assets tab
-// alongside the Designer's output.
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-// SVG is allowed for brand identity (logos/marks). It's served with a sandbox
-// CSP (routes/assets.ts) so it can't execute scripts when opened directly.
 const ALLOWED_UPLOAD_MIME = new Set([
   "image/gif",
   "image/jpeg",
@@ -113,9 +95,6 @@ const sha256OfBytes = async (bytes: Uint8Array): Promise<string> => {
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
-// Shared R2 + D1 ingest for an image upload. Dedups on (company_id, sha256):
-// re-uploading identical bytes returns the existing asset id. The caller picks
-// the `kind` and any extra metadata (e.g. a brand-asset category).
 const persistImageAsset = async (
   env: Env,
   opts: {
@@ -130,8 +109,6 @@ const persistImageAsset = async (
   const bytes = new Uint8Array(buffer);
   const sha = await sha256OfBytes(bytes);
   const ext = EXT_BY_MIME[file.type] ?? "bin";
-  // Customer-folder uploads (ADR 0007); brand identity lives in its subfolder.
-  // visibility defaults to 'customer' at the column, so it isn't set here.
   const folder = kind === "brand_asset" ? "customer/brand" : "customer";
   const r2Key = `org_${companyId}/${folder}/${sha}.${ext}`;
 
@@ -166,7 +143,6 @@ const persistImageAsset = async (
   return { assetId: existing?.id ?? candidateId, bytes: bytes.length, mime: file.type };
 };
 
-// Shared by both upload routes: returns the File, or a ready-to-send error tuple.
 const readUploadedImage = (
   form: FormData,
 ): { error: string; status: 400 | 413 | 415 } | { file: File } => {
@@ -185,9 +161,6 @@ const readUploadedImage = (
 
 const BRAND_CATEGORIES = new Set(["logo", "post", "reference", "other"]);
 
-// POST /api/me/uploads — accepts a multipart form with a `file` field.
-// Returns the signed asset URL plus its asset id so the client can drop
-// the URL into a FileUIPart on the next chat turn.
 meAssetsRoutes.post("/uploads", async (c) => {
   const { companyId } = c.get("session");
 
@@ -210,9 +183,6 @@ meAssetsRoutes.post("/uploads", async (c) => {
     kind: "user_upload",
   });
 
-  // 7-day TTL because this URL is baked into a chat-history FileUIPart and
-  // the bubble has to keep rendering long after the upload. The gallery
-  // list above re-signs per RSC render with the shorter default TTL.
   const url = await buildSignedAssetUrl(
     { ASSETS_SIGNING_KEY: c.env.ASSETS_SIGNING_KEY },
     c.env.WORKER_PUBLIC_URL,
@@ -225,7 +195,6 @@ meAssetsRoutes.post("/uploads", async (c) => {
 
 type BrandAssetRow = AssetRow & { kind: string };
 
-// Brand identity uploads (logo/posts/references) shown on the /empresa card.
 meAssetsRoutes.get("/brand-assets", async (c) => {
   const { companyId } = c.get("session");
   const { results } = await c.env.DB.prepare(
@@ -296,8 +265,6 @@ meAssetsRoutes.post("/brand-assets", async (c) => {
   return c.json({ assetId, category, mime, size: bytes, url });
 });
 
-// r2_key is company-prefixed and (company_id, sha256) is UNIQUE, so the row is
-// the sole reference to its blob — safe to delete the D1 row and R2 object together.
 meAssetsRoutes.delete("/brand-assets/:id", async (c) => {
   const session = c.get("session");
   if (session.role !== "CUSTOMER") {
@@ -323,12 +290,6 @@ const deleteAssetsInputSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(100),
 });
 
-// POST /api/me/assets/delete — remove one or more gallery assets (single or
-// bulk). Tenant + folder scoped: only the company's own `customer` assets can
-// be deleted from the customer surface; agent working material stays
-// untouchable. Same blob-ownership invariant as the brand delete — r2_key is
-// company-prefixed and (company_id, sha256) is UNIQUE, so each row owns its
-// blob and the D1 rows + R2 objects are removed together.
 meAssetsRoutes.post("/assets/delete", async (c) => {
   const session = c.get("session");
   if (session.role !== "CUSTOMER") {
@@ -354,8 +315,6 @@ meAssetsRoutes.post("/assets/delete", async (c) => {
   await c.env.DB.prepare(`DELETE FROM asset WHERE company_id = ? AND id IN (${deletePlaceholders})`)
     .bind(session.companyId, ...foundIds)
     .run();
-  // R2 deletes are best-effort: a missing object must not fail the request —
-  // the D1 row (the only thing the gallery reads) is already gone.
   await Promise.allSettled(results.map((row) => c.env.ASSETS.delete(row.r2_key)));
   return c.json({ deleted: results.length });
 });

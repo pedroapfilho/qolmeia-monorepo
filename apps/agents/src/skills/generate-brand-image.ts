@@ -3,22 +3,6 @@ import { z } from "zod";
 import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Image generation via OpenRouter's chat-completions endpoint with the
-// `modalities: ["image","text"]` extension. OpenRouter does NOT expose
-// OpenAI's dedicated `/images/generations` endpoint — image generation on
-// every supported model (Google Gemini, OpenAI GPT-5 Image, etc.) routes
-// through chat completions and returns base64 data URLs on
-// `choices[0].message.images[i].image_url.url`.
-//
-// Default model: `google/gemini-3.1-flash-image-preview` (Nano Banana 2 —
-// Pro quality at Flash speed; Google's latest image model as of Feb 2026).
-// Hot-swap via IMAGE_GEN_MODEL — `google/gemini-3-pro-image-preview` (Nano
-// Banana Pro, highest fidelity, slower/pricier) and
-// `google/gemini-2.5-flash-image` (original Nano Banana) are both valid
-// alternates.
-//
-// Bytes flow R2 → signed URL → message file part (the client renders it as
-// an <img>). Asset metadata in D1 carries (company_id, sha256) for dedup.
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const generateBrandImageInputSchema = z.object({
@@ -36,9 +20,6 @@ type ChatCompletionResponse = {
 };
 
 const aspectHint = (aspect: string): string => {
-  // Gemini's image model honours aspect-ratio cues in the prompt itself
-  // (there's no `size` parameter on chat completions). We append a short
-  // pt-BR hint so the model picks the closest supported resolution.
   if (aspect === "16:9") {
     return " (proporção 16:9, formato horizontal)";
   }
@@ -68,18 +49,12 @@ const encodeBase64 = (bytes: Uint8Array): string => {
   return btoa(bin);
 };
 
-// Cap the number of brand references sent so the request payload stays bounded.
 const MAX_BRAND_REFS = 3;
 
 type BrandRefRow = { mime: string; r2_key: string };
 
-// Loads the company's brand assets from R2 as data URLs so the image model can
-// use them as visual references (cores, estilo, logotipo). Best-effort: a
-// missing R2 object is skipped, not fatal.
 const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> => {
   const { results } = await ctx.env.DB.prepare(
-    // Exclude SVG: the image model takes raster references only; a vector data
-    // URL would error the generation call.
     `SELECT r2_key, mime FROM asset
        WHERE company_id = ? AND kind = 'brand_asset' AND mime != 'image/svg+xml'
        ORDER BY created_at DESC
@@ -103,10 +78,6 @@ const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> =>
   );
 };
 
-// Pulls the `data:image/png;base64,…` payload out of a data URL. Returns
-// null when the URL isn't a data URL we can decode locally (e.g. if a
-// future model returns an https://… link, the caller should fetch + upload
-// instead).
 const parseDataUrl = (url: string): { bytes: Uint8Array; mime: string } | null => {
   const match = url.match(/^data:(?<mime>[^;]+);base64,(?<b64>.+)$/v);
   if (!match) {
@@ -143,8 +114,6 @@ const generateBrandImageSkill: UnknownSkill = {
     const { aspectRatio = "1:1", prompt } = generateBrandImageInputSchema.parse(input);
     const fullPrompt = `${prompt}${aspectHint(aspectRatio)}`;
 
-    // When the company uploaded brand assets, send them as visual references so
-    // the output matches the brand. Falls back to a plain text prompt otherwise.
     const brandRefs = await loadBrandReferences(ctx);
     const userContent =
       brandRefs.length > 0
@@ -195,7 +164,6 @@ const generateBrandImageSkill: UnknownSkill = {
     }
     const { bytes, mime } = decoded;
     const sha = await sha256Hex(bytes);
-    // Generated images are customer deliverables (ADR 0007) — customer folder.
     const key = `org_${ctx.companyId}/customer/${sha}.${extByMime(mime)}`;
 
     await uploadAsset(
@@ -203,8 +171,6 @@ const generateBrandImageSkill: UnknownSkill = {
       { bytes, key, metadata: { aspectRatio, prompt }, mime },
     );
 
-    // Dedup by (company_id, sha256). INSERT OR IGNORE handles concurrent
-    // requests for the same image; the surviving id is whatever's already there.
     const assetId = crypto.randomUUID();
     const now = Date.now();
     await ctx.env.DB.prepare(
@@ -230,9 +196,6 @@ const generateBrandImageSkill: UnknownSkill = {
       .first<{ id: string }>();
     const finalAssetId = row?.id ?? assetId;
 
-    // 7-day TTL: the URL goes into the model's reply as markdown and is then
-    // persisted in chat history, where bubbles re-render long after the
-    // generation. Default 15-min TTL would 401 well before the chat lifetime.
     const url = await buildSignedAssetUrl(
       { ASSETS_SIGNING_KEY: ctx.env.ASSETS_SIGNING_KEY },
       ctx.env.WORKER_PUBLIC_URL,

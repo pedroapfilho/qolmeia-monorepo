@@ -8,13 +8,9 @@ const COMPANY_ID = "co_img_test";
 const AGENT_INSTANCE_ID = "agent_img_test";
 const originalFetch = globalThis.fetch;
 
-// A 1x1 red PNG, base64-encoded.
 const RED_PIXEL_B64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
-// OpenRouter's chat-completions image response shape — see
-// apps/agents/src/skills/generate-brand-image.ts. The image is delivered
-// as a `data:image/png;base64,…` URL on choices[0].message.images[0].image_url.url.
 const buildChatImageResponse = (b64: string) =>
   Response.json({
     choices: [

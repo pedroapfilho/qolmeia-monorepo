@@ -78,7 +78,6 @@ describe("asset-store", () => {
     expect(agentOnly.find((a) => a.id === agentScratch.assetId)?.visibility).toBe("agent");
     expect(agentOnly.find((a) => a.id === customer.assetId)).toBeUndefined();
 
-    // No visibility filter = the agent sees both folders.
     const both = await listCompanyAssets(env.DB, COMPANY_ID);
     expect(both.find((a) => a.id === customer.assetId)).toBeTruthy();
     expect(both.find((a) => a.id === agentScratch.assetId)).toBeTruthy();

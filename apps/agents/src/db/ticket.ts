@@ -1,9 +1,5 @@
 import { safeJson } from "#/db/mappers";
 
-// Ticket DB helpers. Both the Worker DO (handing off) and the WorkerJob
-// Workflow (running the work) need to load + mutate tickets — pulling these
-// out of worker.ts shares them without a circular import.
-
 type TicketStatus =
   | "awaiting_approval"
   | "blocked"
@@ -23,9 +19,6 @@ type Ticket = {
   workflowId: string | null;
 };
 
-// Extra fields surfaced by the list endpoint (title / origin / timestamps)
-// that the loadTicket-by-id path doesn't read. Kept as a superset of Ticket
-// so the list and detail responses share the typed mapper.
 type TicketListItem = Ticket & {
   companyName: string;
   createdAt: number;
@@ -106,11 +99,6 @@ type ListTicketsOptions = {
   status?: string;
 };
 
-// Operator-facing ticket list. Returns the typed shape (camelCase) — the
-// raw snake_case columns are mapped at the DB boundary so the backoffice
-// only ever deals with one casing convention. Cross-tenant by default (the
-// queue spans every company); companyId narrows to one. The company JOIN
-// carries the name so a cross-tenant list can label each row.
 const listTickets = async (
   db: D1Database,
   options: ListTicketsOptions = {},

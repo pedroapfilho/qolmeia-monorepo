@@ -70,8 +70,6 @@ describe("GET /api/me (P7.0 relay)", () => {
     const body = (await second.json()) as typeof fullMe;
     expect(body.user.email).toBe("u@x.com");
 
-    // Cache hit must NOT re-invoke fetch — Better Auth's rate-limit hot path
-    // is exactly what the KV cache exists to protect.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 

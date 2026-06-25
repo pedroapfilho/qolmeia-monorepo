@@ -109,13 +109,12 @@ describe("getCatalogue", () => {
     const items = await getCatalogue(env.DB, COMPANY_ID);
     const designer = items.find((t) => t.id === "tpl-designer");
     expect(designer).toMatchObject({
-      hiredCount: 1, // the seeded WORKER_ID instance
+      hiredCount: 1,
       workerKind: "designer",
     });
   });
 
   it("returns 0 for templates with no hires on this company", async () => {
-    // Insert a template no instance points at.
     await env.DB.prepare(
       `INSERT OR REPLACE INTO template
          (id, version, status, display_name, description, system_prompt, model,
@@ -160,7 +159,6 @@ describe("getMemberDetail", () => {
   });
 
   it("returns null promptOverrideUpdatedAt when no edit log row exists", async () => {
-    // Reset the seeded designer to have override = NULL
     await env.DB.prepare("UPDATE agent_instance SET prompt_override = NULL WHERE id = ?")
       .bind(WORKER_ID)
       .run();

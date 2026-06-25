@@ -1,13 +1,7 @@
 import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "#/lib/memory/adapter";
 
-// Crude bag-of-character-trigrams embedding hashed to a fixed-dim vector.
-// Quality is *intentionally* low — the point of this backend is exercising
-// the memory *code path* without a Cloudflare account. Production uses
-// Workers AI bge-m3 + Vectorize for real quality.
 const DIM = 256;
 
-// FNV-1a 32-bit. Math.imul keeps the intermediate state int32; no extra
-// truncation needed. Deterministic, cheap, no crypto-strength required.
 // oxlint-disable-next-line unicorn/number-literal-case -- oxfmt lower-cases; oxlint wants upper
 const FNV_OFFSET = 0x81_1c_9d_c5;
 // oxlint-disable-next-line unicorn/number-literal-case
@@ -35,7 +29,6 @@ const embed = (text: string): Array<number> => {
       vec[idx] = (vec[idx] ?? 0) + 1;
     }
   }
-  // L2 normalize so cosine becomes a dot product.
   let norm = 0;
   for (const v of vec) {
     norm += v * v;
@@ -60,8 +53,6 @@ const dot = (a: ReadonlyArray<number>, b: ReadonlyArray<number>): number => {
 type Stored = { embedding: ReadonlyArray<number>; record: MemoryRecord };
 
 class InMemoryMemoryAdapter implements MemoryAdapter {
-  // Per-agent isolation by map key. Cross-agent leaks are structurally
-  // impossible — retrieve only reads the requested agent's bucket.
   private readonly storage = new Map<string, Array<Stored>>();
 
   retrieve(args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>> {

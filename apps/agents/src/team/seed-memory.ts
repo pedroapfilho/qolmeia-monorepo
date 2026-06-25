@@ -2,10 +2,6 @@ import { insertMemoryFact } from "#/db/schema";
 import type { CompanyBriefPartial } from "#/lib/company-brief";
 import { getMemoryAdapter } from "#/lib/memory";
 
-// Seeds the Correspondent's long-term memory from the confirmed brief at team
-// confirmation. DO-independent (writes to D1 + the memory adapter), so it runs
-// directly from the team-confirm route — no agent round-trip. Was the
-// CorrespondentAgent.seedMemory DO RPC.
 const seedCompanyMemory = async (
   env: Env,
   companyId: string,

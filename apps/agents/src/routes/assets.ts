@@ -2,18 +2,10 @@ import { Hono } from "hono";
 
 import { fetchAsset, verifyAssetToken } from "#/lib/r2";
 
-// Serves R2 asset bytes behind a signed URL. The signed token is built by
-// `buildSignedAssetUrl` (skills/generate-brand-image.ts uses it) and verified
-// here per-request. Token is bound to the asset id + a TTL, so a leaked URL
-// only serves one asset for a bounded window.
 const assetsRoutes = new Hono<{ Bindings: Env }>();
 
 type AssetRow = { mime: string; r2_key: string };
 
-// SVGs are XSS-capable: opened directly (the gallery links assets in a new tab)
-// an SVG runs embedded <script>. A `sandbox` CSP + `default-src 'none'` blocks
-// script execution and external fetches on navigation, while <img> still
-// renders it (img-loaded SVGs never run scripts anyway). nosniff on everything.
 const buildAssetHeaders = (mime: string): Record<string, string> => {
   const headers: Record<string, string> = {
     "Cache-Control": "private, max-age=3600",

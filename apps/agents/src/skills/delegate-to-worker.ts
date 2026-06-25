@@ -5,11 +5,6 @@ import { setTicketWorkflowId } from "#/db/ticket";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 import { emitTeamEvent } from "#/team/events";
 
-// Delegates a task to a specialist Worker on this Company's Team. Runs
-// asynchronously via Cloudflare Workflows — long jobs survive DO eviction
-// and can pause for operator approval. The Correspondent's immediate reply
-// is "the Designer is working on it"; the deliverable arrives later via
-// Correspondent.presentResult once approved (or auto-executed).
 const delegateInputSchema = z.object({
   brief: z
     .string()
@@ -41,8 +36,6 @@ const pickWorker = (
   }
   const idle = eligible.filter((c) => c.busy_count === 0);
   const pool = idle.length > 0 ? idle : eligible;
-  // Round-robin across the pool by hashing the current time. Stable enough
-  // for fair distribution under load, no per-DO state required.
   const idx = Number(BigInt(Date.now()) % BigInt(pool.length));
   const chosen = pool[idx] ?? pool[0];
   return chosen ?? null;
@@ -99,9 +92,6 @@ const delegateToWorkerSkill: UnknownSkill = {
       )
       .run();
 
-    // Kick off the approval Workflow directly (no Worker DO indirection). Long
-    // jobs survive eviction and pause at step.waitForEvent for operator approval;
-    // the Workflow surfaces the deliverable in chat once approved/auto-executed.
     const instance = await ctx.env.WORKER_JOB.create({
       id: ticketId,
       params: { agentInstanceId: target.id, companyId: ctx.companyId, ticketId },

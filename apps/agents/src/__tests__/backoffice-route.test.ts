@@ -43,8 +43,6 @@ beforeEach(async () => {
     .bind(COMPANY_ID)
     .run();
 
-  // Seed a SECOND company with its own ticket so the IDOR regression tests can
-  // prove the `?companyId=` query param can no longer widen tenant scope.
   await env.DB.prepare(
     `INSERT OR IGNORE INTO company
        (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
@@ -112,8 +110,6 @@ describe("backoffice listing endpoints", () => {
     };
     const ticket = body.items.find((t) => t.id === "tkt-bo-test");
     expect(ticket).toBeTruthy();
-    // The list endpoint MUST return camelCase — every other route does, and
-    // the backoffice UI consumes the typed shape directly.
     expect(ticket?.agentInstanceId).toBe("agent-bo-test");
     expect(ticket?.companyId).toBe(COMPANY_ID);
     expect(ticket?.companyName).toBe("BO Test");
@@ -121,8 +117,6 @@ describe("backoffice listing endpoints", () => {
     expect(typeof ticket?.createdAt).toBe("number");
     expect(ticket).not.toHaveProperty("agent_instance_id");
     expect(ticket).not.toHaveProperty("created_at");
-    // ADR 0005: the operator queue spans every company, so a second tenant's
-    // ticket shows up in the same unfiltered list.
     expect(body.items.find((t) => t.id === "tkt-bo-other")).toBeTruthy();
   });
 
@@ -170,17 +164,12 @@ describe("backoffice listing endpoints", () => {
     expect(item?.actionType).toBeTruthy();
     expect(item?.companyId).toBe(COMPANY_ID);
     expect(typeof item?.createdAt).toBe("number");
-    // Regression: this branch used to leak raw snake_case rows.
     expect(item).not.toHaveProperty("action_type");
     expect(item).not.toHaveProperty("company_id");
     expect(item).not.toHaveProperty("ticket_id");
   });
 });
 
-// ADR 0005: the backoffice is Qolmeia-staff (OWNER/STAFF), cross-tenant by
-// design. `?companyId=` is a legitimate narrowing filter, not a scope wall —
-// the IDOR concern lives on the customer surface (/api/me, /agents/*), which
-// authorizes companyId against the session and is unaffected by these routes.
 describe("backoffice list routes span tenants and honor the ?companyId= filter", () => {
   it("GET /tickets?companyId= narrows to that company; unfiltered spans all", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));

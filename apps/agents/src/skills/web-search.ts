@@ -2,11 +2,6 @@ import { z } from "zod";
 
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Web search via Exa (https://exa.ai). Lets agents ground content in current
-// facts — trends, news, competitor pages — instead of stale training data.
-// Returns trimmed snippets + source URLs so the model can cite them and the
-// tool result stays small. Requires the EXA_API_KEY secret.
-
 const webSearchInputSchema = z.object({
   numResults: z
     .number()

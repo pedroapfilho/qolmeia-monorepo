@@ -1,7 +1,3 @@
-// Given a desired base name (e.g. the template's display_name) and the
-// existing team's display names, return the lowest-suffix name that doesn't
-// collide. Base if free, else "Base #2", "Base #3", ...
-
 const normalize = (s: string): string => s.toLocaleLowerCase("pt-BR");
 
 const nextDisplayName = (base: string, existing: ReadonlyArray<string>): string => {

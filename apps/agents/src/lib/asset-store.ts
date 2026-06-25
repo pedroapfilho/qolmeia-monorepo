@@ -1,15 +1,8 @@
 import { safeJson } from "#/db/mappers";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
 
-// The company asset library — the shared store both customers (via /api/me/assets)
-// and agents (via the list/read/save skills + worker-job capture) read and write.
-// Text deliverables land as `knowledge_doc`; images are persisted elsewhere as
-// `generated_image`. Dedup is by (company_id, sha256), same as image uploads.
-
 type AssetKind = "audio" | "brand_asset" | "generated_image" | "knowledge_doc" | "user_upload";
 
-// Which folder an asset lives in (ADR 0007). `customer` is visible to the
-// customer and the agents; `agent` is agent-only working material.
 type AssetVisibility = "agent" | "customer";
 
 type AssetSummary = {
@@ -56,8 +49,6 @@ const toAssetKind = (raw: string): AssetKind => {
   return valid.find((k) => k === raw) ?? "knowledge_doc";
 };
 
-// Human label for an asset: prefer an explicit name, fall back to the original
-// upload filename, then a kind-tagged stub so the library never shows a blank.
 const assetName = (metadata: unknown, id: string, kind: string): string => {
   const meta = (metadata ?? {}) as Record<string, unknown>;
   const candidate =
@@ -77,13 +68,9 @@ type PersistTextInput = {
   mime?: string;
   name: string;
   text: string;
-  // Which folder to file it under (ADR 0007). Defaults to `customer` — a saved
-  // text deliverable is something the customer should see.
   visibility?: AssetVisibility;
 };
 
-// Persist a text deliverable (markdown by default) as a `knowledge_doc` asset.
-// Idempotent on (company_id, sha256): identical content returns the existing id.
 const persistTextAsset = async (
   env: Env,
   input: PersistTextInput,
@@ -126,9 +113,6 @@ const persistTextAsset = async (
   return { assetId: existing?.id ?? candidateId };
 };
 
-// Lists assets for a company. Agents call this with no `visibility` and see
-// both folders; the customer surface passes `visibility: 'customer'` to hide
-// agent working material (ADR 0007).
 const listCompanyAssets = async (
   db: D1Database,
   companyId: string,
@@ -164,9 +148,6 @@ const listCompanyAssets = async (
   }));
 };
 
-// Read a text asset's content for agent context. Tenant-scoped: the asset must
-// belong to `companyId`. Non-text assets return null (the agent should link the
-// signed URL instead of trying to read binary into the prompt).
 const readAssetText = async (
   env: Env,
   companyId: string,

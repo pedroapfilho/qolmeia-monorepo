@@ -1,15 +1,5 @@
 import { getTemplate, type Template } from "#/db/template";
 
-// Materializes a Team in a single D1 batch: the team row, the Correspondent
-// agent_instance, one Worker agent_instance per template, and the
-// team_member rows that encode the can_delegate_to graph. Idempotent on the
-// PKs (re-running with the same templateIds returns the same row set).
-//
-// P5's onboarding calls this on team confirmation; P3 uses the same code
-// path via the seed script. The graph is validated acyclic before the batch
-// is issued — Correspondent → Workers in the default config has no cycle,
-// but Worker → Worker edges (configurable later) need the check.
-
 type MaterializeInput = {
   companyId: string;
   templateIds: ReadonlyArray<string>;
@@ -77,8 +67,6 @@ const materializeTeam = async (
   const teamId = teamIdFor(input.companyId);
   const now = Date.now();
 
-  // Default delegation graph: Correspondent → all Workers, Workers → []
-  // P3 doesn't allow Worker → Worker (P4 unlocks it via custom can_delegate_to).
   const graph = new Map<string, ReadonlyArray<string>>([[correspondentId, workerIds]]);
   for (const wid of workerIds) {
     graph.set(wid, []);
@@ -144,9 +132,6 @@ const materializeTeam = async (
   return { correspondentId, teamId, workerIds };
 };
 
-// Returns the can_delegate_to list for a given agent in its company's team,
-// or null if the agent isn't a team member. Used by delegateToWorker to gate
-// RPC calls.
 const getDelegationTargets = async (
   db: D1Database,
   agentInstanceId: string,

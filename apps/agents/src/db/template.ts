@@ -1,18 +1,9 @@
 import { safeJson } from "#/db/mappers";
 
-// Typed shapes + queries for the catalog (template, skill). Skills here are
-// the operator-tunable D1 overlay over the code skill registry — the code
-// owns `execute` and the input schema; D1 owns the LLM-facing description,
-// per-parameter hints, default config, and the enabled kill-switch.
-
 type TemplateStatus = "active" | "retired";
 
 type Template = {
   createdAt: number;
-  // The action type the Worker's Workflow proposes for its single
-  // deliverable. Defaults to `worker_deliverable` for legacy templates;
-  // P8+ templates pin specific types (e.g. `publish_post`) so the
-  // backoffice can render a per-type approval card.
   defaultActionType: string;
   defaultPolicies: Record<string, string>;
   description: string;
@@ -104,9 +95,6 @@ const listActiveTemplates = async (db: D1Database): Promise<ReadonlyArray<Templa
   return results.map(mapTemplate);
 };
 
-// Operator catalog view: active + retired, newest first. Retired rows stay
-// visible so an operator can restore them — the backoffice never hard-deletes
-// a template (agent_instances reference its id).
 const listAllTemplates = async (db: D1Database): Promise<ReadonlyArray<Template>> => {
   const { results } = await db
     .prepare("SELECT * FROM template ORDER BY created_at DESC")
@@ -157,8 +145,6 @@ const createTemplate = async (db: D1Database, input: TemplateInput): Promise<Tem
   return created;
 };
 
-// Every edit bumps `version`: agent_instances pin a template_version, so an
-// operator change rolls forward without rewriting already-materialized agents.
 const updateTemplate = async (
   db: D1Database,
   id: string,
@@ -192,7 +178,6 @@ const updateTemplate = async (
   return getTemplate(db, id);
 };
 
-// Soft retire / restore — the only "delete" a template ever gets.
 const setTemplateStatus = async (
   db: D1Database,
   id: string,

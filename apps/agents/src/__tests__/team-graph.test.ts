@@ -6,7 +6,6 @@ import { getDelegationTargets, isAcyclic, materializeTeam } from "#/db/team";
 const COMPANY_ID = "co_team_test";
 
 beforeEach(async () => {
-  // Seed minimal company + template; team materialization needs both.
   await env.DB.prepare(
     `INSERT OR IGNORE INTO company
        (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
@@ -104,7 +103,6 @@ describe("materializeTeam", () => {
     });
     const targets = await getDelegationTargets(env.DB, result.correspondentId);
     expect(targets).toEqual(result.workerIds);
-    // Workers can't delegate (no children in P3).
     const workerTargets = await getDelegationTargets(env.DB, result.workerIds[0] ?? "");
     expect(workerTargets).toEqual([]);
   });

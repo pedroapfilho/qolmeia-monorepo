@@ -1,7 +1,3 @@
-// Typed domain errors for team mutation operations. Exported and used in
-// route handlers via `instanceof` checks so error classification never
-// depends on string-matching error messages.
-
 class TeamMemberNotFoundError extends Error {
   constructor(agentInstanceId: string, companyId: string) {
     super(`agent_instance ${agentInstanceId} not in company ${companyId}`);

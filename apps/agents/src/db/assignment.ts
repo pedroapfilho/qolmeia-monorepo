@@ -1,10 +1,3 @@
-// ADR 0005 operator coverage. An operator's optional set of companies +
-// disciplines, used to narrow the cross-tenant approval queue to the work they
-// own. Stored as one row per (operator, kind, value); no rows means no filter
-// — the operator sees every company and discipline. A "discipline" is a
-// template worker_kind (the Action carries its producing agent's kind, so the
-// routing key needs no separate vocabulary).
-
 type OperatorCoverage = {
   companies: ReadonlyArray<string>;
   disciplines: ReadonlyArray<string>;
@@ -26,9 +19,6 @@ const listCoverage = async (db: D1Database, operatorUserId: string): Promise<Ope
   };
 };
 
-// Replace an operator's entire coverage in one batch: clear, then re-insert.
-// A full replace matches the UI (a single "save my coverage" submit) and keeps
-// the stored set authoritative without per-item diffing.
 const setCoverage = async (
   db: D1Database,
   operatorUserId: string,
@@ -53,8 +43,6 @@ const setCoverage = async (
   ]);
 };
 
-// The disciplines available to assign — the distinct worker_kinds across
-// templates. Drives the coverage form's discipline picker.
 const listDisciplines = async (db: D1Database): Promise<ReadonlyArray<string>> => {
   const { results } = await db
     .prepare(

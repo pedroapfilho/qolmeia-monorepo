@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-// The typed shape the Planner crystallizes during onboarding. Versioned so a
-// future schema change has a migration path (read old; transform; write new).
-// Partial during the debrief (the Planner fills in as it learns); the full
-// schema validates at proposeTeam time.
-
 const BRIEF_SCHEMA_VERSION = 1;
 
 const channelEnum = z.enum([
@@ -60,8 +55,6 @@ const companyBriefSchema = z.object({
 type CompanyBrief = z.infer<typeof companyBriefSchema>;
 type CompanyBriefPartial = z.infer<typeof companyBriefSchema>;
 
-// Merges two briefs — partial updates land on top of existing data, never
-// overwriting a field with an undefined.
 const mergeBrief = (
   existing: Partial<CompanyBrief>,
   updates: Partial<CompanyBrief>,
@@ -93,8 +86,6 @@ const parseBrief = (raw: string | null | undefined): Partial<CompanyBrief> => {
   }
 };
 
-// True when the brief carries no meaningful business info — only then does
-// the Planner open the conversation. locale/schemaVersion are defaults.
 const isBriefEmpty = (brief: Partial<CompanyBrief> | null | undefined): boolean => {
   if (!brief) {
     return true;
@@ -104,11 +95,6 @@ const isBriefEmpty = (brief: Partial<CompanyBrief> | null | undefined): boolean 
   return !brief.industry && !brief.primaryGoal && !brief.audience && !hasBrand;
 };
 
-// The fields the customer must fill before the Correspondent stops asking.
-// Order is the display/ask order. brand.* are nested under `brand`.
-// `channels` is intentionally NOT here: it stays in the schema (optional, for
-// data already stored and a possible future use) but is no longer part of the
-// brief the customer fills out — it didn't belong in the brand/business brief.
 const BRIEF_REQUIRED_FIELDS = [
   "industry",
   "primaryGoal",
@@ -139,9 +125,6 @@ type BriefCompleteness = {
   percent: number;
 };
 
-// Completeness over the required-field set — the single definition both the
-// API (what the form shows) and the Correspondent prompt (what to ask next)
-// read from, so they never drift.
 const briefCompleteness = (brief: Partial<CompanyBrief> | null | undefined): BriefCompleteness => {
   const safe = brief ?? {};
   const filled: Array<BriefFieldId> = [];

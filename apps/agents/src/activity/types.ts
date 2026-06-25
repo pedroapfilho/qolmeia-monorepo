@@ -1,15 +1,3 @@
-// Typed activity event surface. Adding a new event type = a new branch in
-// `ActivityEvent` below.
-//
-// What's load-bearing: the `(type, refType, payload-shape)` triplet. The
-// `summary` field is free-form pt-BR text per call. `refId` carries the id
-// of whatever the event refers to (action id, ticket id, team id, …) but
-// its type doesn't constrain the value beyond `string`.
-//
-// New events get a code prefix that matches one of the backoffice categories
-// so the prefix-based fallback (apps/backoffice/.../activity-row) keeps
-// working for any rows written by older versions of the worker.
-
 type ActionProposedEvent = {
   payload: { actionId: string; summary: string };
   refId: string;
@@ -38,8 +26,6 @@ type ActionChangesRequestedEvent = {
   type: "ACTION_CHANGES_REQUESTED";
 };
 
-// The Worker regenerated after a request-changes decision (the revise loop).
-// refId is the *new* action id proposed for the revised deliverable.
 type ActionRevisedEvent = {
   payload: { feedback: string | null; revision: number };
   refId: string;
@@ -47,8 +33,6 @@ type ActionRevisedEvent = {
   type: "ACTION_REVISED";
 };
 
-// The revise loop hit its soft cap — the Worker stops regenerating; the
-// operator approves or rejects the last version. refId is the action id.
 type ActionRevisionCappedEvent = {
   payload: { revisions: number };
   refId: string;
@@ -56,9 +40,6 @@ type ActionRevisionCappedEvent = {
   type: "ACTION_REVISION_CAPPED";
 };
 
-// notify-only policy: the action ran immediately (no gate) but is surfaced to
-// the operator monitoring feed for after-the-fact spot-check. refId is the
-// ticket id (notify-only mints no blocking action row).
 type ActionNotifyEvent = {
   payload: { summary: string };
   refId: string;
@@ -126,9 +107,6 @@ type MemberPromptResetEvent = {
   type: "MEMBER_PROMPT_RESET";
 };
 
-// Agent-initiated proactive outreach (the weekly "suggest next work" sweep).
-// WORKER_ prefix so the backoffice prefix-based categoriser buckets it with
-// other agent-work events. refId is the Correspondent agent_instance id.
 type WorkerProactiveSuggestionEvent = {
   payload?: undefined;
   refId: string;

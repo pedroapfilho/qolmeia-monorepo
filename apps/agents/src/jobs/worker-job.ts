@@ -14,17 +14,6 @@ import {
 } from "#/jobs/worker-job-steps";
 import { logInfo } from "#/lib/logger";
 
-// One generic Workflow class for every Worker job (P4 decision 1). step.do
-// checkpoints survive eviction; step.waitForEvent pauses until the operator
-// decides.
-//
-// The job is a loop (ADR 0006): generate, propose, wait for the decision.
-// approve/reject are terminal; request-changes feeds the operator's note back
-// for the next round, bounded by a soft revision cap.
-//
-// Generation lives in worker-job-generate.ts, the propose/decide gate in
-// worker-job-steps.ts. This class owns the orchestration.
-
 type WorkerJobParams = {
   agentInstanceId: string;
   companyId: string;
@@ -32,11 +21,6 @@ type WorkerJobParams = {
 };
 
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
-  // Asset capture is curated (ADR 0007): a Worker calls `saveAsset` or
-  // `rememberFact` during generation to keep what matters. Nothing dumps every
-  // reply into a knowledge_doc.
-
-  // Cloudflare Workflows invokes run().
   // fallow-ignore-next-line unused-class-member
   async run(event: Readonly<WorkflowEvent<WorkerJobParams>>, step: WorkflowStep): Promise<unknown> {
     const { agentInstanceId, companyId, ticketId } = event.payload;
@@ -50,16 +34,12 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
     let latestFeedback: string | null = null;
     let generated: GenerateResult | null = null;
 
-    // Workflow steps are durable checkpoints that must run in order: each await
-    // is a resume point, so they stay sequential. The loop handles one operator
-    // decision per iteration.
     /* oxlint-disable no-await-in-loop, react-doctor/async-await-in-loop */
     for (;;) {
       const round = revision;
       const priorForRound = priorSummary;
       const feedbackForRound = latestFeedback;
 
-      // Past the cap, reuse the last deliverable instead of regenerating.
       if (generated === null || round <= MAX_REVISIONS) {
         generated = await step.do(
           `generate-${round}`,
@@ -119,13 +99,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         return { decision, revisions: round, summary: current.summary };
       }
 
-      // request-changes → loop and rework with the operator's note.
       priorSummary = current.summary;
       latestFeedback = evt.payload.feedback ?? null;
       revision = round + 1;
 
       if (revision === MAX_REVISIONS + 1) {
-        // Tell the operator once, the first time over the cap.
         await step.do("revise-capped", () => logRevisionCapped(ctx, actionId));
         logInfo("workflow.revise.capped", { companyId, revision, ticketId });
       } else {

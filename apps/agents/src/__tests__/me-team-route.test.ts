@@ -13,9 +13,6 @@ const meStaff = {
   user: { id: "staff-1" },
 };
 
-// IDs must match the canonical correspondentIdFor/teamIdFor functions —
-// later route tests call hireMember/pauseMember which look up the
-// correspondent row by `corr-${COMPANY_ID}` and the team by `team-${COMPANY_ID}`.
 const CORR_ID = `corr-${COMPANY_ID}`;
 const TEAM_ID = `team-${COMPANY_ID}`;
 const WORKER_ID = "ai_mt_d";

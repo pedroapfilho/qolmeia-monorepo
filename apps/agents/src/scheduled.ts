@@ -9,10 +9,6 @@ import {
   recordProactiveSuggestion,
 } from "#/lib/proactive";
 
-// Weekly proactive "suggest next work" sweep, driven by the Worker cron trigger
-// (see wrangler.jsonc `triggers.crons`). For each eligible company it gates on
-// brief-completeness + the weekly window, then dispatches PROACTIVE_PROMPT to the
-// Correspondent agent. Per-company failures are isolated via allSettled.
 const runProactiveSweep = async (
   env: Env,
 ): Promise<{ errored: number; skipped: number; suggested: number }> => {

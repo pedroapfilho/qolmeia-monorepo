@@ -54,7 +54,6 @@ describe("PATCH /api/me/company", () => {
     const body = (await res.json()) as CompanyBody;
     expect(body.company.brief.industry).toBe("alimentação");
     expect(body.completeness.missing).toContain("primaryGoal");
-    // industry filled = 1 of 6
     expect(body.completeness.percent).toBe(17);
   });
 

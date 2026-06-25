@@ -3,10 +3,6 @@ import { z } from "zod";
 import { getMemoryAdapter, type ScoredRecord } from "#/lib/memory";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Explicit semantic search over the agent's memory. The chat loop already
-// retrieves top-K facts at every turn (see correspondent.onChatMessage), but
-// this skill lets the model do a *targeted* lookup when retrieval-on-turn
-// isn't enough — e.g. when the user asks "what did we decide about X".
 const recallMemoryInputSchema = z.object({
   query: z.string().min(1).describe("O que você está procurando, em uma frase clara em pt-BR."),
   topK: z
@@ -33,7 +29,6 @@ const recallMemorySkill: UnknownSkill = {
       query,
       topK: topK ?? 4,
     });
-    // Strip ids + per-agent metadata so the model only sees content + kind.
     return {
       matches: matches.map((match) => ({
         content: match.content,

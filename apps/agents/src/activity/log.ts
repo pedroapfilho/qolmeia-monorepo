@@ -1,14 +1,3 @@
-// Append-only per-company activity timeline. Writes are best-effort: a failed
-// log write never fails the request (the system-of-record is the ticket /
-// action row itself; activity_log is the human-readable timeline). Errors
-// are surfaced via console.error so wrangler tail / observability sees them
-// instead of being silently swallowed.
-//
-// Inputs are typed via `ActivityEvent` (see ./types.ts) — every legal
-// (type, refType, payload-shape) triplet is enumerated there. Adding a new
-// event type means extending the union and adding a category case; the
-// compiler will refuse a typo or a missing renderer.
-
 import type { ActivityEvent, ActivityType } from "#/activity/types";
 import { safeJson } from "#/db/mappers";
 
@@ -52,9 +41,6 @@ type ActivityEntry = {
   companyName: string;
   createdAt: number;
   id: string;
-  // The reader-side stays string-typed so legacy rows (older event-type
-  // values that didn't exist when this code was deployed) deserialize
-  // without throwing. The writer-side guarantees only listed types land.
   payload: Record<string, unknown> | null;
   refId: string | null;
   refType: string | null;
@@ -95,12 +81,6 @@ type ListActivityOptions = {
   since?: number;
 };
 
-// Two-axis paging. `since` returns entries at-or-after a floor (the
-// "what's new" subscription) while `before` returns entries strictly older
-// than a ceiling (the "load older" pagination button). Both axes default
-// to absent → unbounded. companyId is optional: the customer feed always
-// scopes to one company, while the operator feed spans every tenant (the
-// company JOIN labels each row).
 const listActivity = async (
   db: D1Database,
   options: ListActivityOptions = {},

@@ -123,9 +123,6 @@ describe("markExecuted + listPendingActions", () => {
   });
 
   it("listPendingActions returns oldest-first within companyId", async () => {
-    // Two DISTINCT tickets: proposeAction is now idempotent on (ticketId,
-    // pending), so two proposes for the same ticket would collapse to one row.
-    // One action per ticket keeps two pending rows to order.
     await env.DB.prepare(
       `INSERT OR IGNORE INTO ticket
          (id, company_id, agent_instance_id, parent_ticket_id, title, brief,
@@ -142,7 +139,6 @@ describe("markExecuted + listPendingActions", () => {
       proposed: { n: 1 },
       ticketId: "tkt-action-test",
     });
-    // Force a clock gap so the second row is strictly newer.
     await new Promise<void>((r) => {
       setTimeout(r, 5);
     });
@@ -194,8 +190,6 @@ describe("markExecuted + listPendingActions", () => {
       decidedByUserId: "op-1",
       decision: "rejected",
     });
-    // The prior action is decided (not pending), so a retry/new run may insert a
-    // fresh pending row for the same ticket.
     const second = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,

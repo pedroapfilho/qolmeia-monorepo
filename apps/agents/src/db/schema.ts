@@ -1,7 +1,3 @@
-// Typed row shapes + query helpers for the company + memory_fact D1 tables. No
-// ORM — plain parameterized statements. D1's generic `first<T>()` / `all<T>()`
-// give the snake_case row type; mapping functions convert to camelCase.
-
 import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 
 type CompanyStatus = "onboarding" | "active" | "paused";
@@ -32,8 +28,6 @@ type CompanyRow = {
 
 const COMPANY_STATUSES: ReadonlyArray<CompanyStatus> = ["onboarding", "active", "paused"];
 
-// The DB CHECK constraint already guarantees this; the guard keeps the mapping
-// total without a type assertion.
 const toCompanyStatus = (value: string): CompanyStatus =>
   COMPANY_STATUSES.find((status) => status === value) ?? "onboarding";
 
@@ -61,7 +55,6 @@ type CompanyOverview = {
   status: CompanyStatus;
 };
 
-// Every company + its brief completeness — the operator "Times" overview.
 const listCompaniesOverview = async (db: D1Database): Promise<Array<CompanyOverview>> => {
   const { results } = await db
     .prepare("SELECT id, name, status, brief FROM company ORDER BY created_at ASC")
@@ -73,8 +66,6 @@ const listCompaniesOverview = async (db: D1Database): Promise<Array<CompanyOverv
     status: toCompanyStatus(row.status),
   }));
 };
-
-// ── memory_fact ──────────────────────────────────────────────
 
 type InsertMemoryFactInput = {
   agentInstanceId: string;

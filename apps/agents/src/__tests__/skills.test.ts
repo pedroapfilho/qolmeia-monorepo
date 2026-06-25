@@ -17,7 +17,6 @@ const ctx: SkillContext = {
 };
 
 beforeEach(async () => {
-  // Seed the FKs `memory_fact` references.
   await env.DB.prepare(
     `INSERT OR IGNORE INTO company
        (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
@@ -56,10 +55,6 @@ describe("rememberFact", () => {
 
 describe("recallMemory", () => {
   it("returns facts upserted by rememberFact for the same agent", async () => {
-    // The in-memory dev adapter uses a crude trigram embedding (quality is not
-    // the goal — plumbing is). High lexical overlap is needed to clear the
-    // 0.5 default minScore. Production (bge-m3) is the actual recall quality
-    // surface and is exercised at deploy.
     await rememberFactSkill.execute(
       { content: "minha cor preferida é azul marinho", kind: "preference" },
       ctx,

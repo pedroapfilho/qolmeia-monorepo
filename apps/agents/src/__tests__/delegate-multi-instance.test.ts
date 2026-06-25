@@ -57,7 +57,6 @@ const ctx: SkillContext = {
 
 describe("delegateToWorker multi-instance dispatch", () => {
   it("prefers an available worker over one that's busy", async () => {
-    // D1 is busy (has an in_progress ticket); D2 is available.
     await env.DB.prepare(
       `INSERT INTO ticket (id, company_id, agent_instance_id, parent_ticket_id, title, brief, status, origin, workflow_id, result, created_at, updated_at)
        VALUES ('tkt_busy', ?, ?, NULL, 't', 'b', 'in_progress', 'delegation', NULL, NULL, 0, 0)`,
@@ -70,7 +69,6 @@ describe("delegateToWorker multi-instance dispatch", () => {
       ctx,
     )) as { error?: string; status?: string };
     expect("status" in result && result.status).toBe("queued");
-    // Inspect the freshly-created ticket to confirm it was assigned to D2
     const tickets = await env.DB.prepare(
       "SELECT agent_instance_id FROM ticket WHERE company_id = ? AND title LIKE 'designer:%'",
     )
@@ -92,7 +90,6 @@ describe("delegateToWorker multi-instance dispatch", () => {
     )
       .bind(COMPANY_ID)
       .all<{ agent_instance_id: string }>();
-    // Should land on D1 (the only active one), even though it's busy.
     expect(tickets.results.every((r) => r.agent_instance_id !== D2)).toBe(true);
   });
 

@@ -75,7 +75,6 @@ describe("recordProactiveSuggestion", () => {
 
 describe("runProactiveSweep", () => {
   it("wakes no DOs when no active company has a complete brief", async () => {
-    // active but empty brief (incomplete), plus an onboarding company → none eligible.
     await seedCompany("co_proactive_a", "active", null);
     await seedCompany(
       "co_proactive_b",
