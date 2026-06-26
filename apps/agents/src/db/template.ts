@@ -1,4 +1,4 @@
-import { safeJson } from "#/db/mappers";
+import { safeJson, toEnum } from "#/db/mappers";
 
 type TemplateStatus = "active" | "retired";
 
@@ -54,8 +54,7 @@ type SkillRow = {
   updated_at: number;
 };
 
-const toTemplateStatus = (value: string): TemplateStatus =>
-  value === "retired" ? "retired" : "active";
+const toTemplateStatus = toEnum<TemplateStatus>(["active", "retired"], "active");
 
 const mapTemplate = (row: TemplateRow): Template => ({
   createdAt: row.created_at,

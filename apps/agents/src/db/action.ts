@@ -1,4 +1,4 @@
-import { safeJson } from "#/db/mappers";
+import { safeJson, toEnum } from "#/db/mappers";
 import type { Policy } from "#/db/policy";
 
 type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | "rejected";
@@ -47,8 +47,7 @@ type ActionRow = {
   worker_kind: string | null;
 };
 
-const toAgentRole = (raw: string): AgentRole =>
-  raw === "correspondent" || raw === "planner" || raw === "worker" ? raw : "worker";
+const toAgentRole = toEnum<AgentRole>(["correspondent", "planner", "worker"], "worker");
 
 const ACTION_WITH_AGENT_FROM = `FROM action
        JOIN ticket tk ON tk.id = action.ticket_id
@@ -57,21 +56,15 @@ const ACTION_WITH_AGENT_FROM = `FROM action
        JOIN company co ON co.id = action.company_id`;
 const ACTION_WITH_AGENT_COLS = `action.*, ai.display_name AS agent_name, ai.role AS agent_role, tpl.worker_kind AS worker_kind, co.name AS company_name`;
 
-const toStatus = (raw: string): ActionStatus => {
-  const valid: ReadonlyArray<ActionStatus> = [
-    "approved",
-    "changes_requested",
-    "executed",
-    "pending",
-    "rejected",
-  ];
-  return valid.find((s) => s === raw) ?? "pending";
-};
+const toStatus = toEnum<ActionStatus>(
+  ["approved", "changes_requested", "executed", "pending", "rejected"],
+  "pending",
+);
 
-const toPolicy = (raw: string): Policy => {
-  const valid: ReadonlyArray<Policy> = ["auto-execute", "notify-only", "require-approval"];
-  return valid.find((p) => p === raw) ?? "require-approval";
-};
+const toPolicy = toEnum<Policy>(
+  ["auto-execute", "notify-only", "require-approval"],
+  "require-approval",
+);
 
 const mapAction = (row: ActionRow): Action => ({
   actionType: row.action_type,

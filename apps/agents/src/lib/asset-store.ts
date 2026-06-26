@@ -1,4 +1,4 @@
-import { safeJson } from "#/db/mappers";
+import { safeJson, toEnum } from "#/db/mappers";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
 
 type AssetKind = "audio" | "brand_asset" | "generated_image" | "knowledge_doc" | "user_upload";
@@ -25,7 +25,7 @@ type AssetRow = {
   visibility: string;
 };
 
-const toVisibility = (raw: string): AssetVisibility => (raw === "agent" ? "agent" : "customer");
+const toVisibility = toEnum<AssetVisibility>(["agent", "customer"], "customer");
 
 const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
@@ -38,16 +38,10 @@ const TEXT_MIME_PREFIXES = ["text/", "application/json"];
 
 const isTextMime = (mime: string): boolean => TEXT_MIME_PREFIXES.some((p) => mime.startsWith(p));
 
-const toAssetKind = (raw: string): AssetKind => {
-  const valid: ReadonlyArray<AssetKind> = [
-    "audio",
-    "brand_asset",
-    "generated_image",
-    "knowledge_doc",
-    "user_upload",
-  ];
-  return valid.find((k) => k === raw) ?? "knowledge_doc";
-};
+const toAssetKind = toEnum<AssetKind>(
+  ["audio", "brand_asset", "generated_image", "knowledge_doc", "user_upload"],
+  "knowledge_doc",
+);
 
 const assetName = (metadata: unknown, id: string, kind: string): string => {
   const meta = (metadata ?? {}) as Record<string, unknown>;

@@ -1,4 +1,4 @@
-import { safeJson } from "#/db/mappers";
+import { safeJson, toEnum } from "#/db/mappers";
 
 type TicketStatus =
   | "awaiting_approval"
@@ -51,18 +51,10 @@ type AgentInstanceRow = {
   template_id: string | null;
 };
 
-const toStatus = (raw: string): TicketStatus => {
-  const valid: ReadonlyArray<TicketStatus> = [
-    "awaiting_approval",
-    "blocked",
-    "cancelled",
-    "done",
-    "in_progress",
-    "open",
-    "rejected",
-  ];
-  return valid.find((s) => s === raw) ?? "open";
-};
+const toStatus = toEnum<TicketStatus>(
+  ["awaiting_approval", "blocked", "cancelled", "done", "in_progress", "open", "rejected"],
+  "open",
+);
 
 const mapTicket = (row: TicketRow): Ticket => ({
   agentInstanceId: row.agent_instance_id,

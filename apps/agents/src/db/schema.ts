@@ -1,3 +1,4 @@
+import { toEnum } from "#/db/mappers";
 import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 
 type CompanyStatus = "onboarding" | "active" | "paused";
@@ -26,10 +27,7 @@ type CompanyRow = {
   updated_at: number;
 };
 
-const COMPANY_STATUSES: ReadonlyArray<CompanyStatus> = ["onboarding", "active", "paused"];
-
-const toCompanyStatus = (value: string): CompanyStatus =>
-  COMPANY_STATUSES.find((status) => status === value) ?? "onboarding";
+const toCompanyStatus = toEnum<CompanyStatus>(["onboarding", "active", "paused"], "onboarding");
 
 const mapCompany = (row: CompanyRow): Company => ({
   brief: row.brief,
