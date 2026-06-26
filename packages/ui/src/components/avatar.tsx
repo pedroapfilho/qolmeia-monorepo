@@ -2,8 +2,6 @@ import { cn } from "@repo/ui/lib/utils";
 
 type AvatarSize = "sm" | "md" | "lg";
 
-// Decorative rotation — hues come from the --color-avatar-* tokens in
-// globals.css so the palette is themed in one place.
 const PALETTE: ReadonlyArray<string> = [
   "bg-avatar-1",
   "bg-avatar-2",

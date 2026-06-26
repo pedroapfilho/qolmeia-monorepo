@@ -16,8 +16,6 @@ type EmailConfig = {
 
 const DEFAULT_FROM = "Qolmeia <noreply@qolmeia.ai>";
 
-// These wrappers return `sendEmail`'s promise directly. Keeping them sync
-// avoids a useless extra microtask; callers `await` them either way.
 const sendWelcomeEmail = (
   {
     userEmail,
@@ -32,9 +30,6 @@ const sendWelcomeEmail = (
   },
   config: EmailConfig,
 ) => {
-  // Resend rejects tag values containing anything outside `[A-Za-z0-9_-]` —
-  // notably spaces, so the user's display name (`user.name`) can't be tagged.
-  // Tag by `userId` instead; it's the stable, ASCII-safe identifier.
   return sendEmail({
     apiKey: config.apiKey,
     defaultReplyTo: config.defaultReplyTo,
@@ -157,9 +152,6 @@ const sendChangeEmailConfirmation = (
       newEmail,
       username,
     }),
-    // Send to CURRENT email — this is the consent step. Better Auth's
-    // sendVerificationEmail hook handles the second mailbox-ownership step
-    // to the NEW email when the confirmation link is clicked.
     to: currentEmail,
   });
 };
@@ -178,8 +170,6 @@ const sendMagicLinkEmail = (
   },
   config: EmailConfig,
 ) => {
-  // Magic link can fire for unknown emails (signup-on-link); userId may not
-  // exist yet, so it's optional. When present, prefer it over username.
   return sendEmail({
     apiKey: config.apiKey,
     defaultReplyTo: config.defaultReplyTo,

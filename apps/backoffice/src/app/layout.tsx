@@ -7,7 +7,6 @@ import type { ReactNode } from "react";
 
 import { Providers } from "@/components/providers";
 
-// Sora (display/brand), Hanken Grotesk (body/UI), JetBrains Mono (labels/IDs).
 const hanken = Hanken_Grotesk({ display: "swap", subsets: ["latin"], variable: "--font-hanken" });
 const sora = Sora({ display: "swap", subsets: ["latin"], variable: "--font-sora" });
 const jetbrainsMono = JetBrains_Mono({

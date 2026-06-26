@@ -13,10 +13,6 @@ type ActivityListProps = {
   pageSize?: number;
 };
 
-// Time-based pagination: ask for entries strictly older than the last one
-// we have. The agents Worker returns descending by createdAt, so the tail
-// is the oldest; we paginate by `since=earliest-1`. Once a page comes back
-// empty we hide the button.
 const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
   const [rows, setRows] = useState<ReadonlyArray<ActivityEntry>>(initial);
   const [exhausted, setExhausted] = useState(initial.length < pageSize);

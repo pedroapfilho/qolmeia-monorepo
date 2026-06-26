@@ -9,10 +9,6 @@ import {
 import type { FileUIPart } from "ai";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-// A chat message in the shape the Chat UI renders: an id, a role, and an
-// ordered list of text/file parts. Mirrors the slice of the AI SDK's
-// `UIMessage` the JSX touches so the view layer is untouched by the transport
-// swap.
 type ChatMessagePart =
   | { text: string; type: "text" }
   | { filename?: string; mediaType: string; type: "file"; url: string };
@@ -23,8 +19,6 @@ type ChatMessage = {
   role: "assistant" | "user";
 };
 
-// Same set the AI SDK's `ChatStatus` uses, so the composer/prompt-input keep
-// compiling against it.
 type FlueChatStatus = "error" | "ready" | "streaming" | "submitted";
 
 type SendInput = {
@@ -34,14 +28,9 @@ type SendInput = {
 
 type UseFlueChatOptions = {
   agent: "correspondent" | "planner";
-  // Worker origin. Empty string ("" / same-origin) resolves the SDK's relative
-  // baseUrl against `window.location.origin`; a non-empty value targets a
-  // cross-origin prod Worker.
   baseUrl: string;
   companyId: string;
   onError?: (error: unknown) => void;
-  // Validated by the Worker as a fallback when the first-party cookie is absent
-  // (e.g. cross-origin prod). Same-origin dev relies on the cookie.
   sessionToken?: string;
 };
 
@@ -58,13 +47,6 @@ const nextMessageId = (prefix: string): string => {
   return `${prefix}-${messageSeq}-${Date.now()}`;
 };
 
-// The visible assistant text arrives as a stream of `text_delta` events between
-// a `message_start` (role: "assistant") and the operation's end. The reducer
-// below accumulates those deltas into a single text part on the in-flight
-// assistant message. Image deliverables come back inline as markdown inside the
-// assistant text (the renderer turns `![alt](url)` into an <img>), so the
-// reducer only needs to handle text — no separate file part for assistant
-// images.
 const appendAssistantText = (messages: Array<ChatMessage>, delta: string): Array<ChatMessage> => {
   const last = messages.at(-1);
   if (!last || last.role !== "assistant") {
@@ -85,8 +67,6 @@ const appendAssistantText = (messages: Array<ChatMessage>, delta: string): Array
 const toPromptImages = (files: Array<FileUIPart>): Array<AgentPromptImage> => {
   const images: Array<AgentPromptImage> = [];
   for (const file of files) {
-    // The Worker resolves the asset by its HMAC-signed URL; pass the URL through
-    // the SDK's `data` field rather than re-fetching + base64-encoding here.
     if (file.mediaType?.startsWith("image/")) {
       images.push({ data: file.url, mimeType: file.mediaType, type: "image" });
     }
@@ -103,19 +83,13 @@ const useFlueChat = ({
 }: UseFlueChatOptions): UseFlueChatResult => {
   const [messages, setMessages] = useState<Array<ChatMessage>>([]);
   const [status, setStatus] = useState<FlueChatStatus>("ready");
-  // Tracks the active stream so a new send (or unmount) can cancel the previous
-  // one instead of leaking a long-poll connection.
   const abortRef = useRef<AbortController | null>(null);
 
   const client: FlueClient = useMemo(
     () =>
       createFlueClient({
-        // `"/"` keeps the relative-baseUrl path (resolves to current origin in
-        // the browser) when no cross-origin Worker URL is configured.
         baseUrl: baseUrl || "/",
-        // Forward the first-party session cookie on every request.
         fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
-        // Cross-origin prod fallback: the Worker also accepts a bearer token.
         ...(sessionToken ? { token: sessionToken } : {}),
       }),
     [baseUrl, sessionToken],
@@ -135,8 +109,6 @@ const useFlueChat = ({
       let assistantStarted = false;
       try {
         for await (const event of stream as AsyncIterable<AttachedAgentEvent>) {
-          // Ignore events that belong to a different submission (the agent
-          // instance is shared; the stream may replay neighbouring work).
           if (event.submissionId && event.submissionId !== submissionId) {
             continue;
           }
@@ -159,9 +131,6 @@ const useFlueChat = ({
               break;
             }
             case "operation": {
-              // The top-level `prompt` operation settling marks the whole
-              // submission complete (a single submission may run several agent
-              // turns, so `agent_end` alone is not terminal).
               if (event.operationKind === "prompt") {
                 setStatus("ready");
                 controller.abort();

@@ -10,7 +10,6 @@ const useFieldContext = () => use(FieldContext);
 
 const Field = ({ className, ...props }: ComponentProps<"div">) => {
   const id = useId();
-  // Memoize so FieldLabel consumers don't re-render on every Field render.
   const value = useMemo<FieldContextValue>(() => ({ id }), [id]);
   return (
     <FieldContext value={value}>

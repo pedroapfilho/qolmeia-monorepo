@@ -21,15 +21,9 @@ import { authClient } from "@/lib/auth-client";
 import { loginSchema } from "@/lib/form-schemas";
 import { safeRedirectPath } from "@/lib/redirect-validation";
 
-// useSearchParams() forces a CSR bailout — wrapping in Suspense at the page
-// boundary keeps Next happy without giving up on static prerender for the
-// auth scaffold.
 const LoginForm = () => {
   const { push, refresh } = useRouter();
   const searchParams = useSearchParams();
-  // proxy.ts sends logged-out visitors here with ?from=<pathname>; validate
-  // it once and use it as both the post-sign-in destination and the register
-  // cross-link context. Invalid or absent → "/".
   const redirectTo = safeRedirectPath(searchParams.get("from"));
   const [showUnverifiedNotice, setShowUnverifiedNotice] = useState(false);
 
@@ -43,8 +37,6 @@ const LoginForm = () => {
           password: value.password,
         });
         if (error) {
-          // Better Auth 403s unverified accounts and (sendOnSignIn) re-sends
-          // the verification link — informational, not a credentials error.
           if (error.code === "EMAIL_NOT_VERIFIED") {
             setShowUnverifiedNotice(true);
             return;
@@ -53,9 +45,6 @@ const LoginForm = () => {
           return;
         }
       } catch {
-        // Better Auth's client returns { error } for HTTP failures but THROWS
-        // on network failures (auth service down) — without this catch the
-        // rejection escapes the submit as an unhandledRejection.
         toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }

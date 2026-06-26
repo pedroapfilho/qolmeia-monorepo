@@ -1,7 +1,3 @@
-// Role-keyed avatar hue + monogram, matching the design's fixed avatar palette
-// (correspondent→1, designer→2, estrategista→3, redator→4, social→5,
-// planner→6, fallback→8). Workers map by their kind keyword.
-
 const WORKER_KIND_AVATAR: ReadonlyArray<{ cls: string; match: RegExp }> = [
   { cls: "bg-avatar-2", match: /design|art|imagem/iv },
   { cls: "bg-avatar-3", match: /estrateg|strateg|plano/iv },

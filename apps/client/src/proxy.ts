@@ -4,11 +4,8 @@ import type { NextRequest } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
-// Protected: every client route lives behind a session. The chat home
-// "/" plus assets/activity make up the customer surface.
 const protectedRoutes = ["/", "/assets", "/activity", "/no-access"];
 
-// Auth routes redirect away when the user is already signed in.
 const authRoutes = ["/login", "/auth/verify"];
 
 const matchesRoute = (pathname: string, route: string): boolean => {
@@ -28,9 +25,6 @@ export const proxy = async (request: NextRequest) => {
     return NextResponse.next();
   }
 
-  // /auth/verify is the magic-link landing — handle as auth-route (no
-  // session required to reach it, since the click flow exchanges a token
-  // *for* a session).
   if (pathname.startsWith("/auth/verify")) {
     return NextResponse.next();
   }

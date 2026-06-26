@@ -1,8 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// `use-stick-to-bottom` (used by Conversation) observes element resizes;
-// jsdom ships no ResizeObserver, so stub one.
 globalThis.ResizeObserver = class {
   observe() {}
   unobserve() {}
@@ -34,7 +32,6 @@ vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 
-// streamdown pulls heavy markdown deps; a passthrough keeps the test focused.
 vi.mock("streamdown", () => ({
   Streamdown: ({ children }: { children: string }) => <div>{children}</div>,
 }));

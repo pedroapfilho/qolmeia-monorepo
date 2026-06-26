@@ -39,9 +39,6 @@ type ChatComposerProps = {
   status: ChatStatus;
 };
 
-// The message-composer: textarea + image attachments (picker and Ctrl/Cmd+V
-// paste, both through the same R2 upload path) + submit. Owns its own draft
-// state so the chat surface stays a thin shell.
 const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ReadonlyArray<Attachment>>([]);
@@ -52,9 +49,6 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
     fileInputRef.current?.click();
   }, []);
 
-  // Shared by the file picker and clipboard paste. Validates then uploads the
-  // image to R2, appending it as a pending attachment that sends with the next
-  // message.
   const uploadFile = useCallback(async (file: File) => {
     if (!ALLOWED_UPLOAD_MIME.includes(file.type)) {
       toast.error("Formato não suportado. Use PNG, JPG, WEBP ou GIF.");
@@ -84,7 +78,6 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
   const handleFileSelected = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      // Reset so re-selecting the same file fires `change` again.
       event.target.value = "";
       if (file) {
         void uploadFile(file);
@@ -93,8 +86,6 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
     [uploadFile],
   );
 
-  // Ctrl/Cmd+V of an image: capture it as an attachment instead of letting the
-  // browser drop nothing (or a file path) into the textarea.
   const handlePaste = useCallback(
     (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const images = [...event.clipboardData.files].filter((file) =>

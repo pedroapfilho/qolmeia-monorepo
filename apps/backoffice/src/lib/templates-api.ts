@@ -7,9 +7,6 @@ import type {
   TemplateStatus,
 } from "@/lib/api-types";
 
-// Query keys + thin fetch/mutation wrappers for the worker-template catalog.
-// Co-located so the list page, the editor, and the skill multi-select share
-// one cache namespace.
 const templateKeys = {
   all: ["templates"] as const,
   detail: (id: string) => ["templates", id] as const,

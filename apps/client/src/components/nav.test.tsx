@@ -30,7 +30,6 @@ describe("Nav", () => {
 
   it("links the logo home and falls back to 'Qolmeia' when the org name is null", () => {
     render(<Nav orgName={null} />);
-    // The brand slot is now the logo (aria-label "Qolmeia"), which links home.
     expect(screen.getByRole("link", { name: "Qolmeia" })).toHaveAttribute("href", "/");
   });
 

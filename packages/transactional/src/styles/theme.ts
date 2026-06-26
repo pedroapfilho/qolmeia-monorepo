@@ -39,10 +39,6 @@ const emailTheme = {
   },
 };
 
-// Mirrors the shadcn token names from @repo/ui's globals.css so emails can be
-// authored with the same `bg-primary` / `text-muted-foreground` / `border-border`
-// vocabulary as the web app. Email tooling has no CSS variables, so the hex
-// values are resolved here at build time instead of at render time.
 const tailwindConfig = {
   presets: [pixelBasedPreset],
   theme: {

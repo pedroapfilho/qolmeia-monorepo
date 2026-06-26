@@ -2,21 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "../client";
 
-// Hits the live local Postgres (docker-compose, host port 5436). Assumes
-// `pnpm db:push` has been run with the Phase 5b auth + membership additions
-// applied. Each test seeds its own fixtures under a unique prefix so the
-// suite is safe to re-run without truncation.
-//
-// Skipped when DATABASE_URL is absent — CI's test workflow (mirroring
-// acme's) runs without a Postgres service; the e2e workflow covers the
-// live-database path.
-
 const PREFIX = `auth-${Date.now()}`;
 const tag = (key: string): string => `${PREFIX}-${key}`;
 
 describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => {
   beforeAll(() => {
-    // Sanity: the new models exist on the typed Prisma client.
     expect(prisma.user).toBeDefined();
     expect(prisma.session).toBeDefined();
     expect(prisma.account).toBeDefined();
@@ -67,7 +57,6 @@ describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => 
     const account = await prisma.account.create({
       data: {
         accountId: email,
-        // Stored as bcrypt hash by Better Auth; we just round-trip the column.
         password: "$2b$10$abcdefghijklmnopqrstuv",
         providerId: "credential",
         userId: user.id,
@@ -85,7 +74,6 @@ describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => 
     });
     expect(verification.identifier).toBe(`${PREFIX}-magic-link-1`);
 
-    // Cascade: deleting the User wipes its sessions + accounts.
     await prisma.user.delete({ where: { id: user.id } });
     const remainingSession = await prisma.session.findUnique({ where: { id: session.id } });
     const remainingAccount = await prisma.account.findUnique({ where: { id: account.id } });
@@ -139,14 +127,12 @@ describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => 
     });
     expect(membership.role).toBe("OWNER");
 
-    // (userId, orgId) unique — re-inserting the same pair fails.
     await expect(
       prisma.orgMembership.create({
         data: { orgId: org.id, role: "STAFF", userId: user.id },
       }),
     ).rejects.toThrow();
 
-    // Eager-load via either side of the relation.
     const reloadedUser = await prisma.user.findUnique({
       include: { memberships: { select: { orgId: true, role: true } } },
       where: { id: user.id },
@@ -159,7 +145,6 @@ describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => 
     });
     expect(reloadedOrg?.memberships).toEqual([{ role: "OWNER", userId: user.id }]);
 
-    // Cascade: deleting the Organization wipes its memberships.
     await prisma.organization.delete({ where: { id: org.id } });
     const remaining = await prisma.orgMembership.findMany({
       where: { id: membership.id },

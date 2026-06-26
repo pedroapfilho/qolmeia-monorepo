@@ -4,9 +4,6 @@ import type { NextRequest } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
-// Protected: every backoffice route lives behind a session. The dashboard "/"
-// is included plus the operator-facing surfaces. Role check (OWNER/STAFF
-// vs CUSTOMER) happens in the dashboard layout via requireStaff.
 const protectedRoutes = ["/", "/approvals", "/activity", "/tickets"];
 
 const authRoutes = ["/login", "/register", "/recover", "/reset-password"];

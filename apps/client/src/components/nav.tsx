@@ -38,8 +38,6 @@ type NavProps = {
   orgName: string | null;
 };
 
-// Top-bar layout (no sidebar) — the chat surface owns most of the
-// vertical space, so a slim header is friendlier on mobile and laptop.
 const Nav = ({ orgName }: NavProps) => {
   const pathname = usePathname();
   const org = orgName ?? "Qolmeia";

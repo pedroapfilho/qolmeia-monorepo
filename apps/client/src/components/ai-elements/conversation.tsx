@@ -7,8 +7,6 @@ import type { ComponentProps, ReactNode } from "react";
 import { useCallback } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 
-// Vendored from `ai-elements`, re-pointed at `@repo/ui` primitives.
-
 type ConversationProps = ComponentProps<typeof StickToBottom>;
 
 const Conversation = ({ className, ...props }: ConversationProps) => (

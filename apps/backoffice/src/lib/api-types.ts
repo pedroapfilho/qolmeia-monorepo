@@ -1,8 +1,3 @@
-// Shapes returned by apps/agents /api/backoffice/* — duplicated here on
-// purpose: the agents Worker and the backoffice are deployed independently,
-// so a runtime contract is healthier than a build-time import that couples
-// them.
-
 type TicketStatus =
   | "awaiting_approval"
   | "blocked"
@@ -34,7 +29,6 @@ type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | 
 
 type ActionPolicy = "auto-execute" | "notify-only" | "require-approval";
 
-// The agent that owns the action's ticket — drives the role-keyed avatar.
 type ActionAgent = {
   name: string;
   role: "correspondent" | "planner" | "worker";
@@ -82,8 +76,6 @@ type ActionDetailResponse = { action: Action; ageSeconds: number; ticket: Ticket
 
 type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
-// ADR 0005 operator coverage. `assigned` is the operator's current set;
-// `options` are the pickable companies + disciplines (template worker_kinds).
 type OperatorCoverage = {
   companies: ReadonlyArray<string>;
   disciplines: ReadonlyArray<string>;
@@ -97,7 +89,6 @@ type CoverageResponse = {
   };
 };
 
-// Worker-template catalog. Mirrors the agents `Template` shape (camelCase).
 type TemplateStatus = "active" | "retired";
 
 type Template = {
@@ -116,8 +107,6 @@ type Template = {
   workerKind: string;
 };
 
-// The payload accepted by POST/PATCH /templates (no id/version/timestamps —
-// the server owns those).
 type TemplateInput = {
   defaultActionType: string;
   defaultPolicies: Record<string, string>;

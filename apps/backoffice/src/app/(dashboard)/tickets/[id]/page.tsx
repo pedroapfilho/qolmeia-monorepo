@@ -18,9 +18,6 @@ type TicketDetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-// Each action becomes a step in the execution timeline. The dot colour keys
-// off the action status: executed = done, pending = waiting on an operator,
-// rejected = blocked, anything mid-flight = current.
 type StepTone = "done" | "current" | "waiting" | "blocked";
 
 const STEP_TONE: Record<Action["status"], StepTone> = {

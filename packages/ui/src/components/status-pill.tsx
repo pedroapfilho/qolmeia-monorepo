@@ -2,10 +2,6 @@ import type { ComponentProps } from "react";
 
 import { cn } from "../lib/utils";
 
-// Design-system status pill: tinted surface + colored dot + label. `pulse`
-// animates the dot (for "Trabalhando"/in-progress). Tones map to the semantic
-// surface tokens, so colors come entirely from the theme.
-
 type StatusTone = "danger" | "info" | "neutral" | "success" | "warning";
 
 const TONE: Record<StatusTone, { dot: string; pill: string }> = {
@@ -20,7 +16,6 @@ const TONE: Record<StatusTone, { dot: string; pill: string }> = {
 };
 
 type StatusPillProps = ComponentProps<"span"> & {
-  /** Hide the leading dot (e.g. for "Concluído", which the design shows dotless). */
   dotless?: boolean;
   label: string;
   pulse?: boolean;

@@ -28,16 +28,8 @@ const parseEnvList = (value: string | undefined): Array<string> => {
   return result;
 };
 
-// Open-redirect gate for the verification callback: only in-app relative
-// paths survive (single leading "/", no protocol-relative "//", no
-// backslashes — browsers normalize "\" to "/" — and no scheme/host).
-// Anything else falls back to the app root. The register form validates the
-// same way before sending; this is the server-side half of the contract,
-// applied before the path is re-anchored on the requesting app's origin.
 const CALLBACK_FALLBACK_PATH = "/";
 
-// Fixed base for URL resolution: anything that escapes it (absolute URL,
-// scheme, protocol-relative host) resolves to a different origin.
 const CALLBACK_ANCHOR_ORIGIN = "https://qolmeia.invalid";
 
 export const safeCallbackPath = (value: string | null): string => {
@@ -71,11 +63,6 @@ export const createAuth = (config: AuthConfig) => {
     secret,
   } = config;
 
-  // Prod runs auth, client, and backoffice on sibling subdomains of one parent
-  // (ADR 0008): when COOKIE_DOMAIN is set (e.g. ".qolmeia.com") the session
-  // cookie is written on the parent so every subdomain sends it. Unset in dev,
-  // where the `.localhost` proxy keeps each app same-origin — so this stays off
-  // and cookie behavior is unchanged.
   const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
 
   return betterAuth({
@@ -88,50 +75,21 @@ export const createAuth = (config: AuthConfig) => {
 
     advanced: {
       cookiePrefix: "qolmeia",
-      // See cookieDomain above. Same-site (shared parent domain) means the
-      // `lax` attribute below still sends the cookie on cross-subdomain fetches.
       crossSubDomainCookies: cookieDomain ? { domain: cookieDomain, enabled: true } : undefined,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax" as const,
       },
-      // Force the `Secure` cookie flag when WEB_APP_URL is HTTPS. The
-      // dynamic-baseURL `protocol: "auto"` setting documents this as
-      // automatic, but in practice under Next.js + a reverse proxy
-      // (portless in dev, Vercel in prod), Better Auth doesn't reliably
-      // see the HTTPS scheme via `x-forwarded-proto` or `request.url`,
-      // so cookies end up without `Secure`.
-      //
-      // WEB_APP_URL is the explicit signal we already use everywhere:
-      // set to `https://qolmeia.web.localhost` in dev (.env.example) and
-      // `https://app.qolmeia.ai` in prod; unset in CI (which runs on
-      // plain http://127.0.0.1) — so the gate naturally avoids the
-      // HTTPS-in-CI footgun that bare `true` or NODE_ENV gating would
-      // re-introduce.
       useSecureCookies: process.env.WEB_APP_URL?.startsWith("https://") === true,
     },
 
-    // Explicit to match the Next.js route handler mount at /api/auth/[...all].
-    // This is Better Auth's default but stated explicitly to match sibling repos.
     basePath: "/api/auth",
 
-    // Dynamic base URL: Better Auth derives the canonical origin from the
-    // incoming request when its host matches `allowedHosts`. `allowedHosts`
-    // also auto-extends `trustedOrigins`, so the explicit loopback list below
-    // only needs to cover origins that arrive without a matching host header
-    // (e.g. cross-origin CI requests where the browser sends localhost:3000
-    // but the server thinks it's :4000). See:
-    // https://better-auth.com/docs/reference/options#dynamic-base-url
     baseURL: {
       allowedHosts: [
-        // Local dev (portless `qolmeia.{web,api,landing}.localhost` is two
-        // labels under `.localhost`, so we need `**` not `*`). Plain
-        // loopback ports are used by CI and the API server itself.
         "**.localhost",
         "localhost:*",
         "127.0.0.1:*",
-        // Production + Vercel previews come from env so this file doesn't
-        // hardcode deployment domains.
         ...parseEnvList(process.env.AUTH_ALLOWED_HOSTS),
       ],
       fallback: "http://localhost:4000",
@@ -146,11 +104,6 @@ export const createAuth = (config: AuthConfig) => {
       enabled: true,
       maxPasswordLength: 128,
       minPasswordLength: 12,
-      // requireEmailVerification activates Better Auth's enumeration-prevention
-      // path — signing up with an already-registered email returns a synthetic
-      // success response. onExistingUserSignUp below notifies the real account
-      // holder so they're not left waiting for a verification email that won't
-      // arrive. See better-auth docs "Email Enumeration Protection".
       onExistingUserSignUp: resendApiKey
         ? async ({ user }, request) => {
             const origin = request?.headers.get("origin") ?? "";
@@ -165,9 +118,6 @@ export const createAuth = (config: AuthConfig) => {
               { apiKey: resendApiKey, from: fromEmail },
             );
             if (!result.success) {
-              // Don't throw — Better Auth's enumeration-prevention path needs
-              // to return success regardless. Log so delivery failures don't
-              // break the auth response.
               log.error({
                 error: result.error,
                 message: "auth: failed to send sign-up attempt email",
@@ -175,15 +125,7 @@ export const createAuth = (config: AuthConfig) => {
             }
           }
         : undefined,
-      // Gate on Resend availability rather than NODE_ENV. If no API key is
-      // configured we physically can't send a verification email — requiring
-      // verification under that condition would lock all new users out
-      // (which is what was happening to e2e in CI before this change).
       requireEmailVerification: Boolean(resendApiKey),
-      // Always defined so the Better Auth endpoint accepts the request. The
-      // actual send only happens when Resend is configured; without it we
-      // succeed silently — the test/dev environment doesn't have email infra
-      // but the user-visible flow (form submit → redirect) still works.
       sendResetPassword: async ({ url, user }) => {
         if (!resendApiKey) {
           log.info({
@@ -209,24 +151,9 @@ export const createAuth = (config: AuthConfig) => {
     },
 
     emailVerification: {
-      // The link is the login: clicking it verifies the address AND signs in
-      // the clicking device. Tradeoff accepted (2026-06-12 fleet decision) —
-      // simpler than the retired pending-screen flow, at the cost of the
-      // session landing on whichever device opens the link.
       autoSignInAfterVerification: true,
-      // Unverified sign-in attempts still 403, but get a fresh verification
-      // link alongside it so the login form can say "we just sent a new one".
       sendOnSignIn: true,
-      // Same no-op-without-Resend pattern as sendResetPassword above.
       sendVerificationEmail: async ({ url, user }, request) => {
-        // Auth runs on its own origin (apps/api), so a relative callbackURL
-        // would resolve against the auth service. Rebuild it against the web
-        // app origin that initiated the request (register form / unverified
-        // sign-in / change-email confirmation), preserving the caller's
-        // in-app path — the register form passes its ?from= context as
-        // callbackURL so the email clicker lands back where signup started —
-        // and defaulting to the app root. When the origin header is absent
-        // (non-browser callers), keep Better Auth's original URL.
         const origin = request?.headers.get("origin");
         const verificationUrl = (() => {
           if (!origin) {
@@ -267,9 +194,6 @@ export const createAuth = (config: AuthConfig) => {
     plugins: [
       username(),
       bearer(),
-      // Magic-link drives the client-app login flow. Same no-op-without-Resend
-      // pattern as the other email hooks — the endpoint accepts the request,
-      // we just don't deliver an email if no API key is configured.
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           if (!resendApiKey) {
@@ -291,9 +215,6 @@ export const createAuth = (config: AuthConfig) => {
       ...extraPlugins,
     ],
 
-    // Fleet-canonical rate-limit shape. CI runs production builds but the
-    // e2e suite hammers auth endpoints back-to-back across browsers; the
-    // limiter would 429 the suite, so it's gated off when CI is set.
     rateLimit: {
       enabled: process.env.NODE_ENV === "production" && !process.env.CI,
       max: 100,
@@ -312,10 +233,6 @@ export const createAuth = (config: AuthConfig) => {
       storeSessionInDatabase: true,
       updateAge: 60 * 60 * 24, // Update session if older than 1 day
     },
-    // `allowedHosts` already feeds `trustedOrigins`; the loopback set below
-    // covers exact-origin checks for plain `http://localhost:PORT` requests
-    // that wouldn't match a host pattern (Better Auth's origin check is
-    // exact-string for trustedOrigins).
     trustedOrigins: [
       "http://localhost:3000",
       "http://localhost:3001",
@@ -335,11 +252,6 @@ export const createAuth = (config: AuthConfig) => {
       },
       changeEmail: {
         enabled: true,
-        // Two-step flow: sendChangeEmailConfirmation goes to the CURRENT email
-        // for consent. When the link is clicked, Better Auth re-invokes
-        // emailVerification.sendVerificationEmail (the signup-verification hook
-        // above) targeting the NEW email to confirm mailbox ownership. Same
-        // no-op-without-Resend pattern as the other hooks.
         sendChangeEmailConfirmation: async ({ newEmail, url, user }) => {
           if (!resendApiKey) {
             return;

@@ -24,11 +24,6 @@ const isImage = (mime: string): boolean => mime.startsWith("image/");
 const isAudio = (mime: string): boolean => mime.startsWith("audio/");
 const isText = (mime: string): boolean => mime.startsWith("text/") || mime === "application/json";
 
-// Inline preview for a gallery asset. Images and audio render from the signed
-// URL directly; text/markdown is fetched and rendered (markdown reuses the chat
-// markdown renderer); anything else falls back to download. The Worker's
-// /assets route is CORS-enabled for client origins, so fetching the text body
-// from the browser works; a failure degrades to the inline error + Baixar.
 const AssetPreviewDialog = ({ asset, onClose }: AssetPreviewDialogProps) => {
   const wantsText = asset !== null && isText(asset.mimeType);
 
@@ -95,7 +90,6 @@ const AssetPreviewDialog = ({ asset, onClose }: AssetPreviewDialogProps) => {
 
         <div className="max-h-[64vh] overflow-auto">
           {asset && isImage(asset.mimeType) ? (
-            // Signed URL; a plain <img> is correct.
             // oxlint-disable-next-line no-img-element
             <img
               alt={asset.name}

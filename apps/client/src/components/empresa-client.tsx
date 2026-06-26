@@ -112,8 +112,6 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
   };
 
   const handleHired = () => {
-    // Fire-and-forget: fetch failures surface via the query layer's
-    // meta.errorToast, so no local error handling is needed here.
     void refetch();
     void queryClient.invalidateQueries({ queryKey: CATALOGUE_QUERY_KEY });
   };

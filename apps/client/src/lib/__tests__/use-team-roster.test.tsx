@@ -55,10 +55,6 @@ describe("useTeamRoster", () => {
 
     await vi.waitFor(() => expect(result.current.status).toBe("ready"));
 
-    // Simulate becoming visible — TanStack's focusManager listens for
-    // visibilitychange on window and the roster query opts into
-    // refetchOnWindowFocus (real browser visibilitychange events bubble to
-    // window; jsdom Events default to bubbles: false, so dispatch there).
     act(() => {
       Object.defineProperty(document, "visibilityState", {
         configurable: true,

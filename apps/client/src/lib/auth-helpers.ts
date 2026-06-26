@@ -6,9 +6,6 @@ import { AGENTS_SERVER_URL } from "@/lib/api-server";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
-// Returns the current Better Auth session, or null if the cookie is missing
-// or invalid. Cached per-request via React `cache` so multiple RSCs reading
-// the session within the same render don't trigger duplicate DB hits.
 const getSession = cache(async () => {
   const headersList = await headers();
 
@@ -24,8 +21,6 @@ const getSession = cache(async () => {
   }
 });
 
-// Guards an RSC that requires *any* signed-in user. Use for routes that the
-// proxy already gates — this is the type-narrowing helper for the page.
 export const requireSession = async () => {
   const session = await getSession();
   if (!session) {
@@ -50,15 +45,6 @@ type MeResponse = {
   };
 };
 
-// Guards an RSC that requires CUSTOMER role. Bounces staff-only callers to
-// /no-access. Genuine auth failures (401/403) redirect; transient failures
-// (429, 5xx, network) throw so Next renders the error boundary.
-//
-// Why we don't catch-and-redirect on transient failures: proxy.ts already
-// validated the session locally and let us through. Bouncing to /login
-// while the cookie is valid makes proxy.ts redirect back to / (the auth-
-// route-with-session rule), looping until the browser bails with
-// ERR_TOO_MANY_REDIRECTS.
 export const requireCustomer = async (): Promise<MeResponse> => {
   await requireSession();
   const headersList = await headers();

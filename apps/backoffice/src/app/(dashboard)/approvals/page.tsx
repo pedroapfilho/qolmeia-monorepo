@@ -20,8 +20,6 @@ import {
 
 export const metadata: Metadata = { title: "Aprovações" };
 
-// Wait-time tier → text treatment. Colour is paired with weight so urgency is
-// never signalled by colour alone (the duration text carries it too).
 const AGE_TIER_CLASS: Record<AgeTier, string> = {
   calm: "text-muted-foreground",
   urgent: "font-semibold text-destructive-surface-foreground",
@@ -34,9 +32,6 @@ const proposedSummary = (proposed: Record<string, unknown>): string => {
 };
 
 const ApprovalsPage = async () => {
-  // `?status=pending&sort=age` returns oldest-first — the stale-backlog view.
-  // Each row carries ageSeconds so the operator knows how long the customer
-  // has been waiting.
   const res = await apiGetServer<ActionsResponse>("/actions?status=pending&sort=age");
   const pendingCount = res.items.length;
 

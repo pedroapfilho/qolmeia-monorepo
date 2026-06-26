@@ -27,15 +27,7 @@ const rosterStatus = (query: { isError: boolean; isPending: boolean }): RosterSt
   return "ready";
 };
 
-// Live team:roster/status broadcasts came over the correspondent DO's
-// WebSocket, which Flue removes (no DO, no socket). For now the roster refreshes
-// on a fixed safety poll + window focus; the previous socket-gated polling is
-// gone.
-// TODO: live updates via Flue SSE/channels once the Worker exposes a roster
-// event stream.
 const useTeamRoster = (companyId: string, _sessionToken: string): UseTeamRosterResult => {
-  // Destructure only the fields we read so TanStack's tracked-property
-  // optimization can skip re-renders for fields this hook ignores.
   const {
     data,
     error,
@@ -47,7 +39,6 @@ const useTeamRoster = (companyId: string, _sessionToken: string): UseTeamRosterR
     queryFn: fetchTeam,
     queryKey: teamQueryKey(companyId),
     refetchInterval: POLL_INTERVAL_MS,
-    // Always refresh when the tab becomes visible again.
     refetchOnWindowFocus: true,
     staleTime: 0,
   });

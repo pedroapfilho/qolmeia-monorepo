@@ -2,12 +2,6 @@ import { Card } from "@repo/ui/components/card";
 
 import type { Action } from "@/lib/api-types";
 
-// Renderer for the `publish_post` action type proposed by the Marketing
-// Strategist Worker. Expects the proposed payload to carry the structured
-// fields the `draftSocialPost` skill produces (platform, body,
-// callToAction, hashtags, tone) — the LLM may also emit a `summary`
-// caption that the generic Proposta card already renders.
-
 const PLATFORM_COPY: Record<string, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
@@ -31,9 +25,6 @@ type Draft = {
 };
 
 const readDraft = (proposed: Action["proposed"]): Draft | null => {
-  // The Marketing Strategist Workflow attaches the draftSocialPost result
-  // under `proposed.draft`. Defensive guards because the workflow shape
-  // could evolve and the backoffice should still render something useful.
   const draft = (proposed as Record<string, unknown>).draft;
   if (!draft || typeof draft !== "object") {
     return null;

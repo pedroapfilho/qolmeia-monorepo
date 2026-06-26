@@ -11,11 +11,6 @@ import type {
 import { memo } from "react";
 import { Streamdown } from "streamdown";
 
-// Vendored from `ai-elements`. The branch / toolbar / attachment subcomponents
-// from the upstream file are intentionally omitted — they depend on Radix
-// ButtonGroup/Tooltip which clash with this repo's `@base-ui` setup, and the
-// web-chat UI doesn't need branching or message-level actions.
-
 type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
 };
@@ -47,16 +42,6 @@ const MessageContent = ({ children, className, ...props }: MessageContentProps) 
   </div>
 );
 
-// Streamdown's default <img> renders inside a <div data-streamdown="image-wrapper">
-// (for a hover overlay). When the LLM emits `![alt](url)` inline inside a
-// paragraph — the canonical way to embed an image in markdown — the resulting
-// DOM is `<p><div><img/></div></p>`, which is invalid HTML and triggers a
-// hydration error. Overriding the `img` component returns the bare element,
-// which IS legal phrasing content inside <p>. The asset URLs we serve are
-// already HMAC-signed; the overlay is decorative and not load-bearing.
-// react-markdown's per-element override receives the element's native props
-// plus an `ExtraProps`-shaped `node` field. We only read `src`, `alt`, and
-// `className`, so a tolerant signature is fine.
 type ImgOverrideProps = ImgHTMLAttributes<HTMLImageElement> & { node?: unknown };
 
 const PlainImage = ({ alt, className, src }: ImgOverrideProps) => (
@@ -64,12 +49,6 @@ const PlainImage = ({ alt, className, src }: ImgOverrideProps) => (
   <img alt={alt ?? ""} className={cn("max-h-80 rounded-md object-contain", className)} src={src} />
 );
 
-// Same problem as the image wrapper: Streamdown's default link renders a
-// "link safety" dialog (<div class="fixed inset-0">…<p>…) around the anchor.
-// Inline inside a markdown paragraph that nests block content inside the
-// paragraph's <p> — invalid HTML + a hydration error. A bare <a> is legal
-// phrasing content inside <p>. opener/referrer hardened since these URLs come
-// from the agent.
 type AnchorOverrideProps = AnchorHTMLAttributes<HTMLAnchorElement> & { node?: unknown };
 
 const PlainLink = ({ children, className, href }: AnchorOverrideProps) => (
@@ -91,9 +70,6 @@ const STREAMDOWN_COMPONENTS = { a: PlainLink, img: PlainImage } as unknown as St
 
 type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-// Markdown renderer — a real upgrade over the previous plain-text bubble.
-// Memoised on `children` so a re-render of the message list doesn't re-parse
-// every markdown body.
 const MessageResponse = memo(
   ({ className, components, ...props }: MessageResponseProps) => (
     <Streamdown

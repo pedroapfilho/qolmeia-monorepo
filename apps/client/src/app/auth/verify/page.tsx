@@ -12,11 +12,6 @@ export const metadata: Metadata = {
   title: "Entrando",
 };
 
-// Better Auth's magic-link verify endpoint sets the session cookie on
-// the API side then redirects the browser here. The cookie is already on
-// disk by the time this page renders — we bounce to "/" so the user
-// lands in the chat. If Better Auth appended ?error=… we render that
-// instead of silently looping back to /login.
 type VerifyPageProps = {
   searchParams: Promise<{ error?: string }>;
 };

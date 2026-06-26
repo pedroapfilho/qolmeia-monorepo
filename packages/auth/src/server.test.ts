@@ -42,9 +42,6 @@ describe("Auth Server Configuration", () => {
   });
 
   it("should gate useSecureCookies on WEB_APP_URL being HTTPS", () => {
-    // Without WEB_APP_URL the gate evaluates to false — CI runs on plain
-    // http://127.0.0.1, so cookies must not get the Secure flag (browsers
-    // drop Secure cookies on HTTP).
     expect(auth.options.advanced?.useSecureCookies).toBe(false);
     expect(auth.options.advanced?.defaultCookieAttributes?.httpOnly).toBe(true);
     expect(auth.options.advanced?.defaultCookieAttributes?.sameSite).toBe("lax");
@@ -151,9 +148,6 @@ describe("Auth Server Configuration", () => {
 
   it("should enable rate limiting in production", () => {
     vi.stubEnv("NODE_ENV", "production");
-    // The rateLimit gate is `production && !CI` — GitHub Actions sets
-    // CI=true on the runner, so we must clear it for the production path
-    // to evaluate true under test.
     vi.stubEnv("CI", "");
     const prodAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
     expect(prodAuth.options.rateLimit?.enabled).toBe(true);
@@ -164,17 +158,13 @@ describe("Auth Server Configuration", () => {
 
     const envAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
     const trusted = envAuth.options.trustedOrigins;
-    expect(trusted).toContain("https://app.qolmeia.ai"); // env value
-    expect(trusted).toContain("https://api.qolmeia.ai"); // env value
-    expect(trusted).toContain("http://localhost:3000"); // loopback default
-    expect(trusted).toContain("http://127.0.0.1:3000"); // loopback default
+    expect(trusted).toContain("https://app.qolmeia.ai");
+    expect(trusted).toContain("https://api.qolmeia.ai");
+    expect(trusted).toContain("http://localhost:3000");
+    expect(trusted).toContain("http://127.0.0.1:3000");
   });
 
   it("should always define reset password handler (no-op when resendApiKey is absent)", () => {
-    // The handler is always wired so the Better Auth /forget-password
-    // endpoint accepts the request — without an API key it just returns
-    // without sending an email, which keeps the user-visible flow working
-    // in dev/CI without email infra.
     expect(auth.options.emailAndPassword?.sendResetPassword).toBeDefined();
   });
 
@@ -207,8 +197,6 @@ describe("Auth Server Configuration", () => {
   });
 
   it("should always define verification email handler (no-op when resendApiKey is absent)", () => {
-    // Same reasoning as sendResetPassword above — endpoint accepts the
-    // request, the actual send is gated on resendApiKey at call time.
     expect(auth.options.emailVerification?.sendVerificationEmail).toBeDefined();
   });
 
@@ -230,8 +218,6 @@ describe("Auth Server Configuration", () => {
   });
 
   it("preserves a caller-provided in-app callbackURL path", () => {
-    // sendVerificationEmail re-anchors this on the requesting app's origin —
-    // the register form's ?from= context survives into the emailed link.
     expect(safeCallbackPath("/tickets")).toBe("/tickets");
     expect(safeCallbackPath("/tickets?status=open#top")).toBe("/tickets?status=open#top");
     expect(safeCallbackPath("/")).toBe("/");
@@ -245,12 +231,9 @@ describe("Auth Server Configuration", () => {
   it("rejects open-redirect callbackURL values", () => {
     expect(safeCallbackPath("//evil.com")).toBe("/");
     expect(safeCallbackPath("//evil.com/phish")).toBe("/");
-    // Browsers normalize "\" to "/" during URL parsing, so these would
-    // escape the app origin if let through.
     expect(safeCallbackPath(String.raw`/\evil.com`)).toBe("/");
     expect(safeCallbackPath(String.raw`\/evil.com`)).toBe("/");
     expect(safeCallbackPath("https://evil.com/phish")).toBe("/");
-    // Built dynamically so lint's no-script-url doesn't flag a literal.
     expect(safeCallbackPath(["javascript", "alert(1)"].join(":"))).toBe("/");
     expect(safeCallbackPath("evil.com")).toBe("/");
   });

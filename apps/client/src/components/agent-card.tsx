@@ -21,16 +21,11 @@ const roleLabel = (m: TeamMemberView): string => {
     return "Planejador";
   }
   if (m.role === "worker") {
-    return m.workerKind; // narrowed to string — no ?? "Worker" fallback
+    return m.workerKind;
   }
-  // exhaustive: role union covers all three literals above
   return m.role;
 };
 
-// Role-keyed avatar hue. The design assigns a fixed --color-avatar-* per role so
-// agents read as a consistent identity (Correspondent violet, Designer cyan…),
-// not a hashed rotation. Worker kinds map by keyword; unknown kinds cycle the
-// remaining slots so two distinct workers stay visually distinct.
 const WORKER_KIND_AVATAR: ReadonlyArray<{ cls: string; match: RegExp }> = [
   { cls: "bg-avatar-2", match: /design|art|imagem/iv },
   { cls: "bg-avatar-3", match: /estrateg|strateg|plano/iv },
@@ -59,9 +54,6 @@ const STATUS_TONE: Record<AgentDisplayStatus, StatusTone> = {
   working: "info",
 };
 
-// Surface-agnostic: renders only the avatar + identity layout. The caller owns
-// the surface (a Card on the empresa page, a bordered list item in the sidebar)
-// so we never nest a bordered box inside another bordered box.
 const AgentCard = ({ member, variant }: AgentCardProps) => {
   const detailed = variant === "detailed";
   const tone = STATUS_TONE[member.status];

@@ -1,6 +1,3 @@
-// Customer-side API surface for the team feature. Types mirror the agents
-// API output shape; status display labels live here (pt-BR).
-
 type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
 
 type OpenTicketSlim = {
