@@ -27,6 +27,10 @@ dist/
 .dev.vars
 worker-configuration.d.ts
 
+# flue (flue-vite build output)
+.flue-vite/
+.flue-vite.wrangler.jsonc
+
 # vercel
 .vercel
 
