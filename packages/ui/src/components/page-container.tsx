@@ -2,9 +2,6 @@ import type { ComponentProps } from "react";
 
 import { cn } from "../lib/utils";
 
-// Single source of truth for content-page width and padding. Every non-chat
-// page wraps its content in this so column width, gutters, and vertical rhythm
-// stay identical across the app instead of each page picking its own max-width.
 const PageContainer = ({ className, ...props }: ComponentProps<"div">) => (
   <div
     className={cn(

@@ -1,20 +1,10 @@
 import { createAgent } from "@flue/runtime";
 
-import { skillTool } from "#/lib/skill-tool";
-import { extractBriefSkill } from "#/skills/extract-brief";
-import { proposeTeamSkill } from "#/skills/propose-team";
+import { buildFlueTools } from "#/lib/skill-tool";
 import type { SkillContext } from "#/skills/registry";
 
-// The Planner, ported onto Flue (replaces the hand-rolled AIChatAgent in
-// agents/planner.ts). Flue's runtime drives the multi-turn debrief + tool-call
-// loop, so the manual onChatMessage/streamText/stepCountIs/recent-turns wiring
-// is gone — we just declare model + instructions + tools.
-//
-// Keyed per company: the agent instance id IS the company id (addressed at
-// /agents/planner/<companyId>, same as the DO naming). Tools close over the
-// Worker `env` + company id, reusing the existing skill `execute`.
+const PLANNER_SKILLS = ["extractBrief", "proposeTeam"];
 
-// Was BASE_SYSTEM_PROMPT in agents/planner.ts.
 const PLANNER_INSTRUCTIONS = `Você é o Planejador da Qolmeia — o agente que faz a entrevista inicial com um novo cliente para entender o negócio dele. Fale português do Brasil, de forma natural e curiosa, como uma conversa de descoberta de uma agência de marketing.
 
 Sua missão tem duas etapas:
@@ -25,10 +15,9 @@ Sua missão tem duas etapas:
 
 O cliente confirma fora do chat (botão na UI). Quando isso acontecer, o Correspondente assume — você fica em standby para um futuro re-plano se ele quiser ajustar o Time.`;
 
-// OpenRouter is registered in provider.ts; model strings are `openrouter/<model>`.
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-export default createAgent<unknown, Env>((context) => {
+export default createAgent<unknown, Env>(async (context) => {
   const ctx: SkillContext = {
     agentInstanceId: `planner-${context.id}`,
     companyId: context.id,
@@ -38,9 +27,8 @@ export default createAgent<unknown, Env>((context) => {
   return {
     instructions: PLANNER_INSTRUCTIONS,
     model: DEFAULT_MODEL,
-    tools: [skillTool(extractBriefSkill, ctx), skillTool(proposeTeamSkill, ctx)],
+    tools: await buildFlueTools(ctx, PLANNER_SKILLS),
   };
 });
 
-// Exposes the agent over HTTP at /agents/planner/:id, gated to the owning CUSTOMER.
 export { requireCustomerAgent as route } from "#/lib/agent-route-auth";

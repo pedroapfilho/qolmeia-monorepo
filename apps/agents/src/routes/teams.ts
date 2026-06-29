@@ -7,11 +7,6 @@ import { validateSession, type ValidatedSession } from "#/lib/auth";
 import { parseBrief } from "#/lib/company-brief";
 import { seedCompanyMemory } from "#/team/seed-memory";
 
-// Team confirm. The customer goes through the Planner debrief, picks the
-// templates from the proposed candidates, and POSTs here to materialize the
-// Team. Re-plan = the same call with a different templateIds set; the
-// idempotent materializer + status flip handle both first-time and re-plan.
-
 type Vars = { session: ValidatedSession };
 
 const teamsRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -69,9 +64,6 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     .bind(Date.now(), companyId)
     .run();
 
-  // Seed the Correspondent's memory with the brief so its first turn knows
-  // who the customer is. RPC failure is logged but doesn't fail the confirm
-  // — the brief stays in D1, the Correspondent re-reads it on next access.
   try {
     const brief = parseBrief(company.brief);
     await seedCompanyMemory(c.env, companyId, {

@@ -4,10 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { proposeAction } from "#/db/action";
 import { listCoverage, listDisciplines, setCoverage } from "#/db/assignment";
 
-// ADR 0005 operator coverage: the cross-tenant approval queue narrows to the
-// operator's assigned companies + disciplines (worker_kinds). No coverage means
-// they see everything; an explicit ?companyId= drills past coverage.
-
 const COMPANY_A = "co_cov_a";
 const COMPANY_B = "co_cov_b";
 const OPERATOR = "op-cov-1";
@@ -91,7 +87,6 @@ describe("operator coverage DB", () => {
     expect(coverage.companies).toEqual([COMPANY_A]);
     expect(coverage.disciplines).toEqual(["designer"]);
 
-    // A second set fully replaces — not appends.
     await setCoverage(env.DB, OPERATOR, { companies: [], disciplines: ["redator"] });
     coverage = await listCoverage(env.DB, OPERATOR);
     expect(coverage.companies).toEqual([]);
@@ -154,7 +149,6 @@ describe("approval queue narrows to coverage", () => {
     await setCoverage(env.DB, OPERATOR, { companies: [], disciplines: ["redator"] });
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const ids = await pendingCompanyIds();
-    // Only company B has a redator-produced action.
     expect(ids).toContain(COMPANY_B);
     expect(ids).not.toContain(COMPANY_A);
   });

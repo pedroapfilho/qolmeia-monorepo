@@ -1,11 +1,6 @@
 import type { Context } from "hono";
 import type { ZodError } from "zod";
 
-// Canonical error/list response shapes for /api/*. Keeping every list
-// route on `{ items, nextCursor }` and every error on `{ error: { code, message } }`
-// means the backoffice client can share one fetch wrapper across all
-// endpoints.
-
 type ApiErrorCode =
   | "BAD_REQUEST"
   | "UNAUTHORIZED"
@@ -27,9 +22,6 @@ type ApiListBody<T> = {
   nextCursor: string | null;
 };
 
-// Inline use sites read more clearly than buildJsonError(c, ...) — exported
-// as functions so the call sites stay consistent and the response shape is
-// changed in one place if we ever extend it.
 type JsonErrorArgs = {
   c: Context;
   code: ApiErrorCode | string;
@@ -58,10 +50,6 @@ const forbidden = (c: Context, message = "Forbidden") =>
 const badRequest = (c: Context, message: string) =>
   jsonError({ c, code: "BAD_REQUEST", message, status: 400 });
 
-// Maps a ZodError into the 422 validation response shape. Picking 422
-// (Unprocessable Entity) over 400 matches REST norms and lets the backoffice
-// distinguish "you sent us valid JSON but the body's wrong" from "the URL
-// or method is wrong".
 const validationError = (c: Context, error: ZodError) => {
   const details = error.issues.map((issue) => ({
     field: issue.path.map(String).join(".") || "(root)",
@@ -76,9 +64,6 @@ const validationError = (c: Context, error: ZodError) => {
   });
 };
 
-// Encodes a Date as an opaque base64 cursor. The backoffice should treat
-// the value as a black-box — we control both ends. Tests rely on the
-// concrete encoding so leaving this stable for now.
 const encodeCursor = (date: Date): string =>
   Buffer.from(date.toISOString(), "utf8").toString("base64url");
 
@@ -95,9 +80,6 @@ const decodeCursor = (cursor: string): Date | null => {
   }
 };
 
-// Default pagination knobs. List endpoints can override `defaultLimit` and
-// `maxLimit` when their workloads warrant it (the activity log allows up to
-// 200; everything else stays at 50).
 type ParsePaginationArgs = {
   cursor?: string | null | undefined;
   defaultLimit?: number;
@@ -124,9 +106,6 @@ const parsePagination = (args: ParsePaginationArgs): ParsedPagination => {
   return { cursorDate, limit };
 };
 
-// Wraps a Prisma-ish result (with one extra row peeked to detect the next
-// page) into the `{ items, nextCursor }` shape. Pass `nextCursorOf` to
-// extract the cursor key (default: row.createdAt).
 const buildListResponse = <T extends { createdAt: Date }>(
   rows: ReadonlyArray<T>,
   limit: number,

@@ -8,8 +8,6 @@ const TEAM_ID = `team-${COMPANY_ID}`;
 const CORR_ID = `corr-${COMPANY_ID}`;
 
 beforeEach(async () => {
-  // Clean up workers and activity rows from prior tests so each test starts
-  // with a clean slate for the hire company.
   await env.DB.batch([
     env.DB.prepare("DELETE FROM team_member WHERE team_id = ? AND agent_instance_id != ?").bind(
       TEAM_ID,
@@ -283,7 +281,6 @@ describe("updateMember", () => {
       displayName: undefined,
       templateId: "tpl-designer",
     });
-    // First set it to something
     await updateMember(env.DB, {
       agentInstanceId: member.id,
       companyId: COMPANY_ID,
@@ -292,7 +289,6 @@ describe("updateMember", () => {
       operatorId: null,
       promptOverride: "real prompt",
     });
-    // Then send an empty string — should reset, not store ""
     const result = await updateMember(env.DB, {
       agentInstanceId: member.id,
       companyId: COMPANY_ID,
@@ -315,7 +311,6 @@ describe("updateMember", () => {
       displayName: "   ",
       templateId: "tpl-designer",
     });
-    // Should fall back to nextDisplayName, not store "   "
     expect(member.displayName.trim().length).toBeGreaterThan(0);
   });
 });

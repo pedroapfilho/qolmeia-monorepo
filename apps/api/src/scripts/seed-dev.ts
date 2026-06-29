@@ -5,25 +5,6 @@ import { prisma } from "@repo/db";
 
 import { env } from "../lib/env";
 
-// E2E dev seed: spins up one Organization (id pinned to match the D1 dev
-// seed in apps/agents/scripts/seed-p2.sql), one OWNER user for the
-// backoffice, and one CUSTOMER user for the client app. Idempotent — safe
-// to re-run.
-//
-// After running, also run:
-//   pnpm --filter=worker-bees wrangler d1 execute worker-bees \
-//     --local --file scripts/seed-p2.sql
-//
-// then start the four dev processes:
-//   pnpm dev --filter=api         (https://qolmeia.api.localhost via portless)
-//   pnpm dev --filter=worker-bees  (port 8787 via wrangler dev)
-//   pnpm dev --filter=client       (https://qolmeia.client.localhost)
-//   pnpm dev --filter=backoffice   (https://qolmeia.backoffice.localhost)
-//
-// Credentials (printed on creation):
-//   OWNER:    operator@qolmeia.dev / Qolmeia-Dev-OperatorPass!
-//   CUSTOMER: customer@qolmeia.dev / Qolmeia-Dev-CustomerPass!
-
 const ORG_ID = "cmpg10ke30000147uj4gpeadb";
 const ORG_NAME = "Qolmeia Dev";
 const ORG_SLUG = "qolmeia-dev";

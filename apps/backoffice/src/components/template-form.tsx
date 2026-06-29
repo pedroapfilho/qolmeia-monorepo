@@ -24,7 +24,6 @@ import {
 } from "@/lib/templates-api";
 
 type TemplateFormProps = {
-  // Present when editing; absent when creating.
   initial?: Template;
 };
 
@@ -37,8 +36,6 @@ type FieldKey =
   | "systemPrompt"
   | "workerKind";
 
-// `defaultPolicies` is edited as raw JSON for v1. The schema validates it
-// parses to a flat string→string record before submit.
 const policiesRecordSchema = z.record(z.string(), z.string());
 
 const formSchema = z.object({

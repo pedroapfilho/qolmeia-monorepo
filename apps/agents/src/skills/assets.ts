@@ -3,11 +3,6 @@ import { z } from "zod";
 import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Agent access to the company asset library. `listAssets` + `readAsset` let an
-// agent pull information and past deliverables into context; `saveAsset` lets it
-// store a file it just produced (worker deliverables are also captured
-// automatically by the workflow). All three are tenant-scoped to ctx.companyId.
-
 const ASSET_KINDS = [
   "audio",
   "brand_asset",

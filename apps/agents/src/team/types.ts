@@ -38,7 +38,6 @@ type TeamMemberDetailExtras = {
   templateSystemPrompt: string;
 };
 
-// Distributes over the union: each variant gets the extras.
 type TeamMemberDetailView = TeamMemberView & TeamMemberDetailExtras;
 
 type HireableTemplate = {

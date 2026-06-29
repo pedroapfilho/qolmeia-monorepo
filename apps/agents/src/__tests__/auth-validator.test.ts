@@ -86,7 +86,3 @@ describe("validateSession", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
-
-// The agent-path role guard is now enforced inside each Flue agent's `route`
-// export (requireCustomerAgent), not the legacy index.ts fetch handler, so it's
-// exercised against the Flue worker rather than this REST-only entry.

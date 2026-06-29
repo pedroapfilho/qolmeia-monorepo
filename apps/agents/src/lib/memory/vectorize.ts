@@ -1,12 +1,5 @@
 import type { MemoryAdapter, MemoryRecord, RetrieveArgs, ScoredRecord } from "#/lib/memory/adapter";
 
-// Production memory backend — Workers AI for embeddings, Vectorize for
-// storage and ANN retrieval. Per-agent isolation comes from a metadata
-// filter at query time; the upsert *must* set the same metadata or
-// retrieval forgets where the record belongs.
-//
-// bge-m3 is multilingual (pt-BR covered) and returns 1024-dim vectors. The
-// Vectorize index must be created with `--dimensions=1024 --metric=cosine`.
 const EMBEDDING_MODEL = "@cf/baai/bge-m3";
 
 type Bindings = { AI: Ai; VECTORIZE: VectorizeIndex };
@@ -16,7 +9,6 @@ type EmbedResult = { data?: Array<Array<number>> };
 class VectorizeMemoryAdapter implements MemoryAdapter {
   constructor(private readonly env: Bindings) {}
 
-  // MemoryAdapter interface method — call sites dispatch through the interface.
   // fallow-ignore-next-line unused-class-member
   async retrieve(args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>> {
     const vector = await this.embed(args.query);
@@ -45,7 +37,6 @@ class VectorizeMemoryAdapter implements MemoryAdapter {
     return records;
   }
 
-  // MemoryAdapter interface method — call sites dispatch through the interface.
   // fallow-ignore-next-line unused-class-member
   async upsert(record: MemoryRecord): Promise<void> {
     const values = await this.embed(record.content);

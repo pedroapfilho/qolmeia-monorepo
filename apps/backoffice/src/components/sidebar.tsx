@@ -14,8 +14,6 @@ type NavItem = {
   label: string;
 };
 
-// Icons reproduce the design's stroke set rather than lucide so the line
-// weight and corner radii match the mockup exactly.
 const HomeIcon = (
   <svg aria-hidden fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 18 18">
     <rect height="5.4" rx="1.2" width="5.4" x="2.2" y="2.2" />

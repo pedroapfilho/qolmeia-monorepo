@@ -43,9 +43,6 @@ type HireInput = {
 
 const NEW_WORKER_PREFIX = "wkr_";
 
-// We use a UUID rather than the seeded worker IDs' deterministic
-// `worker-${tpl}-${co}` form because multi-hire would collide. The seeded
-// instances keep their stable IDs; everything created here gets a UUID.
 const newWorkerId = (): string => `${NEW_WORKER_PREFIX}${crypto.randomUUID()}`;
 
 const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberView> => {
@@ -58,10 +55,6 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   }
 
   const existingRoster = await getTeamRoster(db, input.companyId);
-  // Note: display_name has no DB-level uniqueness. Two concurrent hires for
-  // the same template against the same roster snapshot could both compute
-  // "Designer #2" and both succeed. Display names are cosmetic — treat as
-  // soft labels, not identifiers.
   const trimmedName = input.displayName?.trim();
   const desiredName =
     trimmedName && trimmedName.length > 0
@@ -219,7 +212,6 @@ type UpdateInput = {
   displayName: string | undefined;
   editedBy: "customer" | "operator";
   operatorId: string | null;
-  // `null` means "clear override"; `undefined` means "don't touch".
   promptOverride: string | null | undefined;
 };
 

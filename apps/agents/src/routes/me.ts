@@ -21,20 +21,6 @@ import {
 } from "#/team/mutations";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
 
-// Authenticated-user introspection endpoints — what the client needs to
-// route between the Planner and the Correspondent. The auth service still
-// owns identity; this Worker route owns *company* state (onboarding/active)
-// and the live template catalog.
-//
-// GET /api/me relays the full MeResponse from the auth service so the Next
-// apps target apps/agents uniformly. The response is cached in KV for
-// `RELAY_CACHE_TTL_SECONDS` so multiple page renders in quick succession
-// don't drive Better Auth's per-IP rate limit (100/15min on /api/me).
-//
-// The customer's asset gallery + upload live in routes/me-assets.ts —
-// they have a different shape (multipart, multi-step transaction) from
-// the small projections here.
-
 const RELAY_CACHE_TTL_SECONDS = 60;
 const RELAY_CACHE_NAMESPACE = "me-relay";
 
@@ -42,8 +28,6 @@ type Vars = { session: ValidatedSession };
 
 const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-// Public relay — registered before the gating middleware so it handles its
-// own auth (a pass-through, not a parsed-and-rebuilt response).
 meRoutes.get("/", async (c) => {
   const tokenParam = new URL(c.req.url).searchParams.get("cf_session");
   const cookieHeader = c.req.header("Cookie") ?? null;
@@ -91,7 +75,6 @@ meRoutes.get("/", async (c) => {
   });
 });
 
-// Everything below is gated by the same session validator that /agents uses.
 meRoutes.use("*", async (c, next) => {
   const session = await validateSession(c.req.raw, c.env);
   if (!session) {
@@ -121,9 +104,6 @@ meRoutes.get("/company", async (c) => {
   });
 });
 
-// Empty strings would fail the `.min(1)` text fields, so the client omits blank
-// fields entirely. Channels and brand objects are sent whole (full replacement)
-// because the form owns every field it renders.
 const briefPatchSchema = companyBriefSchema.partial();
 
 meRoutes.patch("/company", async (c) => {

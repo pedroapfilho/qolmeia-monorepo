@@ -42,8 +42,6 @@ const OPTIONS: ReadonlyArray<{
   },
 ];
 
-// Submit label adapts to the chosen decision so the primary action reads
-// like the operator's intent rather than a generic "enviar".
 const SUBMIT_LABEL: Record<DecisionOutcome, string> = {
   approved: "Aprovar e executar",
   changes_requested: "Pedir ajustes",
@@ -52,9 +50,6 @@ const SUBMIT_LABEL: Record<DecisionOutcome, string> = {
 
 const MAX_FEEDBACK = 2000;
 
-// Decision form for /approvals/[id]. POSTs to the agents Worker, refreshes
-// the RSC list, and routes back to /approvals so the operator can keep
-// triaging without a manual click.
 const DecisionForm = ({ actionId }: DecisionFormProps) => {
   const { push, refresh } = useRouter();
   const [decision, setDecision] = useState<DecisionOutcome>("approved");

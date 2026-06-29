@@ -5,13 +5,7 @@ import { apiGetServer } from "@/lib/api-server";
 import type { ActionsResponse } from "@/lib/api-types";
 import { requireStaff } from "@/lib/auth-helpers";
 
-// All dashboard routes require OWNER or STAFF. requireStaff hits /api/me
-// on every render — the proxy already gates on session presence, so this
-// covers the role-check that the proxy can't perform without DB context.
 const DashboardLayout = async ({ children }: { children: ReactNode }) => {
-  // requireStaff drives access control; the pending count only decorates the
-  // sidebar badge, so allSettled keeps a transient failure from blanking the
-  // whole shell.
   const [me, pendingRes] = await Promise.all([
     requireStaff(),
     apiGetServer<ActionsResponse>("/actions?status=pending&sort=age").catch(() => null),

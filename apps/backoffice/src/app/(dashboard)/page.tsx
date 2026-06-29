@@ -15,8 +15,6 @@ import { fetchCompanies } from "@/lib/team-fetch";
 
 export const metadata: Metadata = { title: "Início" };
 
-// Color-key each event dot by its type prefix — same prefix→category
-// mapping the activity row uses, so the two surfaces stay consistent.
 const eventDotClass = (type: string): string => {
   if (type.startsWith("ACTION_")) {
     return "bg-primary";
@@ -72,12 +70,9 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
 };
 
 const Home = async () => {
-  // fetchCompanies needs the forwarded cookie; apiGetServer reads it itself.
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
 
-  // Parallel fetch — Promise.allSettled so a transient failure on one
-  // endpoint doesn't blank the entire dashboard.
   const [pendingRes, ticketsRes, activityRes, companiesRes] = await Promise.allSettled([
     apiGetServer<ActionsResponse>("/actions?status=pending&sort=age"),
     apiGetServer<TicketsResponse>("/tickets?limit=10"),
@@ -96,7 +91,6 @@ const Home = async () => {
   const doneTickets = tickets.filter((t) => t.status === "done").length;
   const oldestPendingAge = pending[0]?.ageSeconds;
 
-  // Prefer the real company roster; fall back to distinct ticket companies.
   const activeCompanies =
     companies === null
       ? new Set(tickets.map((t) => t.companyId)).size

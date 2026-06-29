@@ -10,9 +10,6 @@ import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
 type ChatMessage = { content: string; role: "assistant" | "user" };
 
-// The prompt for one generation round. The first round is just the brief; a
-// revision round replays the prior deliverable and the operator's note so the
-// Worker reworks instead of starting over.
 const buildRevisionMessages = (
   brief: string,
   priorSummary: string | null,
@@ -31,20 +28,11 @@ const buildRevisionMessages = (
   return messages;
 };
 
-// Skills whose result carries a `url` that should render as an inline image.
 const IMAGE_SKILLS = ["generateBrandImage"] as const;
 
 const escapeRegExp = (value: string): string =>
   value.replaceAll(/[.*+?^$\{\}\(\)\|\[\]\\]/gv, String.raw`\$&`);
 
-// Force a generated image to render inline in chat. The image skill returns a
-// signed asset URL the model often writes as a bare link, which the client
-// renders as an <a> rather than an image. Promote a link or bare occurrence of
-// the URL to `![](url)` markdown, appending it if the model never mentioned it.
-//
-// react-doctor hints don't apply here: the patterns are built from the per-URL
-// `escaped` value so they can't be hoisted out of the loop, and
-// `out.includes(url)` is a substring check, not an array scan.
 /* oxlint-disable react-doctor/js-hoist-regexp, react-doctor/js-set-map-lookups */
 const embedGeneratedImages = (summary: string, skillResults: Record<string, unknown>): string => {
   let out = summary;
@@ -56,7 +44,6 @@ const embedGeneratedImages = (summary: string, skillResults: Record<string, unkn
       continue;
     }
     const escaped = escapeRegExp(url);
-    // Already an inline image embed → leave it.
     if (new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)`, "v").test(out)) {
       continue;
     }
@@ -73,8 +60,6 @@ const embedGeneratedImages = (summary: string, skillResults: Record<string, unkn
 };
 /* oxlint-enable react-doctor/js-hoist-regexp, react-doctor/js-set-map-lookups */
 
-// `generate-<round>` step: run the Worker model with its template's skills and
-// return the deliverable summary plus the tool-call outputs.
 const generateDeliverable = async (
   ctx: JobContext,
   round: number,
@@ -83,7 +68,6 @@ const generateDeliverable = async (
 ): Promise<GenerateResult> => {
   const { agentInstanceId, companyId, env, ticketId } = ctx;
   const stepStart = Date.now();
-  // Independent D1 reads, overlapped. Both are required, so fail-fast is correct.
   const [ticket, agentInstance] = await Promise.all([
     loadTicket(env.DB, ticketId),
     loadAgentInstance(env.DB, agentInstanceId),
@@ -117,8 +101,6 @@ const generateDeliverable = async (
     tools,
   });
   const summary = result.text.trim();
-  // Collect tool-call outputs for the propose step. The AI SDK exposes them on
-  // `step.toolResults[i]`; last write wins per skill id.
   const skillResults: Record<string, unknown> = {};
   for (const stepResult of result.steps ?? []) {
     for (const toolResult of stepResult.toolResults ?? []) {

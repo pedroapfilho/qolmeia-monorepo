@@ -20,8 +20,6 @@ import { Suspense } from "react";
 import { authClient } from "@/lib/auth-client";
 import { resetPasswordSchema } from "@/lib/form-schemas";
 
-// useSearchParams forces a CSR bailout during static export — wrap in
-// Suspense at the page boundary so prerender succeeds.
 const ResetPasswordForm = () => {
   const { push } = useRouter();
   const searchParams = useSearchParams();
@@ -48,9 +46,6 @@ const ResetPasswordForm = () => {
           return;
         }
       } catch {
-        // Better Auth's client returns { error } for HTTP failures but THROWS
-        // on network failures — catch so it doesn't escape the submit as an
-        // unhandledRejection.
         toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }

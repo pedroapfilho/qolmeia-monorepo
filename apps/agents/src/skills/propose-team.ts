@@ -4,12 +4,6 @@ import { listActiveTemplates } from "#/db/template";
 import { parseBrief } from "#/lib/company-brief";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Returns the live catalog of Worker templates the Planner can recommend.
-// P5 minimum: a deterministic listing with template id + display name + a
-// terse reason derived from the brief. The Planner's model presents the
-// options to the user; the user confirms via a UI button (POST /api/teams/
-// :companyId/confirm). Model-driven ranking (matching brief.industry to
-// template specialties) is a future polish.
 const proposeTeamInputSchema = z.object({});
 
 type TeamCandidate = {

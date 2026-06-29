@@ -4,7 +4,7 @@ import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import type { FileUIPart } from "ai";
 import { Maximize2, MessageSquare } from "lucide-react";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
   Conversation,
@@ -24,34 +24,32 @@ type ChatProps = {
   sessionToken: string;
 };
 
-// Client chat surface. `useFlueChat` admits a prompt over Flue's HTTP+SSE
-// protocol (POST /agents/:name/:id to start, GET to tail the event stream) and
-// reduces the event stream into renderable messages. Same-origin requests carry
-// the first-party session cookie; the `agent` prop picks which agent to talk to
-// default is "correspondent"; onboarding sets it to "planner". The composer
-// owns its own state; this shell wires it up. Flue manages conversation history
-// server-side (automatic threshold compaction), so there's no client reset.
+const PLANNER_KICKOFF =
+  "O cliente acabou de abrir o chat de onboarding. Cumprimente-o de forma calorosa e breve, diga em uma frase que você vai fazer algumas perguntas para entender o negócio dele, e já faça a primeira pergunta da entrevista.";
+
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const { messages, sendMessage, status } = useFlueChat({
+  const { kickoff, messages, sendMessage, status } = useFlueChat({
     agent: agentName,
     baseUrl: agentsUrl,
     companyId,
-    // Surface send/stream failures where they happen.
     onError: () => {
       toast.error("Não foi possível enviar. Tente novamente.");
     },
     sessionToken,
   });
 
-  // The Planner opening (the legacy `startOpeningTurn` RPC) has no Flue
-  // equivalent. Rather than fire a synthetic kickoff, the chat stays empty until
-  // the customer's first turn and the Planner greets in its reply — the simpler
-  // path that keeps the onboarding UX reasonable without a server RPC.
+  const kickedOff = useRef(false);
+  useEffect(() => {
+    if (agentName === "planner" && !kickedOff.current) {
+      kickedOff.current = true;
+      void kickoff(PLANNER_KICKOFF);
+    }
+  }, [agentName, kickoff]);
 
   const isThinking = status === "submitted" || status === "streaming";
 
@@ -118,9 +116,6 @@ const ChatInner = ({
                         }
                         if (part.type === "file" && part.mediaType?.startsWith("image/")) {
                           const partKey = `${message.id}-${index}`;
-                          // Customer's own attachment — plain inline preview.
-                          // Asset URL is HMAC-signed by the Worker, so a plain
-                          // <img> is correct (no CORS needed for image loads).
                           if (isUser) {
                             return (
                               // oxlint-disable-next-line no-img-element
@@ -132,10 +127,6 @@ const ChatInner = ({
                               />
                             );
                           }
-                          // Agent message carrying an image = a team deliverable.
-                          // Mark it as such and make it openable at full size so
-                          // the customer can recognise and download what their
-                          // team produced.
                           return (
                             <figure className="flex flex-col gap-1.5" key={partKey}>
                               <a
@@ -180,12 +171,6 @@ const ChatInner = ({
   );
 };
 
-// The Flue client resolves its relative baseUrl against `window.location.origin`
-// (and streams via fetch/SSE), so it must only run in the browser. Gate the real
-// chat behind a client-only flag so the hook never runs during SSR.
-// `useSyncExternalStore` returns the server snapshot (false) during SSR and the
-// client snapshot (true) after hydration without a setState-in-effect. The
-// skeleton mirrors the final layout to avoid layout shift on hydration.
 const subscribeNoop = () => () => {};
 const Chat = (props: ChatProps) => {
   const isClient = useSyncExternalStore(

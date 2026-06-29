@@ -54,13 +54,9 @@ app.use(
 );
 
 app.use("/api/*", standardRateLimit);
-// Stricter per-IP limit on our own endpoints (not Better Auth's /api/auth/*).
 app.use("/api/me", apiRateLimit);
 app.use("/api/orgs", apiRateLimit);
-// Better Auth's basePath is "/api/auth"; mounting authRoutes at "/api" wires
-// the full sign-in/sign-up/get-session surface.
 app.route("/api", authRoutes);
-// Our slim API surface: /me + /orgs (the org-create relay).
 app.route("/api", buildApiRoutes());
 
 const healthRoute = createRoute({

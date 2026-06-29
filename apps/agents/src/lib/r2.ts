@@ -1,10 +1,3 @@
-// R2 helpers for asset storage + short-lived signed URLs.
-//
-// Asset URLs are HMAC-signed: `${baseUrl}/assets/${assetId}?token=<sig>.<exp>`.
-// The Worker secret `ASSETS_SIGNING_KEY` is the only thing required to mint
-// and verify them. Tokens are bound to a specific asset id and an expiry,
-// so a leaked token only ever serves one asset for a bounded window.
-
 const encoder = new TextEncoder();
 
 type UploadInput = {
@@ -52,8 +45,6 @@ const fromBase64Url = (s: string): Uint8Array => {
 
 const signAssetToken = async (secret: string, assetId: string, ttlMs: number): Promise<string> => {
   if (!secret) {
-    // Refuse to mint tokens with an empty key — an empty HMAC key is public
-    // knowledge, so the signature would be forgeable. Fail loud instead.
     throw new Error("ASSETS_SIGNING_KEY is not configured");
   }
   const expiresAt = Date.now() + ttlMs;
@@ -69,7 +60,6 @@ const verifyAssetToken = async (
   token: string,
 ): Promise<boolean> => {
   if (!secret) {
-    // Fail closed: with no key configured, every token is unverifiable.
     return false;
   }
   const dot = token.lastIndexOf(".");

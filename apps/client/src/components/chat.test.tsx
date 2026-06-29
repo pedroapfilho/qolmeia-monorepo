@@ -1,8 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// `use-stick-to-bottom` (used by Conversation) observes element resizes;
-// jsdom ships no ResizeObserver, so stub one.
 globalThis.ResizeObserver = class {
   observe() {}
   unobserve() {}
@@ -10,6 +8,7 @@ globalThis.ResizeObserver = class {
 };
 
 const sendMessage = vi.fn();
+const kickoff = vi.fn();
 const chatState = {
   messages: [] as Array<unknown>,
   status: "ready" as string,
@@ -20,6 +19,7 @@ vi.mock("@/lib/use-flue-chat", () => ({
   useFlueChat: (options: { onError?: (error: unknown) => void }) => {
     capturedChatOptions = options;
     return {
+      kickoff,
       messages: chatState.messages,
       sendMessage,
       status: chatState.status,
@@ -32,7 +32,6 @@ vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 
-// streamdown pulls heavy markdown deps; a passthrough keeps the test focused.
 vi.mock("streamdown", () => ({
   Streamdown: ({ children }: { children: string }) => <div>{children}</div>,
 }));
@@ -42,6 +41,7 @@ const { Chat } = await import("./chat");
 describe("Chat", () => {
   beforeEach(() => {
     sendMessage.mockReset();
+    kickoff.mockReset();
     toastError.mockReset();
     capturedChatOptions = {};
     chatState.messages = [];
@@ -51,6 +51,30 @@ describe("Chat", () => {
   it("renders the empty state when there are no messages", () => {
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText("Comece a conversa")).toBeInTheDocument();
+  });
+
+  it("auto-opens the Planner with a kickoff on mount", () => {
+    render(
+      <Chat
+        agent="planner"
+        agentsUrl="http://localhost:8787"
+        companyId="co_test"
+        sessionToken="tok"
+      />,
+    );
+    expect(kickoff).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not kick off the Correspondent", () => {
+    render(
+      <Chat
+        agent="correspondent"
+        agentsUrl="http://localhost:8787"
+        companyId="co_test"
+        sessionToken="tok"
+      />,
+    );
+    expect(kickoff).not.toHaveBeenCalled();
   });
 
   it("renders messages from the chat hook", () => {

@@ -42,8 +42,6 @@ describe("logActivity + listActivity", () => {
       summary: "antiga",
       type: "ACTION_EXECUTED",
     });
-    // Sleep ensures cutoff is strictly after the first row's created_at
-    // (Date.now() resolution can collide on fast machines).
     await new Promise<void>((r) => {
       setTimeout(r, 10);
     });

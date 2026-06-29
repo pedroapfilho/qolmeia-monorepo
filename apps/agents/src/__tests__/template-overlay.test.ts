@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { getTemplate, listSkillOverlays } from "#/db/template";
+import { buildFlueTools } from "#/lib/skill-tool";
 import { buildSkillTools, registerSkill, type UnknownSkill } from "#/skills/registry";
 
 const COMPANY_ID = "co_tpl_test";
@@ -30,7 +31,6 @@ beforeEach(async () => {
 
 describe("getTemplate / listSkillOverlays", () => {
   it("reads the seeded Designer template from D1", async () => {
-    // The migration seeds tpl-designer at apply-time; assert presence.
     const t = await getTemplate(env.DB, "tpl-designer");
     expect(t?.workerKind).toBe("designer");
     expect(t?.skillIds).toContain("generateBrandImage");
@@ -65,7 +65,6 @@ describe("buildSkillTools — D1 overlay join", () => {
   });
 
   it("falls back to the code description when no D1 overlay row exists", async () => {
-    // Register a second code-only skill and don't seed an overlay row.
     const codeOnly: UnknownSkill = {
       description: "code-only desc",
       execute(): Promise<{ ok: true }> {
@@ -111,5 +110,49 @@ describe("buildSkillTools — D1 overlay join", () => {
       ["disabled-skill"],
     );
     expect(tools["disabled-skill"]).toBeUndefined();
+  });
+});
+
+describe("buildFlueTools — agents share the overlay + kill-switch core", () => {
+  const ctx = { agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env };
+
+  it("omits a skill whose D1 overlay is disabled (the kill-switch reaches the Flue agents)", async () => {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO skill
+         (id, display_name, description, param_hints, default_config, enabled, updated_at)
+       VALUES ('flue-disabled', 'Flue Disabled', 'd', NULL, NULL, 0, 0)`,
+    ).run();
+    registerSkill({
+      description: "x",
+      execute: () => Promise.resolve({ ok: true }),
+      id: "flue-disabled",
+      inputSchema: z.object({}),
+    });
+
+    const tools = await buildFlueTools(ctx, ["flue-disabled"]);
+    expect(tools).toHaveLength(0);
+  });
+
+  it("uses the D1 overlay description for the agent's tool", async () => {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO skill
+         (id, display_name, description, param_hints, default_config, enabled, updated_at)
+       VALUES ('flue-described', 'Flue Described', 'D1 desc for the agent', NULL, NULL, 1, 0)`,
+    ).run();
+    registerSkill({
+      description: "code desc",
+      execute: () => Promise.resolve({ ok: true }),
+      id: "flue-described",
+      inputSchema: z.object({}),
+    });
+
+    const tools = await buildFlueTools(ctx, ["flue-described"]);
+    expect(tools.find((t) => t.name === "flue-described")?.description).toBe(
+      "D1 desc for the agent",
+    );
+  });
+
+  it("throws when an agent references an unknown skill id", async () => {
+    await expect(buildFlueTools(ctx, ["nope-not-a-skill"])).rejects.toThrow(/unknown skill id/v);
   });
 });

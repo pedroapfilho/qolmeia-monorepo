@@ -166,8 +166,6 @@ describe("POST /api/orgs", () => {
       fetch: fetchMock,
       prisma: prisma as never,
     });
-    // The membership failure must surface as an error (Hono → 500) rather than
-    // returning 201 with a half-created tenant. No relay should fire.
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(500);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -175,8 +173,6 @@ describe("POST /api/orgs", () => {
 
   it("409 when the create transaction loses the slug race (P2002)", async () => {
     const prisma = buildPrisma();
-    // Pre-check passes (findUnique → null) but the concurrent winner already
-    // committed, so the create transaction trips the unique constraint.
     prisma.$transaction.mockRejectedValueOnce(
       new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
         clientVersion: "test",
@@ -204,7 +200,6 @@ describe("POST /api/orgs", () => {
       prisma: prisma as never,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
-    // Postgres rows still got created — relay is best-effort.
     expect(res.status).toBe(201);
     const body = (await res.json()) as { d1Provisioned: boolean };
     expect(body.d1Provisioned).toBe(false);

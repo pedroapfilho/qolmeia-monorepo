@@ -85,9 +85,6 @@ describe("/api/backoffice/teams/:companyId/members", () => {
   });
 });
 
-// ADR 0005: operators are cross-tenant Qolmeia staff, so reaching another
-// company is allowed — there is no 403 wall. A company/member that doesn't
-// exist resolves to an empty roster / 404, never a tenancy rejection.
 describe("backoffice team routes — cross-tenant", () => {
   it("STAFF queries another company's members list (empty when it has none)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));

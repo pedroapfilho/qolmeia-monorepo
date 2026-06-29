@@ -1,9 +1,5 @@
-import { safeJson } from "#/db/mappers";
+import { safeJson, toEnum } from "#/db/mappers";
 import type { Policy } from "#/db/policy";
-
-// The `action` table is the spec's approval surface. Every gated thing a
-// Worker wants to do is proposed here; the Workflow pauses until the row
-// transitions out of `pending`. Backoffice (T7) reads via the same shape.
 
 type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | "rejected";
 
@@ -11,8 +7,6 @@ type DecisionOutcome = "approved" | "changes_requested" | "rejected";
 
 type AgentRole = "correspondent" | "planner" | "worker";
 
-// The agent that owns the action's ticket (action → ticket → agent_instance).
-// Lets the operator views show the role-keyed avatar + agent name.
 type ActionAgent = {
   name: string;
   role: AgentRole;
@@ -53,13 +47,8 @@ type ActionRow = {
   worker_kind: string | null;
 };
 
-const toAgentRole = (raw: string): AgentRole =>
-  raw === "correspondent" || raw === "planner" || raw === "worker" ? raw : "worker";
+const toAgentRole = toEnum<AgentRole>(["correspondent", "planner", "worker"], "worker");
 
-// action.* + the owning agent, joined through the ticket, plus the company
-// name — the backoffice queue spans all tenants, so every row must say which
-// company it belongs to. Qualify the shared column names
-// (id/company_id/status/created_at) with `action.` in callers.
 const ACTION_WITH_AGENT_FROM = `FROM action
        JOIN ticket tk ON tk.id = action.ticket_id
        JOIN agent_instance ai ON ai.id = tk.agent_instance_id
@@ -67,21 +56,15 @@ const ACTION_WITH_AGENT_FROM = `FROM action
        JOIN company co ON co.id = action.company_id`;
 const ACTION_WITH_AGENT_COLS = `action.*, ai.display_name AS agent_name, ai.role AS agent_role, tpl.worker_kind AS worker_kind, co.name AS company_name`;
 
-const toStatus = (raw: string): ActionStatus => {
-  const valid: ReadonlyArray<ActionStatus> = [
-    "approved",
-    "changes_requested",
-    "executed",
-    "pending",
-    "rejected",
-  ];
-  return valid.find((s) => s === raw) ?? "pending";
-};
+const toStatus = toEnum<ActionStatus>(
+  ["approved", "changes_requested", "executed", "pending", "rejected"],
+  "pending",
+);
 
-const toPolicy = (raw: string): Policy => {
-  const valid: ReadonlyArray<Policy> = ["auto-execute", "notify-only", "require-approval"];
-  return valid.find((p) => p === raw) ?? "require-approval";
-};
+const toPolicy = toEnum<Policy>(
+  ["auto-execute", "notify-only", "require-approval"],
+  "require-approval",
+);
 
 const mapAction = (row: ActionRow): Action => ({
   actionType: row.action_type,
@@ -107,14 +90,6 @@ type ProposeActionInput = {
   ticketId: string;
 };
 
-// Idempotent on (ticketId, status='pending'): if a pending action already
-// exists for the ticket, return its id instead of inserting a second row.
-// Cloudflare Workflows retry a `step.do` block on failure and may re-run a step
-// whose body partially executed — so if a write *after* this INSERT throws, the
-// step retries and calls propose again. Without this guard that minted a fresh
-// UUID and inserted a duplicate pending approval (the first one's `waitForEvent`
-// would then never resume). A single ticket's workflow is the only writer of its
-// pending action, so a look-before-insert has no cross-writer race within the DO.
 const proposeAction = async (
   db: D1Database,
   input: ProposeActionInput,
@@ -155,9 +130,6 @@ type DecideActionInput = {
   feedback?: string;
 };
 
-// Idempotent on (id, status='pending') — a second decision call against a
-// non-pending action is a no-op rather than an error. Returns whether the
-// row actually transitioned.
 const decideAction = async (db: D1Database, input: DecideActionInput): Promise<boolean> => {
   const { meta } = await db
     .prepare(
@@ -182,12 +154,6 @@ const getAction = async (db: D1Database, actionId: string): Promise<Action | nul
   return row ? mapAction(row) : null;
 };
 
-// Pending actions oldest-first — the stale-backlog view. The operator queue
-// narrows by coverage (ADR 0005): `companyIds` / `disciplines` are the calling
-// operator's assigned set, matched against the company and the producing
-// agent's worker_kind. Empty/absent = no narrowing. A single `companyId` is
-// the explicit drill into one company (it wins over `companyIds`). Filtering in
-// SQL keeps oldest-first + limit honest across the narrowed set.
 const listPendingActions = async (
   db: D1Database,
   options: {
@@ -221,9 +187,6 @@ const listPendingActions = async (
   return results.map(mapAction);
 };
 
-// Any-status list, newest-first. The "no query filter" branch of the
-// backoffice /actions endpoint. Cross-tenant by default (the operator queue
-// spans every company); an explicit companyId narrows it to one tenant.
 const listActions = async (
   db: D1Database,
   options: { companyId?: string; limit?: number } = {},
@@ -244,7 +207,6 @@ const listActions = async (
   return results.map(mapAction);
 };
 
-// All actions tied to a ticket, oldest-first — the ticket-detail drill-down.
 const listActionsForTicket = async (
   db: D1Database,
   ticketId: string,

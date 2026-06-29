@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-// Hoisted mock so the auth singleton's Better Auth handler is swapped before
-// authRoutes imports it. We only care that the Hono adapter forwards the raw
-// Request and returns the Response untouched — the underlying auth.handler is
-// covered by Better Auth's own tests and our auth.test.ts smoke check.
 const { handlerMock } = vi.hoisted(() => ({ handlerMock: vi.fn() }));
 
 vi.mock("../lib/auth", () => ({

@@ -2,11 +2,6 @@ import { z } from "zod";
 
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Read a specific webpage as clean markdown via Firecrawl (https://firecrawl.dev).
-// This is the "navigate to this site and read it" tool — pair it with webSearch
-// (which finds URLs) so an agent can search then open the best results. Content
-// is trimmed so the tool result stays bounded. Requires FIRECRAWL_API_KEY.
-
 const fetchUrlInputSchema = z.object({
   url: z.string().url().describe("A URL completa da página a ler (ex: https://exemplo.com.br)."),
 });
@@ -30,8 +25,6 @@ const fetchUrlSkill: UnknownSkill = {
     const { url } = fetchUrlInputSchema.parse(input);
     const apiKey = ctx.env.FIRECRAWL_API_KEY;
     const baseUrl = ctx.env.FIRECRAWL_BASE_URL ?? FIRECRAWL_CLOUD;
-    // The cloud API requires a key; a self-hosted instance (custom base URL)
-    // may run keyless. Only hard-fail for cloud-without-key.
     if (baseUrl === FIRECRAWL_CLOUD && !apiKey) {
       throw new Error(
         "Firecrawl não configurado — defina FIRECRAWL_API_KEY (cloud) ou FIRECRAWL_BASE_URL (instância self-hosted).",

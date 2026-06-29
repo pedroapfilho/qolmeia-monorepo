@@ -20,9 +20,6 @@ type OnboardingActionsProps = {
   templates: ReadonlyArray<Template>;
 };
 
-// P5 minimum: a flat list of available templates with a "Confirmar Time"
-// button. The user toggles which specialists they want; one POST materializes
-// the Team.
 const OnboardingActions = ({
   agentsUrl,
   companyId,

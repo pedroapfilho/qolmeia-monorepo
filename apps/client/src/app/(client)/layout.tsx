@@ -3,10 +3,6 @@ import type { ReactNode } from "react";
 import { Nav } from "@/components/nav";
 import { requireCustomer } from "@/lib/auth-helpers";
 
-// Every customer route lives under this layout. requireCustomer hits
-// /api/me on every render — the proxy already gates on session presence,
-// so this covers the role-check that the proxy can't perform without DB
-// context.
 const ClientLayout = async ({ children }: { children: ReactNode }) => {
   const me = await requireCustomer();
   const orgName = me.currentOrg?.name ?? null;

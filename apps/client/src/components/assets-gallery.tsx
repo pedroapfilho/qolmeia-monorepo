@@ -44,9 +44,6 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-// All gallery interaction state in one reducer (filter + selection + the
-// optimistic-removal/confirm/in-flight bookkeeping a delete needs). Keeps the
-// component to a single dispatcher instead of a fan of useState setters.
 type GalleryState = {
   active: string;
   confirmIds: ReadonlyArray<string> | null;
@@ -128,7 +125,6 @@ const galleryReducer = (state: GalleryState, action: GalleryAction): GalleryStat
 const AssetPreview = ({ asset }: { asset: WebChatAsset }) => {
   if (isImage(asset.mimeType)) {
     return (
-      // Signed URL; a plain <img> is correct.
       // oxlint-disable-next-line no-img-element
       <img
         alt={asset.name}

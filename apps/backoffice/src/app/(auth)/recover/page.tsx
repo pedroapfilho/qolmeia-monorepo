@@ -32,9 +32,6 @@ const RecoverPage = () => {
           return;
         }
       } catch {
-        // Better Auth's client returns { error } for HTTP failures but THROWS
-        // on network failures — catch so it doesn't escape the submit as an
-        // unhandledRejection.
         toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }

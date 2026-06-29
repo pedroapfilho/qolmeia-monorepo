@@ -1,17 +1,9 @@
 import { logActivity } from "#/activity/log";
 
-// Weekly proactive "suggest next work" outreach. The cron sweep (scheduled.ts)
-// gates each active company (brief complete + not suggested this week) and, when
-// eligible, dispatches PROACTIVE_PROMPT to the company's Correspondent agent —
-// which generates the suggestion from the brief it already reads.
-
 const PROACTIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
-// The prompt the sweep dispatches. The agent treats it as an inbound turn and
-// replies with concrete weekly deliverable ideas.
 const PROACTIVE_PROMPT = `Esta é uma mensagem proativa que VOCÊ está iniciando — o cliente não perguntou nada agora. Com base no brief da empresa, sugira de 2 a 3 entregas concretas e específicas para esta semana (por exemplo: posts para redes, peças de design, ações de marketing). Seja breve e caloroso, conecte cada ideia ao negócio do cliente, e convide-o a confirmar para você já acionar o especialista.`;
 
-// Pure eligibility gate — unit-testable without D1 or a model.
 const proactiveGate = (input: {
   isComplete: boolean;
   lastSuggestedAt: number | null;

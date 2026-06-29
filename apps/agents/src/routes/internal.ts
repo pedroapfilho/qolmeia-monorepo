@@ -3,18 +3,11 @@ import { z } from "zod";
 
 import { constantTimeEqual } from "#/lib/constant-time";
 
-// Internal-only endpoints, gated by a shared secret in INTERNAL_SHARED_SECRET.
-// Today's surface: POST /api/internal/companies — called by apps/api on
-// org creation to provision the matching D1 `company` row. The Better Auth
-// Organization.id IS the D1 company.id (cross-store invariant).
-
 const internalRoutes = new Hono<{ Bindings: Env }>();
 
 internalRoutes.use("*", async (c, next) => {
   const expected = c.env.INTERNAL_SHARED_SECRET;
   if (!expected) {
-    // Refuse to operate without a shared secret configured — explicit fail
-    // beats a silent "anyone can create companies" default.
     return c.text("Internal endpoint disabled (missing INTERNAL_SHARED_SECRET)", 503);
   }
   const auth = c.req.header("Authorization");
@@ -24,11 +17,6 @@ internalRoutes.use("*", async (c, next) => {
   return await next();
 });
 
-// Slug validator. Not a regex because oxlint's /v parser and V8's /v parser
-// disagree on where `-` is legal inside a character class — every shape that
-// satisfied one rejected the other. Not a charCode range because oxlint and
-// oxfmt fight over hex-digit case. A plain Set membership check is
-// unambiguous in every parser and tool.
 const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
 
 const isValidSlug = (slug: string): boolean => {
@@ -67,8 +55,6 @@ internalRoutes.post("/companies", async (c) => {
 
   const { id, name, slug } = parsed.data;
   const now = Date.now();
-  // status starts at "onboarding" so the customer is routed to the Planner
-  // on their first chat. team-confirm flips it to "active".
   await c.env.DB.prepare(
     `INSERT OR IGNORE INTO company
        (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
@@ -77,10 +63,6 @@ internalRoutes.post("/companies", async (c) => {
     .bind(id, name, slug, now, now)
     .run();
 
-  // Also seed the per-company Correspondent + Planner agent_instance rows
-  // so the agents are ready for the customer's first chat turn. (Worker
-  // instances are materialised by team-confirm.) IDs derived from role+id
-  // so subsequent lookups are deterministic.
   const corrId = `corr-${id}`;
   const plannerId = `planner-${id}`;
   await c.env.DB.batch([

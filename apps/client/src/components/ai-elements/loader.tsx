@@ -1,11 +1,6 @@
 import { cn } from "@repo/ui/lib/utils";
 import type { HTMLAttributes } from "react";
 
-// Vendored from `ai-elements` (https://elements.ai-sdk.dev). The published
-// CLI installs Radix-based shadcn components, but `@repo/ui` is built on
-// `@base-ui` — so the ai-elements pieces are vendored here and re-pointed at
-// `@repo/ui` primitives to avoid pulling a parallel UI stack into the app.
-
 type LoaderIconProps = {
   size?: number;
 };

@@ -2,21 +2,10 @@ import { createAgent } from "@flue/runtime";
 
 import { getTemplate } from "#/db/template";
 import { loadAgentInstance } from "#/db/ticket";
-import { skillTool } from "#/lib/skill-tool";
-import { getSkill, type SkillContext, type UnknownSkill } from "#/skills/registry";
+import { buildFlueTools } from "#/lib/skill-tool";
+import type { SkillContext } from "#/skills/registry";
 import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
-// The Worker agents, ported onto Flue (replaces the WorkerAgent DO +
-// WorkerJobWorkflow generate step). Each worker instance is template-driven: its
-// model, system prompt, and skill set come from the D1 template, resolved at
-// agent init (createAgent supports async initialize).
-//
-// The CF approval Workflow stays: `WorkerJobWorkflow`'s `waitForEvent` gate is
-// kept as-is (highest-stakes, most-tested path). It dispatches a run to this
-// agent for the deliverable, then gates it — the agent itself only produces
-// work, it does not own the approval loop.
-//
-// Keyed by agent instance id (context.id), same as the DO.
 export default createAgent<unknown, Env>(async (context) => {
   const agentInstanceId = context.id;
   const instance = await loadAgentInstance(context.env.DB, agentInstanceId);
@@ -39,18 +28,10 @@ export default createAgent<unknown, Env>(async (context) => {
     companyId: row.company_id,
     env: context.env,
   };
-  const tools = template.skillIds
-    .map((id) => getSkill(id))
-    .filter((skill): skill is UnknownSkill => skill !== undefined)
-    .map((skill) => skillTool(skill, ctx));
 
   return {
     instructions: resolveSystemPrompt(instance, template),
-    // template.model is the OpenRouter model id (e.g. "anthropic/claude-...").
     model: `openrouter/${template.model}`,
-    tools,
+    tools: await buildFlueTools(ctx, template.skillIds),
   };
 });
-
-// No `route` export: the Worker is dispatch-only (driven by the approval
-// Workflow), never reachable over HTTP.

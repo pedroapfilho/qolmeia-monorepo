@@ -1,12 +1,8 @@
 import { z } from "zod";
 
-// Mirrors the three roles the auth service issues via OrgMembership. The
-// Worker treats them as a closed enum: anything else is "no membership".
 const ROLES = ["OWNER", "STAFF", "CUSTOMER"] as const;
 type Role = (typeof ROLES)[number];
 
-// Strict subset of /api/me — we only parse what the Worker needs. The
-// auth service may add fields; ignoring them keeps the contract narrow.
 const meResponseSchema = z.object({
   currentOrg: z
     .object({

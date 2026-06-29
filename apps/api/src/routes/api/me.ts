@@ -15,9 +15,6 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: AnyMemberConte
   const prisma = deps.prisma ?? defaultPrisma;
   const app = new Hono<{ Variables: AnyMemberContextVars }>();
 
-  // GET /me — the current user, their memberships, and the currently
-  // selected org (today: the same one the middleware resolved; future: a
-  // currentOrgId cookie).
   app.get("/", async (c) => {
     const session = c.get("session");
     const currentOrgId = c.get("orgId");
@@ -46,8 +43,6 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: AnyMemberConte
     ]);
 
     if (!user) {
-      // Defensive — the middleware already resolved a session, so the user
-      // row must exist. If it doesn't (race with deletion), return 404.
       return notFound(c, "User not found");
     }
 

@@ -10,10 +10,6 @@ export const metadata: Metadata = {
   title: "Chat",
 };
 
-// Browser-facing Worker base handed to client components. "" = same-origin:
-// the chat WebSocket (/agents/*) and REST calls ride the next.config.ts
-// rewrites, so auth stays first-party under portless. NEXT_PUBLIC_AGENTS_URL
-// only overrides for a cross-origin prod Worker deployment.
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 type CompanyResponse = {
@@ -31,8 +27,6 @@ type TemplatesResponse = {
 
 const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
   try {
-    // Server-side REST call: pass the session via the Authorization header so the
-    // token never lands in the request URL (and thus never in Workers Logs).
     const res = await fetch(url, {
       cache: "no-store",
       headers: { Authorization: `Bearer ${token}` },

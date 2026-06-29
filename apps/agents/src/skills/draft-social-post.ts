@@ -2,17 +2,6 @@ import { z } from "zod";
 
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Drafts a social-media post for a single platform. The skill itself is
-// thin — the LLM has already chosen the platform / tone / CTA before
-// emitting the tool call. We just normalise the input, log the call (via
-// the registry's auto-wrapping), and return the structured proposal so
-// the Workflow's `proposed` payload carries typed fields.
-//
-// The Marketing Strategist Worker template uses this skill; its Workflow
-// pulls the model's tool calls and uses them as the `proposed.draft`
-// payload for the `publish_post` action. The Workflow's text reply (the
-// `summary` field) doubles as a customer-friendly preview.
-
 const PLATFORMS = ["instagram", "facebook", "linkedin", "twitter"] as const;
 
 const draftSocialPostInputSchema = z.object({

@@ -117,7 +117,6 @@ describe("backoffice template CRUD", () => {
     expect(retired.status).toBe(200);
     expect(((await retired.json()) as { template: Template }).template.status).toBe("retired");
 
-    // Still listed (retired rows stay visible so they can be restored).
     const list = await SELF.fetch("https://agents.test/api/backoffice/templates?cf_session=tok");
     const listBody = (await list.json()) as { items: Array<Template> };
     expect(listBody.items.find((t) => t.id === template.id)?.status).toBe("retired");

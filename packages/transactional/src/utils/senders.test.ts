@@ -20,7 +20,6 @@ describe("WelcomeEmail render", () => {
     );
     expect(html).toContain("https://app.qolmeia.ai/verify?token=abc");
     expect(html).toContain("Welcome to Qolmeia");
-    // Headings come through uppercase in the plain-text render.
     expect(text).toMatch(/welcome to qolmeia/iv);
     expect(html).not.toContain("Acme");
   });
@@ -93,9 +92,6 @@ describe("MagicLinkEmail render", () => {
       }),
     );
     expect(html).toContain("https://app.qolmeia.ai/auth/magic?token=mlk-456");
-    // Greeting is followed by a comma in the plain-text render (React Email
-    // injects HTML comments between adjacent text nodes, so the HTML form is
-    // `Olá<!-- -->,` which doesn't textually contain `"Olá,"`).
     expect(text).toContain("Olá,");
   });
 });

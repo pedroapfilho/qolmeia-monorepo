@@ -20,6 +20,14 @@
     {
       "file": "apps/api/src/middleware/error-handler.ts",
       "exports": ["isPrismaKnownError"]
+    },
+    {
+      "file": "apps/client/src/app/not-found.tsx",
+      "exports": ["metadata"]
+    },
+    {
+      "file": "apps/backoffice/src/app/not-found.tsx",
+      "exports": ["metadata"]
     }
   ],
   "ignoreDependencies": [

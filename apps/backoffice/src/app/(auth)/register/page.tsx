@@ -24,10 +24,6 @@ import { safeRedirectPath } from "@/lib/redirect-validation";
 const RegisterForm = () => {
   const { push, refresh } = useRouter();
   const searchParams = useSearchParams();
-  // Carried over from the login form's cross-link (proxy.ts sends logged-out
-  // visitors to /login?from=<pathname>). Validated to an in-app path; passed
-  // as callbackURL so packages/auth bakes it into the verification link and
-  // the email clicker lands back on the page that started signup.
   const redirectTo = safeRedirectPath(searchParams.get("from"));
   const [sentToEmail, setSentToEmail] = useState<string | null>(null);
 
@@ -49,18 +45,11 @@ const RegisterForm = () => {
           toast.error(result.error.message ?? "Não foi possível criar a conta.");
           return;
         }
-        // No token means requireEmailVerification suppressed auto-sign-in (or
-        // enumeration prevention returned synthetic success); both paths show
-        // the same inline "check your email" state. Clicking the emailed link
-        // verifies AND signs in the clicking device.
         if (!result.data?.token) {
           setSentToEmail(value.email);
           return;
         }
       } catch {
-        // Better Auth's client returns { error } for HTTP failures but THROWS
-        // on network failures — catch so it doesn't escape the submit as an
-        // unhandledRejection.
         toast.error("Não foi possível conectar ao servidor — tente novamente.");
         return;
       }
@@ -221,9 +210,6 @@ const RegisterForm = () => {
   );
 };
 
-// useSearchParams() forces a CSR bailout — wrapping in Suspense at the page
-// boundary keeps Next happy without giving up on static prerender for the
-// auth scaffold (same pattern as /login).
 const RegisterPage = () => (
   <Suspense fallback={null}>
     <RegisterForm />

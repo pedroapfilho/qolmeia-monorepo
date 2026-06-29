@@ -14,10 +14,6 @@ describe("resolveSystemPrompt", () => {
   });
 
   it("treats empty string as an explicit override (not a fallback trigger)", () => {
-    // Unit test of the pure resolver: empty string is a legal resolver input.
-    // In practice the mutation layer (updateMember) normalises empty/whitespace
-    // overrides to NULL before they reach this code; this case only fires if a
-    // future caller stores '' directly via raw SQL.
     const out = resolveSystemPrompt({ promptOverride: "" }, { systemPrompt: "DEFAULT" });
     expect(out).toBe("");
   });

@@ -1,9 +1,3 @@
-// Action policy resolution. Each Worker template carries a default_policies
-// JSON map of actionType → policy; resolvePolicy reads it and falls back to
-// the safest option (require-approval) for any action type the template
-// doesn't pin. Company-level overrides land in a future phase (the schema
-// would need a company_policy table).
-
 type Policy = "auto-execute" | "notify-only" | "require-approval";
 
 const POLICIES: ReadonlyArray<Policy> = ["auto-execute", "notify-only", "require-approval"];

@@ -7,25 +7,6 @@ import { auth as defaultAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
 
-// POST /api/orgs — create an Organization + OWNER OrgMembership for the
-// signed-in user, then relay the new company id to apps/agents to provision
-// the matching D1 `company` row.
-//
-// This is the org-create hook called out in P7.2: today seeds are hand-rolled
-// with the Prisma row and the D1 row created out-of-band; production needs
-// the relay so signing up just-works without a one-shot script.
-//
-// The relay uses INTERNAL_SHARED_SECRET as a Bearer token against the agents
-// Worker. If unset (dev default), the call still goes out and the receiver
-// can decide to accept-anything in dev. If the relay fails, the route still
-// returns 201 — the operator can run `wrangler d1 execute` manually to
-// reconcile. (D1 rows are cheap; the user-facing failure mode is bad UX, not
-// data corruption.)
-
-// `$transaction` is needed so the org + OWNER membership commit atomically (no
-// orphaned tenant if the membership write fails). It lives on the full
-// PrismaClient, so the injectable type widens to include it alongside the two
-// models the route writes.
 type OrgsPrisma = Pick<PrismaClient, "$transaction" | "organization" | "orgMembership">;
 
 type AuthLike = {
@@ -43,11 +24,6 @@ type OrgsRouteDeps = {
   prisma?: OrgsPrisma;
 };
 
-// Slug validator. Not a regex because oxlint's /v parser and V8's /v parser
-// disagree on where `-` is legal inside a character class — every shape that
-// satisfied one rejected the other. Not a charCode range (the earlier
-// approach) because oxlint and oxfmt fight over hex-digit case. A plain
-// Set membership check is unambiguous in every parser and tool.
 const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
 
 const isValidSlug = (slug: string): boolean => {
@@ -77,10 +53,6 @@ const provisionD1Company = async (args: {
   name: string;
   slug: string;
 }): Promise<{ ok: true } | { error: string; ok: false }> => {
-  // Fail closed when the shared secret is missing on this side. The agents
-  // Worker also fails closed (returns 503), so sending unsigned would just
-  // log a confusing "agents responded 503" with no clue that the local
-  // config is the problem. Surfacing it here is more useful in dev.
   if (!env.INTERNAL_SHARED_SECRET) {
     return {
       error:
@@ -138,10 +110,6 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       );
     }
 
-    // Fast, friendly 409 for the common case. The transaction's P2002 catch
-    // below is the real guard against the check-then-act slug race (two
-    // concurrent creates both pass this check; the loser hits the unique
-    // constraint).
     const existing = await prisma.organization.findUnique({ where: { slug: parsed.data.slug } });
     if (existing) {
       return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
@@ -149,8 +117,6 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
 
     let org: { id: string; name: string; slug: string };
     try {
-      // Org + OWNER membership commit together or not at all — a failed
-      // membership write must never leave an owner-less, unreachable tenant.
       org = await prisma.$transaction(async (tx) => {
         const created = await tx.organization.create({
           data: { name: parsed.data.name, slug: parsed.data.slug },

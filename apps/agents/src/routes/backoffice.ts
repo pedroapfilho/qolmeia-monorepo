@@ -25,17 +25,6 @@ import {
 } from "#/team/mutations";
 import { getMemberDetail, getTeamRoster } from "#/team/queries";
 
-// Backoffice REST surface. OWNER/STAFF-only. Same `validateSession` as the
-// agent paths, just with a different role guard. Every write — including the
-// operator override on /actions/:id/decide — goes through the same
-// `sendEvent` path the Correspondent uses; no privileged shortcut.
-//
-// Operators are Qolmeia platform staff, not customers (ADR 0005): they span
-// every tenant and are authorized purely by role. The session's companyId is
-// the operator's own internal org — it has no customer data and is never used
-// to scope these reads/writes. Cross-tenant access is the point of the surface;
-// per-company narrowing is an explicit `?companyId=` filter, not a wall.
-
 type Vars = {
   role: string;
   userId: string;
@@ -64,16 +53,12 @@ backofficeRoutes.get("/tickets", async (c) => {
   return c.json({ items });
 });
 
-// Stale-backlog view (T8): `?status=pending&sort=age` returns pending actions
-// oldest-first, with a derived ageSeconds for operator triage.
 backofficeRoutes.get("/actions", async (c) => {
   const status = c.req.query("status");
   const sort = c.req.query("sort");
   const companyId = c.req.query("companyId");
 
   if (status === "pending") {
-    // The queue narrows to the operator's coverage (ADR 0005); an explicit
-    // ?companyId= is a deliberate drill into one company that bypasses it.
     const items = companyId
       ? await listPendingActions(c.env.DB, { companyId })
       : await (async () => {
@@ -84,9 +69,6 @@ backofficeRoutes.get("/actions", async (c) => {
           });
         })();
     const now = Date.now();
-    // Explicit field copy (not `{...a, ageSeconds}`) — oxlint's no-map-spread
-    // forbids spread inside .map. The `mapAction` boundary above guarantees
-    // every `a` is camelCase + typed, so this stays a pure projection.
     const enriched = items.map((a) => ({
       actionType: a.actionType,
       agent: a.agent,
@@ -108,8 +90,6 @@ backofficeRoutes.get("/actions", async (c) => {
     return c.json({ items: sorted });
   }
 
-  // Any status — recent first. All list endpoints flow through the same
-  // mapAction so the backoffice never sees raw snake_case columns.
   const items = await listActions(c.env.DB, { companyId });
   return c.json({ items });
 });
@@ -169,8 +149,6 @@ backofficeRoutes.get("/activity", async (c) => {
   return c.json({ items });
 });
 
-// Ticket detail — the operator drill-down. Includes the actions associated
-// with this ticket so they can decide without an extra round-trip.
 backofficeRoutes.get("/tickets/:id", async (c) => {
   const id = c.req.param("id");
   const ticket = await loadTicket(c.env.DB, id);
@@ -181,7 +159,6 @@ backofficeRoutes.get("/tickets/:id", async (c) => {
   return c.json({ actions, ticket });
 });
 
-// Action detail — used by /approvals/:id to render the proposal + decide form.
 backofficeRoutes.get("/actions/:id", async (c) => {
   const id = c.req.param("id");
   const action = await getAction(c.env.DB, id);
@@ -199,9 +176,6 @@ const backofficePatchSchema = z.object({
   status: z.enum(["active", "paused"]).optional(),
 });
 
-// Operator overview of every company + its roster. The back office is a
-// Qolmeia-staff surface (OWNER/STAFF, gated above), so it spans all tenants —
-// not just the operator's own company.
 backofficeRoutes.get("/companies", async (c) => {
   const companies = await listCompaniesOverview(c.env.DB);
   const withRosters = await Promise.all(
@@ -216,10 +190,6 @@ backofficeRoutes.get("/companies", async (c) => {
   return c.json({ companies: withRosters });
 });
 
-// The operator's own coverage (ADR 0005): the companies + disciplines they
-// cover, plus the option lists to populate the picker. Self-service — keyed on
-// the session user, never another operator (an admin-assigns-others surface
-// waits on the operator directory, which doesn't exist yet).
 backofficeRoutes.get("/assignments/me", async (c) => {
   const [coverage, disciplines, companies] = await Promise.all([
     listCoverage(c.env.DB, c.get("userId")),
@@ -271,8 +241,6 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     return c.json({ error: "invalid body" }, 400);
   }
   try {
-    // Pause/resume is its own transition (the "Pausar"/"Retomar" button); when
-    // present it takes precedence over the rename/prompt edit path.
     if (parsed.data.status !== undefined) {
       const paused = parsed.data.status === "paused";
       const member = paused
@@ -310,12 +278,6 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
   }
 });
 
-// Worker-template catalog (P9): operators add/edit worker types from the UI
-// instead of writing SQL. Never hard-deletes — "remove" is a soft retire that
-// keeps the id resolvable for agent_instances that reference it.
-
-// `skillIds` is validated against the code registry: a template that points at
-// a non-existent skill would throw at agent-build time, so reject it at write.
 const skillIdsSchema = z.array(z.string().min(1)).refine((ids) => ids.every(isKnownSkill), {
   message: "unknown skill id",
 });

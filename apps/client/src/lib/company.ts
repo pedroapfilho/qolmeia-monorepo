@@ -1,10 +1,5 @@
-// Customer-side API surface for the company brief. Types mirror the agents
-// API output.
-
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
-// Kept for the stored-but-no-longer-edited `channels` data (it was removed from
-// the brief form); mirrors the server's channelEnum.
 type ChannelValue =
   | "discord"
   | "email"

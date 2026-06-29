@@ -14,9 +14,6 @@ type CoverageFormProps = {
   options: CoverageResponse["options"];
 };
 
-// worker_kind is a free-form template string ("designer", "seo-researcher").
-// Present it as readable pt-BR-ish title case without inventing a fixed map —
-// new kinds render correctly the moment a template defines them.
 const disciplineLabel = (kind: string): string =>
   kind
     .split(/[\s_\-]+/v)
@@ -34,9 +31,6 @@ const toggle = (set: ReadonlySet<string>, value: string): Set<string> => {
   return next;
 };
 
-// Self-service coverage editor (ADR 0005). The operator picks the companies and
-// disciplines they review; an empty set means "everything". A single submit
-// replaces the whole coverage on the server.
 const CoverageForm = ({ initial, options }: CoverageFormProps) => {
   const { refresh } = useRouter();
   const [companies, setCompanies] = useState<ReadonlySet<string>>(new Set(initial.companies));

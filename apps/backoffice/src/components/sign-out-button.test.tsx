@@ -20,9 +20,6 @@ vi.mock("@repo/ui/lib/toast", () => ({
   toast: { error: toastErrorMock, success: vi.fn() },
 }));
 
-// Stub Base-UI Button — its render path needs DOM features jsdom doesn't
-// model. The component under test only relies on onClick / disabled, so
-// a plain <button> covers the contract.
 vi.mock("@repo/ui/components/button", () => ({
   Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     // eslint-disable-next-line react/button-has-type -- pass-through stub for testing

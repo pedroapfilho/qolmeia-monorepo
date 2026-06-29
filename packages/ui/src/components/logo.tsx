@@ -2,10 +2,6 @@ import type { ComponentProps } from "react";
 
 import { cn } from "../lib/utils";
 
-// Brand logo. Fixed brand colors (amber colmeia + ink wordmark) — size via
-// `className` height, e.g. `<Logo className="h-7" />`. `Logo` is the full
-// lockup; `LogoMark` is just the colmeia (icon), for avatars and tight spots.
-
 const Logo = ({ className, ...props }: ComponentProps<"svg">) => (
   <svg
     aria-label="Qolmeia"

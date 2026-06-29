@@ -13,7 +13,6 @@ const meStaff = {
   user: { id: "staff-1" },
 };
 
-// Minimal 1x1 PNG bytes — enough to round-trip through R2 + the asset table.
 const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
 
 const uploadForm = (category: string): FormData => {

@@ -72,7 +72,6 @@ const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<T
 
   const ids = rosterRows.map((r) => r.id);
   const placeholders = ids.map(() => "?").join(",");
-  // Independent reads — run both D1 round trips in parallel.
   const [{ results: openRows }, { results: doneRows }] = await Promise.all([
     db
       .prepare(
@@ -125,7 +124,6 @@ const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<T
     const lifetimeDone = doneByAgent.get(row.id) ?? 0;
     if (role === "worker") {
       if (!row.template_id || !row.worker_kind) {
-        // Data corruption: a worker row missing template metadata.
         throw new Error(`worker ${row.id} missing template_id or worker_kind`);
       }
       return {
@@ -162,7 +160,6 @@ const getCatalogue = async (
   db: D1Database,
   companyId: string,
 ): Promise<Array<HireableTemplate>> => {
-  // Independent reads — run both D1 round trips in parallel.
   const [{ results: templates }, { results: counts }] = await Promise.all([
     db
       .prepare(
@@ -224,7 +221,6 @@ const getMemberDetail = async (
     return null;
   }
 
-  // Three independent reads — run the D1 round trips in parallel.
   const [{ results: openRows }, done, editedRow] = await Promise.all([
     db
       .prepare(

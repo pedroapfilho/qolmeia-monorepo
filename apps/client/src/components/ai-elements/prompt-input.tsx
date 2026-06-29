@@ -9,13 +9,6 @@ import { useCallback, useRef } from "react";
 
 import { Loader } from "@/components/ai-elements/loader";
 
-// Vendored from `ai-elements`, reduced to the textarea + submit surface the
-// web-chat UI needs. The upstream component ships an attachment/model toolbar
-// built on six Radix-based shadcn components; this repo runs on `@base-ui`, so
-// those pieces are dropped rather than pulling in a parallel UI stack. The
-// public shape (`onSubmit` receiving a `PromptInputMessage`) is kept so a
-// future swap to the published component is mechanical.
-
 type PromptInputMessage = {
   text: string;
 };
@@ -57,7 +50,6 @@ const PromptInputBody = ({ className, ...props }: PromptInputBodyProps) => (
 
 type PromptInputTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
 
-// Auto-grows up to a cap. Enter submits; Shift+Enter inserts a newline.
 const PromptInputTextarea = ({
   className,
   onInput,

@@ -1,6 +1,3 @@
-// Backoffice-side fetchers. Same shapes as the customer side; different
-// endpoint prefix.
-
 import { ApiError } from "@/lib/api-client";
 import { AGENTS_SERVER_URL } from "@/lib/api-server";
 
@@ -76,8 +73,6 @@ const fetchMember = async (
   return ((await res.json()) as { member: TeamMemberDetailView }).member;
 };
 
-// Operator-wide overview: every company + its roster. Spans tenants (the back
-// office is Qolmeia staff), gated server-side by the OWNER/STAFF check.
 const fetchCompanies = async (cookie: string): Promise<Array<CompanyOverview>> => {
   const res = await fetch(`${AGENTS_SERVER_URL}/api/backoffice/companies`, {
     cache: "no-store",

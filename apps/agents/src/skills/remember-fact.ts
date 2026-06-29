@@ -4,9 +4,6 @@ import { insertMemoryFact } from "#/db/schema";
 import { getMemoryAdapter } from "#/lib/memory";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
-// Persists a durable fact the agent decides is worth remembering long-term —
-// a customer preference, a brand decision, a standing constraint. The same
-// id is used in D1 (audit / backoffice) and in the memory adapter (recall).
 const rememberFactInputSchema = z.object({
   content: z.string().min(1).describe("O fato a ser lembrado, em uma frase clara em pt-BR."),
   kind: z

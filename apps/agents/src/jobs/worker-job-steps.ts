@@ -10,13 +10,6 @@ import { loadAgentInstance, markTicketDone, setTicketStatus } from "#/db/ticket"
 import { logError, logInfo } from "#/lib/logger";
 import { emitTeamEvent } from "#/team/events";
 
-// The approval-gate steps of a Worker job: propose and decide, plus the shared
-// job-step contracts. Orchestration lives in worker-job.ts, generation in
-// worker-job-generate.ts. Steps take a JobContext (the job's stable identity +
-// env); per-round state is passed in so each function stays loop-agnostic.
-
-// Max reworks from operator feedback before the loop stops regenerating. The
-// deliverable stays open for approve/reject past the cap.
 const MAX_REVISIONS = 3;
 
 type JobContext = {
@@ -27,13 +20,6 @@ type JobContext = {
 };
 
 type GenerateResult = {
-  // Tool-call outputs from generation, keyed by skill id, for the propose step
-  // to attach to the action payload (e.g. publish_post reads draftSocialPost).
-  // Last write wins per skill id; Workers should call each skill at most once.
-  //
-  // JSON-stringified because Cloudflare Workflows' Serializable check on the
-  // step.do boundary rejects `unknown`, and a recursive JsonValue alias crashes
-  // tsc with "instantiation excessively deep".
   skillResultsJson: string;
   summary: string;
 };
@@ -46,8 +32,6 @@ type DecisionEvent = {
   feedback?: string;
 };
 
-// Show a finished deliverable in the customer's chat via the Correspondent.
-// Best-effort: a failure here must never fail the job.
 const presentToCustomer = async (ctx: JobContext, result: string): Promise<void> => {
   const { companyId, ticketId } = ctx;
   try {
@@ -64,9 +48,6 @@ const presentToCustomer = async (ctx: JobContext, result: string): Promise<void>
   }
 };
 
-// `propose-<round>` step: resolve the action policy and either run the
-// deliverable immediately (auto-execute / notify-only) or open an approval
-// gate. Returns the actionId to wait on, or null when no gate is needed.
 const proposeDeliverable = async (
   ctx: JobContext,
   round: number,
@@ -78,7 +59,6 @@ const proposeDeliverable = async (
   if (!agentInstance?.templateId) {
     throw new Error("agent_instance vanished mid-workflow");
   }
-  // Independent D1 reads, overlapped.
   const [template, company] = await Promise.all([
     getTemplate(env.DB, agentInstance.templateId),
     getCompany(env.DB, companyId),
@@ -89,8 +69,6 @@ const proposeDeliverable = async (
   const actionType = template.defaultActionType;
   const policy = resolvePolicy(actionType, template);
 
-  // auto-execute and notify-only both run immediately (no gate). notify-only
-  // additionally logs to the operator feed for an after-the-fact check (ADR 0006).
   if (policy === "auto-execute" || policy === "notify-only") {
     await Promise.all([
       markTicketDone(env.DB, ticketId, { summary: current.summary }),
@@ -116,15 +94,10 @@ const proposeDeliverable = async (
         type: "ACTION_NOTIFY",
       });
     }
-    // Ungated work still has a deliverable to show, or the chat stays silent
-    // after the Correspondent said it would ask the specialist.
     await presentToCustomer(ctx, current.summary);
     return { actionId: null, policy };
   }
 
-  // Action-type-specific payload: publish_post carries the draftSocialPost
-  // result for the backoffice renderer; other types fall back to the summary.
-  // A new structured renderer is one branch here plus one in components/action-renderers/.
   const skillResults = JSON.parse(current.skillResultsJson) as Record<string, unknown>;
   const draft = skillResults.draftSocialPost;
   const proposedPayload: Record<string, unknown> = { summary: current.summary, ticketId };
@@ -138,8 +111,6 @@ const proposeDeliverable = async (
     proposed: proposedPayload,
     ticketId,
   });
-  // Round 0 is a fresh proposal; later rounds are revisions. Once the action
-  // exists, the status/event/log writes are independent.
   await Promise.all([
     setTicketStatus(env.DB, ticketId, "awaiting_approval"),
     emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
@@ -165,16 +136,10 @@ const proposeDeliverable = async (
     ),
   ]);
 
-  // No customer notification at proposal time: the operator approves on
-  // /approvals, and the customer sees the deliverable only once it's executed.
-
   logInfo("workflow.propose.ok", { actionId, agentInstanceId, companyId, policy, ticketId });
   return { actionId, policy };
 };
 
-// `decide-<round>` step: record the operator's decision and apply its terminal
-// or rework side-effects. approved → execute + present; rejected → close;
-// request-changes → reopen for the next revise round.
 const applyDecision = async (
   ctx: JobContext,
   actionId: string,
@@ -223,8 +188,6 @@ const applyDecision = async (
       }),
     ]);
   } else {
-    // request-changes: the Worker will rework (the loop regenerates with this
-    // feedback). Back to in_progress while it does.
     await Promise.all([
       setTicketStatus(env.DB, ticketId, "in_progress"),
       emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
@@ -242,8 +205,6 @@ const applyDecision = async (
   return decision;
 };
 
-// `revise-capped` step: tell the operator once that the Worker won't rework
-// past the cap, so they approve or reject the last version.
 const logRevisionCapped = async (ctx: JobContext, actionId: string): Promise<void> => {
   await logActivity(ctx.env, {
     companyId: ctx.companyId,

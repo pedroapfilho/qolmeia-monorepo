@@ -35,9 +35,6 @@ const briefToForm = (brief: CompanyBrief): FormState => ({
   voice: brief.brand?.voice ?? "",
 });
 
-// Build the PATCH payload. Blank text fields are omitted (the server's `.min(1)`
-// rejects empty strings, and the goal is to fill, not clear); brand is sent
-// whole since the form owns every field it renders.
 const buildPatch = (f: FormState): BriefPatch => {
   const patch: BriefPatch = {};
   if (f.industry.trim()) {
@@ -57,8 +54,6 @@ const buildPatch = (f: FormState): BriefPatch => {
   return patch;
 };
 
-// Live count of the 6 required fields, purely for the responsive badge. The
-// server's completeness stays canonical — it's what the Correspondent reads.
 const liveFilledCount = (f: FormState): number =>
   [
     f.industry.trim(),
@@ -69,8 +64,6 @@ const liveFilledCount = (f: FormState): number =>
     f.references.trim(),
   ].filter(Boolean).length;
 
-// Flags a brief field still waiting on input. A Badge (not a colour-only dot)
-// so the "to fill" state is conveyed by text, not hue alone.
 const MissingMark = ({ show }: { show: boolean }) =>
   show ? (
     <Badge className="ml-2 align-middle" variant="warning">
@@ -218,9 +211,6 @@ const BriefCard = ({ initial }: BriefCardProps) => {
   );
 };
 
-// Loads the company brief, then renders the editor keyed by the saved payload so
-// a successful save (which updates the cache) cleanly re-seeds the form without a
-// setState-in-effect.
 const CompanyBriefForm = () => {
   const { data, isPending } = useQuery({
     meta: { errorToast: "Falha ao carregar dados da empresa" },

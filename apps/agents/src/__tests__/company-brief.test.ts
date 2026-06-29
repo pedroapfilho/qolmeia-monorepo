@@ -107,7 +107,6 @@ describe("briefCompleteness", () => {
       brand: { voice: "acolhedora" },
       industry: "alimentação",
     });
-    // industry + brand.voice = 2 of 6
     expect(c.filled).toEqual(expect.arrayContaining(["industry", "brand.voice"]));
     expect(c.filled).toHaveLength(2);
     expect(c.percent).toBe(33);
