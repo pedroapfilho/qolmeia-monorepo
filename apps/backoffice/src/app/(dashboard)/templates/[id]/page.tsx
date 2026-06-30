@@ -13,6 +13,13 @@ type EditTemplatePageProps = {
   params: Promise<{ id: string }>;
 };
 
+/**
+ * Authenticated detail surface bound to `params` and the per-request session;
+ * block rather than stream a shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const EditTemplatePage = async ({ params }: EditTemplatePageProps) => {
   await requireStaff();
   const { id } = await params;

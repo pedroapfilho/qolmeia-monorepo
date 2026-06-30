@@ -7,6 +7,13 @@ import { fetchMember } from "@/lib/team-fetch";
 
 type Props = { params: Promise<{ companyId: string; memberId: string }> };
 
+/**
+ * Authenticated detail surface bound to `params` and the per-request session;
+ * block rather than stream a shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const MemberEditPage = async ({ params }: Props) => {
   const [{ companyId, memberId }, headersList] = await Promise.all([params, headers()]);
   const cookie = headersList.get("cookie") ?? "";

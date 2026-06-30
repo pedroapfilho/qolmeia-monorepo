@@ -31,6 +31,13 @@ const POLICY_COPY: Record<string, string> = {
   "require-approval": "Sob aprovação",
 };
 
+/**
+ * Authenticated detail surface bound to `params` and the per-request session;
+ * block rather than stream a shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
   const { id } = await params;
 

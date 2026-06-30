@@ -35,6 +35,13 @@ const STEP_DOT: Record<StepTone, string> = {
   waiting: "border-warning bg-warning",
 };
 
+/**
+ * Authenticated detail surface bound to `params` and the per-request session;
+ * block rather than stream a shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const TicketDetailPage = async ({ params }: TicketDetailPageProps) => {
   const { id } = await params;
 

@@ -11,6 +11,13 @@ export const metadata: Metadata = {
   title: "Assets",
 };
 
+/**
+ * Authenticated surface bound to the per-request session cookie (`/api/me/assets`);
+ * block so each request reads fresh assets rather than a cached empty shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
   try {
     const result = await apiGetServer<ListResponse<WebChatAsset>>("/api/me/assets?limit=200");

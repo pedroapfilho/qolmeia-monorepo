@@ -13,6 +13,13 @@ export const metadata: Metadata = {
   title: "Atividade",
 };
 
+/**
+ * Authenticated surface bound to the per-request session cookie (`/api/me/activity`);
+ * block so each request reads fresh activity rather than a cached empty shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 type ActivityRow = {
   createdAt: string;
   id: string;

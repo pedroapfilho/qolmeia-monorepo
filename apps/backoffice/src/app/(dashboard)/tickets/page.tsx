@@ -14,6 +14,13 @@ export const metadata: Metadata = { title: "Tickets" };
 
 const monogramOf = (value: string): string => (value.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
 
+/**
+ * Authenticated operator surface bound to the per-request session cookie; block
+ * rather than stream so each request reads fresh data.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const TicketsPage = async () => {
   const res = await apiGetServer<TicketsResponse>("/tickets?limit=50");
 
