@@ -47,4 +47,3 @@ const MessageResponse = memo(
 MessageResponse.displayName = "MessageResponse";
 
 export { MessageResponse };
-export type { MessageResponseProps };
