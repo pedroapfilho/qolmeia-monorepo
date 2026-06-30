@@ -1,3 +1,4 @@
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 
@@ -28,13 +29,13 @@ const SidebarSkeleton = () => (
     aria-hidden
     className="hidden h-screen w-[238px] shrink-0 flex-col gap-2 border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
   >
-    <div className="h-6 w-24 animate-pulse rounded bg-muted" />
+    <Skeleton className="h-6 w-24" />
     <div className="mt-4 flex flex-col gap-1.5">
       {Array.from({ length: 5 }, (_, index) => (
-        <div className="h-8 w-full animate-pulse rounded-lg bg-muted" key={index} />
+        <Skeleton className="h-8 w-full" key={index} />
       ))}
     </div>
-    <div className="mt-auto h-10 w-full animate-pulse rounded-lg bg-muted" />
+    <Skeleton className="mt-auto h-10 w-full" />
   </aside>
 );
 

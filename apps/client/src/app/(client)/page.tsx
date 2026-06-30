@@ -1,3 +1,4 @@
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
@@ -91,9 +92,9 @@ const ChatContent = async () => {
 
 const ChatSkeleton = () => (
   <div aria-hidden className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col gap-4 bg-background p-6">
-    <div className="h-6 w-40 animate-pulse rounded-md bg-muted" />
-    <div className="min-h-0 flex-1 animate-pulse rounded-lg bg-muted" />
-    <div className="h-12 w-full animate-pulse rounded-lg bg-muted" />
+    <Skeleton className="h-6 w-40" />
+    <Skeleton className="min-h-0 flex-1" />
+    <Skeleton className="h-12 w-full" />
   </div>
 );
 

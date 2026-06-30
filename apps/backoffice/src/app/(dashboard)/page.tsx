@@ -1,6 +1,7 @@
 import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { Activity, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
@@ -237,19 +238,19 @@ const HomeSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <div className="flex items-center justify-between">
       <div className="flex flex-col gap-2">
-        <div className="h-7 w-40 animate-pulse rounded-md bg-muted" />
-        <div className="h-4 w-56 animate-pulse rounded bg-muted" />
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-56" />
       </div>
-      <div className="h-9 w-28 animate-pulse rounded-lg bg-muted" />
+      <Skeleton className="h-9 w-28" />
     </div>
     <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
       {Array.from({ length: 4 }, (_, index) => (
-        <div className="h-24 animate-pulse rounded-xl bg-muted" key={index} />
+        <Skeleton className="h-24" key={index} />
       ))}
     </div>
     <div className="grid gap-3.5 lg:grid-cols-[1.25fr_1fr]">
-      <div className="h-72 animate-pulse rounded-xl bg-muted" />
-      <div className="h-72 animate-pulse rounded-xl bg-muted" />
+      <Skeleton className="h-72" />
+      <Skeleton className="h-72" />
     </div>
   </div>
 );

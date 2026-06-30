@@ -1,3 +1,4 @@
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 
@@ -14,8 +15,8 @@ const NavSkeleton = () => (
     aria-hidden
     className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-5"
   >
-    <div className="h-6 w-32 animate-pulse rounded bg-muted" />
-    <div className="size-[30px] animate-pulse rounded-lg bg-muted" />
+    <Skeleton className="h-6 w-32" />
+    <Skeleton className="size-[30px]" />
   </div>
 );
 
