@@ -7,6 +7,13 @@ export const metadata: Metadata = {
   title: "Minha empresa",
 };
 
+/**
+ * Authenticated surface bound to the per-request session and `/api/me`; the
+ * page is the customer's own company, so block rather than stream a shell.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const EmpresaPage = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
   const companyId = me.currentOrg?.id;

@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
     "*.qolmeia.backoffice.localhost",
     "*.vercel.app",
   ],
+  cacheComponents: true,
+  experimental: {
+    turbopackRustReactCompiler: true,
+  },
+  partialPrefetching: true,
+  reactCompiler: true,
   reactStrictMode: true,
 
   rewrites: () =>

@@ -16,6 +16,13 @@ type VerifyPageProps = {
   searchParams: Promise<{ error?: string }>;
 };
 
+/**
+ * Entry page rendered from the magic-link callback; its content is bound to the
+ * `error` search param and it redirects on success, so block rather than stream.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const VerifyPage = async ({ searchParams }: VerifyPageProps) => {
   const { error } = await searchParams;
   if (!error) {

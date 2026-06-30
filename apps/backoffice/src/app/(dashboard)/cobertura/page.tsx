@@ -10,6 +10,13 @@ import type { CoverageResponse } from "@/lib/api-types";
 
 export const metadata: Metadata = { title: "Cobertura" };
 
+/**
+ * Authenticated operator surface bound to the per-request session cookie; block
+ * rather than stream so each request reads fresh data.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const CoveragePage = async () => {
   const coverage = await apiGetServer<CoverageResponse>("/assignments/me").catch(() => null);
 

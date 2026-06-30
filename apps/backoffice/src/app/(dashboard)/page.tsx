@@ -1,11 +1,13 @@
 import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { Activity, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
@@ -69,7 +71,7 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
   );
 };
 
-const Home = async () => {
+const HomeContent = async () => {
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
 
@@ -231,5 +233,34 @@ const Home = async () => {
     </div>
   );
 };
+
+const HomeSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-56" />
+      </div>
+      <Skeleton className="h-9 w-28" />
+    </div>
+    <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+      {Array.from({ length: 4 }, (_, index) => (
+        <Skeleton className="h-24" key={index} />
+      ))}
+    </div>
+    <div className="grid gap-3.5 lg:grid-cols-[1.25fr_1fr]">
+      <Skeleton className="h-72" />
+      <Skeleton className="h-72" />
+    </div>
+  </div>
+);
+
+// Instant navigation: the static shell streams immediately as the fallback
+// while the per-request operational dashboard renders on the server.
+const Home = () => (
+  <Suspense fallback={<HomeSkeleton />}>
+    <HomeContent />
+  </Suspense>
+);
 
 export default Home;

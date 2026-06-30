@@ -31,6 +31,13 @@ const proposedSummary = (proposed: Record<string, unknown>): string => {
   return summary.split("\n")[0]?.trim() ?? "";
 };
 
+/**
+ * Authenticated operator surface bound to the per-request session cookie; block
+ * rather than stream so each request reads fresh data.
+ * @public Next.js app-router reads the `instant` route config via the module loader
+ */
+export const instant = false;
+
 const ApprovalsPage = async () => {
   const res = await apiGetServer<ActionsResponse>("/actions?status=pending&sort=age");
   const pendingCount = res.items.length;

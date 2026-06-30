@@ -1,4 +1,6 @@
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { Chat } from "@/components/chat";
 import { OnboardingActions } from "@/components/onboarding-actions";
@@ -40,7 +42,7 @@ const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
   }
 };
 
-const ChatPage = async () => {
+const ChatContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
   const companyId = me.currentOrg?.id;
   if (!companyId) {
@@ -87,5 +89,21 @@ const ChatPage = async () => {
     </div>
   );
 };
+
+const ChatSkeleton = () => (
+  <div aria-hidden className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col gap-4 bg-background p-6">
+    <Skeleton className="h-6 w-40" />
+    <Skeleton className="min-h-0 flex-1" />
+    <Skeleton className="h-12 w-full" />
+  </div>
+);
+
+// Instant navigation: the static shell streams immediately as the fallback
+// while the per-user, session-bound chat renders on the server.
+const ChatPage = () => (
+  <Suspense fallback={<ChatSkeleton />}>
+    <ChatContent />
+  </Suspense>
+);
 
 export default ChatPage;
