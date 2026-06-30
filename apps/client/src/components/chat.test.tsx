@@ -1,11 +1,23 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-globalThis.ResizeObserver = class {
+// jsdom lacks ResizeObserver, IntersectionObserver, and Element.scrollTo — all used by the
+// message scroller. One mock covers both observer contracts.
+class MockObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
-};
+  takeRecords() {
+    return [];
+  }
+}
+
+globalThis.ResizeObserver = MockObserver as unknown as typeof ResizeObserver;
+globalThis.IntersectionObserver = MockObserver as unknown as typeof IntersectionObserver;
+
+if (!Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {};
+}
 
 const sendMessage = vi.fn();
 const kickoff = vi.fn();
