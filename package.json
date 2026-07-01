@@ -25,6 +25,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@next/playwright": "^16.3.0-preview.5",
     "@playwright/test": "^1.60.0",
     "@repo/db": "workspace:*",
     "fallow": "^2.85.0",

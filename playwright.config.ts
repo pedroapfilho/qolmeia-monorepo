@@ -98,6 +98,16 @@ export default defineConfig({
   webServer: process.env.CI
     ? [
         {
+          // Stub for the agents Worker's /api/me (see tests/e2e/support/agents-stub.mjs).
+          // The real Worker isn't started in CI; this grants staff access only to
+          // requests carrying the e2e-role=OWNER marker cookie.
+          command: "node tests/e2e/support/agents-stub.mjs",
+          stderr: "pipe",
+          stdout: "pipe",
+          timeout: 30_000,
+          url: "http://127.0.0.1:8787/healthz",
+        },
+        {
           command: "node apps/api/dist/index.mjs",
           env: {
             HOST: "127.0.0.1",
