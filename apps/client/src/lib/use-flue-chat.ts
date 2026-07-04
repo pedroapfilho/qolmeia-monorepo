@@ -7,7 +7,8 @@ import {
   type FlueClient,
 } from "@flue/sdk";
 import type { FileUIPart } from "ai";
-import { useCallback, useMemo, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { useRef, useState } from "react";
 
 type ChatMessagePart =
   | { text: string; type: "text" }
@@ -74,6 +75,73 @@ const toPromptImages = (files: Array<FileUIPart>): Array<AgentPromptImage> => {
   return images;
 };
 
+type StreamCallbacks = {
+  onError?: (error: unknown) => void;
+  setMessages: Dispatch<SetStateAction<Array<ChatMessage>>>;
+  setStatus: (status: FlueChatStatus) => void;
+};
+
+const consumeStream = async (
+  stream: AsyncIterable<AttachedAgentEvent>,
+  submissionId: string,
+  controller: AbortController,
+  { onError, setMessages, setStatus }: StreamCallbacks,
+): Promise<void> => {
+  let assistantStarted = false;
+  try {
+    for await (const event of stream) {
+      if (event.submissionId && event.submissionId !== submissionId) {
+        continue;
+      }
+      switch (event.type) {
+        case "message_start": {
+          if (event.message.role === "assistant") {
+            assistantStarted = true;
+            setStatus("streaming");
+            setMessages((current) => [
+              ...current,
+              { id: nextMessageId("a"), parts: [], role: "assistant" },
+            ]);
+          }
+          break;
+        }
+        case "text_delta": {
+          if (assistantStarted && event.text) {
+            setMessages((current) => appendAssistantText(current, event.text));
+          }
+          break;
+        }
+        case "operation": {
+          if (event.operationKind === "prompt") {
+            setStatus("ready");
+            controller.abort();
+            return;
+          }
+          break;
+        }
+        case "submission_settled": {
+          if (event.outcome === "failed") {
+            throw new Error(event.error ?? "submission failed");
+          }
+          setStatus("ready");
+          controller.abort();
+          return;
+        }
+        default: {
+          break;
+        }
+      }
+    }
+    setStatus("ready");
+  } catch (error) {
+    if (controller.signal.aborted) {
+      return;
+    }
+    setStatus("error");
+    onError?.(error);
+  }
+};
+
 const useFlueChat = ({
   agent,
   baseUrl,
@@ -85,127 +153,66 @@ const useFlueChat = ({
   const [status, setStatus] = useState<FlueChatStatus>("ready");
   const abortRef = useRef<AbortController | null>(null);
 
-  const client: FlueClient = useMemo(
-    () =>
-      createFlueClient({
-        baseUrl: baseUrl || "/",
-        fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
-        ...(sessionToken ? { token: sessionToken } : {}),
-      }),
-    [baseUrl, sessionToken],
-  );
+  const client: FlueClient = createFlueClient({
+    baseUrl: baseUrl || "/",
+    fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
+    ...(sessionToken ? { token: sessionToken } : {}),
+  });
 
-  const runStream = useCallback(
-    async (offset: string, submissionId: string) => {
-      const controller = new AbortController();
-      abortRef.current?.abort();
-      abortRef.current = controller;
+  const runStream = async (offset: string, submissionId: string) => {
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
 
-      const stream = client.agents.stream(agent, companyId, {
-        offset,
-        signal: controller.signal,
-      });
+    const stream = client.agents.stream(agent, companyId, {
+      offset,
+      signal: controller.signal,
+    });
 
-      let assistantStarted = false;
-      try {
-        for await (const event of stream as AsyncIterable<AttachedAgentEvent>) {
-          if (event.submissionId && event.submissionId !== submissionId) {
-            continue;
-          }
-          switch (event.type) {
-            case "message_start": {
-              if (event.message.role === "assistant") {
-                assistantStarted = true;
-                setStatus("streaming");
-                setMessages((current) => [
-                  ...current,
-                  { id: nextMessageId("a"), parts: [], role: "assistant" },
-                ]);
-              }
-              break;
-            }
-            case "text_delta": {
-              if (assistantStarted && event.text) {
-                setMessages((current) => appendAssistantText(current, event.text));
-              }
-              break;
-            }
-            case "operation": {
-              if (event.operationKind === "prompt") {
-                setStatus("ready");
-                controller.abort();
-                return;
-              }
-              break;
-            }
-            case "submission_settled": {
-              if (event.outcome === "failed") {
-                throw new Error(event.error ?? "submission failed");
-              }
-              setStatus("ready");
-              controller.abort();
-              return;
-            }
-            default: {
-              break;
-            }
-          }
-        }
-        setStatus("ready");
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        setStatus("error");
-        onError?.(error);
+    await consumeStream(stream as AsyncIterable<AttachedAgentEvent>, submissionId, controller, {
+      onError,
+      setMessages,
+      setStatus,
+    });
+  };
+
+  const submit = async (message: string, images: Array<AgentPromptImage>) => {
+    setStatus("submitted");
+    try {
+      const result = await client.agents.send(agent, companyId, { images, message });
+      await runStream(result.offset, result.submissionId);
+    } catch (error) {
+      setStatus("error");
+      onError?.(error);
+    }
+  };
+
+  const sendMessage = async (input: SendInput) => {
+    const text = input.text.trim();
+    if (!text && input.files.length === 0) {
+      return;
+    }
+
+    const parts: Array<ChatMessagePart> = [];
+    if (text) {
+      parts.push({ text, type: "text" });
+    }
+    for (const file of input.files) {
+      if (file.mediaType?.startsWith("image/")) {
+        parts.push({
+          filename: file.filename,
+          mediaType: file.mediaType,
+          type: "file",
+          url: file.url,
+        });
       }
-    },
-    [agent, client, companyId, onError],
-  );
+    }
 
-  const submit = useCallback(
-    async (message: string, images: Array<AgentPromptImage>) => {
-      setStatus("submitted");
-      try {
-        const result = await client.agents.send(agent, companyId, { images, message });
-        await runStream(result.offset, result.submissionId);
-      } catch (error) {
-        setStatus("error");
-        onError?.(error);
-      }
-    },
-    [agent, client, companyId, onError, runStream],
-  );
+    setMessages((current) => [...current, { id: nextMessageId("u"), parts, role: "user" }]);
+    await submit(text, toPromptImages(input.files));
+  };
 
-  const sendMessage = useCallback(
-    async (input: SendInput) => {
-      const text = input.text.trim();
-      if (!text && input.files.length === 0) {
-        return;
-      }
-
-      const parts: Array<ChatMessagePart> = [];
-      if (text) {
-        parts.push({ text, type: "text" });
-      }
-      for (const file of input.files) {
-        if (file.mediaType?.startsWith("image/")) {
-          parts.push({
-            filename: file.filename,
-            mediaType: file.mediaType,
-            type: "file",
-            url: file.url,
-          });
-        }
-      }
-
-      setMessages((current) => [...current, { id: nextMessageId("u"), parts, role: "user" }]);
-      await submit(text, toPromptImages(input.files));
-    },
-    [submit],
-  );
-
-  const kickoff = useCallback((prompt: string) => submit(prompt, []), [submit]);
+  const kickoff = (prompt: string) => submit(prompt, []);
 
   return { kickoff, messages, sendMessage, status };
 };

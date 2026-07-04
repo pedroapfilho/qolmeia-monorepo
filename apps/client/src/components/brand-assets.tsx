@@ -39,8 +39,6 @@ const BrandAssets = () => {
     queryKey: BRAND_QUERY_KEY,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: BRAND_QUERY_KEY });
-
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadBrandAsset(file, category),
     onError: () => {
@@ -48,7 +46,7 @@ const BrandAssets = () => {
     },
     onSuccess: () => {
       toast.success("Referência adicionada.");
-      void invalidate();
+      void queryClient.invalidateQueries({ queryKey: BRAND_QUERY_KEY });
     },
   });
 
@@ -58,7 +56,7 @@ const BrandAssets = () => {
       toast.error("Não foi possível remover.");
     },
     onSuccess: () => {
-      void invalidate();
+      void queryClient.invalidateQueries({ queryKey: BRAND_QUERY_KEY });
     },
   });
 

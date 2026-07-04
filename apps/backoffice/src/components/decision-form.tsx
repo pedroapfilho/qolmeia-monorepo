@@ -87,9 +87,8 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
           ? `Erro ${error.status}: ${error.body || "falha"}`
           : "Não foi possível enviar a decisão.";
       toast.error(message);
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   return (

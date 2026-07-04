@@ -56,18 +56,17 @@ const OnboardingActions = ({
         },
         method: "POST",
       });
-      if (!response.ok) {
+      if (response.ok) {
+        toast.success("Time confirmado! Redirecionando…");
+        globalThis.location.assign("/");
+      } else {
         const body = await response.text();
         toast.error(`Não foi possível confirmar: ${body.slice(0, 120)}`);
-        return;
       }
-      toast.success("Time confirmado! Redirecionando…");
-      globalThis.location.assign("/");
     } catch {
       toast.error("Erro ao confirmar o Time. Tente novamente.");
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   return (
