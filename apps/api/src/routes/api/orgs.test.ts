@@ -38,16 +38,15 @@ const postOrgs = (
   app: ReturnType<typeof buildOrgsRoutes>,
   body: unknown,
   headers: Record<string, string> = DEFAULT_HEADERS,
-): Promise<Response> =>
-  Promise.resolve(
-    app.fetch(
-      new Request("http://localhost/", {
-        body: typeof body === "string" ? body : JSON.stringify(body),
-        headers,
-        method: "POST",
-      }),
-    ),
-  );
+): Promise<Response> => {
+  const request = new Request("http://localhost/", {
+    body: typeof body === "string" ? body : JSON.stringify(body),
+    headers,
+    method: "POST",
+  });
+
+  return Promise.resolve(app.fetch(request));
+};
 
 describe("POST /api/orgs", () => {
   it("401 when no session", async () => {

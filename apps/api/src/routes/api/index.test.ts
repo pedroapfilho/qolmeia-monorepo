@@ -62,18 +62,21 @@ const buildMockPrisma = () => {
 const buildV1WithMocks = (
   guard: MiddlewareHandler,
   prisma: ReturnType<typeof buildMockPrisma>,
-): Hono =>
-  buildApiRoutes({
+): Hono => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 201 }));
+
+  return buildApiRoutes({
     memberGuard: guard,
     routes: {
       me: buildMeRoutes({ prisma: prisma as never }),
       orgs: buildOrgsRoutes({
         auth: { api: { getSession: () => Promise.resolve(sessionA) } },
-        fetch: vi.fn().mockResolvedValue(new Response("OK", { status: 201 })),
+        fetch: fetchMock,
         prisma: prisma as never,
       }),
     },
   });
+};
 
 describe("/api post-P7.2 surface", () => {
   it("returns 401 from /me when guard rejects", async () => {

@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 
 import { expect, test as setup } from "@playwright/test";
 
@@ -15,7 +15,7 @@ const TEST_USER = {
 // route specs start authenticated. Magic-link client specs declare their
 // own clean context.
 setup("create and authenticate test user", async ({ page, request }) => {
-  mkdirSync("tests/e2e/.auth", { recursive: true });
+  await mkdir("tests/e2e/.auth", { recursive: true });
 
   // Better Auth signup endpoint lives on the auth API (:4000), not on the
   // backoffice Next app. 409/422 (user already exists from a previous run)

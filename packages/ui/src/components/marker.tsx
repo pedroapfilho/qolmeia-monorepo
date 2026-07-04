@@ -24,12 +24,14 @@ const Marker = ({
   render,
   variant = "default",
   ...props
-}: useRender.ComponentProps<"div"> & VariantProps<typeof markerVariants>) =>
-  useRender({
+}: useRender.ComponentProps<"div"> & VariantProps<typeof markerVariants>) => {
+  const markerClassName = cn(markerVariants({ className, variant }));
+
+  return useRender({
     defaultTagName: "div",
     props: mergeProps<"div">(
       {
-        className: cn(markerVariants({ className, variant })),
+        className: markerClassName,
       },
       props,
     ),
@@ -39,6 +41,7 @@ const Marker = ({
       variant,
     },
   });
+};
 
 const MarkerIcon = ({ className, ...props }: ComponentProps<"span">) => (
   <span
