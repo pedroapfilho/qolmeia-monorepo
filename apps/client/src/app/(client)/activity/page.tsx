@@ -2,8 +2,10 @@ import { Card, CardContent } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageContainer } from "@repo/ui/components/page-container";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { Activity } from "lucide-react";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { apiGetServer } from "@/lib/api-server";
 import type { ListResponse } from "@/lib/api-types";
@@ -12,13 +14,6 @@ import { log } from "@/lib/observability";
 export const metadata: Metadata = {
   title: "Atividade",
 };
-
-/**
- * Authenticated surface bound to the per-request session cookie (`/api/me/activity`);
- * block so each request reads fresh activity rather than a cached empty shell.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
 
 type ActivityRow = {
   createdAt: string;
@@ -51,7 +46,7 @@ const formatTime = (iso: string): string => {
   }
 };
 
-const ActivityPage = async () => {
+const ActivityContent = async () => {
   const rows = await loadActivity();
 
   return (
@@ -95,5 +90,29 @@ const ActivityPage = async () => {
     </PageContainer>
   );
 };
+
+// Static shell for the prerender: the list is bound to the per-request session
+// cookie, so cacheComponents needs a Suspense boundary above it.
+const ActivitySkeleton = () => (
+  <PageContainer aria-hidden>
+    <PageHeader
+      description="Tudo que rolou no seu chat — mensagens trocadas, execuções dos agentes, ações concluídas."
+      title="Atividade"
+    />
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </CardContent>
+    </Card>
+  </PageContainer>
+);
+
+const ActivityPage = () => (
+  <Suspense fallback={<ActivitySkeleton />}>
+    <ActivityContent />
+  </Suspense>
+);
 
 export default ActivityPage;

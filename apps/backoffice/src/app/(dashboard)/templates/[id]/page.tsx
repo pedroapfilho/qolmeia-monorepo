@@ -1,5 +1,7 @@
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { TemplateForm } from "@/components/template-form";
 import { ApiError } from "@/lib/api-client";
@@ -13,14 +15,7 @@ type EditTemplatePageProps = {
   params: Promise<{ id: string }>;
 };
 
-/**
- * Authenticated detail surface bound to `params` and the per-request session;
- * block rather than stream a shell.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const EditTemplatePage = async ({ params }: EditTemplatePageProps) => {
+const EditTemplateContent = async ({ params }: EditTemplatePageProps) => {
   await requireStaff();
   const { id } = await params;
 
@@ -38,5 +33,20 @@ const EditTemplatePage = async ({ params }: EditTemplatePageProps) => {
 
   return <TemplateForm initial={detail.template} />;
 };
+
+// Static shell for the prerender: the form is bound to `params` and the
+// per-request session, so cacheComponents needs a Suspense boundary above it.
+const EditTemplateSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <Skeleton className="h-8 w-48" />
+    <Skeleton className="h-64 w-full" />
+  </div>
+);
+
+const EditTemplatePage = (props: EditTemplatePageProps) => (
+  <Suspense fallback={<EditTemplateSkeleton />}>
+    <EditTemplateContent {...props} />
+  </Suspense>
+);
 
 export default EditTemplatePage;

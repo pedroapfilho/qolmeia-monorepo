@@ -1,5 +1,7 @@
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { MemberEditForm } from "@/components/member-edit-form";
 import { ApiError } from "@/lib/api-client";
@@ -7,14 +9,7 @@ import { fetchMember } from "@/lib/team-fetch";
 
 type Props = { params: Promise<{ companyId: string; memberId: string }> };
 
-/**
- * Authenticated detail surface bound to `params` and the per-request session;
- * block rather than stream a shell.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const MemberEditPage = async ({ params }: Props) => {
+const MemberEditContent = async ({ params }: Props) => {
   const [{ companyId, memberId }, headersList] = await Promise.all([params, headers()]);
   const cookie = headersList.get("cookie") ?? "";
 
@@ -37,5 +32,20 @@ const MemberEditPage = async ({ params }: Props) => {
     />
   );
 };
+
+// Static shell for the prerender: the form is bound to `params` and the
+// per-request session, so cacheComponents needs a Suspense boundary above it.
+const MemberEditSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <Skeleton className="h-8 w-56" />
+    <Skeleton className="h-72 w-full" />
+  </div>
+);
+
+const MemberEditPage = (props: Props) => (
+  <Suspense fallback={<MemberEditSkeleton />}>
+    <MemberEditContent {...props} />
+  </Suspense>
+);
 
 export default MemberEditPage;

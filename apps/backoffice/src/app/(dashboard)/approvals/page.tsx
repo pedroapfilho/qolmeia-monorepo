@@ -1,11 +1,13 @@
 import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { buttonVariants } from "@repo/ui/lib/button-variants";
 import { cn } from "@repo/ui/lib/utils";
 import { Inbox } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
@@ -31,14 +33,7 @@ const proposedSummary = (proposed: Record<string, unknown>): string => {
   return summary.split("\n")[0]?.trim() ?? "";
 };
 
-/**
- * Authenticated operator surface bound to the per-request session cookie; block
- * rather than stream so each request reads fresh data.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const ApprovalsPage = async () => {
+const ApprovalsContent = async () => {
   const res = await apiGetServer<ActionsResponse>("/actions?status=pending&sort=age");
   const pendingCount = res.items.length;
 
@@ -136,5 +131,27 @@ const ApprovalsPage = async () => {
     </div>
   );
 };
+
+// Static shell for the prerender: the queue is bound to the per-request
+// session cookie, so cacheComponents needs a Suspense boundary above it.
+const ApprovalsSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <PageHeader
+      description="Ações propostas pelos especialistas aguardando uma decisão — mais antigas primeiro."
+      title="Aprovações"
+    />
+    <Card className="flex flex-col gap-4 p-6">
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+    </Card>
+  </div>
+);
+
+const ApprovalsPage = () => (
+  <Suspense fallback={<ApprovalsSkeleton />}>
+    <ApprovalsContent />
+  </Suspense>
+);
 
 export default ApprovalsPage;

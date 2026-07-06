@@ -1,8 +1,9 @@
 import { Card } from "@repo/ui/components/card";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createElement } from "react";
+import { createElement, Suspense } from "react";
 
 import { getActionRenderer } from "@/components/action-renderers";
 import { BackLink } from "@/components/back-link";
@@ -31,14 +32,7 @@ const POLICY_COPY: Record<string, string> = {
   "require-approval": "Sob aprovação",
 };
 
-/**
- * Authenticated detail surface bound to `params` and the per-request session;
- * block rather than stream a shell.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
+const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
   const { id } = await params;
 
   let detail: ActionDetailResponse | null = null;
@@ -196,5 +190,22 @@ const ApprovalDetailPage = async ({ params }: ApprovalDetailPageProps) => {
     </div>
   );
 };
+
+// Static shell for the prerender: the detail is bound to `params` and the
+// per-request session, so cacheComponents needs a Suspense boundary above it.
+const ApprovalDetailSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-5">
+    <Skeleton className="h-4 w-28" />
+    <Skeleton className="h-8 w-72" />
+    <Skeleton className="h-48 w-full" />
+    <Skeleton className="h-48 w-full" />
+  </div>
+);
+
+const ApprovalDetailPage = (props: ApprovalDetailPageProps) => (
+  <Suspense fallback={<ApprovalDetailSkeleton />}>
+    <ApprovalDetailContent {...props} />
+  </Suspense>
+);
 
 export default ApprovalDetailPage;

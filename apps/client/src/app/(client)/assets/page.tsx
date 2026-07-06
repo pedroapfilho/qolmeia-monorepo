@@ -1,6 +1,8 @@
 import { PageContainer } from "@repo/ui/components/page-container";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { AssetsGallery } from "@/components/assets-gallery";
 import { apiGetServer } from "@/lib/api-server";
@@ -10,13 +12,6 @@ import { log } from "@/lib/observability";
 export const metadata: Metadata = {
   title: "Assets",
 };
-
-/**
- * Authenticated surface bound to the per-request session cookie (`/api/me/assets`);
- * block so each request reads fresh assets rather than a cached empty shell.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
 
 const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
   try {
@@ -28,7 +23,7 @@ const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
   }
 };
 
-const AssetsPage = async () => {
+const AssetsContent = async () => {
   const assets = await loadAssets();
 
   return (
@@ -41,5 +36,27 @@ const AssetsPage = async () => {
     </PageContainer>
   );
 };
+
+// Static shell for the prerender: the gallery is bound to the per-request
+// session cookie, so cacheComponents needs a Suspense boundary above it.
+const AssetsSkeleton = () => (
+  <PageContainer aria-hidden>
+    <PageHeader
+      description="A biblioteca da sua empresa — tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
+      title="Assets"
+    />
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <Skeleton className="h-40 w-full" />
+      <Skeleton className="h-40 w-full" />
+      <Skeleton className="h-40 w-full" />
+    </div>
+  </PageContainer>
+);
+
+const AssetsPage = () => (
+  <Suspense fallback={<AssetsSkeleton />}>
+    <AssetsContent />
+  </Suspense>
+);
 
 export default AssetsPage;

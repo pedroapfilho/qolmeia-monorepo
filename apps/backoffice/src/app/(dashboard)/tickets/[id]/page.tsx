@@ -1,9 +1,11 @@
 import { Card, CardContent } from "@repo/ui/components/card";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { BackLink } from "@/components/back-link";
 import { StatusPill } from "@/components/status-pill";
@@ -35,14 +37,7 @@ const STEP_DOT: Record<StepTone, string> = {
   waiting: "border-warning bg-warning",
 };
 
-/**
- * Authenticated detail surface bound to `params` and the per-request session;
- * block rather than stream a shell.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const TicketDetailPage = async ({ params }: TicketDetailPageProps) => {
+const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
   const { id } = await params;
 
   let detail: TicketDetailResponse | null = null;
@@ -200,5 +195,22 @@ const TicketDetailPage = async ({ params }: TicketDetailPageProps) => {
     </div>
   );
 };
+
+// Static shell for the prerender: the detail is bound to `params` and the
+// per-request session, so cacheComponents needs a Suspense boundary above it.
+const TicketDetailSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <Skeleton className="h-4 w-24" />
+    <Skeleton className="h-8 w-72" />
+    <Skeleton className="h-48 w-full" />
+    <Skeleton className="h-48 w-full" />
+  </div>
+);
+
+const TicketDetailPage = (props: TicketDetailPageProps) => (
+  <Suspense fallback={<TicketDetailSkeleton />}>
+    <TicketDetailContent {...props} />
+  </Suspense>
+);
 
 export default TicketDetailPage;

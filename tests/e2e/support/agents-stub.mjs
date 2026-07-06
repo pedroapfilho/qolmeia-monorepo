@@ -4,10 +4,10 @@ import { createServer } from "node:http";
 // webServer. The real Worker (Durable Objects + Workflows + D1 + KV) isn't
 // started in CI, and the sign-up flow can't grant an org membership — so the
 // staff-gated backoffice dashboard is otherwise unreachable and can't be
-// exercised by an instant-navigation test.
+// exercised by a navigation test.
 //
 // It grants an OWNER membership ONLY when the request carries the
-// `e2e-role=OWNER` marker cookie (set by instant-navigation.spec.ts). Every
+// `e2e-role=OWNER` marker cookie (set by soft-navigation.spec.ts). Every
 // other spec sends no marker, so it keeps its non-staff default and the
 // existing `/no-access` bounce that login.spec.ts pins.
 const PORT = 8787;

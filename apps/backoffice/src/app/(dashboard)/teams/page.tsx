@@ -1,10 +1,12 @@
 import { Card } from "@repo/ui/components/card";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
 import { cn } from "@repo/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { requireStaff } from "@/lib/auth-helpers";
@@ -35,14 +37,7 @@ const ROLE_LABEL: Record<TeamMemberView["role"], string> = {
 const memberRoleLabel = (m: TeamMemberView): string =>
   m.role === "worker" ? (m.workerKind ?? "Especialista") : ROLE_LABEL[m.role];
 
-/**
- * Authenticated operator surface bound to the per-request session cookie; block
- * rather than stream so each request reads fresh data.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const TeamsPage = async () => {
+const TeamsContent = async () => {
   await requireStaff();
   const headersList = await headers();
   const cookie = headersList.get("cookie") ?? "";
@@ -118,5 +113,23 @@ const TeamsPage = async () => {
     </div>
   );
 };
+
+// Static shell for the prerender: the grid is bound to the per-request
+// session cookie, so cacheComponents needs a Suspense boundary above it.
+const TeamsSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <PageHeader description="Empresas e seus agentes." title="Times" />
+    <div className="grid gap-4 md:grid-cols-2">
+      <Skeleton className="h-56 w-full" />
+      <Skeleton className="h-56 w-full" />
+    </div>
+  </div>
+);
+
+const TeamsPage = () => (
+  <Suspense fallback={<TeamsSkeleton />}>
+    <TeamsContent />
+  </Suspense>
+);
 
 export default TeamsPage;
