@@ -43,9 +43,8 @@ const HireDialog = ({ onClose, onHired, open, template }: HireDialogProps) => {
       setName("");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao contratar.");
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
 
   return (

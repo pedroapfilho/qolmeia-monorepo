@@ -58,9 +58,8 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
           ? `Erro ${error.status}: ${error.body || "falha"}`
           : "Não foi possível salvar a cobertura.";
       toast.error(message);
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   return (

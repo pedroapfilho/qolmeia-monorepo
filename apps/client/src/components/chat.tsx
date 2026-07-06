@@ -17,7 +17,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { FileUIPart } from "ai";
 import { Maximize2, MessageSquare, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { ChatComposer } from "@/components/chat-composer";
 import { MessageResponse } from "@/components/markdown-response";
@@ -134,12 +134,9 @@ const ChatInner = ({
   const isCorrespondent = agentName === "correspondent";
   const lastIndex = messages.length - 1;
 
-  const handleSend = useCallback(
-    (message: { files: Array<FileUIPart>; text: string }) => {
-      void sendMessage(message);
-    },
-    [sendMessage],
-  );
+  const handleSend = (message: { files: Array<FileUIPart>; text: string }) => {
+    void sendMessage(message);
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">

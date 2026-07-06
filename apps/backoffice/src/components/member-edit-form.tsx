@@ -74,16 +74,19 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
     status?: "active" | "paused";
   }) => {
     setBusy(true);
-    try {
-      const data = await apiSend<{ member: TeamMemberDetailView }>(
-        "PATCH",
-        `/teams/${companyId}/members/${memberId}`,
-        body,
-      );
-      setMember(data.member);
-    } finally {
-      setBusy(false);
+    const result = await apiSend<{ member: TeamMemberDetailView }>(
+      "PATCH",
+      `/teams/${companyId}/members/${memberId}`,
+      body,
+    ).then(
+      (data) => ({ data, ok: true as const }),
+      (error: unknown) => ({ error, ok: false as const }),
+    );
+    setBusy(false);
+    if (!result.ok) {
+      throw result.error;
     }
+    setMember(result.data.member);
   };
 
   const handleSaveName = async () => {

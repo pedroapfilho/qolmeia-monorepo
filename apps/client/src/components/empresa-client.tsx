@@ -56,7 +56,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
         credentials: "include",
       });
       if (!res.ok) {
-        throw new Error(`Falha ao carregar agente (${res.status})`);
+        toast.error(`Falha ao carregar agente (${res.status})`);
+        return;
       }
       const body = (await res.json()) as { member: TeamMemberDetailView };
       setDetail(body.member);
@@ -80,9 +81,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(null);
     }
+    setBusyId(null);
   };
 
   const handleResetPrompt = async (id: string) => {
@@ -94,9 +94,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(null);
     }
+    setBusyId(null);
   };
 
   const handleTogglePause = async (id: string, paused: boolean) => {
@@ -106,9 +105,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(null);
     }
+    setBusyId(null);
   };
 
   const handleHired = () => {

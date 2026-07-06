@@ -15,7 +15,7 @@ import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import { Eye, FileText, FolderOpen, Loader2, Music, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useReducer, useState } from "react";
+import { useReducer, useState } from "react";
 
 import { AssetPreviewDialog } from "@/components/asset-preview-dialog";
 import type { WebChatAsset } from "@/lib/api-types";
@@ -152,21 +152,16 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
   const { active, confirmIds, deleting, removedIds, selected } = state;
   const [previewing, setPreviewing] = useState<WebChatAsset | null>(null);
 
-  const displayed = useMemo(
-    () => assets.filter((asset) => !removedIds.has(asset.id)),
-    [assets, removedIds],
-  );
+  const displayed = assets.filter((asset) => !removedIds.has(asset.id));
 
-  const kinds = useMemo(() => {
-    const present = new Set(displayed.map((a) => a.kind));
-    return [...present].toSorted((a, b) => kindLabel(a).localeCompare(kindLabel(b), "pt-BR"));
-  }, [displayed]);
+  const present = new Set(displayed.map((a) => a.kind));
+  const kinds = [...present].toSorted((a, b) => kindLabel(a).localeCompare(kindLabel(b), "pt-BR"));
 
   const filtered = active === "all" ? displayed : displayed.filter((a) => a.kind === active);
 
   const allSelected = filtered.length > 0 && filtered.every((a) => selected.has(a.id));
 
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = async () => {
     if (!confirmIds) {
       return;
     }
@@ -180,7 +175,7 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
       toast.error("Não foi possível excluir. Tente novamente.");
       dispatch({ type: "deleteError" });
     }
-  }, [confirmIds, router]);
+  };
 
   if (displayed.length === 0) {
     return (

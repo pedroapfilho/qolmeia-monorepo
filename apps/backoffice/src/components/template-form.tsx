@@ -199,7 +199,9 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
       const fieldErrors: Partial<Record<FieldKey, string>> = {};
       for (const issue of parsed.error.issues) {
         const key = issue.path[0] as FieldKey;
-        fieldErrors[key] ??= issue.message;
+        if (fieldErrors[key] === undefined) {
+          fieldErrors[key] = issue.message;
+        }
       }
       setErrors(fieldErrors);
       const firstKey = parsed.error.issues[0]?.path[0] as FieldKey | undefined;

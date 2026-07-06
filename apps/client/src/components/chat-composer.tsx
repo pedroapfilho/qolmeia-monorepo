@@ -16,7 +16,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeft, Paperclip, Square, X } from "lucide-react";
 import type { ChangeEvent, ClipboardEvent, FormEvent, KeyboardEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { apiSendForm } from "@/lib/api-client";
 
@@ -40,6 +40,13 @@ type UploadResponse = {
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_UPLOAD_MIME = ["image/gif", "image/jpeg", "image/png", "image/webp"];
 
+const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+};
+
 type ChatComposerProps = {
   disabled: boolean;
   onSend: (message: { files: Array<FileUIPart>; text: string }) => void;
@@ -57,16 +64,21 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
   const isUploading = attachments.some((attachment) => attachment.state === "uploading");
   const readyAttachments = attachments.filter((attachment) => attachment.state === "done");
 
-  const getObjectUrls = useCallback(() => (objectUrlsRef.current ??= new Set<string>()), []);
+  const getObjectUrls = () => {
+    const existing = objectUrlsRef.current;
+    if (existing) {
+      return existing;
+    }
+    const created = new Set<string>();
+    objectUrlsRef.current = created;
+    return created;
+  };
 
-  const revokeObjectUrl = useCallback(
-    (url: string) => {
-      if (getObjectUrls().delete(url)) {
-        URL.revokeObjectURL(url);
-      }
-    },
-    [getObjectUrls],
-  );
+  const revokeObjectUrl = (url: string) => {
+    if (getObjectUrls().delete(url)) {
+      URL.revokeObjectURL(url);
+    }
+  };
 
   useEffect(
     () => () => {
@@ -81,141 +93,117 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
     [],
   );
 
-  const handleAttachClick = useCallback(() => {
+  const handleAttachClick = () => {
     fileInputRef.current?.click();
-  }, []);
+  };
 
-  const uploadFile = useCallback(
-    async (file: File) => {
-      if (!ALLOWED_UPLOAD_MIME.includes(file.type)) {
-        toast.error("Formato não suportado. Use PNG, JPG, WEBP ou GIF.");
-        return;
-      }
-      if (file.size > MAX_UPLOAD_BYTES) {
-        toast.error("Imagem grande demais (máx 10 MB).");
-        return;
-      }
+  const uploadFile = async (file: File) => {
+    if (!ALLOWED_UPLOAD_MIME.includes(file.type)) {
+      toast.error("Formato não suportado. Use PNG, JPG, WEBP ou GIF.");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("Imagem grande demais (máx 10 MB).");
+      return;
+    }
 
-      const tempId = crypto.randomUUID();
-      const previewUrl = URL.createObjectURL(file);
-      getObjectUrls().add(previewUrl);
-      setAttachments((current) => [
-        ...current,
-        { id: tempId, mediaType: file.type, name: file.name, state: "uploading", url: previewUrl },
-      ]);
+    const tempId = crypto.randomUUID();
+    const previewUrl = URL.createObjectURL(file);
+    getObjectUrls().add(previewUrl);
+    setAttachments((current) => [
+      ...current,
+      { id: tempId, mediaType: file.type, name: file.name, state: "uploading", url: previewUrl },
+    ]);
 
-      try {
-        const form = new FormData();
-        form.append("file", file);
-        const result = await apiSendForm<UploadResponse>("/api/me/uploads", form);
-        revokeObjectUrl(previewUrl);
-        setAttachments((current) =>
-          current.map((attachment) =>
-            attachment.id === tempId
-              ? {
-                  id: result.assetId,
-                  mediaType: result.mime,
-                  name: file.name,
-                  state: "done",
-                  url: result.url,
-                }
-              : attachment,
-          ),
-        );
-      } catch {
-        setAttachments((current) =>
-          current.map((attachment) =>
-            attachment.id === tempId ? { ...attachment, state: "error" } : attachment,
-          ),
-        );
-        toast.error("Falha no upload. Tente de novo.");
-      }
-    },
-    [getObjectUrls, revokeObjectUrl],
-  );
-
-  const handleFileSelected = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (file) {
-        void uploadFile(file);
-      }
-    },
-    [uploadFile],
-  );
-
-  const handlePaste = useCallback(
-    (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      const images = [...event.clipboardData.files].filter((file) =>
-        file.type.startsWith("image/"),
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const result = await apiSendForm<UploadResponse>("/api/me/uploads", form);
+      revokeObjectUrl(previewUrl);
+      setAttachments((current) =>
+        current.map((attachment) =>
+          attachment.id === tempId
+            ? {
+                id: result.assetId,
+                mediaType: result.mime,
+                name: file.name,
+                state: "done",
+                url: result.url,
+              }
+            : attachment,
+        ),
       );
-      if (images.length === 0) {
-        return;
-      }
-      event.preventDefault();
-      for (const file of images) {
-        void uploadFile(file);
-      }
-    },
-    [uploadFile],
-  );
+    } catch {
+      setAttachments((current) =>
+        current.map((attachment) =>
+          attachment.id === tempId ? { ...attachment, state: "error" } : attachment,
+        ),
+      );
+      toast.error("Falha no upload. Tente de novo.");
+    }
+  };
 
-  const handleRemoveAttachment = useCallback(
-    (target: Attachment) => {
-      revokeObjectUrl(target.url);
-      setAttachments((current) => current.filter((attachment) => attachment.id !== target.id));
-    },
-    [revokeObjectUrl],
-  );
+  const handleFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) {
+      void uploadFile(file);
+    }
+  };
 
-  const resizeTextarea = useCallback(() => {
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = [...event.clipboardData.files].filter((file) => file.type.startsWith("image/"));
+    if (images.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    for (const file of images) {
+      void uploadFile(file);
+    }
+  };
+
+  const handleRemoveAttachment = (target: Attachment) => {
+    revokeObjectUrl(target.url);
+    setAttachments((current) => current.filter((attachment) => attachment.id !== target.id));
+  };
+
+  const resizeTextarea = () => {
     const el = textareaRef.current;
     if (!el) {
       return;
     }
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, []);
+  };
 
-  const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      const text = input.trim();
-      if (disabled || isUploading) {
-        return;
-      }
-      if (!text && readyAttachments.length === 0) {
-        return;
-      }
-      const files: Array<FileUIPart> = readyAttachments.map((attachment) => ({
-        filename: attachment.name,
-        mediaType: attachment.mediaType,
-        type: "file",
-        url: attachment.url,
-      }));
-      onSend({ files, text: text || " " });
-      setInput("");
-      const urls = getObjectUrls();
-      for (const url of urls) {
-        URL.revokeObjectURL(url);
-      }
-      urls.clear();
-      setAttachments([]);
-      const el = textareaRef.current;
-      if (el) {
-        el.style.height = "auto";
-      }
-    },
-    [disabled, getObjectUrls, input, isUploading, onSend, readyAttachments],
-  );
-
-  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = input.trim();
+    if (disabled || isUploading) {
+      return;
     }
-  }, []);
+    if (!text && readyAttachments.length === 0) {
+      return;
+    }
+    const files: Array<FileUIPart> = readyAttachments.map((attachment) => ({
+      filename: attachment.name,
+      mediaType: attachment.mediaType,
+      type: "file",
+      url: attachment.url,
+    }));
+    onSend({ files, text: text || " " });
+    setInput("");
+    const urls = getObjectUrls();
+    for (const url of urls) {
+      URL.revokeObjectURL(url);
+    }
+    urls.clear();
+    setAttachments([]);
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+    }
+  };
 
   const canSubmit =
     !disabled && !isUploading && (input.trim().length > 0 || readyAttachments.length > 0);

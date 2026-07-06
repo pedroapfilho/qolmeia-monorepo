@@ -41,9 +41,8 @@ const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
           ? `Erro ${error.status}`
           : "Não foi possível carregar mais eventos.";
       toast.error(message);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
