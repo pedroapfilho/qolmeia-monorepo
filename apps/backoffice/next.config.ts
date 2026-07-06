@@ -22,10 +22,6 @@ const nextConfig: NextConfig = {
     "*.vercel.app",
   ],
   cacheComponents: true,
-  experimental: {
-    turbopackRustReactCompiler: true,
-  },
-  partialPrefetching: true,
   reactCompiler: true,
   reactStrictMode: true,
 

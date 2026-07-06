@@ -1,8 +1,10 @@
 import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { CoverageForm } from "@/components/coverage-form";
 import { apiGetServer } from "@/lib/api-server";
@@ -10,14 +12,7 @@ import type { CoverageResponse } from "@/lib/api-types";
 
 export const metadata: Metadata = { title: "Cobertura" };
 
-/**
- * Authenticated operator surface bound to the per-request session cookie; block
- * rather than stream so each request reads fresh data.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const CoveragePage = async () => {
+const CoverageContent = async () => {
   const coverage = await apiGetServer<CoverageResponse>("/assignments/me").catch(() => null);
 
   return (
@@ -42,5 +37,29 @@ const CoveragePage = async () => {
     </div>
   );
 };
+
+// Static shell for the prerender: the form is bound to the per-request
+// session cookie, so cacheComponents needs a Suspense boundary above it.
+const CoverageSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <PageHeader
+      description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura — sem nada marcado, você vê tudo."
+      title="Minha cobertura"
+    />
+    <Card className="max-w-2xl p-6">
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </div>
+    </Card>
+  </div>
+);
+
+const CoveragePage = () => (
+  <Suspense fallback={<CoverageSkeleton />}>
+    <CoverageContent />
+  </Suspense>
+);
 
 export default CoveragePage;

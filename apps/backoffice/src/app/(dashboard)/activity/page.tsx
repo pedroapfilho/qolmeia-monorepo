@@ -1,8 +1,10 @@
 import { Card, CardContent } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { Activity } from "lucide-react";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { ActivityList } from "@/components/activity-list";
 import { apiGetServer } from "@/lib/api-server";
@@ -10,14 +12,7 @@ import type { ActivityResponse } from "@/lib/api-types";
 
 export const metadata: Metadata = { title: "Atividade" };
 
-/**
- * Authenticated operator surface bound to the per-request session cookie; block
- * rather than stream so each request reads fresh data.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const ActivityPage = async () => {
+const ActivityContent = async () => {
   const res = await apiGetServer<ActivityResponse>("/activity?limit=50");
 
   return (
@@ -54,5 +49,26 @@ const ActivityPage = async () => {
     </div>
   );
 };
+
+// Static shell for the prerender: the feed is bound to the per-request
+// session cookie, so cacheComponents needs a Suspense boundary above it.
+const ActivitySkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-5">
+    <PageHeader description="Registro completo do operador" title="Atividade" />
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </CardContent>
+    </Card>
+  </div>
+);
+
+const ActivityPage = () => (
+  <Suspense fallback={<ActivitySkeleton />}>
+    <ActivityContent />
+  </Suspense>
+);
 
 export default ActivityPage;

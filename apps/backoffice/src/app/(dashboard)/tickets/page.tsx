@@ -1,9 +1,11 @@
 import { Card, CardContent } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
+import { Skeleton } from "@repo/ui/components/skeleton";
 import { Ticket as TicketIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { StatusPill } from "@/components/status-pill";
 import { apiGetServer } from "@/lib/api-server";
@@ -14,14 +16,7 @@ export const metadata: Metadata = { title: "Tickets" };
 
 const monogramOf = (value: string): string => (value.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
 
-/**
- * Authenticated operator surface bound to the per-request session cookie; block
- * rather than stream so each request reads fresh data.
- * @public Next.js app-router reads the `instant` route config via the module loader
- */
-export const instant = false;
-
-const TicketsPage = async () => {
+const TicketsContent = async () => {
   const res = await apiGetServer<TicketsResponse>("/tickets?limit=50");
 
   return (
@@ -92,5 +87,26 @@ const TicketsPage = async () => {
     </div>
   );
 };
+
+// Static shell for the prerender: the table is bound to the per-request
+// session cookie, so cacheComponents needs a Suspense boundary above it.
+const TicketsSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-6">
+    <PageHeader description="Unidades de trabalho delegado · todas as empresas." title="Tickets" />
+    <Card className="gap-0 overflow-hidden p-0">
+      <CardContent className="flex flex-col gap-4 p-6">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </CardContent>
+    </Card>
+  </div>
+);
+
+const TicketsPage = () => (
+  <Suspense fallback={<TicketsSkeleton />}>
+    <TicketsContent />
+  </Suspense>
+);
 
 export default TicketsPage;
