@@ -15,6 +15,22 @@ const matchesRoute = (pathname: string, route: string): boolean => {
   return pathname === route || pathname.startsWith(`${route}/`);
 };
 
+const getSessionOrNull = async (request: NextRequest) => {
+  try {
+    // try/catch instead of a promise-chain .catch(): getAuth() throws
+    // synchronously when BETTER_AUTH_SECRET is absent (e.g. preview deploys),
+    // which a .catch() attached after the call can never intercept.
+    return await getAuth().api.getSession({ headers: request.headers });
+  } catch (error) {
+    log.error({
+      error: error instanceof Error ? error.message : String(error),
+      message: "proxy: getSession failed — treating as unauthenticated",
+      pathname: request.nextUrl.pathname,
+    });
+    return null;
+  }
+};
+
 export const proxy = async (request: NextRequest) => {
   const pathname = request.nextUrl.pathname;
 
@@ -29,18 +45,7 @@ export const proxy = async (request: NextRequest) => {
     return NextResponse.next();
   }
 
-  const session = await getAuth()
-    .api.getSession({
-      headers: request.headers,
-    })
-    .catch((error) => {
-      log.error({
-        error,
-        message: "proxy: getSession failed — treating as unauthenticated",
-        pathname,
-      });
-      return null;
-    });
+  const session = await getSessionOrNull(request);
 
   if (isProtectedRoute && !session) {
     const url = new URL("/login", request.url);
