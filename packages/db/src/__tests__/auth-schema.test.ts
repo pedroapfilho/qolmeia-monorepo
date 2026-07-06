@@ -103,10 +103,11 @@ describe.skipIf(!process.env.DATABASE_URL)("Auth + OrgMembership schema", () => 
         userId: u.id,
       },
     });
+    const duplicateExpiresAt = new Date(Date.now() + 60_000);
     await expect(
       prisma.session.create({
         data: {
-          expiresAt: new Date(Date.now() + 60_000),
+          expiresAt: duplicateExpiresAt,
           token,
           userId: u.id,
         },

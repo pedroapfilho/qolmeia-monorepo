@@ -4,21 +4,21 @@ import { z } from "zod";
 
 import { createResendClient } from "../client";
 
+const emailOrListSchema = z.union([z.email(), z.array(z.email())]);
+
+const emailTagSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+});
+
 const emailConfigSchema = z.object({
-  bcc: z.union([z.email(), z.array(z.email())]).optional(),
-  cc: z.union([z.email(), z.array(z.email())]).optional(),
+  bcc: emailOrListSchema.optional(),
+  cc: emailOrListSchema.optional(),
   from: z.email().default("Qolmeia <noreply@qolmeia.ai>"),
   replyTo: z.email().optional(),
   subject: z.string(),
-  tags: z
-    .array(
-      z.object({
-        name: z.string(),
-        value: z.string(),
-      }),
-    )
-    .optional(),
-  to: z.union([z.email(), z.array(z.email())]),
+  tags: z.array(emailTagSchema).optional(),
+  to: emailOrListSchema,
 });
 
 type EmailConfig = z.infer<typeof emailConfigSchema>;

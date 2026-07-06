@@ -81,5 +81,14 @@ export default defineConfig({
         "require-unicode-regexp": "off",
       },
     },
+    // These configs resolve portless URLs at module-load time, where async
+    // is not an option — `execFileSync` is intentional and bounded (one
+    // short-lived subprocess per config load, dev-only).
+    {
+      files: ["playwright.config.ts", "**/next.config.ts"],
+      rules: {
+        "node/no-sync": "off",
+      },
+    },
   ],
 });

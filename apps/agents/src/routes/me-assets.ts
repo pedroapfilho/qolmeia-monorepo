@@ -33,7 +33,7 @@ const parsePositiveInt = (raw: string | undefined, fallback: number, max: number
   if (!raw) {
     return fallback;
   }
-  const parsed = Number.parseInt(raw, 10);
+  const parsed = Math.trunc(Number(raw));
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return fallback;
   }

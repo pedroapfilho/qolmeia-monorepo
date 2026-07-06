@@ -97,7 +97,7 @@ const parsePagination = (args: ParsePaginationArgs): ParsedPagination => {
   const maxLimit = args.maxLimit ?? 100;
   let limit = defaultLimit;
   if (typeof args.limit === "string" && args.limit.length > 0) {
-    const parsed = Number.parseInt(args.limit, 10);
+    const parsed = Math.trunc(Number(args.limit));
     if (Number.isFinite(parsed) && parsed > 0) {
       limit = Math.min(parsed, maxLimit);
     }
