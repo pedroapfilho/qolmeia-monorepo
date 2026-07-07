@@ -15,7 +15,7 @@ import { StatusPill } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import type { FileUIPart } from "ai";
-import { Maximize2, MessageSquare, TriangleAlert } from "lucide-react";
+import { ImageIcon, Maximize2, MessageSquare, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
@@ -34,6 +34,46 @@ type ChatProps = {
 const PLANNER_KICKOFF =
   "O cliente acabou de abrir o chat de onboarding. Cumprimente-o de forma calorosa e breve, diga em uma frase que você vai fazer algumas perguntas para entender o negócio dele, e já faça a primeira pergunta da entrevista.";
 
+const TOOL_ACTIVITY_LABELS: Record<string, string> = {
+  delegateToWorker: "Encaminhando para o time…",
+  extractBrief: "Registrando o brief…",
+  fetchUrl: "Lendo uma página…",
+  listAssets: "Consultando a biblioteca…",
+  proposeTeam: "Montando a proposta de time…",
+  readAsset: "Lendo um documento…",
+  recallMemory: "Consultando a memória…",
+  rememberFact: "Anotando na memória…",
+  saveAsset: "Salvando na biblioteca…",
+  webSearch: "Pesquisando na web…",
+};
+
+const toolActivityLabel = (toolName: string): string =>
+  TOOL_ACTIVITY_LABELS[toolName] ?? "Trabalhando…";
+
+const isKickoffMessage = (message: ChatMessage): boolean =>
+  message.role === "user" &&
+  message.parts.some((part) => part.type === "text" && part.text === PLANNER_KICKOFF);
+
+// A turn whose parts are all hidden (reasoning, settled tool calls) would
+// otherwise render as an empty bubble with an avatar.
+const hasVisibleContent = (message: ChatMessage): boolean =>
+  message.parts.some((part) => {
+    switch (part.type) {
+      case "dynamic-tool": {
+        return part.state === "input-available";
+      }
+      case "file": {
+        return true;
+      }
+      case "text": {
+        return part.text.length > 0;
+      }
+      default: {
+        return false;
+      }
+    }
+  });
+
 const MessageBubble = ({ message }: { message: ChatMessage }) => {
   const isUser = message.role === "user";
   return (
@@ -50,7 +90,35 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
         if (part.type === "text") {
           return <MessageResponse key={partKey}>{part.text}</MessageResponse>;
         }
+        if (part.type === "dynamic-tool") {
+          if (part.state !== "input-available") {
+            return null;
+          }
+          return (
+            <span
+              className="flex items-center gap-1.5 py-0.5 text-xs text-muted-foreground"
+              key={partKey}
+            >
+              <Spinner className="size-3" />
+              {toolActivityLabel(part.toolName)}
+            </span>
+          );
+        }
         if (part.type === "file" && part.mediaType?.startsWith("image/")) {
+          if (!part.url) {
+            return (
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 text-xs",
+                  isUser ? "text-primary-foreground/80" : "text-muted-foreground",
+                )}
+                key={partKey}
+              >
+                <ImageIcon aria-hidden className="size-3.5" />
+                Imagem enviada
+              </span>
+            );
+          }
           if (isUser) {
             return (
               // oxlint-disable-next-line no-img-element
@@ -106,13 +174,24 @@ const ChatEmptyState = ({ description, icon, title }: ChatEmptyStateProps) => (
   </div>
 );
 
+const ChatSkeleton = () => (
+  <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
+    <div className="flex flex-1 items-center justify-center">
+      <Spinner className="size-5 text-muted-foreground" />
+    </div>
+    <div className="flex-none border-t border-border bg-card px-6 py-4">
+      <div className="h-16 rounded-xl border border-input bg-background" />
+    </div>
+  </div>
+);
+
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const { kickoff, messages, sendMessage, status } = useFlueChat({
+  const { historyReady, kickoff, messages, sendMessage, status } = useFlueChat({
     agent: agentName,
     baseUrl: agentsUrl,
     companyId,
@@ -122,21 +201,35 @@ const ChatInner = ({
     sessionToken,
   });
 
-  const kickedOff = useRef(false);
+  // The kickoff prompt lives in the durable transcript; it is an instruction to
+  // the Planner, not something the customer wrote, so it never renders.
+  const visibleMessages = messages.filter(
+    (message) => !isKickoffMessage(message) && hasVisibleContent(message),
+  );
+
+  const kickedOffRef = useRef(false);
   useEffect(() => {
-    if (agentName === "planner" && !kickedOff.current) {
-      kickedOff.current = true;
+    if (agentName === "planner" && historyReady && messages.length === 0 && !kickedOffRef.current) {
+      kickedOffRef.current = true;
       void kickoff(PLANNER_KICKOFF);
     }
-  }, [agentName, kickoff]);
+  }, [agentName, historyReady, messages.length, kickoff]);
 
-  const isThinking = status === "submitted" || status === "streaming";
+  // Covers the window between kickoff admission and the greeting streaming in
+  // (including replays where only the hidden kickoff message exists yet).
+  const showKickoffSpinner =
+    agentName === "planner" && historyReady && visibleMessages.length === 0;
+  const isThinking = status === "submitted" || status === "streaming" || showKickoffSpinner;
   const isCorrespondent = agentName === "correspondent";
-  const lastIndex = messages.length - 1;
+  const lastIndex = visibleMessages.length - 1;
 
   const handleSend = (message: { files: Array<FileUIPart>; text: string }) => {
     void sendMessage(message);
   };
+
+  if (!historyReady) {
+    return <ChatSkeleton />;
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
@@ -164,7 +257,7 @@ const ChatInner = ({
         <MessageScroller className="flex-1">
           <MessageScrollerViewport aria-label="Mensagens da conversa">
             <MessageScrollerContent className="p-4">
-              {messages.length === 0 ? (
+              {visibleMessages.length === 0 ? (
                 <ChatEmptyState
                   description="Os agentes da Qolmeia respondem em segundos."
                   icon={<MessageSquare aria-hidden className="size-10" />}
@@ -175,7 +268,7 @@ const ChatInner = ({
                   <Marker variant="separator">
                     <MarkerContent>Início da conversa</MarkerContent>
                   </Marker>
-                  {messages.map((message, index) => (
+                  {visibleMessages.map((message, index) => (
                     <MessageScrollerItem
                       key={message.id}
                       messageId={message.id}
@@ -231,16 +324,7 @@ const Chat = (props: ChatProps) => {
   );
 
   if (!isClient) {
-    return (
-      <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner className="size-5 text-muted-foreground" />
-        </div>
-        <div className="flex-none border-t border-border bg-card px-6 py-4">
-          <div className="h-16 rounded-xl border border-input bg-background" />
-        </div>
-      </div>
-    );
+    return <ChatSkeleton />;
   }
 
   return <ChatInner {...props} />;

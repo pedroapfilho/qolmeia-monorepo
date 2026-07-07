@@ -28,6 +28,16 @@ app.use(
   }),
 );
 
+// Proxies with response compression (e.g. the Next dev rewrite) buffer SSE
+// indefinitely when they gzip it; `no-transform` tells them to pass it through.
+app.use("/agents/*", async (c, next) => {
+  // oxlint-disable-next-line callback-return -- Hono after-middleware: headers are set post-next()
+  await next();
+  if (c.res.headers.get("content-type")?.startsWith("text/event-stream")) {
+    c.res.headers.set("cache-control", "no-cache, no-transform");
+  }
+});
+
 app.onError((error, c) => {
   logError("worker.unhandled", {
     error: error instanceof Error ? error.message : String(error),

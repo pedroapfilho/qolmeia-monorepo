@@ -1,4 +1,4 @@
-import { createAgent } from "@flue/runtime";
+import { defineAgent } from "@flue/runtime";
 
 import { getTemplate } from "#/db/template";
 import { loadAgentInstance } from "#/db/ticket";
@@ -6,7 +6,7 @@ import { buildFlueTools } from "#/lib/skill-tool";
 import type { SkillContext } from "#/skills/registry";
 import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
-export default createAgent<unknown, Env>(async (context) => {
+export default defineAgent<Env>(async (context) => {
   const agentInstanceId = context.id;
   const instance = await loadAgentInstance(context.env.DB, agentInstanceId);
   if (!instance?.templateId) {

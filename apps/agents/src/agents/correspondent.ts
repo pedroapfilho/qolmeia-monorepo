@@ -1,4 +1,4 @@
-import { createAgent } from "@flue/runtime";
+import { defineAgent } from "@flue/runtime";
 
 import { buildFlueTools } from "#/lib/skill-tool";
 import type { SkillContext } from "#/skills/registry";
@@ -25,7 +25,7 @@ Use recallMemory no início de pedidos relevantes para lembrar o que já sabe so
 
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-export default createAgent<unknown, Env>(async (context) => {
+export default defineAgent<Env>(async (context) => {
   const ctx: SkillContext = {
     agentInstanceId: `corr-${context.id}`,
     companyId: context.id,
