@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ButtonHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const signOutMock = vi.fn(() => Promise.resolve({ data: { success: true }, error: null }));
@@ -6,22 +7,20 @@ const pushMock = vi.fn();
 const refreshMock = vi.fn();
 const toastErrorMock = vi.fn();
 
-vi.mock("@/lib/auth-client", () => ({
-  authClient: {
-    signOut: signOutMock,
-  },
+vi.mock("@repo/auth/client", () => ({
+  createBetterAuthClient: () => ({ signOut: signOutMock }),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
-vi.mock("@repo/ui/lib/toast", () => ({
+vi.mock("../lib/toast", () => ({
   toast: { error: toastErrorMock, success: vi.fn() },
 }));
 
-vi.mock("@repo/ui/components/button", () => ({
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+vi.mock("./button", () => ({
+  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
     // eslint-disable-next-line react/button-has-type -- pass-through stub for testing
     <button type="button" {...props} />
   ),
@@ -43,12 +42,12 @@ describe("SignOutButton", () => {
 
   it("renders the default label", () => {
     render(<SignOutButton />);
-    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sair" })).toBeTruthy();
   });
 
   it("renders a custom label", () => {
     render(<SignOutButton label="Encerrar sessão" />);
-    expect(screen.getByRole("button", { name: "Encerrar sessão" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Encerrar sessão" })).toBeTruthy();
   });
 
   it("calls authClient.signOut and redirects to /login on click", async () => {

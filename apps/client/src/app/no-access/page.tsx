@@ -5,10 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
+import { SignOutButton } from "@repo/ui/components/sign-out-button";
 import { ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
-
-import { SignOutButton } from "@/components/sign-out-button";
 
 export const metadata: Metadata = {
   title: "Sem acesso",
