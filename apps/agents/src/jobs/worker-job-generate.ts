@@ -1,4 +1,4 @@
-import { generateText, stepCountIs } from "ai";
+import { generateText, isStepCount } from "ai";
 
 import { getTemplate } from "#/db/template";
 import { loadAgentInstance, loadTicket } from "#/db/ticket";
@@ -96,7 +96,7 @@ const generateDeliverable = async (
   const result = await generateText({
     messages: buildRevisionMessages(ticket.brief, priorSummary, feedback),
     model: getModel(env, template.model),
-    stopWhen: stepCountIs(5),
+    stopWhen: isStepCount(5),
     system: resolveSystemPrompt(agentInstance, template),
     tools,
   });

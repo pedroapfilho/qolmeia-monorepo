@@ -1,12 +1,16 @@
 "use client";
 
-import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/lib/toast";
+import { createBetterAuthClient } from "@repo/auth/client";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { authClient } from "@/lib/auth-client";
+import { toast } from "../lib/toast";
+
+import { Button } from "./button";
+
+const authUrl = process.env.NEXT_PUBLIC_AUTH_URL;
+const authClient = createBetterAuthClient(authUrl ? `${authUrl}/api/auth` : "");
 
 type SignOutButtonProps = {
   className?: string;

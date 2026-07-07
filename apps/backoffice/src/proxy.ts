@@ -4,7 +4,15 @@ import type { NextRequest } from "next/server";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
-const protectedRoutes = ["/", "/approvals", "/activity", "/tickets"];
+const protectedRoutes = [
+  "/",
+  "/approvals",
+  "/activity",
+  "/cobertura",
+  "/teams",
+  "/templates",
+  "/tickets",
+];
 
 const authRoutes = ["/login", "/register", "/recover", "/reset-password"];
 

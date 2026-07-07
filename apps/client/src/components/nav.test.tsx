@@ -5,7 +5,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-vi.mock("@/components/sign-out-button", () => ({
+vi.mock("@repo/ui/components/sign-out-button", () => ({
   SignOutButton: () => <button type="button">Sair</button>,
 }));
 
