@@ -120,7 +120,7 @@ const useFlueChat = ({
 
   const kickoff = async (prompt: string) => {
     try {
-      await client.agents.send(agent, companyId, { message: prompt });
+      await conversation.sendMessage(prompt);
     } catch (error) {
       onError?.(error);
     }
