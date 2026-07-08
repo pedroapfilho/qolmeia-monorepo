@@ -87,9 +87,53 @@ const getTemplate = async (db: D1Database, id: string): Promise<Template | null>
   return row ? mapTemplate(row) : null;
 };
 
-const listActiveTemplates = async (db: D1Database): Promise<ReadonlyArray<Template>> => {
+const isTemplateEntitledForCompany = async (
+  db: D1Database,
+  companyId: string,
+  templateId: string,
+): Promise<boolean> => {
+  const row = await db
+    .prepare(
+      `SELECT 1 AS one
+         FROM company_template_entitlement
+        WHERE company_id = ? AND template_id = ? AND enabled = 1
+        LIMIT 1`,
+    )
+    .bind(companyId, templateId)
+    .first<{ one: number }>();
+  return Boolean(row);
+};
+
+const entitleCompanyToAllActiveTemplates = async (
+  db: D1Database,
+  companyId: string,
+): Promise<void> => {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO company_template_entitlement
+         (company_id, template_id, enabled, created_at, updated_at)
+       SELECT ?, id, 1, ?, ?
+         FROM template
+        WHERE status = 'active'`,
+    )
+    .bind(companyId, now, now)
+    .run();
+};
+
+const listEntitledActiveTemplates = async (
+  db: D1Database,
+  companyId: string,
+): Promise<ReadonlyArray<Template>> => {
   const { results } = await db
-    .prepare("SELECT * FROM template WHERE status = 'active' ORDER BY display_name ASC")
+    .prepare(
+      `SELECT t.*
+         FROM template t
+         JOIN company_template_entitlement e ON e.template_id = t.id
+        WHERE e.company_id = ? AND e.enabled = 1 AND t.status = 'active'
+        ORDER BY t.display_name ASC`,
+    )
+    .bind(companyId)
     .all<TemplateRow>();
   return results.map(mapTemplate);
 };
@@ -209,9 +253,11 @@ const listSkillOverlays = async (
 
 export {
   createTemplate,
+  entitleCompanyToAllActiveTemplates,
   getTemplate,
-  listActiveTemplates,
+  isTemplateEntitledForCompany,
   listAllTemplates,
+  listEntitledActiveTemplates,
   listSkillOverlays,
   setTemplateStatus,
   updateTemplate,

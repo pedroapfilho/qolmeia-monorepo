@@ -1,7 +1,7 @@
 import { logActivity } from "#/activity/log";
 import { safeJson } from "#/db/mappers";
 import { correspondentIdFor, teamIdFor } from "#/db/team";
-import { getTemplate } from "#/db/template";
+import { getTemplate, isTemplateEntitledForCompany } from "#/db/template";
 import { logError } from "#/lib/logger";
 import {
   CorrespondentMissingError,
@@ -52,6 +52,9 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   }
   if (template.status !== "active") {
     throw new TemplateRetiredError(input.templateId);
+  }
+  if (!(await isTemplateEntitledForCompany(db, input.companyId, input.templateId))) {
+    throw new TemplateNotFoundError(input.templateId);
   }
 
   const existingRoster = await getTeamRoster(db, input.companyId);

@@ -1,131 +1,90 @@
 # Qolmeia
 
-Monorepo for the Qolmeia API — a Hono-on-Node backend that hosts the Telegram webhook and soul pipeline.
+Monorepo for Qolmeia, a Cloudflare-native customer support and agent-orchestration product. The current runtime is split across Better Auth, two Next.js surfaces, and a Cloudflare Worker that hosts Flue agents, customer/operator REST APIs, D1 state, R2 assets, and approval workflows.
 
-## How it works (in one screen)
-
-A Brazilian local-business owner messages [`@qolmeia_mvp_v0_bot`](https://t.me/qolmeia_mvp_v0_bot) on Telegram. Each update flows:
-
-```
-Telegram → cloudflared → POST /telegram/webhook → Chat SDK adapter →
-telegram/handler.ts → lib/ai.runAgent (Vercel AI SDK generateText with 3 tools)
-  ├─ extractSoul         → writes the 5 soul fields to Organization.businessProfile
-  ├─ labelBrandAsset     → annotates an uploaded logo (palette/style/typography)
-  └─ generateBrandImage  → calls openai/gpt-image-1 via the Gateway, uploads the
-                           PNG to R2, persists a BrandAsset row, returns the id
-→ handler posts the agent's pt-BR text + any generated images back via Telegram.
-```
-
-State lives in **Postgres** (Prisma — `Organization`, `TelegramLink`, `Customer`, `Conversation`, `Message`, `WebhookEvent`, `BrandAsset`), **Redis** (Chat SDK conversation state + dedup), and **Cloudflare R2** (uploaded + generated brand assets, S3-compatible, SHA-256-keyed). One AI key (`AI_GATEWAY_API_KEY`) routes both text (`google/gemini-2.5-flash`) and image generation (`openai/gpt-image-1`) through Vercel AI Gateway.
-
-Full walkthrough — components, data model, request lifecycle, seams, phase history, roadmap — lives in **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**.
-
-## Stack
-
-- **Framework:** Hono (Node.js)
-- **Language:** TypeScript (strict)
-- **Database:** Prisma 7, PostgreSQL
-- **Monorepo:** Turborepo, pnpm workspaces
-- **Linting:** oxlint
-- **Formatting:** oxfmt
-- **Testing:** Vitest (unit)
-- **Bundler:** tsdown
+Full architecture details live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Local setup is in [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md).
 
 ## Apps
 
-| App   | Description      | Dev URL                 |
-| ----- | ---------------- | ----------------------- |
-| `api` | Hono backend API | `http://localhost:4000` |
+| App               | Package       | Framework         | Dev URL                                | Purpose                                           |
+| ----------------- | ------------- | ----------------- | -------------------------------------- | ------------------------------------------------- |
+| `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost`        | Better Auth and `/api/v1/me` membership relay     |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787`                | Flue agents, D1/R2-backed product APIs, Workflows |
+| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost`     | Customer onboarding and chat                      |
+| `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` | Operator approvals and team management            |
 
 ## Packages
 
-| Package                   | Description                |
-| ------------------------- | -------------------------- |
-| `@repo/db`                | Prisma database client     |
-| `@repo/config-vitest`     | Shared Vitest test configs |
-| `@repo/typescript-config` | Shared TypeScript configs  |
+| Package                   | Purpose                                            |
+| ------------------------- | -------------------------------------------------- |
+| `@repo/auth`              | Better Auth factory shared by API and Next apps    |
+| `@repo/db`                | Prisma client and auth-only Postgres schema        |
+| `@repo/transactional`     | React Email templates and Resend sender            |
+| `@repo/ui`                | Shared shadcn-style UI package and Tailwind preset |
+| `@repo/config-vitest`     | Shared Vitest config                               |
+| `@repo/typescript-config` | Shared TypeScript config                           |
 
-## Setup
+## Prerequisites
 
-### Prerequisites
+- Node.js 24 or newer
+- pnpm 11.1.3, matching `packageManager`
+- Docker, for local Postgres on `:5436`
+- Wrangler, installed through the workspace dependencies
 
-- **Node.js 24** (use `nvm install 24 && nvm use 24`)
-- **pnpm 10** (`npm install -g pnpm@10`)
-- **Docker** for local Postgres + Redis (see `docker-compose.yml`)
-
-### 1. Install dependencies
+## Quick Start
 
 ```bash
 pnpm install
-```
+docker compose up -d
 
-### 2. Start local infrastructure
+DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
+  pnpm --filter=@repo/db db:push
 
-```bash
-docker compose up -d   # starts Postgres on :5436 and Redis on :6382
-```
+pnpm --filter=api exec tsx src/scripts/seed-dev.ts
 
-### 3. Configure environment variables
+cd apps/agents
+pnpm wrangler d1 migrations apply worker-bees --local
+pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
+pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
+cd -
 
-```bash
-cp apps/api/.env.example apps/api/.env
-```
-
-Edit `apps/api/.env` and set at minimum:
-
-- `DATABASE_URL` — already pre-set for the local Docker container
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET_TOKEN`
-- `REDIS_URL` — already pre-set for local Docker
-
-### 4. Initialize the database
-
-```bash
-pnpm db:generate    # generate the Prisma client
-pnpm db:push        # apply the schema to your database
-```
-
-### 5. Run the dev server
-
-```bash
 pnpm dev
 ```
 
-Open:
+Each app has its own environment file. Copy from the committed examples:
 
-- API: <http://localhost:4000>
-  - OpenAPI docs (Scalar): <http://localhost:4000/docs>
-  - Schema JSON: <http://localhost:4000/openapi.json>
-  - LLM-friendly text: <http://localhost:4000/llms.txt>
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/client/.env.example apps/client/.env
+cp apps/backoffice/.env.example apps/backoffice/.env
+cp apps/agents/.dev.vars.example apps/agents/.dev.vars
+```
 
-## Telegram bot (local dev)
+`BETTER_AUTH_SECRET` must match across `apps/api`, `apps/client`, and `apps/backoffice`. `apps/agents/.dev.vars` holds Worker-only secrets such as `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`.
 
-The bot (`@qolmeia_mvp_v0_bot`) receives updates via webhook. Telegram requires a
-public HTTPS URL, so tunnel the local API to expose it:
+## Useful Commands
 
-1. `docker compose up -d` (Postgres + Redis)
-2. `pnpm dev --filter=api`
-3. `cloudflared tunnel --url http://localhost:4000` (or `ngrok http 4000`)
-4. Register the webhook — token and secret are in `apps/api/.env`:
+```bash
+pnpm dev                  # run all apps through Turbo
+pnpm dev --filter=api
+pnpm dev --filter=worker-bees
+pnpm dev --filter=client
+pnpm dev --filter=backoffice
 
-   ```bash
-   curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
-     -d "url=https://<your-tunnel-host>/telegram/webhook" \
-     -d "secret_token=<TELEGRAM_WEBHOOK_SECRET_TOKEN>"
-   ```
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm build
+```
 
-5. Message the bot on Telegram — it persists the message and replies.
+## Local Accounts
 
-## Scripts
+`pnpm --filter=api exec tsx src/scripts/seed-dev.ts` creates:
 
-| Command             | Description                  |
-| ------------------- | ---------------------------- |
-| `pnpm dev`          | Start the API in development |
-| `pnpm build`        | Build all packages + app     |
-| `pnpm test`         | Run Vitest unit tests        |
-| `pnpm lint`         | Run oxlint                   |
-| `pnpm format`       | Format with oxfmt            |
-| `pnpm format:check` | Check formatting             |
-| `pnpm typecheck`    | Run TypeScript checks        |
-| `pnpm db:generate`  | Generate Prisma client       |
-| `pnpm db:push`      | Push schema to database      |
-| `pnpm clean`        | Clean all build artifacts    |
+| Surface    | Role     | Email                  | Password                    |
+| ---------- | -------- | ---------------------- | --------------------------- |
+| Backoffice | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
+| Client     | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
+
+The client flow is magic-link first. In local development, watch the `apps/api` logs for the link.

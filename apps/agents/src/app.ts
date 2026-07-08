@@ -30,7 +30,7 @@ app.use(
 
 // Proxies with response compression (e.g. the Next dev rewrite) buffer SSE
 // indefinitely when they gzip it; `no-transform` tells them to pass it through.
-app.use("/agents/*", async (c, next) => {
+app.use("*", async (c, next) => {
   // oxlint-disable-next-line callback-return -- Hono after-middleware: headers are set post-next()
   await next();
   if (c.res.headers.get("content-type")?.startsWith("text/event-stream")) {

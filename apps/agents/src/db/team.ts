@@ -1,4 +1,4 @@
-import { getTemplate, type Template } from "#/db/template";
+import { getTemplate, isTemplateEntitledForCompany, type Template } from "#/db/template";
 
 type MaterializeInput = {
   companyId: string;
@@ -60,6 +60,14 @@ const materializeTeam = async (
       throw new Error(`Template ${input.templateIds[i]} not found`);
     }
     templates.push(t);
+  }
+
+  const entitlements = await Promise.all(
+    templates.map((t) => isTemplateEntitledForCompany(db, input.companyId, t.id)),
+  );
+  const unentitled = templates[entitlements.findIndex((ok) => !ok)];
+  if (unentitled) {
+    throw new Error(`Template ${unentitled.id} is not entitled for company ${input.companyId}`);
   }
 
   const correspondentId = correspondentIdFor(input.companyId);

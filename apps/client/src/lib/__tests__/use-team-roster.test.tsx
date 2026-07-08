@@ -7,6 +7,7 @@ import type { TeamMemberView } from "@/lib/team";
 import { useTeamRoster } from "@/lib/use-team-roster";
 
 const mockFetchTeam = vi.fn();
+const mockSubscribeTeamEvents = vi.fn();
 
 vi.mock("@/lib/team", async () => {
   const actual = (await vi.importActual("@/lib/team")) as {
@@ -15,6 +16,7 @@ vi.mock("@/lib/team", async () => {
   return {
     ...actual,
     fetchTeam: () => mockFetchTeam(),
+    subscribeTeamEvents: (onEvent: () => void) => mockSubscribeTeamEvents(onEvent),
   };
 });
 
@@ -34,6 +36,8 @@ const renderRoster = () =>
 beforeEach(() => {
   mockFetchTeam.mockReset();
   mockFetchTeam.mockResolvedValue([]);
+  mockSubscribeTeamEvents.mockReset();
+  mockSubscribeTeamEvents.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -77,6 +81,37 @@ describe("useTeamRoster", () => {
     });
 
     await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
+  });
+
+  it("refetches when a team event arrives", async () => {
+    let notify: (() => void) | undefined;
+    mockSubscribeTeamEvents.mockImplementation((onEvent: () => void) => {
+      notify = onEvent;
+      return undefined;
+    });
+
+    const { result } = renderRoster();
+
+    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(mockFetchTeam).toHaveBeenCalledOnce();
+
+    act(() => {
+      notify?.();
+    });
+
+    await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
+  });
+
+  it("unsubscribes from team events on unmount", async () => {
+    const unsubscribe = vi.fn();
+    mockSubscribeTeamEvents.mockReturnValue(unsubscribe);
+
+    const { result, unmount } = renderRoster();
+    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
   it("handles fetch errors and exposes error state", async () => {

@@ -64,6 +64,21 @@ const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
   return body.members;
 };
 
+const subscribeTeamEvents = (onEvent: () => void): (() => void) | null => {
+  if (typeof EventSource === "undefined") {
+    return null;
+  }
+  const source = new EventSource(apiUrl("/api/me/team/events"), { withCredentials: true });
+  const listener = (): void => onEvent();
+  source.addEventListener("team:roster", listener);
+  source.addEventListener("team:status", listener);
+  return () => {
+    source.removeEventListener("team:roster", listener);
+    source.removeEventListener("team:status", listener);
+    source.close();
+  };
+};
+
 const fetchCatalogue = async (): Promise<Array<HireableTemplate>> => {
   const res = await fetch(apiUrl("/api/me/catalogue"), { credentials: "include" });
   if (!res.ok) {
@@ -117,7 +132,15 @@ const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> =
   return ((await res.json()) as { member: TeamMemberView }).member;
 };
 
-export { fetchCatalogue, fetchTeam, hireMember, patchMember, setPaused, STATUS_LABEL };
+export {
+  fetchCatalogue,
+  fetchTeam,
+  hireMember,
+  patchMember,
+  setPaused,
+  STATUS_LABEL,
+  subscribeTeamEvents,
+};
 export type {
   AgentDisplayStatus,
   HireableTemplate,

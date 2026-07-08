@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRevisionMessages, MAX_REVISIONS } from "#/jobs/worker-job";
+import { buildRevisionMessages, isRevisionCapReached, MAX_REVISIONS } from "#/jobs/worker-job";
 
 describe("buildRevisionMessages", () => {
   it("first round is just the brief", () => {
@@ -31,5 +31,12 @@ describe("buildRevisionMessages", () => {
   it("exposes a small, positive soft cap", () => {
     expect(MAX_REVISIONS).toBeGreaterThan(0);
     expect(MAX_REVISIONS).toBeLessThanOrEqual(5);
+  });
+
+  it("caps only change requests at the final revision", () => {
+    expect(isRevisionCapReached(MAX_REVISIONS - 1, "changes_requested")).toBe(false);
+    expect(isRevisionCapReached(MAX_REVISIONS, "changes_requested")).toBe(true);
+    expect(isRevisionCapReached(MAX_REVISIONS, "approved")).toBe(false);
+    expect(isRevisionCapReached(MAX_REVISIONS, "rejected")).toBe(false);
   });
 });

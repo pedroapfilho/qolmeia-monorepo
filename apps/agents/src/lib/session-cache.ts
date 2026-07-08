@@ -21,12 +21,17 @@ type CacheKeyInput = {
 
 const buildCacheKey = async (input: CacheKeyInput): Promise<string | null> => {
   if (input.token) {
-    return `${input.namespace}:tok:${input.token}`;
+    return `${input.namespace}:tok:${await sha256Hex(input.token)}`;
   }
   if (input.cookie) {
     return `${input.namespace}:cookie:${await sha256Hex(input.cookie)}`;
   }
   return null;
+};
+
+const describeCacheKey = (key: string): string => {
+  const [namespace, kind] = key.split(":");
+  return `${namespace ?? "unknown"}:${kind ?? "unknown"}`;
 };
 
 const readCachedString = async (env: Env, key: string | null): Promise<string | null> => {
@@ -37,8 +42,8 @@ const readCachedString = async (env: Env, key: string | null): Promise<string | 
     return await env.SESSIONS.get(key);
   } catch (error) {
     logError("session-cache.read.err", {
+      cache: describeCacheKey(key),
       error: error instanceof Error ? error.message : String(error),
-      key,
     });
     return null;
   }
@@ -59,8 +64,8 @@ const writeCachedString = async (
     });
   } catch (error) {
     logError("session-cache.write.err", {
+      cache: describeCacheKey(key),
       error: error instanceof Error ? error.message : String(error),
-      key,
     });
   }
 };
