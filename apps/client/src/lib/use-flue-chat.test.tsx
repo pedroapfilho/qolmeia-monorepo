@@ -1,3 +1,4 @@
+import type * as FlueSdk from "@flue/sdk";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -5,7 +6,7 @@ const rawSend = vi.fn();
 const hookSendMessage = vi.fn();
 
 vi.mock("@flue/sdk", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@flue/sdk")>();
+  const actual = await importOriginal<typeof FlueSdk>();
   return {
     ...actual,
     createFlueClient: vi.fn(() => ({

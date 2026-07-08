@@ -17,14 +17,14 @@ type TeamEventSubscriber = {
 
 const subscribersByCompany = new Map<string, Set<TeamEventSubscriber>>();
 
-const emitTeamEvent = async (_env: Env, event: TeamEvent): Promise<void> => {
+const emitTeamEvent = (_env: Env, event: TeamEvent): Promise<void> => {
   const subscribers = subscribersByCompany.get(event.companyId);
-  if (!subscribers) {
-    return;
+  if (subscribers) {
+    for (const subscriber of subscribers) {
+      subscriber.send(event);
+    }
   }
-  for (const subscriber of subscribers) {
-    subscriber.send(event);
-  }
+  return Promise.resolve();
 };
 
 const subscribeTeamEvents = (companyId: string, signal: AbortSignal): Response => {

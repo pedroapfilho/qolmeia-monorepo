@@ -128,11 +128,6 @@ const buildRoster = (
   return sortRoster(members);
 };
 
-const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<TeamMemberView>> => {
-  const rosters = await listTeamRosters(db, [companyId]);
-  return rosters.get(companyId) ?? [];
-};
-
 const listTeamRosters = async (
   db: D1Database,
   companyIds: ReadonlyArray<string>,
@@ -209,6 +204,11 @@ const listTeamRosters = async (
       ),
     ]),
   );
+};
+
+const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<TeamMemberView>> => {
+  const rosters = await listTeamRosters(db, [companyId]);
+  return rosters.get(companyId) ?? [];
 };
 
 type CatalogueCountRow = { n: number; template_id: string };
