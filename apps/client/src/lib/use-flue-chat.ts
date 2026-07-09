@@ -49,8 +49,6 @@ const toBase64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
-// AgentPromptImage.data must be base64 content — the composer hands us hosted
-// asset URLs, so the bytes are fetched back before submission.
 const toPromptImage = async (url: string, mimeType: string): Promise<AgentPromptImage> => {
   if (url.startsWith("data:")) {
     return { data: url.slice(url.indexOf(",") + 1), mimeType, type: "image" };

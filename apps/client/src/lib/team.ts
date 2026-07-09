@@ -64,7 +64,6 @@ const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
   return body.members;
 };
 
-// One EventSource per tab, shared across TeamSidebar + EmpresaClient mounts.
 type SharedTeamEvents = {
   listeners: Set<() => void>;
   reconnectTimer: ReturnType<typeof setTimeout> | null;

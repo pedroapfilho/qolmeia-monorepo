@@ -54,8 +54,6 @@ const isKickoffMessage = (message: ChatMessage): boolean =>
   message.role === "user" &&
   message.parts.some((part) => part.type === "text" && part.text === PLANNER_KICKOFF);
 
-// A turn whose parts are all hidden (reasoning, settled tool calls) would
-// otherwise render as an empty bubble with an avatar.
 const hasVisibleContent = (message: ChatMessage): boolean =>
   message.parts.some((part) => {
     switch (part.type) {
@@ -201,8 +199,6 @@ const ChatInner = ({
     sessionToken,
   });
 
-  // The kickoff prompt lives in the durable transcript; it is an instruction to
-  // the Planner, not something the customer wrote, so it never renders.
   const visibleMessages = messages.filter(
     (message) => !isKickoffMessage(message) && hasVisibleContent(message),
   );
@@ -217,15 +213,12 @@ const ChatInner = ({
       try {
         await kickoff(PLANNER_KICKOFF);
       } catch {
-        // Unlock so a remount / history reload can try again; onError already toasted.
         kickedOffRef.current = false;
       }
     };
     void run();
   }, [agentName, historyReady, messages.length, kickoff]);
 
-  // Only follow Flue status — never key the spinner on an empty transcript, or a
-  // failed/hung kickoff locks the composer forever.
   const isThinking = status === "submitted" || status === "streaming";
   const isCorrespondent = agentName === "correspondent";
   const lastIndex = visibleMessages.length - 1;
@@ -235,7 +228,7 @@ const ChatInner = ({
       try {
         await sendMessage(message);
       } catch {
-        // onError already toasted; sendMessage rethrows so callers can react.
+        // noop
       }
     };
     void run();

@@ -1,8 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// jsdom lacks ResizeObserver, IntersectionObserver, and Element.scrollTo — all used by the
-// message scroller. One mock covers both observer contracts.
 class MockObserver {
   observe() {}
   unobserve() {}

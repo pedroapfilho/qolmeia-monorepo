@@ -7,9 +7,6 @@ type TeamEventSubscriber = {
   send: (chunk: string) => void;
 };
 
-// One DO instance per companyId owns all open SSE subscribers for that
-// company, so emits from Workflows / Flue agent DOs / any Worker isolate
-// reach the same fan-out set.
 class TeamEvents extends DurableObject<Env> {
   #subscribers = new Set<TeamEventSubscriber>();
 
@@ -46,7 +43,7 @@ class TeamEvents extends DurableObject<Env> {
             try {
               controller.close();
             } catch {
-              // The stream may already be closed by the client abort.
+              // noop
             }
           },
           send: sendChunk,
