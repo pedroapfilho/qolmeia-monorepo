@@ -107,8 +107,8 @@ All three agents run on **[Flue](https://flueframework.com)** (`@flue/runtime` 1
 
 **Transport.** Agents are HTTP+SSE, not WebSocket:
 
-- `POST /agents/:name/:id` with `{ "message": string, "images"?: [...] }` → `{ streamUrl, submissionId }` (202 admission).
-- `GET /agents/:name/:id` → SSE event stream (`message_start`, `text_delta`, …).
+- `POST /agents/:name/:id` with `{ "message": string, "images"?: [...] }` → `{ streamUrl, submissionId }` (202 admission, durable submission).
+- `GET /agents/:name/:id` → SSE event stream; conversation events are durably stored and replayable from any offset (Durable Streams), so clients resume from checkpoints and reload full history.
 - Server code reaches an agent with `dispatch({ agent, id, input })` (used for deliverable delivery and the proactive sweep).
 
 **Auth gate.** Each conversational agent exports a `route` middleware (`requireCustomerAgent`): authenticated **CUSTOMER** only, and the `:id` path segment must equal the session's companyId (tenant isolation — [ADR 0001](adr/0001-tenant-isolation-on-agent-path.md)).
@@ -117,7 +117,7 @@ All three agents run on **[Flue](https://flueframework.com)** (`@flue/runtime` 1
 
 ## §7. Skills catalog
 
-Skills are code modules — `{ id, description, inputSchema (zod), execute(input, ctx) }` — registered in [`apps/agents/src/skills/registry.ts`](../apps/agents/src/skills/registry.ts) and exposed to agents as Flue tools (zod → JSON Schema, no rewrite). 13 today:
+Skills are code modules — `{ id, description, inputSchema (zod), execute(input, ctx) }` — registered in [`apps/agents/src/skills/registry.ts`](../apps/agents/src/skills/registry.ts) and exposed to agents as Flue tools (zod → JSON Schema → Valibot in `lib/skill-tool.ts`; Flue validates tool input with Valibot only). 13 today:
 
 `rememberFact` · `recallMemory` · `delegateToWorker` · `generateBrandImage` · `draftSocialPost` · `decideAction` · `extractBrief` · `proposeTeam` · `listAssets` · `readAsset` · `saveAsset` · `webSearch` · `fetchUrl`
 
@@ -159,7 +159,7 @@ The customer reaches the Correspondent over the **web chat only** — the Flue a
 - **Linter** oxlint · **Formatter** oxfmt (sorts imports) · **Tests** Vitest (`apps/agents` runs on `@cloudflare/vitest-pool-workers` against Miniflare) · **Pre-commit** Husky + lint-staged.
 - **Agents bundler** `flue build` (Vite/Rolldown under the hood). **api bundler** tsdown.
 - **Imports** `#/*` → `src/*` (Node subpath imports) in `apps/agents`; `@/*` → `src/*` in the Next apps.
-- **Client chat** uses `@flue/sdk` (`createFlueClient` → `agents.send` + `agents.stream`); the SSR-safe `Chat` shell gates the hook behind a client-only flag.
+- **Client chat** uses `@flue/react` (`useFlueAgent` over the SDK's `agents.observe()` — durable history snapshot, live SSE, reconnection from checkpoints, optimistic reconcile); the SSR-safe `Chat` shell gates the hook behind a client-only flag and shows a skeleton until `historyReady`.
 - **Local dev:** `docker compose up -d` (Postgres :5436), push the auth schema + seed (`apps/api`), apply D1 migrations + seeds (`apps/agents/scripts/seed-*.sql`), then `pnpm dev` (turbo runs all four; the agents Worker boots via `flue dev` on :8787). Full steps in [`docs/LOCAL_DEV.md`](LOCAL_DEV.md).
 
 ## §13. Migration status & open items

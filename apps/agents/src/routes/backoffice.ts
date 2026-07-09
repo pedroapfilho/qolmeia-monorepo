@@ -23,7 +23,7 @@ import {
   TeamMemberNotPausableError,
   updateMember,
 } from "#/team/mutations";
-import { getMemberDetail, getTeamRoster } from "#/team/queries";
+import { getMemberDetail, getTeamRoster, listTeamRosters } from "#/team/queries";
 
 type Vars = {
   role: string;
@@ -178,15 +178,17 @@ const backofficePatchSchema = z.object({
 
 backofficeRoutes.get("/companies", async (c) => {
   const companies = await listCompaniesOverview(c.env.DB);
-  const withRosters = await Promise.all(
-    companies.map(async (company) => ({
-      briefPercent: company.briefPercent,
-      id: company.id,
-      members: await getTeamRoster(c.env.DB, company.id),
-      name: company.name,
-      status: company.status,
-    })),
+  const rosters = await listTeamRosters(
+    c.env.DB,
+    companies.map((company) => company.id),
   );
+  const withRosters = companies.map((company) => ({
+    briefPercent: company.briefPercent,
+    id: company.id,
+    members: rosters.get(company.id) ?? [],
+    name: company.name,
+    status: company.status,
+  }));
   return c.json({ companies: withRosters });
 });
 

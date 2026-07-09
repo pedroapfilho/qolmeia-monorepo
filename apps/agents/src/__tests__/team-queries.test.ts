@@ -1,14 +1,33 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
+import { getCatalogue, getMemberDetail, getTeamRoster, listTeamRosters } from "#/team/queries";
 
 const COMPANY_ID = "co_roster_test";
 const TEAM_ID = "team_roster_test";
 const CORR_ID = "corr_roster_test";
 const WORKER_ID = "worker_roster_test";
+const OTHER_COMPANY_ID = "co_roster_other";
+const OTHER_WORKER_ID = "worker_roster_other";
+
+const entitle = (companyId: string, templateId: string) =>
+  env.DB.prepare(
+    `INSERT OR IGNORE INTO company_template_entitlement
+       (company_id, template_id, enabled, created_at, updated_at)
+     VALUES (?, ?, 1, 0, 0)`,
+  )
+    .bind(companyId, templateId)
+    .run();
 
 beforeEach(async () => {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM company_template_entitlement WHERE company_id IN (?, ?)").bind(
+      COMPANY_ID,
+      OTHER_COMPANY_ID,
+    ),
+    env.DB.prepare("DELETE FROM agent_instance WHERE id = 'worker_no_tpl'"),
+    env.DB.prepare("DELETE FROM template WHERE id = 'tpl-entitled-only'"),
+  ]);
   await env.DB.batch([
     env.DB.prepare(
       `INSERT OR IGNORE INTO company
@@ -27,6 +46,17 @@ beforeEach(async () => {
           model_override, status, prompt_override, created_at, updated_at)
        VALUES (?, ?, 'worker', 'tpl-designer', 1, 'Designer', NULL, 'active', 'meu', 0, 0)`,
     ).bind(WORKER_ID, COMPANY_ID),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO company
+         (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
+       VALUES (?, 'Other', 'other', 'America/Sao_Paulo', 'pt-BR', 'active', NULL, 0, 0)`,
+    ).bind(OTHER_COMPANY_ID),
+    env.DB.prepare(
+      `INSERT OR REPLACE INTO agent_instance
+         (id, company_id, role, template_id, template_version, display_name,
+          model_override, status, prompt_override, created_at, updated_at)
+       VALUES (?, ?, 'worker', 'tpl-designer', 1, 'Outro Designer', NULL, 'active', NULL, 0, 0)`,
+    ).bind(OTHER_WORKER_ID, OTHER_COMPANY_ID),
     env.DB.prepare(
       `INSERT OR IGNORE INTO team (id, company_id, confirmed_at, created_at) VALUES (?, ?, ?, ?)`,
     ).bind(TEAM_ID, COMPANY_ID, 0, 0),
@@ -102,10 +132,19 @@ describe("getTeamRoster", () => {
       .run();
     await expect(getTeamRoster(env.DB, COMPANY_ID)).rejects.toThrow(/worker .* missing/v);
   });
+
+  it("loads multiple company rosters without mixing work", async () => {
+    const rosters = await listTeamRosters(env.DB, [COMPANY_ID, OTHER_COMPANY_ID]);
+
+    expect(rosters.get(COMPANY_ID)?.some((m) => m.id === WORKER_ID)).toBe(true);
+    expect(rosters.get(COMPANY_ID)?.some((m) => m.id === OTHER_WORKER_ID)).toBe(false);
+    expect(rosters.get(OTHER_COMPANY_ID)?.map((m) => m.id)).toEqual([OTHER_WORKER_ID]);
+  });
 });
 
 describe("getCatalogue", () => {
   it("returns active worker templates with per-template hiredCount for this company", async () => {
+    await entitle(COMPANY_ID, "tpl-designer");
     const items = await getCatalogue(env.DB, COMPANY_ID);
     const designer = items.find((t) => t.id === "tpl-designer");
     expect(designer).toMatchObject({
@@ -123,8 +162,34 @@ describe("getCatalogue", () => {
        VALUES ('tpl-fresh', 1, 'active', 'Novo Tipo', 'desc', 'sys', 'gpt-x',
                'newkind', '[]', 'worker_deliverable', '{}', 0, 0)`,
     ).run();
+    await entitle(COMPANY_ID, "tpl-fresh");
     const items = await getCatalogue(env.DB, COMPANY_ID);
     expect(items.find((t) => t.id === "tpl-fresh")?.hiredCount).toBe(0);
+  });
+
+  it("returns only templates the company is entitled to", async () => {
+    const now = Date.now();
+    await env.DB.prepare(
+      `INSERT OR REPLACE INTO template
+         (id, version, status, display_name, description, system_prompt, model,
+          worker_kind, skill_ids, default_action_type, default_policies,
+          created_at, updated_at)
+       VALUES ('tpl-entitled-only', 1, 'active', 'Entitled', 'desc', 'sys', 'gpt-x',
+               'entitled', '[]', 'worker_deliverable', '{}', ?, ?)`,
+    )
+      .bind(now, now)
+      .run();
+    await env.DB.prepare(
+      `INSERT OR REPLACE INTO company_template_entitlement
+         (company_id, template_id, enabled, created_at, updated_at)
+       VALUES (?, 'tpl-entitled-only', 1, ?, ?)`,
+    )
+      .bind(COMPANY_ID, now, now)
+      .run();
+
+    const items = await getCatalogue(env.DB, COMPANY_ID);
+
+    expect(items.map((item) => item.id)).toEqual(["tpl-entitled-only"]);
   });
 });
 

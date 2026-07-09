@@ -1,245 +1,134 @@
-# Running Qolmeia locally
+# Running Qolmeia Locally
 
-How to get all three apps running on your machine. Last verified against `main` at HEAD `8ebe21f` (557 tests, 3 apps).
-
-For the architecture itself, see `docs/ARCHITECTURE.md`. For the system overview (technical + non-technical), see `docs/strategy/2026-05-21-system-overview.md`.
-
----
+This guide brings up the current four-app stack: auth API, Cloudflare Worker agents, customer client, and operator backoffice. For architecture context, see [`docs/ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## 1. Prerequisites
 
-| Tool    | Version    | Check              |
-| ------- | ---------- | ------------------ |
-| Node.js | ≥ 24       | `node --version`   |
-| pnpm    | 10.x       | `pnpm --version`   |
-| Docker  | any recent | `docker --version` |
+| Tool    | Version            | Check              |
+| ------- | ------------------ | ------------------ |
+| Node.js | 24 or newer        | `node --version`   |
+| pnpm    | 11.1.3             | `pnpm --version`   |
+| Docker  | any recent version | `docker --version` |
 
-Optional, only for testing the live Telegram bot: `cloudflared` (`brew install cloudflared`).
-
----
-
-## 2. Bootstrap (one-time, ~3 minutes)
+## 2. Install and Start Postgres
 
 ```bash
-git clone git@github.com:pedroapfilho/qolmeia-monorepo.git
-cd qolmeia-monorepo
 pnpm install
-docker compose up -d        # Postgres :5436 + Redis :6382
-pnpm db:push                # apply the Prisma schema
-pnpm db:generate            # generate the Prisma client
+docker compose up -d
 ```
 
-`docker compose up -d` starts:
+Docker starts Postgres on host port `5436`. Redis may still be present in compose for legacy compatibility, but product runtime state for agents now lives in D1, KV, and R2.
 
-- **Postgres 18** on host port `5436` (container user/pass/db: `qolmeia` / `qolmeia123` / `qolmeia`)
-- **Redis 7** on host port `6382`
+## 3. Environment Files
 
-Non-standard ports are deliberate — `5432`/`6379` are assumed occupied by other local projects.
-
----
-
-## 3. Environment files
-
-There are **three** `.env` files — one per app. All are git-ignored; each app ships a `.env.example`.
+Copy the committed examples:
 
 ```bash
-cp apps/api/.env.example         apps/api/.env
-cp apps/backoffice/.env.example  apps/backoffice/.env
-cp apps/client/.env.example      apps/client/.env
+cp apps/api/.env.example apps/api/.env
+cp apps/client/.env.example apps/client/.env
+cp apps/backoffice/.env.example apps/backoffice/.env
+cp apps/agents/.dev.vars.example apps/agents/.dev.vars
 ```
 
-### 3.1 Shared auth secret
+`BETTER_AUTH_SECRET` must be identical in `apps/api/.env`, `apps/client/.env`, and `apps/backoffice/.env`.
 
-`BETTER_AUTH_SECRET` **must be identical across all three `.env` files** — the cookie issued by `apps/api` is validated by both Next apps, and a mismatch silently breaks every login.
+Important local variables:
+
+| File                    | Variables                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `apps/api/.env`         | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`                |
+| `apps/client/.env`      | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
+| `apps/backoffice/.env`  | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
+| `apps/agents/.dev.vars` | `OPENROUTER_API_KEY`, `ASSETS_SIGNING_KEY`                                                        |
+
+The Next apps rewrite `/api/auth/*`, `/api/me/*`, `/api/teams/*`, `/api/backoffice/*`, and `/agents/*` to the local API/Worker so cookies stay first-party in development.
+
+## 4. Initialize Data
+
+Push the auth-only Prisma schema to Postgres:
 
 ```bash
-openssl rand -base64 48      # generate once, paste the same value into all 3 files
+DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
+  pnpm --filter=@repo/db db:push
 ```
 
-### 3.2 `apps/api/.env` — the only file needing real external service keys
-
-| Variable                                                                                                  | Purpose                                       | Notes                                                                                 |
-| --------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                                            | Postgres connection                           | Pre-filled for docker; leave as-is locally                                            |
-| `REDIS_URL`                                                                                               | BullMQ queues + Chat SDK state                | Pre-filled for docker (`redis://localhost:6382`)                                      |
-| `BETTER_AUTH_SECRET`                                                                                      | Cookie + token signing                        | The `openssl rand -base64 48` value (same in all 3 files)                             |
-| `OPENROUTER_API_KEY`                                                                                      | All LLM + image-gen calls                     | Required for real agent runs. Get one at https://openrouter.ai/keys                   |
-| `TELEGRAM_BOT_TOKEN`                                                                                      | Telegram bot auth                             | From BotFather. Placeholder OK if not testing Telegram                                |
-| `TELEGRAM_BOT_USERNAME`                                                                                   | Mention detection                             | From BotFather                                                                        |
-| `TELEGRAM_WEBHOOK_SECRET_TOKEN`                                                                           | Inbound webhook auth                          | `openssl rand -hex 32`                                                                |
-| `R2_ACCOUNT_ID` / `R2_BUCKET` / `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_REGION` | Cloudflare R2 (brand assets + knowledge docs) | Required for image-gen results + knowledge docs. Placeholders OK if not testing those |
-| `RESEND_API_KEY`                                                                                          | Transactional email                           | Optional — when empty, auth email hooks become silent no-ops                          |
-| `DISPATCH_MODE`                                                                                           | `serial` or `queue`                           | Default `serial` (agent loop runs inline). See §6.1                                   |
-| `IMAGE_GEN_MODEL`                                                                                         | OpenRouter image model id                     | Optional; defaults to `google/gemini-3-pro-image-preview` (Nano Banana Pro)           |
-| `CORS_ORIGINS`                                                                                            | Allowed cross-origin callers                  | Pre-filled with the backoffice + client dev URLs                                      |
-| `AUTH_FROM_EMAIL`                                                                                         | From: address for auth emails                 | Optional; defaults to `noreply@qolmeia.ai`                                            |
-| `WEB_APP_URL` / `AUTH_ALLOWED_HOSTS` / `TRUSTED_ORIGINS`                                                  | Production hostnames                          | Leave unset locally                                                                   |
-
-### 3.3 `apps/backoffice/.env`
+Seed the dev organization and users:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:4000
-BETTER_AUTH_SECRET=<same value as apps/api>
+pnpm --filter=api exec tsx src/scripts/seed-dev.ts
 ```
 
-### 3.4 `apps/client/.env`
+Apply Worker D1 migrations and seed the local agent data:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:4000
-BETTER_AUTH_SECRET=<same value as apps/api>
+cd apps/agents
+pnpm wrangler d1 migrations apply worker-bees --local
+pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
+pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
+cd -
 ```
 
----
+## 5. Run the Stack
 
-## 4. Seed an owner user (one-time)
+Run everything:
 
 ```bash
-pnpm --filter=api exec tsx src/scripts/seed-owner-user-and-membership.ts
+pnpm dev
 ```
 
-Prints an email + temporary password. Use these to log into the backoffice. **Change the password immediately after first login.**
-
----
-
-## 5. Start the dev servers
-
-Three terminals:
+Or run one app per terminal:
 
 ```bash
-# Terminal 1 — Backend API (Hono)
 pnpm dev --filter=api
-# → http://localhost:4000
-
-# Terminal 2 — Operator UI (Next.js)
-pnpm dev --filter=backoffice
-# → http://localhost:3000
-
-# Terminal 3 — Customer chat UI (Next.js)
+pnpm dev --filter=worker-bees
 pnpm dev --filter=client
-# → http://localhost:3001
+pnpm dev --filter=backoffice
 ```
 
-Log into the backoffice at `http://localhost:3000` with the seeded owner credentials.
+## 6. Dev URLs
 
----
+| Surface    | URL                                    |
+| ---------- | -------------------------------------- |
+| API        | `https://qolmeia.api.localhost`        |
+| Worker     | `http://localhost:8787`                |
+| Client     | `https://qolmeia.client.localhost`     |
+| Backoffice | `https://qolmeia.backoffice.localhost` |
 
-## 6. Optional extras
+Seeded accounts:
 
-### 6.1 Queue mode (BullMQ worker)
+| Surface    | Role     | Email                  | Password                    |
+| ---------- | -------- | ---------------------- | --------------------------- |
+| Backoffice | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
+| Client     | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 
-By default `DISPATCH_MODE=serial` — the agent loop runs inline inside the webhook handler. No worker process needed.
+The client login uses magic links. In local development, watch the `apps/api` logs for the link.
 
-To run the agent loop asynchronously (webhook returns 200 immediately, work happens in a worker):
+## 7. Verify
 
 ```bash
-# apps/api/.env
-DISPATCH_MODE=queue
+pnpm typecheck
+pnpm lint
+pnpm test
+
+curl http://localhost:8787/healthz
 ```
 
-Then add a fourth terminal:
+Useful targeted checks:
 
 ```bash
-pnpm --filter=api exec tsx src/workers/index.ts
-# Consumes the agent-run + routine-scheduler queues
+pnpm --filter=client typecheck
+pnpm --filter=worker-bees typecheck
+pnpm --filter=client test -- --run src/components/chat.test.tsx
+pnpm --filter=worker-bees test -- --run apps/agents/src/__tests__/skill-tool-schema.test.ts
 ```
 
-### 6.2 Live Telegram bot
+## 8. Common Pitfalls
 
-```bash
-# Terminal 4
-cloudflared tunnel --url http://localhost:4000
-```
-
-Then point the bot at the tunnel. You need a `ConnectorInstance` row for the bot first (create it via the backoffice, or seed it). With its id:
-
-```bash
-set -a; source apps/api/.env; set +a
-TUNNEL="https://<your-cloudflared-url>"
-curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
-  -d "url=${TUNNEL}/connectors/telegram/<connectorInstanceId>/webhook" \
-  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET_TOKEN}"
-```
-
-### 6.3 Sample data + connectors
-
-```bash
-# Sample knowledge docs (policy / brand voice / service menu)
-pnpm --filter=api exec tsx src/scripts/seed-knowledge-sample.ts
-
-# WhatsApp connector — prints the webhook URL + verify token for Meta's dashboard
-pnpm --filter=api exec tsx src/scripts/seed-whatsapp-connector.ts \
-  --org-slug=<org> --phone-number-id=<...> --access-token=<...>
-
-# Routines — arrive paused; enable via owner command `/ligar <name>` or the backoffice
-pnpm --filter=api exec tsx src/scripts/sync-routines.ts
-```
-
----
-
-## 7. Verify the install
-
-```bash
-pnpm typecheck   # 0 errors across all packages
-pnpm lint        # 0 warnings, 0 errors
-pnpm test        # 557 tests pass
-
-curl http://localhost:4000/healthz   # → 200
-curl http://localhost:4000/readyz    # → 200
-```
-
-Then open `http://localhost:3000` (backoffice) and `http://localhost:3001` (client) in a browser.
-
----
-
-## 8. What works without external API keys
-
-If you fill the `.env` files with placeholder values for `OPENROUTER_API_KEY`, `R2_*`, `TELEGRAM_*`, and `RESEND_API_KEY`, you can still:
-
-- Browse both the backoffice and client UIs
-- Run all 557 tests (every external seam is mocked)
-- Inspect the database: `psql -h localhost -p 5436 -U qolmeia` (password `qolmeia123`)
-
-You **cannot** actually message an agent or generate an image without `OPENROUTER_API_KEY`, and brand-asset + knowledge-doc storage needs real `R2_*` values.
-
----
-
-## 9. Common pitfalls
-
-| Symptom                                                       | Fix                                                                            |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `Cannot find module '@tanstack/react-query'` during typecheck | `pnpm install` — lockfile drift after a fresh checkout or branch switch        |
-| `BETTER_AUTH_SECRET environment variable is required`         | The three `.env` files don't all carry the same secret value                   |
-| Logins don't persist between apps                             | Mismatched `BETTER_AUTH_SECRET`, or wrong `NEXT_PUBLIC_API_URL`                |
-| BullMQ connects to `localhost:6379` and fails                 | `REDIS_URL` is empty — our docker Redis is on `:6382`, not the default `:6379` |
-| Prisma client errors after pulling new schema                 | `pnpm db:push && pnpm db:generate`                                             |
-| Postgres/Redis connection refused                             | `docker compose up -d` — containers not running                                |
-
----
-
-## 10. Useful commands
-
-```bash
-pnpm dev --filter=<api|backoffice|client>   # one app
-pnpm build                                  # build everything (turbo-cached)
-pnpm test                                    # all tests
-pnpm typecheck                               # tsc --noEmit across all packages
-pnpm lint                                    # oxlint
-pnpm format                                  # oxfmt (write)
-pnpm db:push                                 # apply schema changes to the DB
-pnpm db:generate                             # regenerate the Prisma client
-docker compose up -d                         # start Postgres + Redis
-docker compose down                          # stop them (data persists in volumes)
-docker compose down -v                       # stop + wipe data volumes
-```
-
----
-
-## 11. Port map
-
-| Port | Service                          |
-| ---- | -------------------------------- |
-| 4000 | `apps/api` (Hono backend)        |
-| 3000 | `apps/backoffice` (operator UI)  |
-| 3001 | `apps/client` (customer chat UI) |
-| 5436 | Postgres (docker)                |
-| 6382 | Redis (docker)                   |
+| Symptom                                   | Fix                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| Login succeeds but app APIs return 401    | Make `BETTER_AUTH_SECRET` match across API, client, and backoffice       |
+| Client/backoffice cannot reach the Worker | Check `AGENTS_INTERNAL_URL`, defaulting to `http://127.0.0.1:8787`       |
+| Auth routes fail from Next                | Check `AUTH_SERVICE_INTERNAL_URL`, defaulting to `http://127.0.0.1:4000` |
+| Worker has no local data                  | Re-run D1 migrations and seed scripts from `apps/agents`                 |
+| Real agent calls fail                     | Set `OPENROUTER_API_KEY` in `apps/agents/.dev.vars`                      |
+| Asset generation or signed URLs fail      | Set `ASSETS_SIGNING_KEY` in `apps/agents/.dev.vars`                      |

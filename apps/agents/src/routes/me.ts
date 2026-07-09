@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { listActivity } from "#/activity/log";
-import { listActiveTemplates } from "#/db/template";
+import { listEntitledActiveTemplates } from "#/db/template";
 import { validateSession, type ValidatedSession } from "#/lib/auth";
 import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
-import { emitTeamEvent } from "#/team/events";
+import { emitTeamEvent, subscribeTeamEvents } from "#/team/events";
 import {
   CorrespondentMissingError,
   hireMember,
@@ -132,7 +132,8 @@ meRoutes.patch("/company", async (c) => {
 });
 
 meRoutes.get("/templates", async (c) => {
-  const templates = await listActiveTemplates(c.env.DB);
+  const { companyId } = c.get("session");
+  const templates = await listEntitledActiveTemplates(c.env.DB, companyId);
   return c.json({
     templates: templates.map((t) => ({
       description: t.description,
@@ -155,6 +156,11 @@ meRoutes.get("/team", async (c) => {
     });
     return c.json({ error: "failed to load team" }, 500);
   }
+});
+
+meRoutes.get("/team/events", (c) => {
+  const { companyId } = c.get("session");
+  return subscribeTeamEvents(c.env, companyId, c.req.raw.signal);
 });
 
 meRoutes.get("/catalogue", async (c) => {

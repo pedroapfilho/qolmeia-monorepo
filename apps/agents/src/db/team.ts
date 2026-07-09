@@ -1,4 +1,4 @@
-import { getTemplate, type Template } from "#/db/template";
+import { assertTemplatesEntitledForCompany, getTemplate, type Template } from "#/db/template";
 
 type MaterializeInput = {
   companyId: string;
@@ -61,6 +61,12 @@ const materializeTeam = async (
     }
     templates.push(t);
   }
+
+  await assertTemplatesEntitledForCompany(
+    db,
+    input.companyId,
+    templates.map((t) => t.id),
+  );
 
   const correspondentId = correspondentIdFor(input.companyId);
   const workerIds = templates.map((t) => workerIdFor(t.id, input.companyId));

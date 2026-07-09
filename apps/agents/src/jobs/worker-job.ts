@@ -20,6 +20,9 @@ type WorkerJobParams = {
   ticketId: string;
 };
 
+const isRevisionCapReached = (round: number, decision: DecisionOutcome): boolean =>
+  decision === "changes_requested" && round >= MAX_REVISIONS;
+
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
   // fallow-ignore-next-line unused-class-member
   async run(event: Readonly<WorkflowEvent<WorkerJobParams>>, step: WorkflowStep): Promise<unknown> {
@@ -103,12 +106,12 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       latestFeedback = evt.payload.feedback ?? null;
       revision = round + 1;
 
-      if (revision === MAX_REVISIONS + 1) {
+      if (isRevisionCapReached(round, decision)) {
         await step.do("revise-capped", () => logRevisionCapped(ctx, actionId));
         logInfo("workflow.revise.capped", { companyId, revision, ticketId });
-      } else {
-        logInfo("workflow.revise", { companyId, revision, ticketId });
+        return { decision, revisionCapped: true, revisions: round, summary: current.summary };
       }
+      logInfo("workflow.revise", { companyId, revision, ticketId });
     }
     /* oxlint-enable no-await-in-loop */
   }
@@ -116,5 +119,5 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 
 export { buildRevisionMessages } from "#/jobs/worker-job-generate";
 export { MAX_REVISIONS } from "#/jobs/worker-job-steps";
-export { WorkerJobWorkflow };
+export { isRevisionCapReached, WorkerJobWorkflow };
 export type { WorkerJobParams };

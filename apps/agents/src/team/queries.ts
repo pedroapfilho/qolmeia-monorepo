@@ -1,3 +1,4 @@
+import { listEntitledActiveTemplates } from "#/db/template";
 import { resolveAgentStatus } from "#/team/status";
 import type {
   HireableTemplate,
@@ -8,6 +9,7 @@ import type {
 } from "#/team/types";
 
 type RosterRow = {
+  company_id: string;
   display_name: string;
   id: string;
   prompt_override: string | null;
@@ -19,12 +21,13 @@ type RosterRow = {
 
 type TicketSlimRow = {
   agent_instance_id: string;
+  company_id: string;
   id: string;
   status: string;
   title: string;
 };
 
-type DoneCountRow = { agent_instance_id: string; n: number };
+type DoneCountRow = { agent_instance_id: string; company_id: string; n: number };
 
 const toOpenStatus = (s: string): OpenTicketSlim["status"] | null =>
   s === "in_progress" || s === "awaiting_approval" ? s : null;
@@ -53,50 +56,21 @@ const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberVie
   return [...correspondent, ...others];
 };
 
-const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<TeamMemberView>> => {
-  const { results: rosterRows } = await db
-    .prepare(
-      `SELECT a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,
-              t.worker_kind
-         FROM agent_instance a
-         LEFT JOIN template t ON t.id = a.template_id
-        WHERE a.company_id = ?
-        ORDER BY a.created_at ASC`,
-    )
-    .bind(companyId)
-    .all<RosterRow>();
-
-  if (rosterRows.length === 0) {
-    return [];
+const groupRosterRows = (rosterRows: ReadonlyArray<RosterRow>): Map<string, Array<RosterRow>> => {
+  const byCompany = new Map<string, Array<RosterRow>>();
+  for (const row of rosterRows) {
+    const bucket = byCompany.get(row.company_id) ?? [];
+    bucket.push(row);
+    byCompany.set(row.company_id, bucket);
   }
+  return byCompany;
+};
 
-  const ids = rosterRows.map((r) => r.id);
-  const placeholders = ids.map(() => "?").join(",");
-  const [{ results: openRows }, { results: doneRows }] = await Promise.all([
-    db
-      .prepare(
-        `SELECT id, agent_instance_id, title, status
-           FROM ticket
-          WHERE company_id = ?
-            AND agent_instance_id IN (${placeholders})
-            AND status IN ('in_progress', 'awaiting_approval')
-          ORDER BY created_at ASC`,
-      )
-      .bind(companyId, ...ids)
-      .all<TicketSlimRow>(),
-    db
-      .prepare(
-        `SELECT agent_instance_id, COUNT(*) AS n
-           FROM ticket
-          WHERE company_id = ?
-            AND agent_instance_id IN (${placeholders})
-            AND status = 'done'
-          GROUP BY agent_instance_id`,
-      )
-      .bind(companyId, ...ids)
-      .all<DoneCountRow>(),
-  ]);
-
+const buildRoster = (
+  rosterRows: ReadonlyArray<RosterRow>,
+  openRows: ReadonlyArray<TicketSlimRow>,
+  doneRows: ReadonlyArray<DoneCountRow>,
+): Array<TeamMemberView> => {
   const openByAgent = new Map<string, Array<OpenTicketSlim>>();
   for (const row of openRows) {
     const status = toOpenStatus(row.status);
@@ -154,21 +128,97 @@ const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<T
   return sortRoster(members);
 };
 
+const listTeamRosters = async (
+  db: D1Database,
+  companyIds: ReadonlyArray<string>,
+): Promise<Map<string, Array<TeamMemberView>>> => {
+  const uniqueCompanyIds = [...new Set(companyIds)].filter(Boolean);
+  const empty = new Map(uniqueCompanyIds.map((id) => [id, [] as Array<TeamMemberView>]));
+  if (uniqueCompanyIds.length === 0) {
+    return empty;
+  }
+
+  const companyPlaceholders = uniqueCompanyIds.map(() => "?").join(",");
+  const { results: rosterRows } = await db
+    .prepare(
+      `SELECT a.company_id, a.id, a.display_name, a.role, a.status, a.template_id,
+              a.prompt_override, t.worker_kind
+         FROM agent_instance a
+         LEFT JOIN template t ON t.id = a.template_id
+        WHERE a.company_id IN (${companyPlaceholders})
+        ORDER BY a.company_id ASC, a.created_at ASC`,
+    )
+    .bind(...uniqueCompanyIds)
+    .all<RosterRow>();
+
+  if (rosterRows.length === 0) {
+    return empty;
+  }
+
+  const ids = rosterRows.map((r) => r.id);
+  const agentPlaceholders = ids.map(() => "?").join(",");
+  const [{ results: openRows }, { results: doneRows }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT company_id, id, agent_instance_id, title, status
+           FROM ticket
+          WHERE agent_instance_id IN (${agentPlaceholders})
+            AND status IN ('in_progress', 'awaiting_approval')
+          ORDER BY company_id ASC, created_at ASC`,
+      )
+      .bind(...ids)
+      .all<TicketSlimRow>(),
+    db
+      .prepare(
+        `SELECT company_id, agent_instance_id, COUNT(*) AS n
+           FROM ticket
+          WHERE agent_instance_id IN (${agentPlaceholders})
+            AND status = 'done'
+          GROUP BY company_id, agent_instance_id`,
+      )
+      .bind(...ids)
+      .all<DoneCountRow>(),
+  ]);
+
+  const rosterRowsByCompany = groupRosterRows(rosterRows);
+  const openRowsByCompany = new Map<string, Array<TicketSlimRow>>();
+  for (const row of openRows) {
+    const bucket = openRowsByCompany.get(row.company_id) ?? [];
+    bucket.push(row);
+    openRowsByCompany.set(row.company_id, bucket);
+  }
+  const doneRowsByCompany = new Map<string, Array<DoneCountRow>>();
+  for (const row of doneRows) {
+    const bucket = doneRowsByCompany.get(row.company_id) ?? [];
+    bucket.push(row);
+    doneRowsByCompany.set(row.company_id, bucket);
+  }
+
+  return new Map(
+    uniqueCompanyIds.map((id) => [
+      id,
+      buildRoster(
+        rosterRowsByCompany.get(id) ?? [],
+        openRowsByCompany.get(id) ?? [],
+        doneRowsByCompany.get(id) ?? [],
+      ),
+    ]),
+  );
+};
+
+const getTeamRoster = async (db: D1Database, companyId: string): Promise<Array<TeamMemberView>> => {
+  const rosters = await listTeamRosters(db, [companyId]);
+  return rosters.get(companyId) ?? [];
+};
+
 type CatalogueCountRow = { n: number; template_id: string };
 
 const getCatalogue = async (
   db: D1Database,
   companyId: string,
 ): Promise<Array<HireableTemplate>> => {
-  const [{ results: templates }, { results: counts }] = await Promise.all([
-    db
-      .prepare(
-        `SELECT id, display_name, description, worker_kind
-           FROM template
-          WHERE status = 'active'
-          ORDER BY display_name ASC`,
-      )
-      .all<{ description: string; display_name: string; id: string; worker_kind: string }>(),
+  const [templates, { results: counts }] = await Promise.all([
+    listEntitledActiveTemplates(db, companyId),
     db
       .prepare(
         `SELECT template_id, COUNT(*) AS n
@@ -187,10 +237,10 @@ const getCatalogue = async (
 
   return templates.map((t) => ({
     description: t.description,
-    displayName: t.display_name,
+    displayName: t.displayName,
     hiredCount: countByTemplate.get(t.id) ?? 0,
     id: t.id,
-    workerKind: t.worker_kind,
+    workerKind: t.workerKind,
   }));
 };
 
@@ -208,7 +258,7 @@ const getMemberDetail = async (
 ): Promise<TeamMemberDetailView | null> => {
   const row = await db
     .prepare(
-      `SELECT a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,
+      `SELECT a.company_id, a.id, a.display_name, a.role, a.status, a.template_id, a.prompt_override,
               a.created_at, t.worker_kind, t.description, t.system_prompt, c.name AS company_name
          FROM agent_instance a
          LEFT JOIN template t ON t.id = a.template_id
@@ -224,7 +274,7 @@ const getMemberDetail = async (
   const [{ results: openRows }, done, editedRow] = await Promise.all([
     db
       .prepare(
-        `SELECT id, agent_instance_id, title, status
+        `SELECT company_id, id, agent_instance_id, title, status
            FROM ticket
           WHERE company_id = ? AND agent_instance_id = ?
             AND status IN ('in_progress', 'awaiting_approval')`,
@@ -284,5 +334,5 @@ const getMemberDetail = async (
   return { ...base, ...detailExtras, role, templateId: null, workerKind: null };
 };
 
-export { getCatalogue, getMemberDetail, getTeamRoster };
+export { getCatalogue, getMemberDetail, getTeamRoster, listTeamRosters };
 export type { HireableTemplate, TeamMemberDetailView, TeamMemberView } from "#/team/types";

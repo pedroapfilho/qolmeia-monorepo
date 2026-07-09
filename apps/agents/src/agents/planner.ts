@@ -1,4 +1,4 @@
-import { createAgent } from "@flue/runtime";
+import { defineAgent } from "@flue/runtime";
 
 import { buildFlueTools } from "#/lib/skill-tool";
 import type { SkillContext } from "#/skills/registry";
@@ -17,7 +17,7 @@ O cliente confirma fora do chat (botão na UI). Quando isso acontecer, o Corresp
 
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-export default createAgent<unknown, Env>(async (context) => {
+export default defineAgent<Env>(async (context) => {
   const ctx: SkillContext = {
     agentInstanceId: `planner-${context.id}`,
     companyId: context.id,

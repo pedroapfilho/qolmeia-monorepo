@@ -28,6 +28,14 @@ app.use(
   }),
 );
 
+app.use("*", async (c, next) => {
+  // oxlint-disable-next-line callback-return -- Hono after-middleware: headers are set post-next()
+  await next();
+  if (c.res.headers.get("content-type")?.startsWith("text/event-stream")) {
+    c.res.headers.set("cache-control", "no-cache, no-transform");
+  }
+});
+
 app.onError((error, c) => {
   logError("worker.unhandled", {
     error: error instanceof Error ? error.message : String(error),

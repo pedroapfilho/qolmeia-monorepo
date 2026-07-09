@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { entitleCompanyToAllActiveTemplates } from "#/db/template";
 import { constantTimeEqual } from "#/lib/constant-time";
 
 const internalRoutes = new Hono<{ Bindings: Env }>();
@@ -79,6 +80,8 @@ internalRoutes.post("/companies", async (c) => {
        VALUES (?, ?, 'planner', NULL, NULL, 'Planejador Qolmeia', NULL, 'active', ?, ?)`,
     ).bind(plannerId, id, now, now),
   ]);
+
+  await entitleCompanyToAllActiveTemplates(c.env.DB, id);
 
   return c.json({ ok: true });
 });

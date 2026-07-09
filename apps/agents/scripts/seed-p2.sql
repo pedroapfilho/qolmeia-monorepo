@@ -23,3 +23,9 @@ VALUES
    'correspondent', NULL, NULL, 'Correspondente Qolmeia',
    NULL, 'active',
    unixepoch() * 1000, unixepoch() * 1000);
+
+INSERT OR IGNORE INTO company_template_entitlement
+  (company_id, template_id, enabled, created_at, updated_at)
+SELECT 'cmpg10ke30000147uj4gpeadb', id, 1, unixepoch() * 1000, unixepoch() * 1000
+  FROM template
+ WHERE status = 'active';

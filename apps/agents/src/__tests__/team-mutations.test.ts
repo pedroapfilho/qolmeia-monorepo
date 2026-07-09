@@ -44,6 +44,11 @@ beforeEach(async () => {
     env.DB.prepare(
       `INSERT OR IGNORE INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')`,
     ).bind(TEAM_ID, CORR_ID),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO company_template_entitlement
+         (company_id, template_id, enabled, created_at, updated_at)
+       VALUES (?, 'tpl-designer', 1, 0, 0)`,
+    ).bind(COMPANY_ID),
   ]);
 });
 

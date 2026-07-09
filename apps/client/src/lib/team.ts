@@ -64,6 +64,74 @@ const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
   return body.members;
 };
 
+type SharedTeamEvents = {
+  listeners: Set<() => void>;
+  reconnectTimer: ReturnType<typeof setTimeout> | null;
+  source: EventSource | null;
+};
+
+const sharedTeamEvents: SharedTeamEvents = {
+  listeners: new Set(),
+  reconnectTimer: null,
+  source: null,
+};
+
+const RECONNECT_MS = 2000;
+
+const notifyTeamEventListeners = (): void => {
+  for (const listener of sharedTeamEvents.listeners) {
+    listener();
+  }
+};
+
+const closeSharedSource = (): void => {
+  if (sharedTeamEvents.reconnectTimer !== null) {
+    clearTimeout(sharedTeamEvents.reconnectTimer);
+    sharedTeamEvents.reconnectTimer = null;
+  }
+  if (sharedTeamEvents.source) {
+    sharedTeamEvents.source.close();
+    sharedTeamEvents.source = null;
+  }
+};
+
+const openSharedSource = (): void => {
+  if (typeof EventSource === "undefined" || sharedTeamEvents.source) {
+    return;
+  }
+  const source = new EventSource(apiUrl("/api/me/team/events"), { withCredentials: true });
+  sharedTeamEvents.source = source;
+  source.addEventListener("team:roster", notifyTeamEventListeners);
+  source.addEventListener("team:status", notifyTeamEventListeners);
+  source.addEventListener("error", () => {
+    source.close();
+    if (sharedTeamEvents.source === source) {
+      sharedTeamEvents.source = null;
+    }
+    if (sharedTeamEvents.listeners.size === 0 || sharedTeamEvents.reconnectTimer !== null) {
+      return;
+    }
+    sharedTeamEvents.reconnectTimer = setTimeout(() => {
+      sharedTeamEvents.reconnectTimer = null;
+      openSharedSource();
+    }, RECONNECT_MS);
+  });
+};
+
+const subscribeTeamEvents = (onEvent: () => void): (() => void) | null => {
+  if (typeof EventSource === "undefined") {
+    return null;
+  }
+  sharedTeamEvents.listeners.add(onEvent);
+  openSharedSource();
+  return () => {
+    sharedTeamEvents.listeners.delete(onEvent);
+    if (sharedTeamEvents.listeners.size === 0) {
+      closeSharedSource();
+    }
+  };
+};
+
 const fetchCatalogue = async (): Promise<Array<HireableTemplate>> => {
   const res = await fetch(apiUrl("/api/me/catalogue"), { credentials: "include" });
   if (!res.ok) {
@@ -117,7 +185,15 @@ const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> =
   return ((await res.json()) as { member: TeamMemberView }).member;
 };
 
-export { fetchCatalogue, fetchTeam, hireMember, patchMember, setPaused, STATUS_LABEL };
+export {
+  fetchCatalogue,
+  fetchTeam,
+  hireMember,
+  patchMember,
+  setPaused,
+  STATUS_LABEL,
+  subscribeTeamEvents,
+};
 export type {
   AgentDisplayStatus,
   HireableTemplate,
