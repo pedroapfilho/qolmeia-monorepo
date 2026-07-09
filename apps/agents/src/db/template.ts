@@ -104,6 +104,32 @@ const isTemplateEntitledForCompany = async (
   return Boolean(row);
 };
 
+const assertTemplatesEntitledForCompany = async (
+  db: D1Database,
+  companyId: string,
+  templateIds: ReadonlyArray<string>,
+): Promise<void> => {
+  const uniqueIds = [...new Set(templateIds)].filter(Boolean);
+  if (uniqueIds.length === 0) {
+    return;
+  }
+  const placeholders = uniqueIds.map(() => "?").join(",");
+  const { results } = await db
+    .prepare(
+      `SELECT template_id
+         FROM company_template_entitlement
+        WHERE company_id = ? AND enabled = 1
+          AND template_id IN (${placeholders})`,
+    )
+    .bind(companyId, ...uniqueIds)
+    .all<{ template_id: string }>();
+  const entitled = new Set(results.map((row) => row.template_id));
+  const missing = uniqueIds.find((id) => !entitled.has(id));
+  if (missing) {
+    throw new Error(`Template ${missing} is not entitled for company ${companyId}`);
+  }
+};
+
 const entitleCompanyToAllActiveTemplates = async (
   db: D1Database,
   companyId: string,
@@ -252,6 +278,7 @@ const listSkillOverlays = async (
 };
 
 export {
+  assertTemplatesEntitledForCompany,
   createTemplate,
   entitleCompanyToAllActiveTemplates,
   getTemplate,

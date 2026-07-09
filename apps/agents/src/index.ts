@@ -8,4 +8,4 @@ export default {
   scheduled: cloudflare.scheduled,
 } satisfies ExportedHandler<Env>;
 
-export { WorkerJobWorkflow } from "#/cloudflare";
+export { TeamEvents, WorkerJobWorkflow } from "#/cloudflare";

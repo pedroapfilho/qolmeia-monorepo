@@ -22,7 +22,14 @@
         "FlueRegistry",
       ],
     },
+    {
+      "tag": "v2",
+      "new_classes": ["TeamEvents"],
+    },
   ],
+  "durable_objects": {
+    "bindings": [{ "class_name": "TeamEvents", "name": "TEAM_EVENTS" }],
+  },
   "workflows": [
     {
       "binding": "WORKER_JOB",

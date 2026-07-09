@@ -50,16 +50,14 @@ vi.mock("streamdown", () => ({
   Streamdown: ({ children }: { children: string }) => <div>{children}</div>,
 }));
 
-const { Chat } = await import("./chat");
-
-// Mirrors PLANNER_KICKOFF in chat.tsx — the transcript filter matches on it.
-const KICKOFF_PROMPT =
-  "O cliente acabou de abrir o chat de onboarding. Cumprimente-o de forma calorosa e breve, diga em uma frase que você vai fazer algumas perguntas para entender o negócio dele, e já faça a primeira pergunta da entrevista.";
+const { Chat, PLANNER_KICKOFF } = await import("./chat");
 
 describe("Chat", () => {
   beforeEach(() => {
     sendMessage.mockReset();
+    sendMessage.mockResolvedValue(undefined);
     kickoff.mockReset();
+    kickoff.mockResolvedValue(undefined);
     toastError.mockReset();
     capturedChatOptions = {};
     chatState.historyReady = true;
@@ -82,6 +80,34 @@ describe("Chat", () => {
       />,
     );
     expect(kickoff).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the kickoff lock after a failed attempt", async () => {
+    kickoff.mockRejectedValueOnce(new Error("kickoff failed"));
+    render(
+      <Chat
+        agent="planner"
+        agentsUrl="http://localhost:8787"
+        companyId="co_test"
+        sessionToken="tok"
+      />,
+    );
+    await vi.waitFor(() => expect(kickoff).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/Um agente está respondendo/v)).not.toBeInTheDocument();
+  });
+
+  it("does not show a thinking spinner for an idle empty Planner transcript", () => {
+    chatState.status = "ready";
+    chatState.messages = [];
+    render(
+      <Chat
+        agent="planner"
+        agentsUrl="http://localhost:8787"
+        companyId="co_test"
+        sessionToken="tok"
+      />,
+    );
+    expect(screen.queryByText(/Um agente está respondendo/v)).not.toBeInTheDocument();
   });
 
   it("does not kick off the Correspondent", () => {
@@ -111,7 +137,7 @@ describe("Chat", () => {
 
   it("does not kick off the Planner again when the transcript replays", () => {
     chatState.messages = [
-      { id: "m1", parts: [{ state: "done", text: KICKOFF_PROMPT, type: "text" }], role: "user" },
+      { id: "m1", parts: [{ state: "done", text: PLANNER_KICKOFF, type: "text" }], role: "user" },
       {
         id: "m2",
         parts: [{ state: "done", text: "Olá! Bem-vindo.", type: "text" }],
@@ -131,7 +157,7 @@ describe("Chat", () => {
 
   it("hides the kickoff prompt from the rendered transcript", () => {
     chatState.messages = [
-      { id: "m1", parts: [{ state: "done", text: KICKOFF_PROMPT, type: "text" }], role: "user" },
+      { id: "m1", parts: [{ state: "done", text: PLANNER_KICKOFF, type: "text" }], role: "user" },
       {
         id: "m2",
         parts: [{ state: "done", text: "Olá! Bem-vindo.", type: "text" }],
@@ -146,7 +172,7 @@ describe("Chat", () => {
         sessionToken="tok"
       />,
     );
-    expect(screen.queryByText(KICKOFF_PROMPT)).not.toBeInTheDocument();
+    expect(screen.queryByText(PLANNER_KICKOFF)).not.toBeInTheDocument();
     expect(screen.getByText("Olá! Bem-vindo.")).toBeInTheDocument();
   });
 

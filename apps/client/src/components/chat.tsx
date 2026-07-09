@@ -209,22 +209,36 @@ const ChatInner = ({
 
   const kickedOffRef = useRef(false);
   useEffect(() => {
-    if (agentName === "planner" && historyReady && messages.length === 0 && !kickedOffRef.current) {
-      kickedOffRef.current = true;
-      void kickoff(PLANNER_KICKOFF);
+    if (agentName !== "planner" || !historyReady || messages.length > 0 || kickedOffRef.current) {
+      return;
     }
+    kickedOffRef.current = true;
+    const run = async () => {
+      try {
+        await kickoff(PLANNER_KICKOFF);
+      } catch {
+        // Unlock so a remount / history reload can try again; onError already toasted.
+        kickedOffRef.current = false;
+      }
+    };
+    void run();
   }, [agentName, historyReady, messages.length, kickoff]);
 
-  // Covers the window between kickoff admission and the greeting streaming in
-  // (including replays where only the hidden kickoff message exists yet).
-  const showKickoffSpinner =
-    agentName === "planner" && historyReady && visibleMessages.length === 0;
-  const isThinking = status === "submitted" || status === "streaming" || showKickoffSpinner;
+  // Only follow Flue status — never key the spinner on an empty transcript, or a
+  // failed/hung kickoff locks the composer forever.
+  const isThinking = status === "submitted" || status === "streaming";
   const isCorrespondent = agentName === "correspondent";
   const lastIndex = visibleMessages.length - 1;
 
   const handleSend = (message: { files: Array<FileUIPart>; text: string }) => {
-    void sendMessage(message);
+    const run = async () => {
+      try {
+        await sendMessage(message);
+      } catch {
+        // onError already toasted; sendMessage rethrows so callers can react.
+      }
+    };
+    void run();
   };
 
   if (!historyReady) {
@@ -330,4 +344,4 @@ const Chat = (props: ChatProps) => {
   return <ChatInner {...props} />;
 };
 
-export { Chat };
+export { Chat, PLANNER_KICKOFF };

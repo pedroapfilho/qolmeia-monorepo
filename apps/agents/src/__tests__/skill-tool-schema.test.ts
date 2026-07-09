@@ -1,8 +1,9 @@
 import { env } from "cloudflare:test";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { buildFlueTools } from "#/lib/skill-tool";
+import { buildFlueTools, buildInputSchema } from "#/lib/skill-tool";
 import type { SkillContext } from "#/skills/registry";
 import { listSkillCatalog } from "#/skills/registry";
 
@@ -46,5 +47,15 @@ describe("buildFlueTools — zod input schemas re-expressed as Valibot", () => {
     expect(v.safeParse(input, {}).success).toBe(true);
     expect(v.safeParse(input, { folder: "customer" }).success).toBe(true);
     expect(v.safeParse(input, { folder: "not-a-folder" }).success).toBe(false);
+  });
+
+  it("rejects unsupported schema shapes at conversion time", () => {
+    const unionField = z.union([z.string(), z.number()]);
+    const unionSchema = z.object({ value: unionField });
+    expect(() => buildInputSchema(unionSchema, "union-skill")).toThrow(/unsupported/vi);
+
+    const nullableField = z.string().nullable();
+    const nullableSchema = z.object({ value: nullableField });
+    expect(() => buildInputSchema(nullableSchema, "nullable-skill")).toThrow(/unsupported/vi);
   });
 });

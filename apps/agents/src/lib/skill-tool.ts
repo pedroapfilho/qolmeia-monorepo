@@ -9,6 +9,14 @@ import { resolveSkills, type SkillContext } from "#/skills/registry";
 // vendors), while skills keep zod as their schema source of truth. The zod
 // schema's JSON Schema projection is re-expressed as an equivalent Valibot
 // schema so the model still sees full parameter docs and constraints.
+//
+// Supported JSON Schema subset (keep skill inputSchema within this):
+// - top-level object with string/number/integer/boolean/array/object properties
+// - string minLength / maxLength / format:"uri"
+// - string-only enums (z.enum / z.literal unions of strings)
+// - optional properties via `required`
+// Unsupported today (throws at agent boot): unions, nullables, number bounds,
+// non-string enums, records/maps, tuples, anyOf/oneOf/allOf.
 type JsonSchemaNode = {
   description?: string;
   enum?: ReadonlyArray<unknown>;
@@ -110,4 +118,4 @@ const buildFlueTools = async (
   );
 };
 
-export { buildFlueTools };
+export { buildFlueTools, buildInputSchema };

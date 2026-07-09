@@ -160,7 +160,7 @@ meRoutes.get("/team", async (c) => {
 
 meRoutes.get("/team/events", (c) => {
   const { companyId } = c.get("session");
-  return subscribeTeamEvents(companyId, c.req.raw.signal);
+  return subscribeTeamEvents(c.env, companyId, c.req.raw.signal);
 });
 
 meRoutes.get("/catalogue", async (c) => {

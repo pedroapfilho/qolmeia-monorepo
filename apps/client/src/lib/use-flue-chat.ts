@@ -115,6 +115,7 @@ const useFlueChat = ({
       await conversation.sendMessage(text, { images: await toPromptImages(input.files) });
     } catch (error) {
       onError?.(error);
+      throw error;
     }
   };
 
@@ -123,6 +124,7 @@ const useFlueChat = ({
       await conversation.sendMessage(prompt);
     } catch (error) {
       onError?.(error);
+      throw error;
     }
   };
 

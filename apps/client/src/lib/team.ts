@@ -64,18 +64,72 @@ const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
   return body.members;
 };
 
+// One EventSource per tab, shared across TeamSidebar + EmpresaClient mounts.
+type SharedTeamEvents = {
+  listeners: Set<() => void>;
+  reconnectTimer: ReturnType<typeof setTimeout> | null;
+  source: EventSource | null;
+};
+
+const sharedTeamEvents: SharedTeamEvents = {
+  listeners: new Set(),
+  reconnectTimer: null,
+  source: null,
+};
+
+const RECONNECT_MS = 2000;
+
+const notifyTeamEventListeners = (): void => {
+  for (const listener of sharedTeamEvents.listeners) {
+    listener();
+  }
+};
+
+const closeSharedSource = (): void => {
+  if (sharedTeamEvents.reconnectTimer !== null) {
+    clearTimeout(sharedTeamEvents.reconnectTimer);
+    sharedTeamEvents.reconnectTimer = null;
+  }
+  if (sharedTeamEvents.source) {
+    sharedTeamEvents.source.close();
+    sharedTeamEvents.source = null;
+  }
+};
+
+const openSharedSource = (): void => {
+  if (typeof EventSource === "undefined" || sharedTeamEvents.source) {
+    return;
+  }
+  const source = new EventSource(apiUrl("/api/me/team/events"), { withCredentials: true });
+  sharedTeamEvents.source = source;
+  source.addEventListener("team:roster", notifyTeamEventListeners);
+  source.addEventListener("team:status", notifyTeamEventListeners);
+  source.addEventListener("error", () => {
+    source.close();
+    if (sharedTeamEvents.source === source) {
+      sharedTeamEvents.source = null;
+    }
+    if (sharedTeamEvents.listeners.size === 0 || sharedTeamEvents.reconnectTimer !== null) {
+      return;
+    }
+    sharedTeamEvents.reconnectTimer = setTimeout(() => {
+      sharedTeamEvents.reconnectTimer = null;
+      openSharedSource();
+    }, RECONNECT_MS);
+  });
+};
+
 const subscribeTeamEvents = (onEvent: () => void): (() => void) | null => {
   if (typeof EventSource === "undefined") {
     return null;
   }
-  const source = new EventSource(apiUrl("/api/me/team/events"), { withCredentials: true });
-  const listener = (): void => onEvent();
-  source.addEventListener("team:roster", listener);
-  source.addEventListener("team:status", listener);
+  sharedTeamEvents.listeners.add(onEvent);
+  openSharedSource();
   return () => {
-    source.removeEventListener("team:roster", listener);
-    source.removeEventListener("team:status", listener);
-    source.close();
+    sharedTeamEvents.listeners.delete(onEvent);
+    if (sharedTeamEvents.listeners.size === 0) {
+      closeSharedSource();
+    }
   };
 };
 

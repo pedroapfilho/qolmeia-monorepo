@@ -1,3 +1,5 @@
+import { logError } from "#/lib/logger";
+
 type TeamEvent =
   | {
       companyId: string;
@@ -10,69 +12,33 @@ type TeamEvent =
       type: "team:roster";
     };
 
-type TeamEventSubscriber = {
-  close: () => void;
-  send: (event: TeamEvent) => void;
-};
+const stubFor = (env: Env, companyId: string) =>
+  env.TEAM_EVENTS.get(env.TEAM_EVENTS.idFromName(companyId));
 
-const subscribersByCompany = new Map<string, Set<TeamEventSubscriber>>();
-
-const emitTeamEvent = (_env: Env, event: TeamEvent): Promise<void> => {
-  const subscribers = subscribersByCompany.get(event.companyId);
-  if (subscribers) {
-    for (const subscriber of subscribers) {
-      subscriber.send(event);
-    }
+const emitTeamEvent = async (env: Env, event: TeamEvent): Promise<void> => {
+  try {
+    await stubFor(env, event.companyId).fetch(
+      new Request("https://team-events/broadcast", {
+        body: JSON.stringify(event),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+  } catch (error) {
+    logError("team.event.emit.err", {
+      companyId: event.companyId,
+      error: error instanceof Error ? error.message : String(error),
+      type: event.type,
+    });
   }
-  return Promise.resolve();
 };
 
-const subscribeTeamEvents = (companyId: string, signal: AbortSignal): Response => {
-  const encoder = new TextEncoder();
-  let subscriber: TeamEventSubscriber;
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const sendChunk = (chunk: string): void => {
-        controller.enqueue(encoder.encode(chunk));
-      };
-      subscriber = {
-        close: () => {
-          try {
-            controller.close();
-          } catch {
-            // The stream may already be closed by the client abort.
-          }
-        },
-        send: (event) => {
-          sendChunk(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
-        },
-      };
-      const subscribers = subscribersByCompany.get(companyId) ?? new Set<TeamEventSubscriber>();
-      subscribers.add(subscriber);
-      subscribersByCompany.set(companyId, subscribers);
-      sendChunk(": connected\n\n");
-
-      signal.addEventListener(
-        "abort",
-        () => {
-          subscribers.delete(subscriber);
-          if (subscribers.size === 0) {
-            subscribersByCompany.delete(companyId);
-          }
-          subscriber.close();
-        },
-        { once: true },
-      );
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Cache-Control": "no-cache, no-transform",
-      "Content-Type": "text/event-stream",
-    },
-  });
-};
+const subscribeTeamEvents = (
+  env: Env,
+  companyId: string,
+  signal: AbortSignal,
+): Promise<Response> =>
+  stubFor(env, companyId).fetch(new Request("https://team-events/subscribe", { signal }));
 
 export { emitTeamEvent, subscribeTeamEvents };
 export type { TeamEvent };
