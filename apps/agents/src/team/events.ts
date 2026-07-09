@@ -33,11 +33,7 @@ const emitTeamEvent = async (env: Env, event: TeamEvent): Promise<void> => {
   }
 };
 
-const subscribeTeamEvents = (
-  env: Env,
-  companyId: string,
-  signal: AbortSignal,
-): Promise<Response> =>
+const subscribeTeamEvents = (env: Env, companyId: string, signal: AbortSignal): Promise<Response> =>
   stubFor(env, companyId).fetch(new Request("https://team-events/subscribe", { signal }));
 
 export { emitTeamEvent, subscribeTeamEvents };

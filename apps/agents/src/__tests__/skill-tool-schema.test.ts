@@ -52,10 +52,10 @@ describe("buildFlueTools — zod input schemas re-expressed as Valibot", () => {
   it("rejects unsupported schema shapes at conversion time", () => {
     const unionField = z.union([z.string(), z.number()]);
     const unionSchema = z.object({ value: unionField });
-    expect(() => buildInputSchema(unionSchema, "union-skill")).toThrow(/unsupported/vi);
+    expect(() => buildInputSchema(unionSchema, "union-skill")).toThrow(/unsupported/iv);
 
     const nullableField = z.string().nullable();
     const nullableSchema = z.object({ value: nullableField });
-    expect(() => buildInputSchema(nullableSchema, "nullable-skill")).toThrow(/unsupported/vi);
+    expect(() => buildInputSchema(nullableSchema, "nullable-skill")).toThrow(/unsupported/iv);
   });
 });
