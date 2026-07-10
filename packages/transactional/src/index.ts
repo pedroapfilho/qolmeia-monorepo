@@ -6,12 +6,7 @@ export { Divider } from "./components/divider";
 export { QolmeiaLogo } from "./components/qolmeia-logo";
 
 export { sendEmail, sendBatchEmails, previewEmail } from "./utils/send-email";
-export {
-  sendChangeEmailConfirmation,
-  sendMagicLinkEmail,
-  sendWelcomeEmail,
-  sendPasswordResetEmail,
-  sendSignUpAttemptEmail,
-} from "./utils/senders";
+export type { MailerConfig, TransactionalEmail } from "./utils/senders";
+export { sendTransactionalEmail } from "./utils/senders";
 
 export { emailTheme, tailwindConfig } from "./styles/theme";

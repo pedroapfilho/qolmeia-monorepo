@@ -32,6 +32,10 @@ const buildApp = (
   handler: (c: Context) => Response | Promise<Response>,
 ) => {
   const app = new Hono();
+  app.use("/x", (c, next) => {
+    c.set("log", { error: vi.fn() } as never);
+    return next();
+  });
   app.use("/x", guard);
   app.get("/x", handler);
   return app;
@@ -108,6 +112,22 @@ describe("requireStaff", () => {
       role: "STAFF",
       userId: "user_1",
     });
+  });
+
+  it("returns 503 when the auth service is unavailable", async () => {
+    const auth = {
+      api: { getSession: vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED")) },
+    };
+    const prisma = buildPrisma([]);
+    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+      c.json({ ok: true }),
+    );
+
+    const res = await app.fetch(new Request("http://localhost/x"));
+
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain("Authentication service unavailable");
+    expect(prisma.orgMembership.findFirst).not.toHaveBeenCalled();
   });
 
   it("prefers the oldest matching membership when multiple exist", async () => {

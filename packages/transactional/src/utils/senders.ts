@@ -8,7 +8,7 @@ import { WelcomeEmail } from "../emails/welcome";
 
 import { sendEmail } from "./send-email";
 
-type EmailConfig = {
+type MailerConfig = {
   apiKey: string;
   defaultReplyTo?: string;
   from?: string;
@@ -16,100 +16,82 @@ type EmailConfig = {
 
 const DEFAULT_FROM = "Qolmeia <noreply@qolmeia.ai>";
 
-const sendWelcomeEmail = (
-  {
-    userEmail,
-    userId,
-    username,
-    verificationUrl,
-  }: {
-    userEmail: string;
-    userId: string;
-    username?: string;
-    verificationUrl: string;
-  },
-  config: EmailConfig,
-) => {
-  return sendEmail({
-    apiKey: config.apiKey,
-    defaultReplyTo: config.defaultReplyTo,
-    from: config.from || DEFAULT_FROM,
-    subject: `Welcome to Qolmeia${username ? `, ${username}` : ""}! Please verify your email`,
-    tags: [
-      { name: "type", value: "welcome" },
-      { name: "userId", value: userId },
-    ],
-    template: React.createElement(WelcomeEmail, {
-      userEmail,
-      username,
-      verificationUrl,
-    }),
-    to: userEmail,
-  });
+type WelcomePayload = {
+  userEmail: string;
+  userId: string;
+  username?: string;
+  verificationUrl: string;
 };
 
-const sendSignUpAttemptEmail = (
-  {
-    resetPasswordUrl,
-    signInUrl,
-    userEmail,
-    userId,
-    username,
-  }: {
-    resetPasswordUrl: string;
-    signInUrl: string;
-    userEmail: string;
-    userId: string;
-    username?: string;
-  },
-  config: EmailConfig,
-) => {
-  return sendEmail({
-    apiKey: config.apiKey,
-    defaultReplyTo: config.defaultReplyTo,
-    from: config.from || DEFAULT_FROM,
-    subject: "Sign-up attempt with your Qolmeia account",
-    tags: [
-      { name: "type", value: "sign-up-attempt" },
-      { name: "userId", value: userId },
-    ],
-    template: React.createElement(SignUpAttemptEmail, {
-      resetPasswordUrl,
-      signInUrl,
-      userEmail,
-      username,
-    }),
-    to: userEmail,
-  });
+type SignUpAttemptPayload = {
+  resetPasswordUrl: string;
+  signInUrl: string;
+  userEmail: string;
+  userId: string;
+  username?: string;
 };
 
-const sendPasswordResetEmail = (
-  {
+type PasswordResetPayload = {
+  browserInfo?: string;
+  ipAddress?: string;
+  resetUrl: string;
+  userEmail: string;
+  userId: string;
+  username?: string;
+};
+
+type ChangeEmailPayload = {
+  changeUrl: string;
+  currentEmail: string;
+  newEmail: string;
+  userId: string;
+  username?: string;
+};
+
+// Magic links go to addresses that may not have an account yet, so userId is optional.
+type MagicLinkPayload = {
+  url: string;
+  userEmail: string;
+  userId?: string;
+  username?: string;
+};
+
+type TransactionalEmail =
+  | ({ type: "welcome" } & WelcomePayload)
+  | ({ type: "sign-up-attempt" } & SignUpAttemptPayload)
+  | ({ type: "password-reset" } & PasswordResetPayload)
+  | ({ type: "change-email-confirmation" } & ChangeEmailPayload)
+  | ({ type: "magic-link" } & MagicLinkPayload);
+
+type EmailBuild = { subject: string; template: React.ReactElement; to: string };
+
+type TemplateBuilder<P> = (payload: P) => EmailBuild;
+
+const TEMPLATES = {
+  "change-email-confirmation": ({
+    changeUrl,
+    currentEmail,
+    newEmail,
+    username,
+  }: ChangeEmailPayload) => ({
+    subject: "Confirm change of your Qolmeia account email",
+    template: React.createElement(ChangeEmail, { changeUrl, currentEmail, newEmail, username }),
+    // Consent to current email; sendVerificationEmail handles new-email verification.
+    to: currentEmail,
+  }),
+  "magic-link": ({ url, userEmail, username }: MagicLinkPayload) => ({
+    subject: "Seu link de acesso à Qolmeia",
+    template: React.createElement(MagicLinkEmail, { url, userEmail, username }),
+    to: userEmail,
+  }),
+  "password-reset": ({
     browserInfo,
     ipAddress,
     resetUrl,
     userEmail,
-    userId,
     username,
-  }: {
-    browserInfo?: string;
-    ipAddress?: string;
-    resetUrl: string;
-    userEmail: string;
-    userId: string;
-    username?: string;
-  },
-  config: EmailConfig,
-) => {
-  return sendEmail({
-    apiKey: config.apiKey,
-    defaultReplyTo: config.defaultReplyTo,
-    from: config.from || DEFAULT_FROM,
+  }: PasswordResetPayload) => ({
     subject: "Reset your Qolmeia password",
-    tags: [
-      { name: "type", value: "password-reset" },
-      { name: "userId", value: userId },
-    ],
     template: React.createElement(PasswordResetEmail, {
       browserInfo,
       ipAddress,
@@ -118,80 +100,51 @@ const sendPasswordResetEmail = (
       username,
     }),
     to: userEmail,
-  });
-};
-
-const sendChangeEmailConfirmation = (
-  {
-    changeUrl,
-    currentEmail,
-    newEmail,
-    userId,
-    username,
-  }: {
-    changeUrl: string;
-    currentEmail: string;
-    newEmail: string;
-    userId: string;
-    username?: string;
-  },
-  config: EmailConfig,
-) => {
-  return sendEmail({
-    apiKey: config.apiKey,
-    defaultReplyTo: config.defaultReplyTo,
-    from: config.from || DEFAULT_FROM,
-    subject: "Confirm change of your Qolmeia account email",
-    tags: [
-      { name: "type", value: "change-email-confirmation" },
-      { name: "userId", value: userId },
-    ],
-    template: React.createElement(ChangeEmail, {
-      changeUrl,
-      currentEmail,
-      newEmail,
-      username,
-    }),
-    to: currentEmail,
-  });
-};
-
-const sendMagicLinkEmail = (
-  {
-    url,
+  }),
+  "sign-up-attempt": ({
+    resetPasswordUrl,
+    signInUrl,
     userEmail,
-    userId,
     username,
-  }: {
-    url: string;
-    userEmail: string;
-    userId?: string;
-    username?: string;
-  },
-  config: EmailConfig,
-) => {
-  return sendEmail({
-    apiKey: config.apiKey,
-    defaultReplyTo: config.defaultReplyTo,
-    from: config.from || DEFAULT_FROM,
-    subject: "Seu link de acesso à Qolmeia",
-    tags: [
-      { name: "type", value: "magic-link" },
-      ...(userId ? [{ name: "userId", value: userId }] : []),
-    ],
-    template: React.createElement(MagicLinkEmail, {
-      url,
+  }: SignUpAttemptPayload) => ({
+    subject: "Sign-up attempt with your Qolmeia account",
+    template: React.createElement(SignUpAttemptEmail, {
+      resetPasswordUrl,
+      signInUrl,
       userEmail,
       username,
     }),
     to: userEmail,
+  }),
+  welcome: ({ userEmail, username, verificationUrl }: WelcomePayload) => ({
+    subject: `Welcome to Qolmeia${username ? `, ${username}` : ""}! Please verify your email`,
+    template: React.createElement(WelcomeEmail, { userEmail, username, verificationUrl }),
+    to: userEmail,
+  }),
+} satisfies {
+  "change-email-confirmation": TemplateBuilder<ChangeEmailPayload>;
+  "magic-link": TemplateBuilder<MagicLinkPayload>;
+  "password-reset": TemplateBuilder<PasswordResetPayload>;
+  "sign-up-attempt": TemplateBuilder<SignUpAttemptPayload>;
+  welcome: TemplateBuilder<WelcomePayload>;
+};
+
+const sendTransactionalEmail = (email: TransactionalEmail, config: MailerConfig) => {
+  const builder = TEMPLATES[email.type] as TemplateBuilder<typeof email>;
+  const { subject, template, to } = builder(email);
+  return sendEmail({
+    apiKey: config.apiKey,
+    defaultReplyTo: config.defaultReplyTo,
+    from: config.from || DEFAULT_FROM,
+    subject,
+    tags: [
+      { name: "type", value: email.type },
+      ...(email.userId ? [{ name: "userId", value: email.userId }] : []),
+    ],
+    template,
+    to,
   });
 };
 
-export {
-  sendChangeEmailConfirmation,
-  sendMagicLinkEmail,
-  sendWelcomeEmail,
-  sendPasswordResetEmail,
-  sendSignUpAttemptEmail,
-};
+export type { MailerConfig, TransactionalEmail };
+export { sendTransactionalEmail };

@@ -1,12 +1,7 @@
 import type { PrismaClient } from "@repo/db";
 import { log } from "@repo/observability";
-import {
-  sendChangeEmailConfirmation,
-  sendMagicLinkEmail,
-  sendPasswordResetEmail,
-  sendSignUpAttemptEmail,
-  sendWelcomeEmail,
-} from "@repo/transactional";
+import type { MailerConfig } from "@repo/transactional";
+import { sendTransactionalEmail } from "@repo/transactional";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { bearer } from "better-auth/plugins/bearer";
@@ -65,6 +60,10 @@ export const createAuth = (config: AuthConfig) => {
 
   const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
 
+  const mailer: MailerConfig | null = resendApiKey
+    ? { apiKey: resendApiKey, from: fromEmail }
+    : null;
+
   return betterAuth({
     account: {
       accountLinking: {
@@ -104,18 +103,19 @@ export const createAuth = (config: AuthConfig) => {
       enabled: true,
       maxPasswordLength: 128,
       minPasswordLength: 12,
-      onExistingUserSignUp: resendApiKey
+      onExistingUserSignUp: mailer
         ? async ({ user }, request) => {
             const origin = request?.headers.get("origin") ?? "";
-            const result = await sendSignUpAttemptEmail(
+            const result = await sendTransactionalEmail(
               {
                 resetPasswordUrl: `${origin}/recover`,
                 signInUrl: `${origin}/login`,
+                type: "sign-up-attempt",
                 userEmail: user.email,
                 userId: user.id,
                 username: user.name,
               },
-              { apiKey: resendApiKey, from: fromEmail },
+              mailer,
             );
             if (!result.success) {
               log.error({
@@ -125,9 +125,9 @@ export const createAuth = (config: AuthConfig) => {
             }
           }
         : undefined,
-      requireEmailVerification: Boolean(resendApiKey),
+      requireEmailVerification: Boolean(mailer),
       sendResetPassword: async ({ url, user }) => {
-        if (!resendApiKey) {
+        if (!mailer) {
           log.info({
             message: "auth: password-reset link (no Resend key)",
             url,
@@ -135,14 +135,15 @@ export const createAuth = (config: AuthConfig) => {
           });
           return;
         }
-        const result = await sendPasswordResetEmail(
+        const result = await sendTransactionalEmail(
           {
             resetUrl: url,
+            type: "password-reset",
             userEmail: user.email,
             userId: user.id,
             username: user.name,
           },
-          { apiKey: resendApiKey, from: fromEmail },
+          mailer,
         );
         if (!result.success) {
           throw new Error(`Failed to send password reset email: ${result.error}`);
@@ -168,7 +169,7 @@ export const createAuth = (config: AuthConfig) => {
             return url;
           }
         })();
-        if (!resendApiKey) {
+        if (!mailer) {
           log.info({
             message: "auth: verification link (no Resend key)",
             url: verificationUrl,
@@ -176,14 +177,15 @@ export const createAuth = (config: AuthConfig) => {
           });
           return;
         }
-        const result = await sendWelcomeEmail(
+        const result = await sendTransactionalEmail(
           {
+            type: "welcome",
             userEmail: user.email,
             userId: user.id,
             username: user.name,
             verificationUrl,
           },
-          { apiKey: resendApiKey, from: fromEmail },
+          mailer,
         );
         if (!result.success) {
           throw new Error(`Failed to send verification email: ${result.error}`);
@@ -196,16 +198,17 @@ export const createAuth = (config: AuthConfig) => {
       bearer(),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
-          if (!resendApiKey) {
+          if (!mailer) {
             log.info({ message: "auth: magic-link (no Resend key)", url, userEmail: email });
             return;
           }
-          const result = await sendMagicLinkEmail(
+          const result = await sendTransactionalEmail(
             {
+              type: "magic-link",
               url,
               userEmail: email,
             },
-            { apiKey: resendApiKey, from: fromEmail },
+            mailer,
           );
           if (!result.success) {
             throw new Error(`Failed to send magic-link email: ${result.error}`);
@@ -253,18 +256,19 @@ export const createAuth = (config: AuthConfig) => {
       changeEmail: {
         enabled: true,
         sendChangeEmailConfirmation: async ({ newEmail, url, user }) => {
-          if (!resendApiKey) {
+          if (!mailer) {
             return;
           }
-          const result = await sendChangeEmailConfirmation(
+          const result = await sendTransactionalEmail(
             {
               changeUrl: url,
               currentEmail: user.email,
               newEmail,
+              type: "change-email-confirmation",
               userId: user.id,
               username: user.name,
             },
-            { apiKey: resendApiKey, from: fromEmail },
+            mailer,
           );
           if (!result.success) {
             throw new Error(`Failed to send change-email confirmation: ${result.error}`);
