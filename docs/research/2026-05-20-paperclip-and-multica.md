@@ -43,22 +43,22 @@ Self-hosted Node.js. MIT licensed. Embedded Postgres for local dev. One install 
 
 ### 2.3 Core primitives
 
-| Primitive                                 | What it is                                                                                                                                                      |
+| Primitive | What it is |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------- | ------------ |
-| **Company**                               | A tenant. One Paperclip install runs many. All other data scopes by `companyId`.                                                                                |
-| **Agent (managed)**                       | An AI employee with a `role`, `agentKey`, a configured CLI adapter, and a budget. Created either by the operator or by a plugin's `agents.managed` declaration. |
-| **Adapter**                               | The thing that actually executes an agent run. Spawns the CLI as a child process. Each adapter has `timeoutSec` and `graceSec`.                                 |
-| **Skill**                                 | A capability bundle attached to an agent. Plugins can install skills via `skills.managed`.                                                                      |
-| **Tool**                                  | Function callable from inside an agent's CLI loop. Plugins declare their tools; the host wires them into the adapter's tool surface.                            |
-| **Issue**                                 | A unit of work. Plugins create Issues to track operations (e.g. wiki ingest, query session). Has comments and a status.                                         |
-| **Run (`heartbeatRuns`)**                 | A single execution of an agent. Each Run corresponds to one CLI subprocess invocation.                                                                          |
+| **Company** | A tenant. One Paperclip install runs many. All other data scopes by `companyId`. |
+| **Agent (managed)** | An AI employee with a `role`, `agentKey`, a configured CLI adapter, and a budget. Created either by the operator or by a plugin's `agents.managed` declaration. |
+| **Adapter** | The thing that actually executes an agent run. Spawns the CLI as a child process. Each adapter has `timeoutSec` and `graceSec`. |
+| **Skill** | A capability bundle attached to an agent. Plugins can install skills via `skills.managed`. |
+| **Tool** | Function callable from inside an agent's CLI loop. Plugins declare their tools; the host wires them into the adapter's tool surface. |
+| **Issue** | A unit of work. Plugins create Issues to track operations (e.g. wiki ingest, query session). Has comments and a status. |
+| **Run (`heartbeatRuns`)** | A single execution of an agent. Each Run corresponds to one CLI subprocess invocation. |
 | **Wakeup request (`agentWakeupRequest`)** | A queued ask for the agent to run. Sources: `timer                                                                                                              | assignment | on_demand | automation`. |
-| **Heartbeat**                             | The scheduler that picks up wakeup requests and dispatches Runs.                                                                                                |
-| **Routine**                               | A scheduled job tied to an agent. Plugins ship them paused; operator enables.                                                                                   |
-| **Project**                               | Managed by plugins. Groups Issues. (Wiki plugin's "LLM Wiki" project.)                                                                                          |
-| **Folder (mount)**                        | A local-disk directory the plugin owns. `access: readWrite`. Path-containment + symlink checks enforced by host.                                                |
-| **Database namespace**                    | Plugin-scoped SQL schema. Migrations applied through host; host rejects migrations that escape the namespace.                                                   |
-| **Session (`agentTaskSessions`)**         | Conversation continuity for an agent. Keyed by `taskKey` (e.g. `plugin:telegram:session:<chatId>`). Adapters with session support resume across Runs.           |
+| **Heartbeat** | The scheduler that picks up wakeup requests and dispatches Runs. |
+| **Routine** | A scheduled job tied to an agent. Plugins ship them paused; operator enables. |
+| **Project** | Managed by plugins. Groups Issues. (Wiki plugin's "LLM Wiki" project.) |
+| **Folder (mount)** | A local-disk directory the plugin owns. `access: readWrite`. Path-containment + symlink checks enforced by host. |
+| **Database namespace** | Plugin-scoped SQL schema. Migrations applied through host; host rejects migrations that escape the namespace. |
+| **Session (`agentTaskSessions`)** | Conversation continuity for an agent. Keyed by `taskKey` (e.g. `plugin:telegram:session:<chatId>`). Adapters with session support resume across Runs. |
 
 ### 2.4 Plugin system
 

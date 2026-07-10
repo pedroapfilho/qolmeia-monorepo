@@ -1241,18 +1241,14 @@ Open `apps/api/src/telegram/handler.test.ts`. Find tests that pass a `runAgent` 
 Before:
 
 ```ts
-runAgent: vi.fn().mockResolvedValue({
-  /* result */
-});
+runAgent: vi.fn().mockResolvedValue({/* result */});
 ```
 
 After:
 
 ```ts
 dispatcher: {
-  enqueueAndAwait: vi.fn().mockResolvedValue({
-    /* result */
-  });
+  enqueueAndAwait: vi.fn().mockResolvedValue({/* result */});
 }
 ```
 
