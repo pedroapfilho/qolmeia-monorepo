@@ -1,6 +1,7 @@
 import type { OrgRole, PrismaClient } from "@repo/db";
 import { prisma as defaultPrisma } from "@repo/db";
 import type { Context, MiddlewareHandler, Next } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import { auth as defaultAuth } from "@/lib/auth";
 
@@ -44,7 +45,17 @@ const buildRoleGuard = (
   const prisma = deps.prisma ?? defaultPrisma;
 
   return async (c: Context, next: Next) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    let session: AuthSession | null;
+    try {
+      session = await auth.api.getSession({ headers: c.req.raw.headers });
+    } catch (error) {
+      c.get("log").error("buildRoleGuard: getSession threw — auth service unavailable", {
+        error,
+        method: c.req.method,
+        url: c.req.url,
+      });
+      throw new HTTPException(503, { message: "Authentication service unavailable" });
+    }
     if (!session) {
       return unauthorized(c);
     }

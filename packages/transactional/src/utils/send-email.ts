@@ -4,6 +4,16 @@ import { z } from "zod";
 
 import { createResendClient } from "../client";
 
+// Resend allows RFC 5322 "Name <email>" for from/reply-to; z.email() is bare-only so extract the bracketed address.
+const senderAddressSchema = z.string().refine(
+  (val) => {
+    const wrapped = val.match(/^.+<(?<address>[^<>\s]+)>$/v);
+    const email = wrapped?.groups?.address ?? val;
+    return z.email().safeParse(email).success;
+  },
+  { message: "Must be a valid email or 'Display Name <email>' format" },
+);
+
 const emailOrListSchema = z.union([z.email(), z.array(z.email())]);
 
 const emailTagSchema = z.object({
@@ -14,14 +24,15 @@ const emailTagSchema = z.object({
 const emailConfigSchema = z.object({
   bcc: emailOrListSchema.optional(),
   cc: emailOrListSchema.optional(),
-  from: z.email().default("Qolmeia <noreply@qolmeia.ai>"),
-  replyTo: z.email().optional(),
+  from: senderAddressSchema.default("Qolmeia <noreply@qolmeia.ai>"),
+  replyTo: senderAddressSchema.optional(),
   subject: z.string(),
   tags: z.array(emailTagSchema).optional(),
   to: emailOrListSchema,
 });
 
-type EmailConfig = z.infer<typeof emailConfigSchema>;
+// z.input keeps from optional; z.infer would force every caller to pass it.
+type EmailConfig = z.input<typeof emailConfigSchema>;
 
 type SendEmailOptions = EmailConfig & {
   apiKey: string;

@@ -4,8 +4,7 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "jsx": "react-jsx",
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "target": "ES2022"
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
