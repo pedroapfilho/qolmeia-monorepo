@@ -689,7 +689,7 @@ Expected: FAIL.
 If the Chat SDK doesn't expose `postImage` on `Thread`, replace the `await thread.postImage(...)` with a direct Telegram Bot API call:
 
 ```ts
-import FormData from "node:undici" /* or similar */;
+import FormData from "node:undici"; /* or similar */
 // (Skipping if Chat SDK actually has the method — verify Step 1 results first.)
 ```
 

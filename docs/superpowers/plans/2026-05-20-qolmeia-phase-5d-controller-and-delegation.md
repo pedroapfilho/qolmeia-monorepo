@@ -267,9 +267,7 @@ const result = await dispatcher.enqueueAndAwait({
   currentContext,
   dispatcher, // NEW — pass through to runtime, which will put it in SkillContext (Task 3)
   existingAssets,
-  input: {
-    /* as before */
-  },
+  input: {/* as before */},
   newAssets,
   oversizeCount,
   prisma: prisma as PrismaClient,
@@ -1102,12 +1100,8 @@ const syncTemplates = async (prisma: Pick<PrismaClient, "agentTemplate">): Promi
   validateCanDelegateTo(ALL_TEMPLATES);
   await Promise.all(
     ALL_TEMPLATES.map((template) => {
-      const baseFields = {
-        /* same as before */
-      };
-      return prisma.agentTemplate.upsert({
-        /* same as before */
-      });
+      const baseFields = {/* same as before */};
+      return prisma.agentTemplate.upsert({/* same as before */});
     }),
   );
 };
