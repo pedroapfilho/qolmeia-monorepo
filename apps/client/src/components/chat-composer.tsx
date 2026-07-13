@@ -266,8 +266,8 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
           aria-label="Mensagem"
           autoComplete="off"
           className={cn(
-            "max-h-40 min-h-11 w-full resize-none bg-transparent px-2 py-2 text-base outline-none",
-            "placeholder:text-muted-foreground focus-visible:outline-none sm:text-sm",
+            "max-h-40 min-h-11 w-full resize-none rounded-md bg-transparent px-2 py-2 text-base outline-none",
+            "placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:text-sm",
           )}
           name="message"
           onChange={(event) => setInput(event.currentTarget.value)}
