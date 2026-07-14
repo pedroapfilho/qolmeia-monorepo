@@ -39,7 +39,7 @@ test.describe("Backoffice register", () => {
   });
 
   test("redirects away from /register when already authenticated", async ({ page }) => {
-    // Setup signs in a CUSTOMER-role user — proxy bounces off /register,
+    // Setup signs in a CUSTOMER-role user; proxy bounces off /register,
     // dashboard layout then bounces off `/`. Either landing is fine; the
     // assertion just pins that /register itself is unreachable for a
     // signed-in session.

@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 
 // Tests run inside workerd via Miniflare. D1 migrations are read at config time
 // and handed to the pool as a binding; a setup file applies them to each test's
-// isolated storage. The LLM is the one mocked seam — see correspondent.test.ts.
+// isolated storage. The LLM is the one mocked seam; see correspondent.test.ts.
 export default defineConfig(async () => {
   const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
 

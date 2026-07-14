@@ -6,7 +6,7 @@ import { makeTestEmail } from "../helpers/test-email";
 
 // Skip when Resend isn't configured. The client's magic-link login is the
 // ONLY auth surface this app exposes, so without delivery there's nothing
-// to assert about beyond "the request returned 200" — which is exactly the
+// to assert about beyond "the request returned 200", which is exactly the
 // false-positive class this spec exists to prevent.
 test.skip(!process.env.RESEND_API_KEY, "needs RESEND_API_KEY (test mode)");
 
@@ -29,13 +29,13 @@ test.describe("Client magic-link login", () => {
     await expect(page.getByText(/verifique seu e-mail|check your email/iu)).toBeVisible();
 
     // Assert the magic-link email actually left Resend. This is the
-    // primary value of this spec — "the form said 'check your email' but
+    // primary value of this spec: "the form said 'check your email' but
     // no email ever queued" was the production bug class that triggered
     // this whole suite.
     const mail = await waitForEmail({
       sinceMs: since,
       // Qolmeia ships the magic-link template with subject "Seu link de
-      // acesso à Qolmeia" — keep the regex permissive so a copy revision
+      // acesso à Qolmeia"; keep the regex permissive so a copy revision
       // doesn't break the test.
       subject: /link|acesso|magic|sign.?in/iu,
       to: email,
@@ -53,7 +53,7 @@ test.describe("Client magic-link login", () => {
     expect(verifyUrl.startsWith(`${clientUrl}/api/auth/magic-link/verify`)).toBe(true);
 
     await page.goto(verifyUrl);
-    // Final landing — chat home. Either the URL ends `/` or the
+    // Final landing: chat home. Either the URL ends `/` or the
     // /auth/verify intermediate page redirected to `/`. Use a regex so the
     // assertion survives either landing.
     await page.waitForURL(

@@ -6,7 +6,7 @@ import { makeTestEmail, makeTestUsername } from "../helpers/test-email";
 
 // Skip the whole suite when Resend isn't configured. Without RESEND_API_KEY,
 // the auth server runs with requireEmailVerification: false, which is a
-// different code path — these tests would assert against the wrong behavior.
+// different code path; these tests would assert against the wrong behavior.
 test.skip(!process.env.RESEND_API_KEY, "needs RESEND_API_KEY (test mode)");
 
 test.use({ storageState: { cookies: [], origins: [] } });

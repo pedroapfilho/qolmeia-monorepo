@@ -39,7 +39,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     // cookies (`qolmeia.session_token` + `qolmeia.session_data`).
     // `headers()["set-cookie"]` flattens duplicates into a single
     // comma-joined string and the dot in the cookie name makes re-splitting
-    // fragile — use `headersArray()` which preserves multiples.
+    // fragile; use `headersArray()` which preserves multiples.
     const setCookieHeaders = signIn
       .headersArray()
       .filter((h) => h.name.toLowerCase() === "set-cookie")
@@ -61,7 +61,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     });
     expect(change.status()).toBe(200);
 
-    // Stage 1 — current-mailbox owner consents. Assert the confirmation
+    // Stage 1: current-mailbox owner consents. Assert the confirmation
     // email landed in Resend's outbox before following it.
     const stage1Mail = await waitForEmail({
       sinceMs: since,
@@ -71,7 +71,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     expect(stage1Mail.last_event).not.toBe("bounced");
     const stage1Url = extractLink(stage1Mail, /\/api\/auth\/verify-email\?token=/v);
 
-    // Stage-1 click — Better Auth's verify-email handler issues stage-2
+    // Stage-1 click: Better Auth's verify-email handler issues stage-2
     // internally (sent to newEmail) and redirects to its callbackURL.
     const stage1Response = await request.get(stage1Url, {
       failOnStatusCode: false,
@@ -79,7 +79,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     });
     expect([200, 302]).toContain(stage1Response.status());
 
-    // Stage 2 — assert the verification mail to the NEW address actually sent.
+    // Stage 2: assert the verification mail to the NEW address actually sent.
     const stage2Mail = await waitForEmail({
       sinceMs: since,
       to: newEmail,
@@ -87,7 +87,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     expect(stage2Mail.last_event).not.toBe("bounced");
     const stage2Url = extractLink(stage2Mail, /\/api\/auth\/verify-email\?token=/v);
 
-    // Stage-2 click — proves new-mailbox access and triggers the actual
+    // Stage-2 click: proves new-mailbox access and triggers the actual
     // user-record update.
     const stage2Response = await request.get(stage2Url, {
       failOnStatusCode: false,

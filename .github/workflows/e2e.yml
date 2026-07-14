@@ -20,7 +20,7 @@ jobs:
       # Auth is SAME-ORIGIN in the Next apps: next.config.ts rewrites
       # /api/auth/* to AUTH_SERVICE_INTERNAL_URL. The destination is baked
       # into the build output by `next build`, so it must be set here (build
-      # step), not just at `next start`. No NEXT_PUBLIC_AUTH_URL — setting it
+      # step), not just at `next start`. No NEXT_PUBLIC_AUTH_URL: setting it
       # would bypass the rewrite and stop CI from exercising the same-origin
       # path that dev and prod use.
       AUTH_SERVICE_INTERNAL_URL: http://127.0.0.1:4000
@@ -29,7 +29,7 @@ jobs:
       INTERNAL_SHARED_SECRET: e2e-internal-shared-secret
       # Gates tests/e2e/client-magic-link/ and any future auth-email specs.
       # When unset (forks, contributors without secret access), those specs
-      # `test.skip()` themselves — the rest of the e2e suite still runs.
+      # `test.skip()` themselves; the rest of the e2e suite still runs.
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
     services:
       postgres:
@@ -54,13 +54,13 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:push
       # Build auth + the two Next apps. `agents` (Cloudflare Worker) isn't
-      # under test here — the auth flows we exercise terminate on the auth
+      # under test here; the auth flows we exercise terminate on the auth
       # service + the Next proxies; the chat surface that talks to the
       # Worker is dead weight for these specs.
       - run: pnpm build --filter=api --filter=backoffice --filter=client
       # Canonical Playwright CI pattern (playwright.dev/docs/ci): browser
       # download + apt system deps in one step. Caching is explicitly
-      # *not* recommended by the docs — restore time is comparable to a
+      # *not* recommended by the docs: restore time is comparable to a
       # fresh download. CI runs the chromium project only
       # (playwright.config.ts filters firefox/webkit out under CI).
       - name: Install Playwright browsers and system deps

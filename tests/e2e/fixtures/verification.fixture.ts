@@ -19,7 +19,7 @@ const requireSecret = (): string => {
 };
 
 // Builds the verify-email JWT Better Auth would have signed for `email`.
-// Better Auth doesn't persist this token — it's a pure HS256 JWT of
+// Better Auth doesn't persist this token; it's a pure HS256 JWT of
 // `{email}` keyed with the auth secret. Reconstructing it lets tests skip
 // inbox polling for the seed step (use the Resend helper when delivery
 // itself is under test). See node_modules/better-auth/dist/api/routes/
@@ -33,7 +33,7 @@ const forVerifyEmail = async (email: string): Promise<{ token: string; url: stri
 
 // Magic-link plugin stores random tokens in the `verification` table.
 // `identifier` is the token (plain by default; hashed only if storeToken:
-// "hashed" is configured — qolmeia uses the default).
+// "hashed" is configured; qolmeia uses the default).
 // `value` is `JSON.stringify({email, name})`.
 // See node_modules/better-auth/dist/plugins/magic-link/index.mjs.
 const forMagicLink = async (

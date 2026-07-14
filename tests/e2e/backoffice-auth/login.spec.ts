@@ -33,7 +33,7 @@ test.describe("Backoffice login (already authenticated)", () => {
     // The setup project signs in a CUSTOMER-role user. The proxy redirects
     // authenticated users away from `/login`; the dashboard layout then
     // bounces non-staff users to `/no-access`. Either way, the user must
-    // not stay on `/login` — that's what this test pins.
+    // not stay on `/login`; that's what this test pins.
     await page.goto("/login");
     await page.waitForURL((url) => !url.pathname.startsWith("/login"));
     expect(page.url()).not.toContain("/login");

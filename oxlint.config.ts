@@ -8,7 +8,7 @@ export default defineConfig({
     // expose factory functions whose names are PascalCase by convention:
     //   - `Inter` / `Roboto` / etc. from `next/font/google`
     //   - `Scalar` from `@scalar/hono-api-reference`
-    // The rule supports an exception list — keep it here (not in awesomeness)
+    // The rule supports an exception list; keep it here (not in awesomeness)
     // because the set is repo-specific.
     {
       files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
@@ -45,7 +45,7 @@ export default defineConfig({
         "no-console": "off",
       },
     },
-    // CLI seed scripts are run via tsx directly — they're not production code.
+    // CLI seed scripts are run via tsx directly; they're not production code.
     // `no-console` and `no-process-exit` are inapplicable in this context.
     {
       files: ["apps/api/src/scripts/**/*.ts"],
@@ -55,7 +55,7 @@ export default defineConfig({
       },
     },
     // errors.ts is a dedicated domain-error registry. Multiple typed Error
-    // subclasses in one file is the point — each belongs to the same domain
+    // subclasses in one file is the point; each belongs to the same domain
     // and co-locating them avoids a proliferation of single-class files.
     {
       files: ["apps/agents/src/team/errors.ts"],
@@ -65,16 +65,16 @@ export default defineConfig({
     },
     // Playwright's internal selector engine parses regexes passed to
     // `getByLabel`/`getByRole`/`getByText`/`locator(...)` and does NOT support
-    // the ES2024 `v` (unicode-sets) flag — it throws a SyntaxError before any
+    // the ES2024 `v` (unicode-sets) flag; it throws a SyntaxError before any
     // test in the project can run. Page objects, fixtures, setup, and specs
     // in `tests/e2e/` use `/iu` instead. Native-JS regexes in helpers
-    // (`matchAll`, `replace`, `test`) can still use `v` — the rule only
+    // (`matchAll`, `replace`, `test`) can still use `v`; the rule only
     // applies here because the `u` form is the safe lowest-common-denominator
     // for the whole tree.
     {
       files: ["tests/e2e/**/*.ts"],
       rules: {
-        // The global teardown reports what it deleted (or why it couldn't) —
+        // The global teardown reports what it deleted (or why it couldn't).
         // Playwright surfaces stdout/stderr directly; a structured logger
         // adds nothing in test infra.
         "no-console": "off",
@@ -82,7 +82,7 @@ export default defineConfig({
       },
     },
     // These configs resolve portless URLs at module-load time, where async
-    // is not an option — `execFileSync` is intentional and bounded (one
+    // is not an option; `execFileSync` is intentional and bounded (one
     // short-lived subprocess per config load, dev-only).
     {
       files: ["playwright.config.ts", "**/next.config.ts"],

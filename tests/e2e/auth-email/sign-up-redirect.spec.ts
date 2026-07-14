@@ -7,7 +7,7 @@ import { BackofficeRegisterPage } from "../pages/backoffice-register.page";
 
 // Skip the whole suite when Resend isn't configured. Without RESEND_API_KEY,
 // the auth server runs with requireEmailVerification: false, which is a
-// different code path — these tests would assert against the wrong behavior.
+// different code path; these tests would assert against the wrong behavior.
 test.skip(!process.env.RESEND_API_KEY, "needs RESEND_API_KEY (test mode)");
 
 // Registration drives the real form, so it needs a clean cookie jar.
@@ -24,7 +24,7 @@ test.describe("Sign-up with redirect context", () => {
 
     // Drive the actual form: this is what validates the param and passes it
     // as callbackURL in the signUp.email body (the API would accept any
-    // callbackURL — the form wiring is what's under test). The auth-email
+    // callbackURL; the form wiring is what's under test). The auth-email
     // project's baseURL is the auth service, so target backoffice absolutely.
     await page.goto(`${backofficeUrl}/register?from=${encodeURIComponent(fromPath)}`);
 
@@ -53,13 +53,13 @@ test.describe("Sign-up with redirect context", () => {
 
     // packages/auth rebuilt the form's relative callbackURL (its ?from=
     // context) against the backoffice origin, so the emailed link carries
-    // the absolute /tickets callback — not the app root.
+    // the absolute /tickets callback, not the app root.
     const verifyUrl = extractLink(mail, /\/api\/auth\/verify-email\?token=/v);
     expect(new URL(verifyUrl).searchParams.get("callbackURL")).toBe(`${backofficeUrl}${fromPath}`);
 
     // The link IS the login: the verify handler mints a session for the
     // clicking context (autoSignInAfterVerification: true) and 302s to the
-    // callback. /tickets is a protected backoffice route — landing there,
+    // callback. /tickets is a protected backoffice route; landing there,
     // with the session cookie minted in the same response, proves the
     // clicker is signed in. failOnStatusCode: false because Playwright
     // treats 3xx as failures by default.

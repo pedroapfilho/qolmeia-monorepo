@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-// Reset-password — reads `?token=` from query, posts to Better Auth's
+// Reset-password: reads `?token=` from query, posts to Better Auth's
 // `/reset-password`. CardTitle is rendered as plain text (not a heading
 // role), so we match by visible text.
 export class BackofficeResetPasswordPage {

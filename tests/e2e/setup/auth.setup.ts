@@ -19,7 +19,7 @@ setup("create and authenticate test user", async ({ page, request }) => {
 
   // Better Auth signup endpoint lives on the auth API (:4000), not on the
   // backoffice Next app. 409/422 (user already exists from a previous run)
-  // are also OK — the sign-in below is what we actually validate.
+  // are also OK; the sign-in below is what we actually validate.
   const signUpResponse = await request.post(`${authUrl}/api/auth/sign-up/email`, {
     data: {
       email: TEST_USER.email,
@@ -43,7 +43,7 @@ setup("create and authenticate test user", async ({ page, request }) => {
   // Better Auth issues two cookies (`qolmeia.session_token` +
   // `qolmeia.session_data`). `headers()["set-cookie"]` flattens duplicates
   // into a single comma-joined string and the dot in the cookie name makes
-  // re-splitting fragile — use `headersArray()` which preserves multiples.
+  // re-splitting fragile; use `headersArray()` which preserves multiples.
   const setCookieHeaders = signIn
     .headersArray()
     .filter((h) => h.name.toLowerCase() === "set-cookie")

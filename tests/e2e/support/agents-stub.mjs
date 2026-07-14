@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 
 // Minimal stand-in for the agents Worker's `/api/me`, used ONLY by the e2e
 // webServer. The real Worker (Durable Objects + Workflows + D1 + KV) isn't
-// started in CI, and the sign-up flow can't grant an org membership — so the
+// started in CI, and the sign-up flow can't grant an org membership, so the
 // staff-gated backoffice dashboard is otherwise unreachable and can't be
 // exercised by a navigation test.
 //

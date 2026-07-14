@@ -17,7 +17,7 @@ const getPortlessUrl = (name: string) => {
 };
 
 // In CI the apps bind to 0.0.0.0 / Node 18+ resolves `localhost` to `::1`
-// via getaddrinfo, and undici doesn't fall back to IPv4 — pin the explicit
+// via getaddrinfo, and undici doesn't fall back to IPv4; pin the explicit
 // loopback address. Locally portless gives us the real dev URL.
 const authUrl =
   process.env.E2E_AUTH_URL ?? getPortlessUrl("qolmeia.api") ?? "http://127.0.0.1:4000";
@@ -83,7 +83,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
 
   use: {
-    // Default baseURL is the backoffice — most auth surface lives there.
+    // Default baseURL is the backoffice; most auth surface lives there.
     // Magic-link client specs override with `page.goto(clientUrl + ...)`.
     baseURL: backofficeUrl,
     screenshot: "only-on-failure",
@@ -93,7 +93,7 @@ export default defineConfig({
 
   // CI spawns the three servers in parallel. We start them directly from
   // `node_modules/.bin/next` rather than via `pnpm --filter` so the workspace
-  // state lock doesn't serialize them — the first wins, the rest hang silently
+  // state lock doesn't serialize them; otherwise the first wins, the rest hang silently
   // for the full timeout. tsdown's output for apps/api is `dist/index.mjs`.
   webServer: process.env.CI
     ? [

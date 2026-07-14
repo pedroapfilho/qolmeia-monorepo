@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 // Same-origin auth: browsers treat `.localhost` as a public suffix, so under
 // portless dev (qolmeia.client.localhost vs qolmeia.api.localhost) the
-// registrable domains differ and NO shareable cookie domain exists — a
+// registrable domains differ and NO shareable cookie domain exists; a
 // session cookie set by the auth origin is invisible here. Rewriting
 // /api/auth/* to the auth service keeps every browser auth call first-party
 // on this app's origin, so the cookie just works, portless or not.
@@ -13,7 +13,7 @@ const authServiceUrl = process.env.AUTH_SERVICE_INTERNAL_URL ?? "http://127.0.0.
 // Same public-suffix problem for the agents Worker: the session cookie set on
 // this origin never reaches localhost:8787, so browser calls to the Worker's
 // REST surface (/api/me/*, /api/teams/*) are rewritten and stay first-party.
-// /agents/* is the chat WebSocket — Next's router-server resolves rewrites
+// /agents/* is the chat WebSocket; Next's router-server resolves rewrites
 // for upgrade requests and proxies them (proxy.ws), so the socket rides the
 // same-origin path too instead of relying on the browser's localhost
 // mixed-content exemption (which Safari doesn't implement).

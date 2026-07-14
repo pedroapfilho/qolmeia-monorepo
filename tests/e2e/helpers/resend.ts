@@ -4,7 +4,7 @@
 //
 // Why poll the live API instead of reconstructing JWTs locally:
 // reconstruction proves the token format is correct, but says NOTHING about
-// whether the email left our infrastructure. We've been bitten by that —
+// whether the email left our infrastructure. We've been bitten by that:
 // "the JWT was valid but the email never sent" is the bug class this helper
 // catches. The JWT/DB-poll path in `verification.fixture.ts` remains useful
 // for tests where delivery isn't under test (e.g. seeding a verified user
@@ -55,7 +55,7 @@ const requireApiKey = (): string => {
 
 // Resend caps the team at 5 req/s and returns 429 with a `retry-after`
 // header (seconds) when the suite bursts past that. Parallel auth-email
-// specs reliably trip it — every test polls `GET /emails` at 1Hz, so 4
+// specs reliably trip it: every test polls `GET /emails` at 1Hz, so 4
 // workers × spec startup hits the ceiling. Mirrors vercel/fetch-retry's
 // defaults (factor 6, 5 retries, max retry-after 20s) so behavior matches
 // the most-deployed reference for this pattern. See
@@ -100,9 +100,9 @@ const resendFetch = async (path: string): Promise<Response> => {
     }
 
     // Honor server-suggested wait when present (Resend sends `retry-after`
-    // in seconds — never an HTTP-date for this API). Fall back to
+    // in seconds, never an HTTP-date for this API). Fall back to
     // exponential backoff for 5xx or odd 429s without the header.
-    // `Number("")` is 0, not NaN — map a missing header to NaN explicitly so
+    // `Number("")` is 0, not NaN; map a missing header to NaN explicitly so
     // it stays on the exponential-backoff path.
     const retryAfterHeader = response.headers.get("retry-after");
     const retryAfter = retryAfterHeader ? Math.trunc(Number(retryAfterHeader)) : Number.NaN;
@@ -138,7 +138,7 @@ type WaitForEmailOptions = {
 };
 
 type WaitForOptions = {
-  // ms — Resend's index is eventually consistent; in practice mails
+  // ms. Resend's index is eventually consistent; in practice mails
   // become listable within a few seconds, but CI cold starts can stretch.
   pollMs?: number;
   timeoutMs?: number;
@@ -146,7 +146,7 @@ type WaitForOptions = {
 
 // Polls `GET /emails` until a matching message appears, then fetches its
 // HTML body via `GET /emails/:id`. Throws if the deadline elapses with no
-// match — the caller's spec should fail loudly so the email regression
+// match; the caller's spec should fail loudly so the email regression
 // surfaces, rather than time out into a misleading downstream error.
 const waitForEmail = async (
   match: WaitForEmailOptions,
@@ -206,7 +206,7 @@ const extractLink = (email: ResendEmail, pattern: RegExp): string => {
       return decoded;
     }
   }
-  // Plain-text fallback — look for the bare URL.
+  // Plain-text fallback: look for the bare URL.
   const direct = haystack.match(pattern);
   if (direct) {
     return direct[0];
