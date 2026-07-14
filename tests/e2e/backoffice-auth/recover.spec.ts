@@ -12,7 +12,7 @@ test.describe("Backoffice password recovery", () => {
 
     // Better Auth's `/request-password-reset` always returns 200 (enumeration
     // prevention). The form's `onSubmit` toasts success regardless of whether
-    // the email exists — checking the toast is the visible contract here.
+    // the email exists; checking the toast is the visible contract here.
     await backofficeRecoverPage.expectSuccessToast();
     expect(page.url()).toContain("/recover");
   });

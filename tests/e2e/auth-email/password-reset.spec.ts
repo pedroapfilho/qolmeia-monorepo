@@ -17,7 +17,7 @@ test.describe("Password reset", () => {
     const newPassword = "BrandNewPassword2!";
 
     // Seed a user via the API. Bypass verification with the JWT-reconstruction
-    // helper — delivery of the *welcome* email isn't under test here. (See
+    // helper; delivery of the *welcome* email isn't under test here. (See
     // sign-up-verification.spec.ts for that assertion.)
     const signUp = await request.post(`${authUrl}/api/auth/sign-up/email`, {
       data: { email, name: "Reset Me", password: originalPassword, username },
@@ -38,7 +38,7 @@ test.describe("Password reset", () => {
     });
     expect(reset.status()).toBe(200);
 
-    // Assert the reset email actually left Resend — the bug class
+    // Assert the reset email actually left Resend: the bug class
     // "we sent a 200 but never delivered" that the old DB-poll path missed.
     const mail = await waitForEmail({
       sinceMs: since,
@@ -48,7 +48,7 @@ test.describe("Password reset", () => {
     expect(mail.last_event).not.toBe("bounced");
 
     // Better Auth builds `${baseURL}/api/auth/reset-password/<token>?callbackURL=…`
-    // — token is a path segment. The GET handler validates and redirects to
+    // (token is a path segment). The GET handler validates and redirects to
     // `${callbackURL}?token=…`. We extract the token and call the POST endpoint
     // directly so the test doesn't need a UI reset form.
     const resetUrl = extractLink(mail, /\/api\/auth\/reset-password\/[^"?]+\?callbackURL=/v);

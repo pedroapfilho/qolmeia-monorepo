@@ -8,7 +8,7 @@ import { backofficeUrl } from "../../../playwright.config";
 //
 // The dashboard is staff-gated (requireStaff → agents Worker /api/me). CI runs a
 // stub for that Worker (tests/e2e/support/agents-stub.mjs) which grants OWNER
-// only to requests carrying the `e2e-role=OWNER` marker cookie — so mark this
+// only to requests carrying the `e2e-role=OWNER` marker cookie, so mark this
 // context as staff without changing any other spec's non-staff default.
 const backofficeRoot = new RegExp(`${backofficeUrl.replaceAll(".", String.raw`\.`)}/$`, "v");
 
@@ -30,7 +30,7 @@ test.describe("Soft navigation", () => {
       document.documentElement.dataset.softNavMarker = "1";
     });
 
-    // Scope to the sidebar nav — the sidebar logo also links "/".
+    // Scope to the sidebar nav; the sidebar logo also links "/".
     await shell.locator('nav a[href="/"]').click();
 
     await expect(page).toHaveURL(backofficeRoot);

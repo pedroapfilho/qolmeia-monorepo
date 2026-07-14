@@ -4,7 +4,7 @@ import { prisma } from "@repo/db";
 // endpoint (unlike acme's /api/v1/users/me), so the teardown goes straight at
 // Postgres: Session/Account/OrgMembership cascade from User, so deleteMany on
 // users is enough. auth-email specs mint one `delivered+…@resend.dev` user per
-// spec per run — without this they accumulate forever.
+// spec per run; without this they accumulate forever.
 const cleanup = async () => {
   if (!process.env.DATABASE_URL) {
     return;

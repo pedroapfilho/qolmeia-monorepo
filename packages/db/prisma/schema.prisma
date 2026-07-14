@@ -98,7 +98,7 @@ model Verification {
   @@index([identifier])
 }
 
-// Better Auth database-backed rate limiting — required because the auth
+// Better Auth database-backed rate limiting, required because the auth
 // config sets `rateLimit.storage: "database"`. Rows are written on first
 // limited request.
 model RateLimit {

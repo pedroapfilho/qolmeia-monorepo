@@ -18,7 +18,7 @@ test.describe("Backoffice reset-password form", () => {
     await backofficeResetPasswordPage.submit("NewPassword123!", "NewPassword123!");
 
     // The form short-circuits with `toast.error("Link inválido ou expirado.")`
-    // when token is empty — no network call goes out.
+    // when token is empty; no network call goes out.
     await backofficeResetPasswordPage.expectErrorToast();
     expect(page.url()).toContain("/reset-password");
   });

@@ -41,7 +41,7 @@ const VerifyContent = async ({ searchParams }: VerifyPageProps) => {
 };
 
 // Redirect-first route: the magic-link callback normally redirects home, so
-// the Suspense shell is empty — cacheComponents requires a boundary above the
+// the Suspense shell is empty; cacheComponents requires a boundary above the
 // search-param read.
 const VerifyPage = (props: VerifyPageProps) => (
   <Suspense fallback={null}>

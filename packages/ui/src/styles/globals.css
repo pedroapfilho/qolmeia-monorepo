@@ -7,7 +7,7 @@
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
-/* Status "Trabalhando" dot — matches the design's qpulse (opacity 1 → .35, 1.4s). */
+/* Status "Trabalhando" dot: matches the design's qpulse (opacity 1 → .35, 1.4s). */
 @keyframes qpulse {
   0%,
   100% {
@@ -42,7 +42,7 @@
 }
 
 :root {
-  /* Qolmeia design system — violet primary on warm neutrals (light-first).
+  /* Qolmeia design system: violet primary on warm neutrals (light-first).
      Hexes are the exact warm-neutral ramp from the design handoff. */
   --background: oklch(0.978 0.004 84);
   --foreground: oklch(0.23 0.006 65);
@@ -74,7 +74,7 @@
   --info-foreground: #ffffff;
   --info-surface: oklch(0.96 0.03 255);
   --info-surface-foreground: oklch(0.48 0.13 262);
-  /* Worker accent — the WORKER_* activity category (distinct from TICKET_* blue). */
+  /* Worker accent: the WORKER_* activity category (distinct from TICKET_* blue). */
   --worker-surface: oklch(0.96 0.025 200);
   --worker-surface-foreground: oklch(0.5 0.14 200);
   --highlight: oklch(0.491 0.27 292.581);
@@ -154,7 +154,7 @@
 }
 
 @theme inline {
-  /* Type — Sora (display/brand), Hanken Grotesk (body/UI), JetBrains Mono (labels/IDs).
+  /* Type: Sora (display/brand), Hanken Grotesk (body/UI), JetBrains Mono (labels/IDs).
      The per-font CSS vars are injected by next/font in each app's root layout. */
   --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-sora), var(--font-hanken), ui-sans-serif, sans-serif;
@@ -165,7 +165,7 @@
      readability, while headings tighten as they grow so multi-line titles
      (Sora's tall metrics especially) don't drift apart. Unitless so it scales
      with the font-size and inherits cleanly. Single-line UI (mono labels,
-     pills, buttons) is unaffected — line-height only shows once text wraps. */
+     pills, buttons) is unaffected; line-height only shows once text wraps. */
   --text-xs--line-height: 1.5;
   --text-sm--line-height: 1.5;
   --text-base--line-height: 1.5;
@@ -214,7 +214,7 @@
   --color-highlight-foreground: var(--highlight-foreground);
   --color-highlight-surface: var(--highlight-surface);
   --color-highlight-surface-foreground: var(--highlight-surface-foreground);
-  /* Role-keyed avatar hues from the design — white monogram on top.
+  /* Role-keyed avatar hues from the design; white monogram on top.
      1 correspondent · 2 designer · 3 estrategista · 4 redator · 5 social · 6 planner · 7 company · 8 spare */
   --color-avatar-1: oklch(0.491 0.27 292.581);
   --color-avatar-2: oklch(0.55 0.16 200);
