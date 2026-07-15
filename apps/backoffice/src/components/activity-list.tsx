@@ -2,7 +2,7 @@
 
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/lib/toast";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { ActivityRow } from "@/components/activity-row";
 import { apiGet, ApiError } from "@/lib/api-client";
@@ -14,9 +14,15 @@ type ActivityListProps = {
 };
 
 const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
-  const [rows, setRows] = useState<ReadonlyArray<ActivityEntry>>(initial);
-  const [exhausted, setExhausted] = useState(initial.length < pageSize);
+  const [fetched, setFetched] = useState<ReadonlyArray<ActivityEntry>>([]);
+  const [fetchExhausted, setFetchExhausted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const rows = useMemo(() => {
+    const seen = new Set(initial.map((item) => item.id));
+    return [...initial, ...fetched.filter((item) => !seen.has(item.id))];
+  }, [initial, fetched]);
+  const exhausted = fetchExhausted || initial.length < pageSize;
 
   const handleLoadMore = async () => {
     if (exhausted || loading) {
@@ -31,9 +37,9 @@ const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
       }
       const next = await apiGet<ActivityResponse>(`/activity?${params.toString()}`);
       const fresh = next.items.filter((item) => !rows.some((existing) => existing.id === item.id));
-      setRows((prev) => [...prev, ...fresh]);
+      setFetched((prev) => [...prev, ...fresh]);
       if (fresh.length < pageSize) {
-        setExhausted(true);
+        setFetchExhausted(true);
       }
     } catch (error) {
       const message =

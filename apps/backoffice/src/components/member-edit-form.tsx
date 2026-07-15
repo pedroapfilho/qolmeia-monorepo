@@ -65,8 +65,10 @@ const roleLabel = (m: TeamMemberDetailView): string => {
 
 const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormProps) => {
   const [member, setMember] = useState(initialMember);
-  const [name, setName] = useState(initialMember.displayName);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const name = nameDraft ?? member.displayName;
 
   const patch = async (body: {
     displayName?: string;
@@ -92,6 +94,7 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
   const handleSaveName = async () => {
     try {
       await patch({ displayName: name });
+      setNameDraft(null);
       toast.success("Nome atualizado.");
     } catch (error) {
       toast.error(String(error));
@@ -204,7 +207,7 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
               <Input
                 disabled={busy}
                 id="member-name"
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setNameDraft(e.target.value)}
                 value={name}
               />
               <Button

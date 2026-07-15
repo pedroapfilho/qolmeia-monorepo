@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 const fetchUrlInputSchema = z.object({
-  url: z.string().url().describe("A URL completa da página a ler (ex: https://exemplo.com.br)."),
+  url: z.url().describe("A URL completa da página a ler (ex: https://exemplo.com.br)."),
 });
 
 type FirecrawlResponse = {
@@ -27,7 +27,7 @@ const fetchUrlSkill: UnknownSkill = {
     const baseUrl = ctx.env.FIRECRAWL_BASE_URL ?? FIRECRAWL_CLOUD;
     if (baseUrl === FIRECRAWL_CLOUD && !apiKey) {
       throw new Error(
-        "Firecrawl não configurado — defina FIRECRAWL_API_KEY (cloud) ou FIRECRAWL_BASE_URL (instância self-hosted).",
+        "Firecrawl não configurado: defina FIRECRAWL_API_KEY (cloud) ou FIRECRAWL_BASE_URL (instância self-hosted).",
       );
     }
 

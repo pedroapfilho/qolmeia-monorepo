@@ -100,6 +100,7 @@ const useFlueChat = ({
   useEffect(() => {
     if (conversation.error && conversation.error !== lastErrorRef.current) {
       lastErrorRef.current = conversation.error;
+      // oxlint-disable-next-line react-doctor/no-pass-data-to-parent -- @flue/react only exposes stream errors as state; this bridges them to the onError callback API
       onError?.(conversation.error);
     }
   }, [conversation.error, onError]);
