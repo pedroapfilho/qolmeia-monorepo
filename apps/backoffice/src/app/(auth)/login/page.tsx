@@ -45,7 +45,7 @@ const LoginForm = () => {
           return;
         }
       } catch {
-        toast.error("Não foi possível conectar ao servidor — tente novamente.");
+        toast.error("Não foi possível conectar ao servidor. Tente novamente.");
         return;
       }
       push(redirectTo);
@@ -125,7 +125,7 @@ const LoginForm = () => {
 
           {showUnverifiedNotice && (
             <output aria-live="polite" className="mt-4 block text-center text-sm">
-              Este e-mail ainda não foi verificado — acabamos de enviar um novo link.
+              Este e-mail ainda não foi verificado. Acabamos de enviar um novo link.
             </output>
           )}
         </CardContent>

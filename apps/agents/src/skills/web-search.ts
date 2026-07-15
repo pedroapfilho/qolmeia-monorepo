@@ -40,7 +40,7 @@ const webSearchSkill: UnknownSkill = {
     const { numResults, query } = webSearchInputSchema.parse(input);
     const apiKey = ctx.env.EXA_API_KEY;
     if (!apiKey) {
-      throw new Error("EXA_API_KEY não configurada — busca na web indisponível.");
+      throw new Error("EXA_API_KEY não configurada; busca na web indisponível.");
     }
 
     const res = await fetch(EXA_ENDPOINT, {

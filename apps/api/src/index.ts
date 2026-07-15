@@ -60,7 +60,7 @@ app.route("/api", authRoutes);
 app.route("/api", buildApiRoutes());
 
 const healthRoute = createRoute({
-  description: "Liveness probe — does not touch the database.",
+  description: "Liveness probe; does not touch the database.",
   method: "get",
   path: "/healthz",
   responses: {
@@ -101,7 +101,7 @@ const readyzResponseSchema = z.object({
 });
 
 const readyzRoute = createRoute({
-  description: "Readiness probe — verifies the database is reachable.",
+  description: "Readiness probe; verifies the database is reachable.",
   method: "get",
   path: "/readyz",
   responses: {

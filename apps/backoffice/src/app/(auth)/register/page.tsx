@@ -50,7 +50,7 @@ const RegisterForm = () => {
           return;
         }
       } catch {
-        toast.error("Não foi possível conectar ao servidor — tente novamente.");
+        toast.error("Não foi possível conectar ao servidor. Tente novamente.");
         return;
       }
       toast.success("Conta criada. Bem-vindo à Qolmeia!");

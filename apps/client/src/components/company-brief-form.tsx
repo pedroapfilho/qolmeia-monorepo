@@ -151,7 +151,7 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               className="min-h-20"
               id="brief-audience"
               onChange={(e) => setField("audience")(e.currentTarget.value)}
-              placeholder="Quem é o cliente final — perfil, dor, contexto"
+              placeholder="Quem é o cliente final: perfil, dor, contexto"
               value={form.audience}
             />
           </Field>

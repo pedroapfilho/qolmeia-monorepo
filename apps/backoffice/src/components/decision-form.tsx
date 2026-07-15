@@ -16,8 +16,8 @@ type DecisionFormProps = {
 
 const PLACEHOLDER: Record<DecisionOutcome, string> = {
   approved: "Comentário opcional ao especialista.",
-  changes_requested: "Diga o que precisa mudar — o especialista vai usar para revisar.",
-  rejected: "Diga por que está rejeitando — vai virar memória do agente.",
+  changes_requested: "Diga o que precisa mudar; o especialista vai usar para revisar.",
+  rejected: "Diga por que está rejeitando; vai virar memória do agente.",
 };
 
 const OPTIONS: ReadonlyArray<{

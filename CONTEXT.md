@@ -7,7 +7,7 @@ An AI marketing agency: each customer company gets a Team of AI agents that does
 ### Actors
 
 **Company**:
-A customer tenant. Its id (`companyId`) is the unit of isolation **for the customer surface** — the `/agents/<name>/<companyId>` and `/api/me/*` paths authorize `companyId` against the session and never trust it from the URL (ADR 0001). It is also the Durable Object instance id every agent is keyed by. Operators are cross-tenant and reach any Company by role, not by membership (ADR 0005).
+A customer tenant. Its id (`companyId`) is the unit of isolation **for the customer surface**: the `/agents/<name>/<companyId>` and `/api/me/*` paths authorize `companyId` against the session and never trust it from the URL (ADR 0001). It is also the Durable Object instance id every agent is keyed by. Operators are cross-tenant and reach any Company by role, not by membership (ADR 0005).
 _Avoid_: org, tenant, client
 
 **Account**:
@@ -15,11 +15,11 @@ A login that belongs to a Company (the `CUSTOMER` role). A Company has one or mo
 _Avoid_: user, seat
 
 **Customer**:
-The role of an Account — an end-user of a Company who chats with its agents. Used for the human; **Account** is the login record.
+The role of an Account: an end-user of a Company who chats with its agents. Used for the human; **Account** is the login record.
 _Avoid_: user, end user
 
 **Operator**:
-Qolmeia platform staff who vet AI prompts and results — the human quality layer, and the product's differentiator. The `OWNER`/`STAFF` members of the single internal **Qolmeia org**; they belong to no customer Company and are authorized by role, acting on any Company through backoffice REST (never an agent connection). An Operator may have optional assigned Companies and disciplines (ADR 0005).
+Qolmeia platform staff who vet AI prompts and results: the human quality layer, and the product's differentiator. The `OWNER`/`STAFF` members of the single internal **Qolmeia org**; they belong to no customer Company and are authorized by role, acting on any Company through backoffice REST (never an agent connection). An Operator may have optional assigned Companies and disciplines (ADR 0005).
 _Avoid_: admin, moderator, customer
 
 **Assignment**:
@@ -62,7 +62,7 @@ A side-effect a Worker proposes (e.g. publish a post). Distinct from a Ticket: t
 _Avoid_: approval, request
 
 **Deliverable**:
-The artifact a Worker produces — a generated image, copy, a research brief. Deliverables `auto-execute` straight to the customer / asset library; only impactful Actions are gated.
+The artifact a Worker produces: a generated image, copy, a research brief. Deliverables `auto-execute` straight to the customer / asset library; only impactful Actions are gated.
 _Avoid_: output, result, asset
 
 **Policy**:
@@ -70,15 +70,15 @@ The gating tier of an Action, declared per action-type on the producing template
 _Avoid_: rule, permission, gate
 
 **Decision**:
-An Operator's verdict on a gated Action: **approve** (it executes), **reject** (the Ticket ends), or **request-changes** (a revise loop — the feedback returns to the Worker, which regenerates and re-proposes; they iterate until approve or reject). The customer sees only the final approved Deliverable.
+An Operator's verdict on a gated Action: **approve** (it executes), **reject** (the Ticket ends), or **request-changes** (a revise loop: the feedback returns to the Worker, which regenerates and re-proposes; they iterate until approve or reject). The customer sees only the final approved Deliverable.
 _Avoid_: review, vote, outcome
 
 ### Storage
 
 **Library**:
-A Company's files in R2, split into two **folders**: the **customer folder** (visible to the customer and the agents — finished work + the customer's uploads, including a `brand/` subfolder for brand identity) and the **agent folder** (agent-only working material — scrapes, drafts). An asset's `visibility` (`customer`/`agent`) decides which folder it lives in (ADR 0007).
+A Company's files in R2, split into two **folders**: the **customer folder** (visible to the customer and the agents: finished work + the customer's uploads, including a `brand/` subfolder for brand identity) and the **agent folder** (agent-only working material: scrapes, drafts). An asset's `visibility` (`customer`/`agent`) decides which folder it lives in (ADR 0007).
 _Avoid_: assets, files, bucket
 
 **Memory**:
-The agent's semantic recall of important facts — saved on purpose with `rememberFact`, retrieved with `recallMemory`, backed by Cloudflare Vectorize. Distinct from the **Library**: a fact is not a file.
+The agent's semantic recall of important facts, saved on purpose with `rememberFact`, retrieved with `recallMemory`, backed by Cloudflare Vectorize. Distinct from the **Library**: a fact is not a file.
 _Avoid_: knowledge base, context, RAG

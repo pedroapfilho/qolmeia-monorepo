@@ -47,7 +47,7 @@ const ApprovalsContent = async () => {
             </span>
           ) : null
         }
-        description="Ações propostas pelos especialistas aguardando uma decisão — mais antigas primeiro."
+        description="Ações propostas pelos especialistas aguardando uma decisão, mais antigas primeiro."
         title="Aprovações"
       />
 
@@ -137,7 +137,7 @@ const ApprovalsContent = async () => {
 const ApprovalsSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <PageHeader
-      description="Ações propostas pelos especialistas aguardando uma decisão — mais antigas primeiro."
+      description="Ações propostas pelos especialistas aguardando uma decisão, mais antigas primeiro."
       title="Aprovações"
     />
     <Card className="flex flex-col gap-4 p-6">

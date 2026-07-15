@@ -22,25 +22,25 @@ pnpm format:check                 # oxfmt (check only, used in CI)
 # Testing
 pnpm test                         # vitest unit tests across all packages
 
-# Database (Prisma — used only by the api service; agents Worker uses D1)
+# Database (Prisma, used only by the api service; agents Worker uses D1)
 pnpm db:generate                  # generate Prisma client
 pnpm db:push                      # push schema to Postgres
 ```
 
 ## Architecture
 
-Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration from a Node/Postgres/Redis monolith to a Cloudflare-native runtime — current state below.
+Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration from a Node/Postgres/Redis monolith to a Cloudflare-native runtime; current state below.
 
 ### Apps
 
-| Folder            | Package name  | Framework         | Dev URL                                           | Audience                                                                                                                             |
-| ----------------- | ------------- | ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost` (portless)        | General API service — auth (`/api/auth/*` Better Auth) + `/api/v1/me` (relay target); home for future non-agent management features. |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                 |
-| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface — CUSTOMER role.                                                                                           |
-| `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel — OWNER/STAFF roles.                                                                                                  |
+| Folder            | Package name  | Framework         | Dev URL                                           | Audience                                                                                                                            |
+| ----------------- | ------------- | ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost` (portless)        | General API service: auth (`/api/auth/*` Better Auth) + `/api/v1/me` (relay target); home for future non-agent management features. |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                |
+| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface (CUSTOMER role).                                                                                          |
+| `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel (OWNER/STAFF roles).                                                                                                 |
 
-The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat HTTP+SSE on client) so the Better Auth cookie stays first-party — `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.client.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
+The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat HTTP+SSE on client) so the Better Auth cookie stays first-party: `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.client.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
 
 ### Key runtime moves (P1–P7)
 
@@ -64,14 +64,14 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 
 ### The canonical E2E flow
 
-1. **Sign-up / magic-link** — Better Auth on `apps/api` issues a cookie scoped to `localhost`.
-2. **Client opens** — `requireCustomer` → `apps/agents/api/me` (relays to `apps/api/api/v1/me` for membership).
-3. **status === "onboarding"** — chat against `/agents/planner/<companyId>`. Planner calls `extractBrief` and `proposeTeam`, then surfaces a "Confirmar Time" button.
-4. **Customer confirms** — `POST /api/teams/:companyId/confirm` materialises `team` + `team_member`, flips `company.status = 'active'`, and seeds Correspondent memory.
-5. **status === "active"** — chat against `/agents/correspondent/<companyId>`. Correspondent uses `delegateToWorker` to spawn child tickets; Worker DO instantiates a `WorkerJobWorkflow`.
-6. **Workflow proposes a `require-approval` action** — injects a 🟡 message via Correspondent, then `waitForEvent("decision:<actionId>")`.
-7. **Operator on `apps/backoffice`** — `requireStaff` → `/approvals` lists pending oldest-first → `/approvals/:id` shows the decide form → POST `/api/backoffice/actions/:id/decide` resumes the Workflow.
-8. **Workflow executes** — side-effect (e.g. `generateBrandImage` → R2 → signed URL) → marks the action `executed` and ticket `done` → Correspondent renders the result in chat (markdown, so images appear inline).
+1. **Sign-up / magic-link**: Better Auth on `apps/api` issues a cookie scoped to `localhost`.
+2. **Client opens**: `requireCustomer` → `apps/agents/api/me` (relays to `apps/api/api/v1/me` for membership).
+3. **status === "onboarding"**: chat against `/agents/planner/<companyId>`. Planner calls `extractBrief` and `proposeTeam`, then surfaces a "Confirmar Time" button.
+4. **Customer confirms**: `POST /api/teams/:companyId/confirm` materialises `team` + `team_member`, flips `company.status = 'active'`, and seeds Correspondent memory.
+5. **status === "active"**: chat against `/agents/correspondent/<companyId>`. Correspondent uses `delegateToWorker` to spawn child tickets; Worker DO instantiates a `WorkerJobWorkflow`.
+6. **Workflow proposes a `require-approval` action**: injects a 🟡 message via Correspondent, then `waitForEvent("decision:<actionId>")`.
+7. **Operator on `apps/backoffice`**: `requireStaff` → `/approvals` lists pending oldest-first → `/approvals/:id` shows the decide form → POST `/api/backoffice/actions/:id/decide` resumes the Workflow.
+8. **Workflow executes**: side-effect (e.g. `generateBrandImage` → R2 → signed URL) → marks the action `executed` and ticket `done` → Correspondent renders the result in chat (markdown, so images appear inline).
 
 ## Tooling
 
@@ -85,10 +85,10 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 
 Each app has its own `.env.example`:
 
-- **apps/api** — `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit — Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
-- **apps/agents** — `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
-- **apps/client** — `BETTER_AUTH_SECRET` (matches `apps/api`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
-- **apps/backoffice** — same as client (its Worker rewrite covers `/api/backoffice/*`).
+- **apps/api**: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit; Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
+- **apps/agents**: `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
+- **apps/client**: `BETTER_AUTH_SECRET` (matches `apps/api`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
+- **apps/backoffice**: same as client (its Worker rewrite covers `/api/backoffice/*`).
 
 `.env` files are git-ignored; `.env.example` is committed.
 
@@ -104,7 +104,7 @@ docker compose up -d
 DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
   pnpm --filter=@repo/db db:push
 
-# 3. Seed Postgres — creates the dev org + OWNER + CUSTOMER users (idempotent)
+# 3. Seed Postgres: creates the dev org + OWNER + CUSTOMER users (idempotent)
 pnpm --filter=api exec tsx src/scripts/seed-dev.ts
 
 # 4. Apply D1 migrations + seed the company row, Correspondent + Designer worker
@@ -120,10 +120,10 @@ pnpm dev
 
 **Seeded dev credentials** (created by `apps/api/src/scripts/seed-dev.ts`):
 
-| Surface                                             | Role     | Email                  | Password                    |
-| --------------------------------------------------- | -------- | ---------------------- | --------------------------- |
-| Backoffice — `https://qolmeia.backoffice.localhost` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
-| Client — `https://qolmeia.client.localhost`         | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
+| Surface                                            | Role     | Email                  | Password                    |
+| -------------------------------------------------- | -------- | ---------------------- | --------------------------- |
+| Backoffice: `https://qolmeia.backoffice.localhost` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
+| Client: `https://qolmeia.client.localhost`         | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 
 The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`) so it matches the D1 seed in `apps/agents/scripts/seed-p2.sql`. The client login is magic-link only; the password above only works on the backoffice. Watch `apps/api` logs for the magic link in dev.
 

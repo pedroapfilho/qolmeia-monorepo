@@ -79,7 +79,7 @@ const proposeDeliverable = async (
         refType: "ticket",
         summary:
           policy === "notify-only"
-            ? "Ticket concluído (notify-only) — disponível para conferência."
+            ? "Ticket concluído (notify-only): disponível para conferência."
             : "Ticket concluído automaticamente (auto-execute).",
         type: "TICKET_DONE",
       }),
@@ -90,7 +90,7 @@ const proposeDeliverable = async (
         payload: { summary: current.summary },
         refId: ticketId,
         refType: "ticket",
-        summary: "Ação executada sem bloqueio — para conferência do operador.",
+        summary: "Ação executada sem bloqueio, para conferência do operador.",
         type: "ACTION_NOTIFY",
       });
     }
@@ -211,7 +211,7 @@ const logRevisionCapped = async (ctx: JobContext, actionId: string): Promise<voi
     payload: { revisions: MAX_REVISIONS },
     refId: actionId,
     refType: "action",
-    summary: `Limite de ${MAX_REVISIONS} revisões atingido — o agente não vai refazer de novo. Aprove ou rejeite a última versão.`,
+    summary: `Limite de ${MAX_REVISIONS} revisões atingido: o agente não vai refazer de novo. Aprove ou rejeite a última versão.`,
     type: "ACTION_REVISION_CAPPED",
   });
 };

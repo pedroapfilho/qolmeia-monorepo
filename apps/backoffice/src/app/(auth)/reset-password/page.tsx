@@ -46,7 +46,7 @@ const ResetPasswordForm = () => {
           return;
         }
       } catch {
-        toast.error("Não foi possível conectar ao servidor — tente novamente.");
+        toast.error("Não foi possível conectar ao servidor. Tente novamente.");
         return;
       }
       toast.success("Senha redefinida com sucesso.");

@@ -56,7 +56,7 @@ const provisionD1Company = async (args: {
   if (!env.INTERNAL_SHARED_SECRET) {
     return {
       error:
-        "INTERNAL_SHARED_SECRET not configured on apps/api — set it and apps/agents to the same value",
+        "INTERNAL_SHARED_SECRET not configured on apps/api; set it and apps/agents to the same value",
       ok: false,
     };
   }
