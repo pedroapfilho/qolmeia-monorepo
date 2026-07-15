@@ -22,7 +22,7 @@ User-facing locale is **pt-BR** across every agent and UI.
                  │  apps/agents  -  "worker-bees"  (Cloudflare Worker, Flue)     │
                  │  :8787                                                         │
                  │   • Flue agents (DOs): Planner · Correspondent · Worker        │
-                 │   • WorkerJobWorkflow (Cloudflare Workflow, approval gate)    │
+                 │   • WorkerJobWorkflow (Cloudflare Workflow, approval gate)     │
                  │   • REST: /api/me /api/teams /api/backoffice /assets          │
                  │   • bindings: D1 · R2 · KV · (Vectorize) · Workflows           │
                  └───────────┬───────────────────────────────┬──────────────────┘

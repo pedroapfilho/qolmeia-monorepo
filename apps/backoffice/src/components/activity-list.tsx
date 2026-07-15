@@ -2,7 +2,7 @@
 
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/lib/toast";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { ActivityRow } from "@/components/activity-row";
 import { apiGet, ApiError } from "@/lib/api-client";
@@ -18,10 +18,8 @@ const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
   const [fetchExhausted, setFetchExhausted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const rows = useMemo(() => {
-    const seen = new Set(initial.map((item) => item.id));
-    return [...initial, ...fetched.filter((item) => !seen.has(item.id))];
-  }, [initial, fetched]);
+  const seen = new Set(initial.map((item) => item.id));
+  const rows = [...initial, ...fetched.filter((item) => !seen.has(item.id))];
   const exhausted = fetchExhausted || initial.length < pageSize;
 
   const handleLoadMore = async () => {
