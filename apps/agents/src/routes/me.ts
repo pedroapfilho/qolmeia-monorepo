@@ -6,6 +6,7 @@ import { listEntitledActiveTemplates } from "#/db/template";
 import { validateSession, type ValidatedSession } from "#/lib/auth";
 import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
+import { parsePositiveInt } from "#/lib/pagination";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
 import { emitTeamEvent, subscribeTeamEvents } from "#/team/events";
 import {
@@ -25,6 +26,24 @@ const RELAY_CACHE_TTL_SECONDS = 60;
 const RELAY_CACHE_NAMESPACE = "me-relay";
 
 type Vars = { session: ValidatedSession };
+
+type TeamMutationErrorResult = { error: string; status: 400 | 404 | 500 };
+
+const teamMutationErrorResponse = (error: unknown): TeamMutationErrorResult | null => {
+  if (error instanceof TeamMemberNotPausableError) {
+    return { error: error.message, status: 400 };
+  }
+  if (error instanceof TeamMemberNotFoundError) {
+    return { error: "not found", status: 404 };
+  }
+  if (error instanceof TemplateNotFoundError || error instanceof TemplateRetiredError) {
+    return { error: error.message, status: 404 };
+  }
+  if (error instanceof CorrespondentMissingError) {
+    return { error: error.message, status: 500 };
+  }
+  return null;
+};
 
 const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -197,11 +216,9 @@ meRoutes.post("/team/hire", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    if (error instanceof TemplateNotFoundError || error instanceof TemplateRetiredError) {
-      return c.json({ error: error.message }, 404);
-    }
-    if (error instanceof CorrespondentMissingError) {
-      return c.json({ error: error.message }, 500);
+    const mapped = teamMutationErrorResponse(error);
+    if (mapped) {
+      return c.json({ error: mapped.error }, mapped.status);
     }
     throw error;
   }
@@ -238,8 +255,9 @@ meRoutes.patch("/team/members/:id", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    if (error instanceof TeamMemberNotFoundError) {
-      return c.json({ error: "not found" }, 404);
+    const mapped = teamMutationErrorResponse(error);
+    if (mapped) {
+      return c.json({ error: mapped.error }, mapped.status);
     }
     throw error;
   }
@@ -273,11 +291,9 @@ meRoutes.post("/team/members/:id/pause", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    if (error instanceof TeamMemberNotPausableError) {
-      return c.json({ error: error.message }, 400);
-    }
-    if (error instanceof TeamMemberNotFoundError) {
-      return c.json({ error: "not found" }, 404);
+    const mapped = teamMutationErrorResponse(error);
+    if (mapped) {
+      return c.json({ error: mapped.error }, mapped.status);
     }
     throw error;
   }
@@ -302,26 +318,13 @@ meRoutes.post("/team/members/:id/resume", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    if (error instanceof TeamMemberNotPausableError) {
-      return c.json({ error: error.message }, 400);
-    }
-    if (error instanceof TeamMemberNotFoundError) {
-      return c.json({ error: "not found" }, 404);
+    const mapped = teamMutationErrorResponse(error);
+    if (mapped) {
+      return c.json({ error: mapped.error }, mapped.status);
     }
     throw error;
   }
 });
-
-const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
-  if (!raw) {
-    return fallback;
-  }
-  const parsed = Math.trunc(Number(raw));
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return Math.min(parsed, max);
-};
 
 meRoutes.get("/activity", async (c) => {
   const { companyId } = c.get("session");
