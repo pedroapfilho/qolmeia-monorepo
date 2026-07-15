@@ -56,7 +56,7 @@ const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 const apiUrl = (path: string): string => `${AGENTS_URL}${path}`;
 
 const request = async <T>(path: string, label: string, init?: RequestInit): Promise<T> => {
-  const res = await fetch(apiUrl(path), { ...init, credentials: "include" });
+  const res = await fetch(apiUrl(path), { credentials: "include", ...init });
   if (!res.ok) {
     throw new Error(`${label} failed (${res.status})`);
   }
