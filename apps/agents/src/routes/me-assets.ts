@@ -5,6 +5,7 @@ import { safeJson } from "#/db/mappers";
 import { assetName } from "#/lib/asset-store";
 import type { ValidatedSession } from "#/lib/auth";
 import { validateSession } from "#/lib/auth";
+import { parsePositiveInt } from "#/lib/pagination";
 import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
 
 type Vars = { session: ValidatedSession };
@@ -27,17 +28,6 @@ type AssetRow = {
   kind: string;
   metadata: string | null;
   mime: string;
-};
-
-const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
-  if (!raw) {
-    return fallback;
-  }
-  const parsed = Math.trunc(Number(raw));
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return Math.min(parsed, max);
 };
 
 meAssetsRoutes.get("/assets", async (c) => {
