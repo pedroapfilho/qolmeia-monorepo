@@ -55,12 +55,25 @@ const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 const apiUrl = (path: string): string => `${AGENTS_URL}${path}`;
 
-const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
-  const res = await fetch(apiUrl("/api/me/team"), { credentials: "include" });
+const request = async <T>(path: string, label: string, init?: RequestInit): Promise<T> => {
+  const res = await fetch(apiUrl(path), { ...init, credentials: "include" });
   if (!res.ok) {
-    throw new Error(`GET /api/me/team failed (${res.status})`);
+    throw new Error(`${label} failed (${res.status})`);
   }
-  const body = (await res.json()) as { members: Array<TeamMemberView> };
+  return (await res.json()) as T;
+};
+
+const jsonInit = (method: "PATCH" | "POST", body: unknown): RequestInit => ({
+  body: JSON.stringify(body),
+  headers: { "content-type": "application/json" },
+  method,
+});
+
+const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
+  const body = await request<{ members: Array<TeamMemberView> }>(
+    "/api/me/team",
+    "GET /api/me/team",
+  );
   return body.members;
 };
 
@@ -133,11 +146,10 @@ const subscribeTeamEvents = (onEvent: () => void): (() => void) | null => {
 };
 
 const fetchCatalogue = async (): Promise<Array<HireableTemplate>> => {
-  const res = await fetch(apiUrl("/api/me/catalogue"), { credentials: "include" });
-  if (!res.ok) {
-    throw new Error(`GET /api/me/catalogue failed (${res.status})`);
-  }
-  const body = (await res.json()) as { templates: Array<HireableTemplate> };
+  const body = await request<{ templates: Array<HireableTemplate> }>(
+    "/api/me/catalogue",
+    "GET /api/me/catalogue",
+  );
   return body.templates;
 };
 
@@ -145,16 +157,11 @@ const hireMember = async (input: {
   displayName?: string;
   templateId: string;
 }): Promise<TeamMemberView> => {
-  const res = await fetch(apiUrl("/api/me/team/hire"), {
-    body: JSON.stringify(input),
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  if (!res.ok) {
-    throw new Error(`POST /api/me/team/hire failed (${res.status})`);
-  }
-  const body = (await res.json()) as { member: TeamMemberView };
+  const body = await request<{ member: TeamMemberView }>(
+    "/api/me/team/hire",
+    "POST /api/me/team/hire",
+    jsonInit("POST", input),
+  );
   return body.member;
 };
 
@@ -162,27 +169,21 @@ const patchMember = async (
   id: string,
   patch: { displayName?: string; promptOverride?: string | null },
 ): Promise<TeamMemberView> => {
-  const res = await fetch(apiUrl(`/api/me/team/members/${id}`), {
-    body: JSON.stringify(patch),
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    method: "PATCH",
-  });
-  if (!res.ok) {
-    throw new Error(`PATCH /api/me/team/members/${id} failed (${res.status})`);
-  }
-  return ((await res.json()) as { member: TeamMemberView }).member;
+  const body = await request<{ member: TeamMemberView }>(
+    `/api/me/team/members/${id}`,
+    `PATCH /api/me/team/members/${id}`,
+    jsonInit("PATCH", patch),
+  );
+  return body.member;
 };
 
 const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> => {
-  const res = await fetch(apiUrl(`/api/me/team/members/${id}/${paused ? "pause" : "resume"}`), {
-    credentials: "include",
-    method: "POST",
-  });
-  if (!res.ok) {
-    throw new Error(`pause/resume failed (${res.status})`);
-  }
-  return ((await res.json()) as { member: TeamMemberView }).member;
+  const body = await request<{ member: TeamMemberView }>(
+    `/api/me/team/members/${id}/${paused ? "pause" : "resume"}`,
+    "pause/resume",
+    { method: "POST" },
+  );
+  return body.member;
 };
 
 export {
