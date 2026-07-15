@@ -18,7 +18,7 @@ const CoverageContent = async () => {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura — sem nada marcado, você vê tudo."
+        description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura; sem nada marcado, você vê tudo."
         title="Minha cobertura"
       />
 
@@ -43,7 +43,7 @@ const CoverageContent = async () => {
 const CoverageSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <PageHeader
-      description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura — sem nada marcado, você vê tudo."
+      description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura; sem nada marcado, você vê tudo."
       title="Minha cobertura"
     />
     <Card className="max-w-2xl p-6">

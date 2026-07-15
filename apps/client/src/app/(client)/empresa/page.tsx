@@ -14,7 +14,7 @@ const EmpresaContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
   const companyId = me.currentOrg?.id;
   if (!companyId) {
-    throw new Error("CUSTOMER has no currentOrg — auth invariant broken");
+    throw new Error("CUSTOMER has no currentOrg; auth invariant broken");
   }
 
   const token = session.session.token;

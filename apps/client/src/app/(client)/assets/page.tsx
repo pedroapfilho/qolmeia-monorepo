@@ -29,7 +29,7 @@ const AssetsContent = async () => {
   return (
     <PageContainer>
       <PageHeader
-        description="A biblioteca da sua empresa — tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
+        description="A biblioteca da sua empresa, com tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
         title="Assets"
       />
       <AssetsGallery assets={assets} />
@@ -42,7 +42,7 @@ const AssetsContent = async () => {
 const AssetsSkeleton = () => (
   <PageContainer aria-hidden>
     <PageHeader
-      description="A biblioteca da sua empresa — tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
+      description="A biblioteca da sua empresa, com tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
       title="Assets"
     />
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

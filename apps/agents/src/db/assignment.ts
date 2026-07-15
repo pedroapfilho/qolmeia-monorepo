@@ -13,10 +13,16 @@ const listCoverage = async (db: D1Database, operatorUserId: string): Promise<Ope
     .prepare("SELECT kind, value FROM operator_assignment WHERE operator_user_id = ?")
     .bind(operatorUserId)
     .all<AssignmentRow>();
-  return {
-    companies: results.filter((r) => r.kind === "company").map((r) => r.value),
-    disciplines: results.filter((r) => r.kind === "discipline").map((r) => r.value),
-  };
+  const companies: Array<string> = [];
+  const disciplines: Array<string> = [];
+  for (const row of results) {
+    if (row.kind === "company") {
+      companies.push(row.value);
+    } else if (row.kind === "discipline") {
+      disciplines.push(row.value);
+    }
+  }
+  return { companies, disciplines };
 };
 
 const setCoverage = async (

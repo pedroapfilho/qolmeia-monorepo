@@ -181,7 +181,7 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
     return (
       <Card>
         <EmptyState
-          description="Tudo que seu Time criar — imagens, textos, planos, áudios — fica guardado aqui."
+          description="Tudo que seu Time criar (imagens, textos, planos, áudios) fica guardado aqui."
           icon={<FolderOpen aria-hidden />}
           title="Nenhum arquivo ainda"
         />

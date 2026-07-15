@@ -35,7 +35,7 @@ const LoginForm = () => {
           return;
         }
       } catch {
-        toast.error("Não foi possível conectar ao servidor — tente novamente.");
+        toast.error("Não foi possível conectar ao servidor. Tente novamente.");
         return;
       }
       setSent(true);

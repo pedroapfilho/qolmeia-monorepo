@@ -75,6 +75,7 @@ const delegateToWorkerSkill: UnknownSkill = {
 
     const ticketId = crypto.randomUUID();
     const now = Date.now();
+    // oxlint-disable-next-line react-doctor/async-parallel -- ordered: the ticket row must exist before the workflow starts, and the workflow id comes from the create call
     await ctx.env.DB.prepare(
       `INSERT INTO ticket
          (id, company_id, agent_instance_id, parent_ticket_id, title, brief,

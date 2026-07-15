@@ -83,6 +83,7 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   const updatedTargets = [...targets, newId];
   const now = Date.now();
 
+  // oxlint-disable-next-line react-doctor/async-parallel -- ordered: activity log and read-back must observe the committed batch
   await db.batch([
     db
       .prepare(
@@ -158,6 +159,7 @@ const setMemberStatus = async (
   agentInstanceId: string,
   input: SetMemberStatusInput,
 ): Promise<TeamMemberView> => {
+  // oxlint-disable-next-line react-doctor/async-parallel -- ordered: assert, then update, then log and read back the committed row
   await assertMemberPausable(db, companyId, agentInstanceId);
   await db
     .prepare("UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?")

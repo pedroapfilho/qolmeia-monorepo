@@ -52,7 +52,7 @@ const ActivityContent = async () => {
   return (
     <PageContainer>
       <PageHeader
-        description="Tudo que rolou no seu chat — mensagens trocadas, execuções dos agentes, ações concluídas."
+        description="Tudo que rolou no seu chat: mensagens trocadas, execuções dos agentes, ações concluídas."
         title="Atividade"
       />
 
@@ -96,7 +96,7 @@ const ActivityContent = async () => {
 const ActivitySkeleton = () => (
   <PageContainer aria-hidden>
     <PageHeader
-      description="Tudo que rolou no seu chat — mensagens trocadas, execuções dos agentes, ações concluídas."
+      description="Tudo que rolou no seu chat: mensagens trocadas, execuções dos agentes, ações concluídas."
       title="Atividade"
     />
     <Card>

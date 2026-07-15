@@ -49,7 +49,7 @@ const buildRoleGuard = (
     try {
       session = await auth.api.getSession({ headers: c.req.raw.headers });
     } catch (error) {
-      c.get("log").error("buildRoleGuard: getSession threw — auth service unavailable", {
+      c.get("log").error("buildRoleGuard: getSession threw; auth service unavailable", {
         error,
         method: c.req.method,
         url: c.req.url,

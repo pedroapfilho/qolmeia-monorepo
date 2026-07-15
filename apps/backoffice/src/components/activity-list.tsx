@@ -14,9 +14,13 @@ type ActivityListProps = {
 };
 
 const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
-  const [rows, setRows] = useState<ReadonlyArray<ActivityEntry>>(initial);
-  const [exhausted, setExhausted] = useState(initial.length < pageSize);
+  const [fetched, setFetched] = useState<ReadonlyArray<ActivityEntry>>([]);
+  const [fetchExhausted, setFetchExhausted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const seen = new Set(initial.map((item) => item.id));
+  const rows = [...initial, ...fetched.filter((item) => !seen.has(item.id))];
+  const exhausted = fetchExhausted || initial.length < pageSize;
 
   const handleLoadMore = async () => {
     if (exhausted || loading) {
@@ -31,9 +35,9 @@ const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
       }
       const next = await apiGet<ActivityResponse>(`/activity?${params.toString()}`);
       const fresh = next.items.filter((item) => !rows.some((existing) => existing.id === item.id));
-      setRows((prev) => [...prev, ...fresh]);
+      setFetched((prev) => [...prev, ...fresh]);
       if (fresh.length < pageSize) {
-        setExhausted(true);
+        setFetchExhausted(true);
       }
     } catch (error) {
       const message =

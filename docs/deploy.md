@@ -45,9 +45,9 @@ Everything lives under **`qolmeia.com`**: `app.` (client), `admin.`
 - `CORS_ORIGINS` (auth) and `CLIENT_ORIGINS` (Worker) list the real app
   subdomains; browser calls use `credentials: include`.
 - The Next apps call auth and the Worker **directly** at their subdomains
-  (`NEXT_PUBLIC_AUTH_URL`, `NEXT_PUBLIC_AGENTS_URL`) — no proxy hop.
+  (`NEXT_PUBLIC_AUTH_URL`, `NEXT_PUBLIC_AGENTS_URL`); no proxy hop.
 
-## 4. Cloudflare Worker — `apps/agents`
+## 4. Cloudflare Worker: `apps/agents`
 
 > All commands run from `apps/agents/`. First `wrangler login` (or set
 > `CLOUDFLARE_API_TOKEN`).
@@ -75,7 +75,7 @@ Replace every `PLACEHOLDER`:
 Update the `vars` for prod:
 
 - `WORKER_PUBLIC_URL=https://agents.qolmeia.com`
-- `AUTH_SERVICE_URL=https://api.qolmeia.com` (var name kept — auth is one feature of the api service)
+- `AUTH_SERVICE_URL=https://api.qolmeia.com` (var name kept; auth is one feature of the api service)
 - `CLIENT_ORIGINS=https://app.qolmeia.com,https://admin.qolmeia.com`
 
 Uncomment the **prod-only** block at the bottom of `wrangler.jsonc` (custom
@@ -130,7 +130,7 @@ apply automatically on first deploy. If you didn't put the custom-domain route
 in the config, map `agents.qolmeia.com` to the Worker in the dashboard
 (Worker → Settings → Domains & Routes).
 
-## 5. Railway — `apps/api` + Postgres
+## 5. Railway: `apps/api` + Postgres
 
 Build from the repo root with pnpm (it's a workspace). Build: the monorepo
 `pnpm build` (or filtered `--filter=api`); start: `node dist/index.mjs`
@@ -155,27 +155,27 @@ Environment:
 | `RESEND_API_KEY`         | from Resend                                            |
 | `AUTH_FROM_EMAIL`        | e.g. `noreply@qolmeia.com`                             |
 
-## 6. Vercel — `apps/client` + `apps/backoffice`
+## 6. Vercel: `apps/client` + `apps/backoffice`
 
 Two projects, each with **Root Directory** set to the app folder and the
 monorepo install/build wired through pnpm + Turborepo (`pnpm build --filter=…`).
 Both need:
 
-| Var                      | Value                                                                        |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`     | same secret as `apps/api`                                                    |
-| `DATABASE_URL`           | the Railway Postgres URL — the Next middleware validates sessions via Prisma |
-| `NEXT_PUBLIC_AUTH_URL`   | `https://api.qolmeia.com`                                                    |
-| `NEXT_PUBLIC_AGENTS_URL` | `https://agents.qolmeia.com`                                                 |
+| Var                      | Value                                                                       |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`     | same secret as `apps/api`                                                   |
+| `DATABASE_URL`           | the Railway Postgres URL; the Next middleware validates sessions via Prisma |
+| `NEXT_PUBLIC_AUTH_URL`   | `https://api.qolmeia.com`                                                   |
+| `NEXT_PUBLIC_AGENTS_URL` | `https://agents.qolmeia.com`                                                |
 
 Point `app.qolmeia.com` at the client project and `admin.qolmeia.com` at the
 backoffice project in Vercel's domain settings.
 
 ## 7. Order of operations
 
-1. **Cloudflare** first — you need `agents.qolmeia.com` for `AGENTS_INTERNAL_URL`.
-2. **Railway** — auth + Postgres; gives you `api.qolmeia.com`.
-3. **Vercel** — the two Next apps, pointed at both.
+1. **Cloudflare** first; you need `agents.qolmeia.com` for `AGENTS_INTERNAL_URL`.
+2. **Railway**: auth + Postgres; gives you `api.qolmeia.com`.
+3. **Vercel**: the two Next apps, pointed at both.
 
 `INTERNAL_SHARED_SECRET` and `BETTER_AUTH_SECRET` must be **identical** across
 the sides that share them. Rotating `INTERNAL_SHARED_SECRET` breaks org-create
@@ -191,9 +191,9 @@ until both the Worker and `apps/api` are redeployed.
 
 ## 9. Still open before "done"
 
-- No CD pipeline — these three deploys are manual.
+- No CD pipeline: these three deploys are manual.
 - An **operator directory** (listing OWNER/STAFF users) doesn't exist yet, so
   the backoffice ships **self-service** coverage; an admin-assigns-others
   surface needs that directory first (ADR 0005 / 0008).
-- A staged dependency update (`--latest`) was deferred — do it on its own, not
+- A staged dependency update (`--latest`) was deferred; do it on its own, not
   bundled with a deploy.
