@@ -10,27 +10,28 @@ const seedCompanyMemory = async (
   const agentInstanceId = `corr-${companyId}`;
   const memory = getMemoryAdapter(env);
 
-  const facts: Array<{ content: string; kind: string }> = [
-    input.brief.industry && { content: `Setor: ${input.brief.industry}`, kind: "industry" },
-    input.brief.primaryGoal && {
-      content: `Objetivo principal: ${input.brief.primaryGoal}`,
-      kind: "goal",
-    },
-    input.brief.audience && { content: `Público: ${input.brief.audience}`, kind: "audience" },
-    input.brief.channels?.length && {
-      content: `Canais ativos: ${input.brief.channels.join(", ")}`,
-      kind: "channels",
-    },
-    input.brief.brand?.voice && {
-      content: `Tom da marca: ${input.brief.brand.voice}`,
-      kind: "brand_voice",
-    },
-    input.brief.brand?.palette && {
-      content: `Paleta: ${input.brief.brand.palette}`,
-      kind: "brand_palette",
-    },
-    input.debriefSummary && { content: input.debriefSummary, kind: "onboarding_summary" },
-  ].filter(Boolean) as Array<{ content: string; kind: string }>;
+  const facts: Array<{ content: string; kind: string }> = [];
+  if (input.brief.industry) {
+    facts.push({ content: `Setor: ${input.brief.industry}`, kind: "industry" });
+  }
+  if (input.brief.primaryGoal) {
+    facts.push({ content: `Objetivo principal: ${input.brief.primaryGoal}`, kind: "goal" });
+  }
+  if (input.brief.audience) {
+    facts.push({ content: `Público: ${input.brief.audience}`, kind: "audience" });
+  }
+  if (input.brief.channels?.length) {
+    facts.push({ content: `Canais ativos: ${input.brief.channels.join(", ")}`, kind: "channels" });
+  }
+  if (input.brief.brand?.voice) {
+    facts.push({ content: `Tom da marca: ${input.brief.brand.voice}`, kind: "brand_voice" });
+  }
+  if (input.brief.brand?.palette) {
+    facts.push({ content: `Paleta: ${input.brief.brand.palette}`, kind: "brand_palette" });
+  }
+  if (input.debriefSummary) {
+    facts.push({ content: input.debriefSummary, kind: "onboarding_summary" });
+  }
 
   await Promise.all(
     facts.map(async (fact) => {
