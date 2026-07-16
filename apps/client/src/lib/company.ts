@@ -58,11 +58,7 @@ const fetchCompany = (): Promise<CompanyResponse> =>
   request<CompanyResponse>("/api/me/company", "GET /api/me/company");
 
 const patchCompanyBrief = (patch: BriefPatch): Promise<CompanyResponse> =>
-  request<CompanyResponse>(
-    "/api/me/company",
-    "PATCH /api/me/company",
-    jsonInit("PATCH", patch),
-  );
+  request<CompanyResponse>("/api/me/company", "PATCH /api/me/company", jsonInit("PATCH", patch));
 
 type BrandCategory = "logo" | "other" | "post" | "reference";
 

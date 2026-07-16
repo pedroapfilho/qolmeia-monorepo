@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, createBrowserApi } from "./index";
+import { ApiError, createBrowserApi, handleResponse } from "./index";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -69,5 +69,19 @@ describe("createBrowserApi", () => {
 
     const init = fetchMock.mock.calls[0]?.[1];
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+  });
+});
+
+describe("handleResponse", () => {
+  it("parses JSON on ok, returns null on 204, and throws ApiError otherwise", async () => {
+    expect(await handleResponse<{ a: number }>(Response.json({ a: 1 }))).toEqual({ a: 1 });
+    expect(await handleResponse(new Response(null, { status: 204 }))).toBeNull();
+    await expect(handleResponse(new Response("bad", { status: 500 }))).rejects.toMatchObject({
+      body: "bad",
+      status: 500,
+    });
+    await expect(handleResponse(new Response("bad", { status: 500 }))).rejects.toBeInstanceOf(
+      ApiError,
+    );
   });
 });
