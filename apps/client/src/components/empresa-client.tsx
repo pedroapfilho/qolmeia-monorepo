@@ -21,14 +21,13 @@ import { HireDialog } from "@/components/hire-dialog";
 import { PromptEditor } from "@/components/prompt-editor";
 import {
   fetchCatalogue,
+  fetchMemberDetail,
   patchMember,
   setPaused,
   type HireableTemplate,
   type TeamMemberDetailView,
 } from "@/lib/team";
 import { useTeamRoster } from "@/lib/use-team-roster";
-
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 const CATALOGUE_QUERY_KEY = ["catalogue"] as const;
 
@@ -52,15 +51,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
 
   const handleOpenDetail = async (id: string) => {
     try {
-      const res = await fetch(`${AGENTS_URL}/api/me/team/members/${id}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        toast.error(`Falha ao carregar agente (${res.status})`);
-        return;
-      }
-      const body = (await res.json()) as { member: TeamMemberDetailView };
-      setDetail(body.member);
+      setDetail(await fetchMemberDetail(id));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     }

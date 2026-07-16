@@ -1,3 +1,5 @@
+import { apiUrl, jsonInit, request } from "@/lib/request";
+
 type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
 
 type OpenTicketSlim = {
@@ -50,24 +52,6 @@ const STATUS_LABEL: Record<AgentDisplayStatus, string> = {
   paused: "Pausado",
   working: "Trabalhando",
 };
-
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
-
-const apiUrl = (path: string): string => `${AGENTS_URL}${path}`;
-
-const request = async <T>(path: string, label: string, init?: RequestInit): Promise<T> => {
-  const res = await fetch(apiUrl(path), { credentials: "include", ...init });
-  if (!res.ok) {
-    throw new Error(`${label} failed (${res.status})`);
-  }
-  return (await res.json()) as T;
-};
-
-const jsonInit = (method: "PATCH" | "POST", body: unknown): RequestInit => ({
-  body: JSON.stringify(body),
-  headers: { "content-type": "application/json" },
-  method,
-});
 
 const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
   const body = await request<{ members: Array<TeamMemberView> }>(
@@ -177,6 +161,14 @@ const patchMember = async (
   return body.member;
 };
 
+const fetchMemberDetail = async (id: string): Promise<TeamMemberDetailView> => {
+  const body = await request<{ member: TeamMemberDetailView }>(
+    `/api/me/team/members/${id}`,
+    `GET /api/me/team/members/${id}`,
+  );
+  return body.member;
+};
+
 const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> => {
   const body = await request<{ member: TeamMemberView }>(
     `/api/me/team/members/${id}/${paused ? "pause" : "resume"}`,
@@ -188,6 +180,7 @@ const setPaused = async (id: string, paused: boolean): Promise<TeamMemberView> =
 
 export {
   fetchCatalogue,
+  fetchMemberDetail,
   fetchTeam,
   hireMember,
   patchMember,
