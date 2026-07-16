@@ -256,6 +256,54 @@ describe("backoffice list routes span tenants and honor the ?companyId= filter",
   });
 });
 
+describe("backoffice list query-param hardening", () => {
+  it("GET /tickets ignores a non-numeric limit and clamps an oversized one", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+
+    const nonNumeric = await SELF.fetch(
+      "https://agents.test/api/backoffice/tickets?limit=abc&cf_session=tok",
+    );
+    expect(nonNumeric.status).toBe(200);
+    const nonNumericBody = (await nonNumeric.json()) as { items: Array<{ id: string }> };
+    expect(nonNumericBody.items.find((t) => t.id === "tkt-bo-test")).toBeTruthy();
+
+    const oversized = await SELF.fetch(
+      "https://agents.test/api/backoffice/tickets?limit=999999&cf_session=tok",
+    );
+    expect(oversized.status).toBe(200);
+    const oversizedBody = (await oversized.json()) as { items: Array<{ id: string }> };
+    expect(oversizedBody.items.find((t) => t.id === "tkt-bo-test")).toBeTruthy();
+  });
+
+  it("GET /activity ignores non-numeric limit, since, and before", async () => {
+    await logActivity(
+      { DB: env.DB },
+      {
+        companyId: COMPANY_ID,
+        refId: "tkt-bo-test",
+        refType: "ticket",
+        summary: "hardening",
+        type: "TICKET_DONE",
+      },
+    );
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+
+    const badLimit = await SELF.fetch(
+      "https://agents.test/api/backoffice/activity?limit=abc&cf_session=tok",
+    );
+    expect(badLimit.status).toBe(200);
+    const badLimitBody = (await badLimit.json()) as { items: Array<{ summary: string }> };
+    expect(badLimitBody.items.some((a) => a.summary === "hardening")).toBe(true);
+
+    const badWindow = await SELF.fetch(
+      "https://agents.test/api/backoffice/activity?since=abc&before=xyz&cf_session=tok",
+    );
+    expect(badWindow.status).toBe(200);
+    const badWindowBody = (await badWindow.json()) as { items: Array<{ summary: string }> };
+    expect(badWindowBody.items.some((a) => a.summary === "hardening")).toBe(true);
+  });
+});
+
 describe("operator override decide", () => {
   it("returns 404 for an unknown action id", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));

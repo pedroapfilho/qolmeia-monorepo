@@ -9,4 +9,15 @@ const parsePositiveInt = (raw: string | undefined, fallback: number, max: number
   return Math.min(parsed, max);
 };
 
-export { parsePositiveInt };
+const parseTimestamp = (raw: string | undefined): number | undefined => {
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = Math.trunc(Number(raw));
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+};
+
+export { parsePositiveInt, parseTimestamp };
