@@ -1,6 +1,3 @@
-import { ApiError } from "@/lib/api-client";
-import { AGENTS_SERVER_URL } from "@/lib/api-server";
-
 type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
 
 type OpenTicketSlim = {
@@ -51,44 +48,6 @@ type CompanyOverview = {
   status: CompanyStatus;
 };
 
-const fetchMember = async (
-  companyId: string,
-  memberId: string,
-  cookie: string,
-): Promise<TeamMemberDetailView> => {
-  const res = await fetch(
-    `${AGENTS_SERVER_URL}/api/backoffice/teams/${companyId}/members/${memberId}`,
-    {
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        ...(cookie ? { Cookie: cookie } : {}),
-      },
-    },
-  );
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ApiError(res.status, body);
-  }
-  return ((await res.json()) as { member: TeamMemberDetailView }).member;
-};
-
-const fetchCompanies = async (cookie: string): Promise<Array<CompanyOverview>> => {
-  const res = await fetch(`${AGENTS_SERVER_URL}/api/backoffice/companies`, {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(cookie ? { Cookie: cookie } : {}),
-    },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ApiError(res.status, body);
-  }
-  return ((await res.json()) as { companies: Array<CompanyOverview> }).companies;
-};
-
-export { fetchCompanies, fetchMember };
 export type {
   AgentDisplayStatus,
   CompanyOverview,

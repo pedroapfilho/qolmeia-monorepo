@@ -5,7 +5,6 @@ import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { Activity, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -13,7 +12,7 @@ import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
 import type { ActionsResponse, ActivityResponse, TicketsResponse } from "@/lib/api-types";
 import { formatDurationSeconds, formatRelative } from "@/lib/format";
-import { fetchCompanies } from "@/lib/team-fetch";
+import type { CompanyOverview } from "@/lib/team-fetch";
 
 export const metadata: Metadata = { title: "Início" };
 
@@ -72,20 +71,17 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
 };
 
 const HomeContent = async () => {
-  const headersList = await headers();
-  const cookie = headersList.get("cookie") ?? "";
-
   const [pendingRes, ticketsRes, activityRes, companiesRes] = await Promise.allSettled([
     apiGetServer<ActionsResponse>("/actions?status=pending&sort=age"),
     apiGetServer<TicketsResponse>("/tickets?limit=10"),
     apiGetServer<ActivityResponse>("/activity?limit=8"),
-    fetchCompanies(cookie),
+    apiGetServer<{ companies: Array<CompanyOverview> }>("/companies"),
   ]);
 
   const pending = pendingRes.status === "fulfilled" ? pendingRes.value.items : [];
   const tickets = ticketsRes.status === "fulfilled" ? ticketsRes.value.items : [];
   const activity = activityRes.status === "fulfilled" ? activityRes.value.items : [];
-  const companies = companiesRes.status === "fulfilled" ? companiesRes.value : null;
+  const companies = companiesRes.status === "fulfilled" ? companiesRes.value.companies : null;
 
   const openTickets = tickets.filter((t) =>
     ["in_progress", "open", "awaiting_approval"].includes(t.status),
