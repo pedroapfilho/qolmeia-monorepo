@@ -52,8 +52,8 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
   const handleOpenDetail = async (id: string) => {
     try {
       setDetail(await fetchMemberDetail(id));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+    } catch {
+      toast.error("Falha ao carregar agente. Tente novamente.");
     }
   };
 

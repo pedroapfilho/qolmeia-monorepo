@@ -13,11 +13,11 @@ Two audiences sharing one system, in pt-BR:
 
 ## Product Purpose
 
-Qolmeia is an AI agency-as-a-product: per-tenant AI agents (Correspondent, Planner, Workers) do real work, and a human operator approves anything outward or hard-to-reverse before it ships. Marketing is the first vertical; the platform is generalizing to others (e.g. Cobrança, per ADR 0009). Success = customers get useful work done with confidence, and operators clear the approval queue quickly and correctly. The approval gate is not overhead; it is the trust mechanism that makes autonomous agents safe, so the decision surfaces are load-bearing product, not admin chrome.
+Qolmeia is an AI agency-as-a-product: per-tenant AI agents (Correspondent, Planner, Workers) do real work, and a human operator approves anything outward or hard-to-reverse before it ships. Marketing is the first vertical; the platform is generalizing to others (e.g. Cobrança, per ADR 0009). Success = customers get useful work done with confidence, and operators clear the approval queue quickly and correctly. The approval gate is the trust mechanism that makes autonomous agents safe, so the decision surfaces are core product, not admin chrome.
 
 ## Brand Personality
 
-Calm, trustworthy, expert. Quiet confidence: a capable agency you hand work to, not flashy software. Warm, human pt-BR voice in copy; restrained and precise in chrome. Nothing should feel risky or toy-like, because the product asks users to trust agents with real actions. Reassurance comes from clarity (you always know the state and the next step), not from decoration.
+Calm, trustworthy, expert. Quiet confidence: a capable agency you hand work to, not flashy software. Warm, human pt-BR voice in copy; restrained and precise in chrome. Nothing should feel risky or toy-like, because the product asks users to trust agents with real actions. Reassurance comes from clarity: you always know the state and the next step.
 
 ## Anti-references
 
