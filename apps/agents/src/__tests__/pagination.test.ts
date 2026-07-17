@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePositiveInt } from "#/lib/pagination";
+import { parsePositiveInt, parseTimestamp } from "#/lib/pagination";
 
 describe("parsePositiveInt", () => {
   it("returns the fallback when the raw value is undefined or empty", () => {
@@ -25,5 +25,28 @@ describe("parsePositiveInt", () => {
     expect(parsePositiveInt("-3", 50, 200)).toBe(50);
     expect(parsePositiveInt("abc", 50, 200)).toBe(50);
     expect(parsePositiveInt("Infinity", 50, 200)).toBe(50);
+  });
+});
+
+describe("parseTimestamp", () => {
+  it("returns undefined when the raw value is undefined or empty", () => {
+    expect(parseTimestamp(undefined)).toBeUndefined();
+    expect(parseTimestamp("")).toBeUndefined();
+  });
+
+  it("parses a valid epoch-millisecond timestamp", () => {
+    expect(parseTimestamp("1752600000000")).toBe(1_752_600_000_000);
+    expect(parseTimestamp("0")).toBe(0);
+  });
+
+  it("truncates fractional input toward zero", () => {
+    expect(parseTimestamp("1000.9")).toBe(1000);
+  });
+
+  it("returns undefined for negative or non-finite input", () => {
+    expect(parseTimestamp("-1")).toBeUndefined();
+    expect(parseTimestamp("abc")).toBeUndefined();
+    expect(parseTimestamp("Infinity")).toBeUndefined();
+    expect(parseTimestamp("NaN")).toBeUndefined();
   });
 });

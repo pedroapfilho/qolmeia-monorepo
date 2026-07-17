@@ -1,4 +1,4 @@
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
+import { jsonInit, request } from "@/lib/request";
 
 type ChannelValue =
   | "discord"
@@ -54,28 +54,11 @@ type BriefPatch = {
   primaryGoal?: string;
 };
 
-const apiUrl = (path: string): string => `${AGENTS_URL}${path}`;
+const fetchCompany = (): Promise<CompanyResponse> =>
+  request<CompanyResponse>("/api/me/company", "GET /api/me/company");
 
-const fetchCompany = async (): Promise<CompanyResponse> => {
-  const res = await fetch(apiUrl("/api/me/company"), { credentials: "include" });
-  if (!res.ok) {
-    throw new Error(`GET /api/me/company failed (${res.status})`);
-  }
-  return (await res.json()) as CompanyResponse;
-};
-
-const patchCompanyBrief = async (patch: BriefPatch): Promise<CompanyResponse> => {
-  const res = await fetch(apiUrl("/api/me/company"), {
-    body: JSON.stringify(patch),
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    method: "PATCH",
-  });
-  if (!res.ok) {
-    throw new Error(`PATCH /api/me/company failed (${res.status})`);
-  }
-  return (await res.json()) as CompanyResponse;
-};
+const patchCompanyBrief = (patch: BriefPatch): Promise<CompanyResponse> =>
+  request<CompanyResponse>("/api/me/company", "PATCH /api/me/company", jsonInit("PATCH", patch));
 
 type BrandCategory = "logo" | "other" | "post" | "reference";
 
@@ -103,35 +86,27 @@ type BrandAsset = {
 };
 
 const fetchBrandAssets = async (): Promise<Array<BrandAsset>> => {
-  const res = await fetch(apiUrl("/api/me/brand-assets"), { credentials: "include" });
-  if (!res.ok) {
-    throw new Error(`GET /api/me/brand-assets failed (${res.status})`);
-  }
-  return ((await res.json()) as { items: Array<BrandAsset> }).items;
+  const body = await request<{ items: Array<BrandAsset> }>(
+    "/api/me/brand-assets",
+    "GET /api/me/brand-assets",
+  );
+  return body.items;
 };
 
 const uploadBrandAsset = async (file: File, category: BrandCategory): Promise<void> => {
   const form = new FormData();
   form.append("file", file);
   form.append("category", category);
-  const res = await fetch(apiUrl("/api/me/brand-assets"), {
+  await request("/api/me/brand-assets", "POST /api/me/brand-assets", {
     body: form,
-    credentials: "include",
     method: "POST",
   });
-  if (!res.ok) {
-    throw new Error(`POST /api/me/brand-assets failed (${res.status})`);
-  }
 };
 
 const deleteBrandAsset = async (id: string): Promise<void> => {
-  const res = await fetch(apiUrl(`/api/me/brand-assets/${id}`), {
-    credentials: "include",
+  await request(`/api/me/brand-assets/${id}`, `DELETE /api/me/brand-assets/${id}`, {
     method: "DELETE",
   });
-  if (!res.ok) {
-    throw new Error(`DELETE /api/me/brand-assets/${id} failed (${res.status})`);
-  }
 };
 
 export {

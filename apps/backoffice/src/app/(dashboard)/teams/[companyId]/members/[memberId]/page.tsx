@@ -1,24 +1,27 @@
 import { Skeleton } from "@repo/ui/components/skeleton";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { MemberEditForm } from "@/components/member-edit-form";
 import { ApiError } from "@/lib/api-client";
-import { fetchMember } from "@/lib/team-fetch";
+import { apiGetServer } from "@/lib/api-server";
+import type { TeamMemberDetailView } from "@/lib/team-fetch";
 
 type Props = { params: Promise<{ companyId: string; memberId: string }> };
 
 const MemberEditContent = async ({ params }: Props) => {
-  const [{ companyId, memberId }, headersList] = await Promise.all([params, headers()]);
-  const cookie = headersList.get("cookie") ?? "";
+  const { companyId, memberId } = await params;
 
-  const member = await fetchMember(companyId, memberId, cookie).catch((error: unknown) => {
-    if (error instanceof ApiError && error.status === 404) {
-      return null;
-    }
-    throw error;
-  });
+  const member = await apiGetServer<{ member: TeamMemberDetailView }>(
+    `/teams/${companyId}/members/${memberId}`,
+  )
+    .then((body) => body.member)
+    .catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    });
   if (!member) {
     notFound();
   }

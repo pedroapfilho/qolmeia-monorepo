@@ -83,5 +83,5 @@ const createBrowserApi = (agentsUrl: string, basePath = ""): BrowserApi => {
   };
 };
 
-export { ApiError, createBrowserApi };
+export { ApiError, createBrowserApi, handleResponse };
 export type { BrowserApi, FetchInit };

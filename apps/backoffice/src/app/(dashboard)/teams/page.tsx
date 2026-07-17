@@ -4,13 +4,13 @@ import { Skeleton } from "@repo/ui/components/skeleton";
 import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
 import { cn } from "@repo/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
+import { apiGetServer } from "@/lib/api-server";
 import { requireStaff } from "@/lib/auth-helpers";
-import { type CompanyOverview, type TeamMemberView, fetchCompanies } from "@/lib/team-fetch";
+import type { CompanyOverview, TeamMemberView } from "@/lib/team-fetch";
 
 const COMPANY_STATUS: Record<CompanyOverview["status"], { label: string; tone: StatusTone }> = {
   active: { label: "Ativo", tone: "success" },
@@ -39,9 +39,7 @@ const memberRoleLabel = (m: TeamMemberView): string =>
 
 const TeamsContent = async () => {
   await requireStaff();
-  const headersList = await headers();
-  const cookie = headersList.get("cookie") ?? "";
-  const companies = await fetchCompanies(cookie);
+  const { companies } = await apiGetServer<{ companies: Array<CompanyOverview> }>("/companies");
 
   return (
     <div className="flex flex-col gap-6">

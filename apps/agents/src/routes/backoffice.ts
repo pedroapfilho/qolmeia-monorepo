@@ -14,6 +14,7 @@ import {
 } from "#/db/template";
 import { listTickets, loadTicket } from "#/db/ticket";
 import { validateSession } from "#/lib/auth";
+import { parsePositiveInt, parseTimestamp } from "#/lib/pagination";
 import { isKnownSkill, listSkillCatalog } from "#/skills/registry";
 import { emitTeamEvent } from "#/team/events";
 import {
@@ -48,8 +49,8 @@ backofficeRoutes.use("*", async (c, next) => {
 backofficeRoutes.get("/tickets", async (c) => {
   const companyId = c.req.query("companyId");
   const status = c.req.query("status");
-  const limitParam = Number(c.req.query("limit") ?? 50);
-  const items = await listTickets(c.env.DB, { companyId, limit: limitParam, status });
+  const limit = parsePositiveInt(c.req.query("limit"), 50, 200);
+  const items = await listTickets(c.env.DB, { companyId, limit, status });
   return c.json({ items });
 });
 
@@ -140,11 +141,9 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
 
 backofficeRoutes.get("/activity", async (c) => {
   const companyId = c.req.query("companyId");
-  const sinceRaw = c.req.query("since");
-  const beforeRaw = c.req.query("before");
-  const since = sinceRaw ? Number(sinceRaw) : undefined;
-  const before = beforeRaw ? Number(beforeRaw) : undefined;
-  const limit = Math.min(Number(c.req.query("limit") ?? 100), 500);
+  const since = parseTimestamp(c.req.query("since"));
+  const before = parseTimestamp(c.req.query("before"));
+  const limit = parsePositiveInt(c.req.query("limit"), 100, 500);
   const items = await listActivity(c.env.DB, { before, companyId, limit, since });
   return c.json({ items });
 });
