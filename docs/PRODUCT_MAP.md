@@ -148,25 +148,25 @@ reject   -> ticket rejected, customer notified via chat
 
 ### 3.1 Agents (Durable Objects, one per company)
 
-| Agent | Role | Tools |
-|---|---|---|
-| **Planner** | Onboarding interview; stays in standby for re-planning | `extractBrief`, `proposeTeam` |
-| **Correspondent** | Single point of contact; delegates, remembers, researches | `rememberFact`, `recallMemory`, `delegateToWorker`, `extractBrief`, `listAssets`, `readAsset`, `saveAsset`, `webSearch`, `fetchUrl` |
-| **Worker** | Template-driven specialist; prompt = template + per-instance override | the template's `skillIds` |
+| Agent             | Role                                                                  | Tools                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Planner**       | Onboarding interview; stays in standby for re-planning                | `extractBrief`, `proposeTeam`                                                                                                       |
+| **Correspondent** | Single point of contact; delegates, remembers, researches             | `rememberFact`, `recallMemory`, `delegateToWorker`, `extractBrief`, `listAssets`, `readAsset`, `saveAsset`, `webSearch`, `fetchUrl` |
+| **Worker**        | Template-driven specialist; prompt = template + per-instance override | the template's `skillIds`                                                                                                           |
 
 ### 3.2 The 13 skills
 
-| Skill | What it gives the customer |
-|---|---|
-| `rememberFact` / `recallMemory` | Per-company semantic memory across conversations |
-| `delegateToWorker` | Work routed to the right specialist as a tracked ticket |
-| `generateBrandImage` | Images conditioned on up to 3 brand references, stored in R2, signed URLs |
-| `draftSocialPost` | Structured post drafts (platform, body, CTA, hashtags, tone) |
-| `extractBrief` | The brief fills itself from conversation |
-| `proposeTeam` | Team recommendations grounded in the brief |
-| `listAssets` / `readAsset` / `saveAsset` | Agents read and write the company library |
-| `webSearch` (Exa) / `fetchUrl` (Firecrawl) | Fresh research with sources |
-| `decideAction` | Approve/reject from chat. Fully built, currently assigned to no agent |
+| Skill                                      | What it gives the customer                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `rememberFact` / `recallMemory`            | Per-company semantic memory across conversations                          |
+| `delegateToWorker`                         | Work routed to the right specialist as a tracked ticket                   |
+| `generateBrandImage`                       | Images conditioned on up to 3 brand references, stored in R2, signed URLs |
+| `draftSocialPost`                          | Structured post drafts (platform, body, CTA, hashtags, tone)              |
+| `extractBrief`                             | The brief fills itself from conversation                                  |
+| `proposeTeam`                              | Team recommendations grounded in the brief                                |
+| `listAssets` / `readAsset` / `saveAsset`   | Agents read and write the company library                                 |
+| `webSearch` (Exa) / `fetchUrl` (Firecrawl) | Fresh research with sources                                               |
+| `decideAction`                             | Approve/reject from chat. Fully built, currently assigned to no agent     |
 
 ### 3.3 Approval lifecycle (`WorkerJobWorkflow`)
 

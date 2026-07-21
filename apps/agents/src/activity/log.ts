@@ -124,4 +124,4 @@ const listActivity = async (
 };
 
 export { ACTIVITY_CATEGORIES, listActivity, logActivity };
-export type { ActivityCategory, ActivityEntry, LogActivityInput };
+export type { ActivityEntry, LogActivityInput };
