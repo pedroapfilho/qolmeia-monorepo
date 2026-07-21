@@ -54,6 +54,19 @@ const isKickoffMessage = (message: ChatMessage): boolean =>
   message.role === "user" &&
   message.parts.some((part) => part.type === "text" && part.text === PLANNER_KICKOFF);
 
+// Workflow deliveries and proactive nudges reach the agent via flue dispatch,
+// and the runtime projects that dispatch into history as a user-role message
+// whose text is the pretty-printed JSON payload ({ "message": … }) with no
+// submissionId. Real customer messages carry a submissionId once canonical;
+// the optimistic echo of one doesn't, so the payload-shape check keeps it
+// visible.
+const DISPATCH_PAYLOAD_PATTERN = /^\{\s*"message":/v;
+
+const isInternalDispatchMessage = (message: ChatMessage): boolean =>
+  message.role === "user" &&
+  message.submissionId === undefined &&
+  message.parts.some((part) => part.type === "text" && DISPATCH_PAYLOAD_PATTERN.test(part.text));
+
 const hasVisibleContent = (message: ChatMessage): boolean =>
   message.parts.some((part) => {
     switch (part.type) {
@@ -200,7 +213,10 @@ const ChatInner = ({
   });
 
   const visibleMessages = messages.filter(
-    (message) => !isKickoffMessage(message) && hasVisibleContent(message),
+    (message) =>
+      !isKickoffMessage(message) &&
+      !isInternalDispatchMessage(message) &&
+      hasVisibleContent(message),
   );
 
   const kickedOffRef = useRef(false);

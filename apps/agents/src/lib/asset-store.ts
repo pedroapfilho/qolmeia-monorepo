@@ -29,6 +29,7 @@ const toVisibility = toEnum<AssetVisibility>(["agent", "customer"], "customer");
 
 const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
+  "image/svg+xml": "svg",
   "text/csv": "csv",
   "text/markdown": "md",
   "text/plain": "txt",

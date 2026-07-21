@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { listActivity } from "#/activity/log";
+import { ACTIVITY_CATEGORIES, listActivity } from "#/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "#/db/action";
 import { listCoverage, listDisciplines, setCoverage } from "#/db/assignment";
 import { listCompaniesOverview } from "#/db/schema";
@@ -144,7 +144,9 @@ backofficeRoutes.get("/activity", async (c) => {
   const since = parseTimestamp(c.req.query("since"));
   const before = parseTimestamp(c.req.query("before"));
   const limit = parsePositiveInt(c.req.query("limit"), 100, 500);
-  const items = await listActivity(c.env.DB, { before, companyId, limit, since });
+  const rawCategory = c.req.query("category");
+  const category = ACTIVITY_CATEGORIES.find((value) => value === rawCategory);
+  const items = await listActivity(c.env.DB, { before, category, companyId, limit, since });
   return c.json({ items });
 });
 

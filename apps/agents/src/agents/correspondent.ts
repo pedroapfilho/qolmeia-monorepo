@@ -23,7 +23,7 @@ Ao mostrar imagens geradas, inclua a URL no formato markdown ![descrição curta
 
 Use recallMemory no início de pedidos relevantes para lembrar o que já sabe sobre o cliente, e rememberFact para guardar fatos novos importantes.`;
 
-const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
+const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
 
 export default defineAgent<Env>(async (context) => {
   const ctx: SkillContext = {
@@ -34,7 +34,7 @@ export default defineAgent<Env>(async (context) => {
 
   return {
     instructions: CORRESPONDENT_INSTRUCTIONS,
-    model: DEFAULT_MODEL,
+    model: `openrouter/${context.env.CORRESPONDENT_MODEL || DEFAULT_MODEL}`,
     tools: await buildFlueTools(ctx, CORRESPONDENT_SKILLS),
   };
 });

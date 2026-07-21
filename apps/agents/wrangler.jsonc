@@ -41,7 +41,7 @@
     // PLACEHOLDER: replace with your Cloudflare account id (see `wrangler whoami`).
     "AI_GATEWAY_ACCOUNT_ID": "PLACEHOLDER-cloudflare-account-id",
     "AI_GATEWAY_NAME": "qolmeia",
-    "CORRESPONDENT_MODEL": "openai/gpt-5.3-chat",
+    "CORRESPONDENT_MODEL": "anthropic/claude-sonnet-4.5",
     // Image generation model, hot-swappable without a deploy. Default is
     // Nano Banana 2 (gemini-3.1-flash-image-preview), Google's latest as of
     // Feb 2026: Pro-tier quality at Flash speed. Alternates verified live

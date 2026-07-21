@@ -74,8 +74,13 @@ const mapActivity = (row: ActivityRow): ActivityEntry => ({
   type: row.type,
 });
 
+const ACTIVITY_CATEGORIES = ["ACTION", "TICKET", "WORKER", "TEAM", "MEMBER"] as const;
+
+type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
+
 type ListActivityOptions = {
   before?: number;
+  category?: ActivityCategory;
   companyId?: string;
   limit?: number;
   since?: number;
@@ -100,6 +105,10 @@ const listActivity = async (
     clauses.push("al.created_at < ?");
     params.push(options.before);
   }
+  if (options.category) {
+    clauses.push(String.raw`al.type LIKE ? ESCAPE '\'`);
+    params.push(String.raw`${options.category}\_%`);
+  }
   params.push(limit);
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
   const { results } = await db
@@ -114,5 +123,5 @@ const listActivity = async (
   return results.map(mapActivity);
 };
 
-export { listActivity, logActivity };
-export type { ActivityEntry, LogActivityInput };
+export { ACTIVITY_CATEGORIES, listActivity, logActivity };
+export type { ActivityCategory, ActivityEntry, LogActivityInput };

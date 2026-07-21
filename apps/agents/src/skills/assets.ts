@@ -56,7 +56,7 @@ const readAssetSkill: UnknownSkill = {
 };
 
 const saveAssetInputSchema = z.object({
-  content: z.string().min(1).describe("O conteúdo do arquivo (texto/markdown)."),
+  content: z.string().min(1).describe("O conteúdo do arquivo (texto/markdown/SVG)."),
   folder: z
     .enum(["agent", "customer"])
     .optional()
@@ -64,9 +64,9 @@ const saveAssetInputSchema = z.object({
       "'customer' (default) = entrega que o cliente vê na biblioteca; 'agent' = material de trabalho interno (rascunhos, recortes) que o cliente não vê.",
     ),
   mime: z
-    .enum(["application/json", "text/csv", "text/markdown", "text/plain"])
+    .enum(["application/json", "image/svg+xml", "text/csv", "text/markdown", "text/plain"])
     .optional()
-    .describe("Tipo do conteúdo. Default: text/markdown."),
+    .describe("Tipo do conteúdo. Use image/svg+xml para vetores. Default: text/markdown."),
   name: z.string().min(1).max(160).describe("Um nome claro para o arquivo."),
 });
 
