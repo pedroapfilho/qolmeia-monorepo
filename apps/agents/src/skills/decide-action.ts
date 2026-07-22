@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getAction } from "#/db/action";
+import { getDb } from "#/db/client";
 import { loadTicket } from "#/db/ticket";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
@@ -22,7 +23,8 @@ const decideActionSkill: UnknownSkill = {
   async execute(input: unknown, ctx: SkillContext): Promise<DecideResult> {
     const { actionId, decision, feedback } = decideActionInputSchema.parse(input);
 
-    const action = await getAction(ctx.env.DB, actionId);
+    const db = getDb(ctx.env);
+    const action = await getAction(db, actionId);
     if (!action) {
       return { error: "Ação não encontrada." };
     }
@@ -33,7 +35,7 @@ const decideActionSkill: UnknownSkill = {
       return { error: `Ação já está em estado '${action.status}', não é mais pendente.` };
     }
 
-    const ticket = await loadTicket(ctx.env.DB, action.ticketId);
+    const ticket = await loadTicket(db, action.ticketId);
     if (!ticket?.workflowId) {
       return { error: "Workflow não encontrado para essa ação." };
     }

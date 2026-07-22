@@ -2,6 +2,10 @@
 # Tests stub the model, so .dev.vars is only needed for manual chat testing.
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
+# Product data and Better Auth share Postgres. In production, configure this
+# with `wrangler secret put DATABASE_URL`.
+DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia
+
 # HMAC secret for /assets/:id signed URLs. Generate any 32+ byte hex string:
 #   openssl rand -hex 32
 ASSETS_SIGNING_KEY=replace-me-with-a-random-32-byte-hex-string

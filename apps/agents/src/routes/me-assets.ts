@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { safeJson } from "#/db/mappers";
+import { getDb } from "#/db/client";
 import { assetName } from "#/lib/asset-store";
 import type { ValidatedSession } from "#/lib/auth";
 import { validateSession } from "#/lib/auth";
@@ -21,36 +21,23 @@ meAssetsRoutes.use("*", async (c, next) => {
   return next();
 });
 
-type AssetRow = {
-  bytes: number;
-  created_at: number;
-  id: string;
-  kind: string;
-  metadata: string | null;
-  mime: string;
-};
-
 meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");
   const limit = parsePositiveInt(c.req.query("limit"), 100, 200);
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, kind, mime, bytes, metadata, created_at
-       FROM asset
-       WHERE company_id = ? AND visibility = 'customer'
-       ORDER BY created_at DESC
-       LIMIT ?`,
-  )
-    .bind(companyId, limit)
-    .all<AssetRow>();
+  const results = await getDb(c.env).asset.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    where: { companyId, visibility: "customer" },
+  });
 
   const items = await Promise.all(
     results.map(async (row) => ({
-      createdAt: new Date(row.created_at).toISOString(),
+      createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,
-      metadata: safeJson<unknown>(row.metadata, null),
+      metadata: row.metadata,
       mimeType: row.mime,
-      name: assetName(safeJson<unknown>(row.metadata, null), row.id, row.kind),
+      name: assetName(row.metadata, row.id, row.kind),
       size: row.bytes,
       url: await buildSignedAssetUrl(
         { ASSETS_SIGNING_KEY: c.env.ASSETS_SIGNING_KEY },
@@ -107,30 +94,21 @@ const persistImageAsset = async (
     { bytes, key: r2Key, metadata: { uploader: "customer" }, mime: file.type },
   );
 
-  const candidateId = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO asset
-       (id, company_id, kind, r2_key, sha256, mime, bytes, metadata, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      candidateId,
+  const asset = await getDb(env).asset.upsert({
+    create: {
+      bytes: bytes.length,
       companyId,
+      id: crypto.randomUUID(),
       kind,
+      metadata: { originalName: file.name || null, ...extraMeta },
+      mime: file.type,
       r2Key,
-      sha,
-      file.type,
-      bytes.length,
-      JSON.stringify({ originalName: file.name || null, ...extraMeta }),
-      Date.now(),
-    )
-    .run();
-  const existing = await env.DB.prepare(
-    "SELECT id FROM asset WHERE company_id = ? AND sha256 = ? LIMIT 1",
-  )
-    .bind(companyId, sha)
-    .first<{ id: string }>();
-  return { assetId: existing?.id ?? candidateId, bytes: bytes.length, mime: file.type };
+      sha256: sha,
+    },
+    update: {},
+    where: { companyId_sha256: { companyId, sha256: sha } },
+  });
+  return { assetId: asset.id, bytes: bytes.length, mime: file.type };
 };
 
 const readUploadedImage = (
@@ -183,25 +161,19 @@ meAssetsRoutes.post("/uploads", async (c) => {
   return c.json({ assetId, mime, size: bytes, url });
 });
 
-type BrandAssetRow = AssetRow & { kind: string };
-
 meAssetsRoutes.get("/brand-assets", async (c) => {
   const { companyId } = c.get("session");
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, mime, bytes, metadata, created_at
-       FROM asset
-       WHERE company_id = ? AND kind = 'brand_asset'
-       ORDER BY created_at DESC`,
-  )
-    .bind(companyId)
-    .all<BrandAssetRow>();
+  const results = await getDb(c.env).asset.findMany({
+    orderBy: { createdAt: "desc" },
+    where: { companyId, kind: "brand_asset" },
+  });
 
   const items = await Promise.all(
     results.map(async (row) => {
-      const metadata = safeJson<{ category?: string; originalName?: string }>(row.metadata, {});
+      const metadata = (row.metadata ?? {}) as { category?: string; originalName?: string };
       return {
         category: metadata?.category ?? "other",
-        createdAt: new Date(row.created_at).toISOString(),
+        createdAt: row.createdAt.toISOString(),
         id: row.id,
         mimeType: row.mime,
         name: metadata?.originalName ?? null,
@@ -261,18 +233,16 @@ meAssetsRoutes.delete("/brand-assets/:id", async (c) => {
     return c.json({ error: "forbidden" }, 403);
   }
   const id = c.req.param("id");
-  const row = await c.env.DB.prepare(
-    "SELECT r2_key FROM asset WHERE id = ? AND company_id = ? AND kind = 'brand_asset'",
-  )
-    .bind(id, session.companyId)
-    .first<{ r2_key: string }>();
+  const db = getDb(c.env);
+  const row = await db.asset.findFirst({
+    select: { r2Key: true },
+    where: { companyId: session.companyId, id, kind: "brand_asset" },
+  });
   if (!row) {
     return c.json({ error: "not found" }, 404);
   }
-  await c.env.DB.prepare("DELETE FROM asset WHERE id = ? AND company_id = ?")
-    .bind(id, session.companyId)
-    .run();
-  await c.env.ASSETS.delete(row.r2_key);
+  await db.asset.delete({ where: { id } });
+  await c.env.ASSETS.delete(row.r2Key);
   return c.json({ ok: true });
 });
 
@@ -290,22 +260,17 @@ meAssetsRoutes.post("/assets/delete", async (c) => {
     return c.json({ error: "invalid body" }, 400);
   }
   const { ids } = parsed.data;
-  const placeholders = ids.map(() => "?").join(",");
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, r2_key FROM asset
-       WHERE company_id = ? AND visibility = 'customer' AND id IN (${placeholders})`,
-  )
-    .bind(session.companyId, ...ids)
-    .all<{ id: string; r2_key: string }>();
+  const db = getDb(c.env);
+  const results = await db.asset.findMany({
+    select: { id: true, r2Key: true },
+    where: { companyId: session.companyId, id: { in: ids }, visibility: "customer" },
+  });
   if (results.length === 0) {
     return c.json({ deleted: 0 });
   }
   const foundIds = results.map((row) => row.id);
-  const deletePlaceholders = foundIds.map(() => "?").join(",");
-  await c.env.DB.prepare(`DELETE FROM asset WHERE company_id = ? AND id IN (${deletePlaceholders})`)
-    .bind(session.companyId, ...foundIds)
-    .run();
-  await Promise.allSettled(results.map((row) => c.env.ASSETS.delete(row.r2_key)));
+  await db.asset.deleteMany({ where: { companyId: session.companyId, id: { in: foundIds } } });
+  await Promise.allSettled(results.map((row) => c.env.ASSETS.delete(row.r2Key)));
   return c.json({ deleted: results.length });
 });
 

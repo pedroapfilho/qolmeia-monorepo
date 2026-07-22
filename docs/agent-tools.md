@@ -10,7 +10,7 @@ each mapped to the agent(s) that use it. Companion to
    `apps/agents/src/skills/`, registered in `skills/registry.ts` `ALL_SKILLS`.
    An agent only gets a skill if its skill set lists the id: the **Correspondent**
    has a hardcoded set (`CORRESPONDENT_SKILLS` in `agents/correspondent.ts`);
-   **Workers** get `template.skill_ids` (D1, set via a migration). Adding a tool
+   **Workers** get `template.skill_ids` (Prisma/Postgres, seeded in `@repo/db`). Adding a tool
    = a new skill file + registry entry + the template/correspondent skill list.
 2. **Channel**: how the customer reaches the Correspondent. Today the only
    channel is the **web chat** (the Correspondent's Flue agent route, HTTP+SSE).
@@ -146,7 +146,7 @@ spike (2026-06-19):
 
 **Skill:** create `src/skills/<name>.ts` (`{ id, description, inputSchema,
 execute }`) → add to `ALL_SKILLS` in `registry.ts` → add the id to the relevant
-template `skill_ids` (new migration) and/or `CORRESPONDENT_SKILLS` → declare any
+template `skill_ids` in `packages/db/src/product-seed.ts` and/or `CORRESPONDENT_SKILLS` → declare any
 secret in `env.d.ts` + `wrangler secret put` + `docs/deploy.md` → if it's an
 outward action, give the template a `default_policies` entry so it's gated.
 
@@ -154,4 +154,4 @@ outward action, give the template a `default_policies` entry so it's gated.
 in `CONNECTOR_SECRETS` KV → route inbound messages to the Correspondent DO.
 
 Per-tenant credentials (OAuth tokens, channel secrets) belong in
-`CONNECTOR_SECRETS` KV keyed by company id, never in env vars or D1.
+`CONNECTOR_SECRETS` KV keyed by company id, never in env vars or product tables.

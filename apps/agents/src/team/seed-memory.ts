@@ -1,3 +1,4 @@
+import { getDb } from "#/db/client";
 import { insertMemoryFact } from "#/db/schema";
 import type { CompanyBriefPartial } from "#/lib/company-brief";
 import { getMemoryAdapter } from "#/lib/memory";
@@ -36,7 +37,7 @@ const seedCompanyMemory = async (
   await Promise.all(
     facts.map(async (fact) => {
       const id = crypto.randomUUID();
-      await insertMemoryFact(env.DB, {
+      await insertMemoryFact(getDb(env), {
         agentInstanceId,
         companyId,
         content: fact.content,

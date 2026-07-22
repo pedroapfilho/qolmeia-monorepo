@@ -22,9 +22,10 @@ pnpm format:check                 # oxfmt (check only, used in CI)
 # Testing
 pnpm test                         # vitest unit tests across all packages
 
-# Database (Prisma, used only by the api service; agents Worker uses D1)
+# Database (Prisma/Postgres, shared by api and agents)
 pnpm db:generate                  # generate Prisma client
 pnpm db:push                      # push schema to Postgres
+pnpm --filter=@repo/db db:seed    # seed the default template and skill catalog
 ```
 
 ## Architecture
@@ -46,17 +47,16 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 
 - **Per-tenant agents are Durable Objects**: `CorrespondentAgent`, `WorkerAgent`, `PlannerAgent` (one DO instance per company id).
 - **Approvals run on Workflows**: every Worker job spawns a `WorkerJobWorkflow`; gated actions pause on `waitForEvent("decision:<actionId>")` until an operator decides via `/api/backoffice/actions/:id/decide`.
-- **D1 is the system of record for product data**: `company`, `ticket`, `action`, `activity_log`, `agent_instance`, `template`, `skill`, `team`, `team_member`, `memory_fact`, `asset`. Schema in `apps/agents/migrations/*.sql`.
+- **Postgres is the system of record for auth and product data**, accessed through Prisma from both `apps/api` and the agents Worker. Schema in `packages/db/prisma/schema.prisma`.
 - **R2 holds binary assets** (`ASSETS` binding), served via HMAC-signed URLs from `/assets/:id`.
 - **KV holds a session-validation cache** (`SESSIONS` binding) to keep the auth service off the hot path.
-- **Postgres remains** for Better Auth's tables only. Legacy product models still exist in `packages/db/prisma/schema.prisma` but are unused by `agents`.
 
 ### Packages
 
 | Package                   | Purpose                                                                                                             |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `@repo/auth`              | `createAuth` factory wrapping Better Auth (magic-link + email/password). Consumed by `api`, `backoffice`, `client`. |
-| `@repo/db`                | Prisma client singleton + schema (auth-only domain).                                                                |
+| `@repo/db`                | Prisma schema plus Node and Cloudflare Worker client entry points.                                                  |
 | `@repo/transactional`     | React Email templates + Resend sender.                                                                              |
 | `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps.                                       |
 | `@repo/config-vitest`     | Shared Vitest config.                                                                                               |
@@ -86,7 +86,7 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 Each app has its own `.env.example`:
 
 - **apps/api**: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit; Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
-- **apps/agents**: `.dev.vars` (not `.env`). Holds `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
+- **apps/agents**: `.dev.vars` (not `.env`). Holds `DATABASE_URL`, `OPENROUTER_API_KEY`, and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
 - **apps/client**: `BETTER_AUTH_SECRET` (matches `apps/api`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
 - **apps/backoffice**: same as client (its Worker rewrite covers `/api/backoffice/*`).
 
@@ -100,21 +100,14 @@ Bring the stack up (assumes envs are copied from each `.env.example`):
 # 1. Postgres on :5436 (Redis on :6382 is unused but still in compose)
 docker compose up -d
 
-# 2. Push the auth-only Prisma schema
+# 2. Push the shared Prisma schema
 DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
   pnpm --filter=@repo/db db:push
 
-# 3. Seed Postgres: creates the dev org + OWNER + CUSTOMER users (idempotent)
+# 3. Seed Postgres: creates auth users, product company, catalog, and team (idempotent)
 pnpm --filter=api exec tsx src/scripts/seed-dev.ts
 
-# 4. Apply D1 migrations + seed the company row, Correspondent + Designer worker
-cd apps/agents
-pnpm wrangler d1 migrations apply worker-bees --local
-pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
-pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
-cd -
-
-# 5. Run all four apps (or one per terminal with --filter)
+# 4. Run all four apps (or one per terminal with --filter)
 pnpm dev
 ```
 
@@ -125,7 +118,7 @@ pnpm dev
 | Backoffice: `https://qolmeia.backoffice.localhost` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
 | Client: `https://qolmeia.client.localhost`         | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 
-The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`) so it matches the D1 seed in `apps/agents/scripts/seed-p2.sql`. The client login is magic-link only; the password above only works on the backoffice. Watch `apps/api` logs for the magic link in dev.
+The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`). The client login is magic-link only; the password above only works on the backoffice. Watch `apps/api` logs for the magic link in dev.
 
 ## Conventions
 

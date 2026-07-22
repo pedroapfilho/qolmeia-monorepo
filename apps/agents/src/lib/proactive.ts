@@ -1,4 +1,5 @@
 import { logActivity } from "#/activity/log";
+import { getDb } from "#/db/client";
 
 const PROACTIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -19,17 +20,16 @@ const proactiveGate = (input: {
 };
 
 const lastProactiveSuggestionAt = async (env: Env, companyId: string): Promise<number | null> => {
-  const row = await env.DB.prepare(
-    `SELECT MAX(created_at) AS at FROM activity_log
-       WHERE company_id = ? AND type = 'WORKER_PROACTIVE_SUGGESTION'`,
-  )
-    .bind(companyId)
-    .first<{ at: number | null }>();
-  return row?.at ?? null;
+  const row = await getDb(env).activityLog.findFirst({
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+    where: { companyId, type: "WORKER_PROACTIVE_SUGGESTION" },
+  });
+  return row?.createdAt.getTime() ?? null;
 };
 
 const recordProactiveSuggestion = async (env: Env, companyId: string): Promise<void> => {
-  await logActivity(env, {
+  await logActivity(getDb(env), {
     companyId,
     refId: `corr-${companyId}`,
     refType: "agent_instance",

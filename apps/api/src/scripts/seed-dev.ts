@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { createAuth } from "@repo/auth/server";
-import { prisma } from "@repo/db";
+import { prisma, seedProductDefaults } from "@repo/db";
 
 import { env } from "../lib/env";
 
@@ -67,9 +67,58 @@ const upsertMembership = async (
   });
 };
 
+const seedProductCompany = async (): Promise<void> => {
+  await prisma.company.upsert({
+    create: { id: ORG_ID, name: ORG_NAME, slug: ORG_SLUG, status: "active" },
+    update: { name: ORG_NAME, slug: ORG_SLUG },
+    where: { id: ORG_ID },
+  });
+  await seedProductDefaults(prisma);
+
+  const correspondentId = `corr-${ORG_ID}`;
+  const workerId = `worker-tpl-designer-${ORG_ID}`;
+  const teamId = `team-${ORG_ID}`;
+  await prisma.agentInstance.createMany({
+    data: [
+      {
+        companyId: ORG_ID,
+        displayName: "Correspondente Qolmeia",
+        id: correspondentId,
+        role: "correspondent",
+      },
+      {
+        companyId: ORG_ID,
+        displayName: "Designer",
+        id: workerId,
+        role: "worker",
+        templateId: "tpl-designer",
+        templateVersion: 1,
+      },
+    ],
+    skipDuplicates: true,
+  });
+  await prisma.team.upsert({
+    create: { companyId: ORG_ID, confirmedAt: new Date(), id: teamId },
+    update: {},
+    where: { companyId: ORG_ID },
+  });
+  await prisma.teamMember.upsert({
+    create: { agentInstanceId: correspondentId, canDelegateTo: [workerId], teamId },
+    update: { canDelegateTo: [workerId] },
+    where: { teamId_agentInstanceId: { agentInstanceId: correspondentId, teamId } },
+  });
+  await prisma.teamMember.upsert({
+    create: { agentInstanceId: workerId, canDelegateTo: [], teamId },
+    update: {},
+    where: { teamId_agentInstanceId: { agentInstanceId: workerId, teamId } },
+  });
+};
+
 const main = async () => {
   const org = await upsertOrg();
   console.log(`Organization: ${org.id} (${org.slug})`);
+  await seedProductCompany();
+  console.log("  Product company, catalog, and demo team seeded with Prisma");
 
   const owner = await upsertUser(OWNER_EMAIL, OWNER_NAME, OWNER_PASSWORD);
   await upsertMembership(owner.userId, "OWNER");
@@ -81,12 +130,6 @@ const main = async () => {
   await upsertMembership(customer.userId, "CUSTOMER");
   console.log(
     `  CUSTOMER user: ${CUSTOMER_EMAIL}${customer.created ? ` (password: ${CUSTOMER_PASSWORD})` : " (already existed)"}`,
-  );
-
-  console.log("");
-  console.log("Next: seed the D1 company row + Correspondent agent_instance:");
-  console.log(
-    "  pnpm --filter=worker-bees wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql",
   );
 };
 

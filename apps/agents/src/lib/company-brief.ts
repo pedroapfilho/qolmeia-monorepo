@@ -73,12 +73,12 @@ const mergeBrief = (
   } as CompanyBrief;
 };
 
-const parseBrief = (raw: string | null | undefined): Partial<CompanyBrief> => {
+const parseBrief = (raw: unknown): Partial<CompanyBrief> => {
   if (!raw) {
     return {};
   }
   try {
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = typeof raw === "string" ? (JSON.parse(raw) as unknown) : raw;
     const result = companyBriefSchema.partial().safeParse(parsed);
     return result.success ? result.data : {};
   } catch {

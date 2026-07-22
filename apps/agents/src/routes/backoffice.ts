@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ACTIVITY_CATEGORIES, listActivity } from "#/activity/log";
 import { getAction, listActions, listActionsForTicket, listPendingActions } from "#/db/action";
 import { listCoverage, listDisciplines, setCoverage } from "#/db/assignment";
+import { getDb } from "#/db/client";
 import { listCompaniesOverview } from "#/db/schema";
 import {
   createTemplate,
@@ -50,7 +51,7 @@ backofficeRoutes.get("/tickets", async (c) => {
   const companyId = c.req.query("companyId");
   const status = c.req.query("status");
   const limit = parsePositiveInt(c.req.query("limit"), 50, 200);
-  const items = await listTickets(c.env.DB, { companyId, limit, status });
+  const items = await listTickets(getDb(c.env), { companyId, limit, status });
   return c.json({ items });
 });
 
@@ -61,10 +62,10 @@ backofficeRoutes.get("/actions", async (c) => {
 
   if (status === "pending") {
     const items = companyId
-      ? await listPendingActions(c.env.DB, { companyId })
+      ? await listPendingActions(getDb(c.env), { companyId })
       : await (async () => {
-          const coverage = await listCoverage(c.env.DB, c.get("userId"));
-          return listPendingActions(c.env.DB, {
+          const coverage = await listCoverage(getDb(c.env), c.get("userId"));
+          return listPendingActions(getDb(c.env), {
             companyIds: coverage.companies,
             disciplines: coverage.disciplines,
           });
@@ -91,7 +92,7 @@ backofficeRoutes.get("/actions", async (c) => {
     return c.json({ items: sorted });
   }
 
-  const items = await listActions(c.env.DB, { companyId });
+  const items = await listActions(getDb(c.env), { companyId });
   return c.json({ items });
 });
 
@@ -113,7 +114,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
 
-  const action = await getAction(c.env.DB, id);
+  const action = await getAction(getDb(c.env), id);
   if (!action) {
     return c.text("Not found", 404);
   }
@@ -121,7 +122,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
     return c.json({ error: `action already ${action.status}` }, 409);
   }
 
-  const ticket = await loadTicket(c.env.DB, action.ticketId);
+  const ticket = await loadTicket(getDb(c.env), action.ticketId);
   if (!ticket?.workflowId) {
     return c.json({ error: "no workflow for this action" }, 500);
   }
@@ -146,27 +147,27 @@ backofficeRoutes.get("/activity", async (c) => {
   const limit = parsePositiveInt(c.req.query("limit"), 100, 500);
   const rawCategory = c.req.query("category");
   const category = ACTIVITY_CATEGORIES.find((value) => value === rawCategory);
-  const items = await listActivity(c.env.DB, { before, category, companyId, limit, since });
+  const items = await listActivity(getDb(c.env), { before, category, companyId, limit, since });
   return c.json({ items });
 });
 
 backofficeRoutes.get("/tickets/:id", async (c) => {
   const id = c.req.param("id");
-  const ticket = await loadTicket(c.env.DB, id);
+  const ticket = await loadTicket(getDb(c.env), id);
   if (!ticket) {
     return c.text("Not found", 404);
   }
-  const actions = await listActionsForTicket(c.env.DB, id);
+  const actions = await listActionsForTicket(getDb(c.env), id);
   return c.json({ actions, ticket });
 });
 
 backofficeRoutes.get("/actions/:id", async (c) => {
   const id = c.req.param("id");
-  const action = await getAction(c.env.DB, id);
+  const action = await getAction(getDb(c.env), id);
   if (!action) {
     return c.text("Not found", 404);
   }
-  const ticket = await loadTicket(c.env.DB, action.ticketId);
+  const ticket = await loadTicket(getDb(c.env), action.ticketId);
   const ageSeconds = Math.floor((Date.now() - action.createdAt) / 1000);
   return c.json({ action, ageSeconds, ticket });
 });
@@ -178,9 +179,9 @@ const backofficePatchSchema = z.object({
 });
 
 backofficeRoutes.get("/companies", async (c) => {
-  const companies = await listCompaniesOverview(c.env.DB);
+  const companies = await listCompaniesOverview(getDb(c.env));
   const rosters = await listTeamRosters(
-    c.env.DB,
+    getDb(c.env),
     companies.map((company) => company.id),
   );
   const withRosters = companies.map((company) => ({
@@ -195,9 +196,9 @@ backofficeRoutes.get("/companies", async (c) => {
 
 backofficeRoutes.get("/assignments/me", async (c) => {
   const [coverage, disciplines, companies] = await Promise.all([
-    listCoverage(c.env.DB, c.get("userId")),
-    listDisciplines(c.env.DB),
-    listCompaniesOverview(c.env.DB),
+    listCoverage(getDb(c.env), c.get("userId")),
+    listDisciplines(getDb(c.env)),
+    listCompaniesOverview(getDb(c.env)),
   ]);
   return c.json({
     assigned: coverage,
@@ -218,18 +219,18 @@ backofficeRoutes.put("/assignments/me", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  await setCoverage(c.env.DB, c.get("userId"), parsed.data);
+  await setCoverage(getDb(c.env), c.get("userId"), parsed.data);
   return c.json({ assigned: parsed.data });
 });
 
 backofficeRoutes.get("/teams/:companyId/members", async (c) => {
   const companyId = c.req.param("companyId");
-  const members = await getTeamRoster(c.env.DB, companyId);
+  const members = await getTeamRoster(getDb(c.env), companyId);
   return c.json({ members });
 });
 
 backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
-  const member = await getMemberDetail(c.env.DB, c.req.param("companyId"), c.req.param("id"));
+  const member = await getMemberDetail(getDb(c.env), c.req.param("companyId"), c.req.param("id"));
   if (!member) {
     return c.json({ error: "not found" }, 404);
   }
@@ -247,8 +248,8 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     if (parsed.data.status !== undefined) {
       const paused = parsed.data.status === "paused";
       const member = paused
-        ? await pauseMember(c.env.DB, companyId, id, c.get("userId"))
-        : await resumeMember(c.env.DB, companyId, id, c.get("userId"));
+        ? await pauseMember(getDb(c.env), companyId, id, c.get("userId"))
+        : await resumeMember(getDb(c.env), companyId, id, c.get("userId"));
       await emitTeamEvent(c.env, {
         companyId,
         reason: paused ? "paused" : "resumed",
@@ -256,7 +257,7 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
       });
       return c.json({ member });
     }
-    const member = await updateMember(c.env.DB, {
+    const member = await updateMember(getDb(c.env), {
       agentInstanceId: id,
       companyId,
       displayName: parsed.data.displayName,
@@ -305,12 +306,12 @@ backofficeRoutes.get("/skills", (c) => {
 });
 
 backofficeRoutes.get("/templates", async (c) => {
-  const items = await listAllTemplates(c.env.DB);
+  const items = await listAllTemplates(getDb(c.env));
   return c.json({ items });
 });
 
 backofficeRoutes.get("/templates/:id", async (c) => {
-  const template = await getTemplate(c.env.DB, c.req.param("id"));
+  const template = await getTemplate(getDb(c.env), c.req.param("id"));
   if (!template) {
     return c.json({ error: "not found" }, 404);
   }
@@ -322,7 +323,7 @@ backofficeRoutes.post("/templates", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
-  const template = await createTemplate(c.env.DB, parsed.data);
+  const template = await createTemplate(getDb(c.env), parsed.data);
   return c.json({ template }, 201);
 });
 
@@ -331,7 +332,7 @@ backofficeRoutes.patch("/templates/:id", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
-  const template = await updateTemplate(c.env.DB, c.req.param("id"), parsed.data);
+  const template = await updateTemplate(getDb(c.env), c.req.param("id"), parsed.data);
   if (!template) {
     return c.json({ error: "not found" }, 404);
   }
@@ -343,7 +344,7 @@ backofficeRoutes.patch("/templates/:id/status", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
-  const template = await setTemplateStatus(c.env.DB, c.req.param("id"), parsed.data.status);
+  const template = await setTemplateStatus(getDb(c.env), c.req.param("id"), parsed.data.status);
   if (!template) {
     return c.json({ error: "not found" }, 404);
   }

@@ -7,7 +7,7 @@ Open work items, ordered by impact. Each top-level entry is a PR-sized slice.
 `docs/architecture/2026-05-26-post-p7-review.md` describes the post-P7.1 system. Since then the following has shipped and the doc is stale:
 
 - **P7.2 cutover**: `apps/api` renamed to `apps/auth`; legacy `connectors/`, `inbox/`, `agents/`, `workers/`, `routines/`, OpenRouter wiring, BullMQ deps all deleted. Prisma schema pruned to Better Auth + `Organization` + `OrgMembership`. Redis removed from `docker-compose.yml`.
-- **Org-create hook**: `POST /api/v1/orgs` on `apps/auth` creates the Postgres `Organization` + `OrgMembership` row, then relays to `apps/agents` `POST /api/internal/companies` (gated by `INTERNAL_SHARED_SECRET`) to provision the D1 `company` + Correspondent + Planner `agent_instance` rows. Replaces the hand-rolled `seed-dev.ts` seed.
+- **Org-create hook**: `POST /api/v1/orgs` on `apps/api` creates the Postgres `Organization` + `OrgMembership` row, then relays to `apps/agents` `POST /api/internal/companies` (gated by `INTERNAL_SHARED_SECRET`) to provision the Prisma `company` + Correspondent + Planner `agent_instance` rows.
 - **60s session KV cache**: `apps/agents/src/lib/auth.ts → validateSession` memoises `/api/v1/me` in a new `SESSIONS` KV namespace keyed on bearer token (or hash of cookie). Same KV namespace caches the `/api/me` relay in `routes/me.ts`. Takes Better Auth's per-IP 100/15min rate limit off the page-render hot path. Responses carry `X-Cache: hit|miss`.
 - **Structured agent observability**: `apps/agents/src/lib/logger.ts` emits single-line JSON via `console.log`. Workers Logs (already enabled via `observability.enabled`) indexes top-level fields. Hooked at: `agent.turn.start/ok`, `agent.tool.start/ok/err` (auto-wrapped in the skill registry), `agent.connector.start/ok/err`, `agent.presentAction`, `workflow.start/generate.start/generate.ok/propose.ok/waiting/decision.received/ok`.
 - **Image-gen fix**: `generateBrandImage` now uses OpenRouter's `/api/v1/chat/completions` with `modalities: ["image","text"]` (the dedicated `/images/generations` endpoint doesn't exist on OpenRouter). Default model `google/gemini-2.5-flash-image`; Pro and 3.1-flash are hot-swap alternates via `IMAGE_GEN_MODEL`. Response is a `data:image/png;base64,…` URL on `choices[0].message.images[0].image_url.url`.
@@ -34,7 +34,7 @@ Action: add `scripts/e2e-customer-decide.mjs` that triggers a `worker_deliverabl
 
 ## 4. Onboarding / Planner E2E
 
-`apps/agents/scripts/seed-p2.sql` sets `company.status = 'active'` so the Planner is never exercised in the dev seed. The flow exists (`apps/agents/src/agents/planner.ts`, `apps/agents/src/routes/teams.ts → POST /api/teams/:companyId/confirm`) but no test proves the full status-driven routing.
+The Prisma dev seed sets `company.status = 'active'` so the Planner is never exercised in the dev seed. The flow exists (`apps/agents/src/agents/planner.ts`, `apps/agents/src/routes/teams.ts → POST /api/teams/:companyId/confirm`) but no test proves the full status-driven routing.
 
 Action:
 

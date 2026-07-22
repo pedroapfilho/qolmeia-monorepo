@@ -30,7 +30,7 @@ beforeEach(async () => {
 });
 
 describe("getTemplate / listSkillOverlays", () => {
-  it("reads the seeded Designer template from D1", async () => {
+  it("reads the seeded Designer template from Prisma", async () => {
     const t = await getTemplate(env.DB, "tpl-designer");
     expect(t?.workerKind).toBe("designer");
     expect(t?.skillIds).toContain("generateBrandImage");
@@ -47,24 +47,24 @@ describe("getTemplate / listSkillOverlays", () => {
   });
 });
 
-describe("buildSkillTools — D1 overlay join", () => {
-  it("uses the D1 overlay description over the code default when present", async () => {
+describe("buildSkillTools — Prisma overlay join", () => {
+  it("uses the database overlay description over the code default when present", async () => {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO skill
          (id, display_name, description, param_hints, default_config, enabled, updated_at)
        VALUES (?, ?, ?, NULL, NULL, 1, 0)`,
     )
-      .bind("fake-overlay-skill", "Fake", "D1-overlay description")
+      .bind("fake-overlay-skill", "Fake", "Database overlay description")
       .run();
 
     const tools = await buildSkillTools(
       { agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env },
       ["fake-overlay-skill"],
     );
-    expect(tools["fake-overlay-skill"]?.description).toBe("D1-overlay description");
+    expect(tools["fake-overlay-skill"]?.description).toBe("Database overlay description");
   });
 
-  it("falls back to the code description when no D1 overlay row exists", async () => {
+  it("falls back to the code description when no database overlay row exists", async () => {
     const codeOnly: UnknownSkill = {
       description: "code-only desc",
       execute(): Promise<{ ok: true }> {
@@ -116,7 +116,7 @@ describe("buildSkillTools — D1 overlay join", () => {
 describe("buildFlueTools — agents share the overlay + kill-switch core", () => {
   const ctx = { agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env };
 
-  it("omits a skill whose D1 overlay is disabled (the kill-switch reaches the Flue agents)", async () => {
+  it("omits a skill whose database overlay is disabled (the kill-switch reaches the Flue agents)", async () => {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO skill
          (id, display_name, description, param_hints, default_config, enabled, updated_at)
@@ -133,11 +133,11 @@ describe("buildFlueTools — agents share the overlay + kill-switch core", () =>
     expect(tools).toHaveLength(0);
   });
 
-  it("uses the D1 overlay description for the agent's tool", async () => {
+  it("uses the database overlay description for the agent's tool", async () => {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO skill
          (id, display_name, description, param_hints, default_config, enabled, updated_at)
-       VALUES ('flue-described', 'Flue Described', 'D1 desc for the agent', NULL, NULL, 1, 0)`,
+       VALUES ('flue-described', 'Flue Described', 'Database desc for the agent', NULL, NULL, 1, 0)`,
     ).run();
     registerSkill({
       description: "code desc",
@@ -148,7 +148,7 @@ describe("buildFlueTools — agents share the overlay + kill-switch core", () =>
 
     const tools = await buildFlueTools(ctx, ["flue-described"]);
     expect(tools.find((t) => t.name === "flue-described")?.description).toBe(
-      "D1 desc for the agent",
+      "Database desc for the agent",
     );
   });
 

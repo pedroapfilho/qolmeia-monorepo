@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { getDb } from "#/db/client";
 import { entitleCompanyToAllActiveTemplates } from "#/db/template";
 import { constantTimeEqual } from "#/lib/constant-time";
 
@@ -55,33 +56,24 @@ internalRoutes.post("/companies", async (c) => {
   }
 
   const { id, name, slug } = parsed.data;
-  const now = Date.now();
-  await c.env.DB.prepare(
-    `INSERT OR IGNORE INTO company
-       (id, name, slug, timezone, locale, status, brief, created_at, updated_at)
-     VALUES (?, ?, ?, 'America/Sao_Paulo', 'pt-BR', 'onboarding', NULL, ?, ?)`,
-  )
-    .bind(id, name, slug, now, now)
-    .run();
+  const db = getDb(c.env);
+  await db.company.upsert({
+    create: { id, name, slug },
+    update: { name, slug },
+    where: { id },
+  });
 
   const corrId = `corr-${id}`;
   const plannerId = `planner-${id}`;
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `INSERT OR IGNORE INTO agent_instance
-         (id, company_id, role, template_id, template_version, display_name,
-          model_override, status, created_at, updated_at)
-       VALUES (?, ?, 'correspondent', NULL, NULL, 'Correspondente Qolmeia', NULL, 'active', ?, ?)`,
-    ).bind(corrId, id, now, now),
-    c.env.DB.prepare(
-      `INSERT OR IGNORE INTO agent_instance
-         (id, company_id, role, template_id, template_version, display_name,
-          model_override, status, created_at, updated_at)
-       VALUES (?, ?, 'planner', NULL, NULL, 'Planejador Qolmeia', NULL, 'active', ?, ?)`,
-    ).bind(plannerId, id, now, now),
-  ]);
+  await db.agentInstance.createMany({
+    data: [
+      { companyId: id, displayName: "Correspondente Qolmeia", id: corrId, role: "correspondent" },
+      { companyId: id, displayName: "Planejador Qolmeia", id: plannerId, role: "planner" },
+    ],
+    skipDuplicates: true,
+  });
 
-  await entitleCompanyToAllActiveTemplates(c.env.DB, id);
+  await entitleCompanyToAllActiveTemplates(db, id);
 
   return c.json({ ok: true });
 });

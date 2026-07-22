@@ -7,29 +7,30 @@ uses real subdomains of one parent and a cross-subdomain session cookie
 
 ## 1. The stack at a glance
 
-| App               | Package       | Runtime                                                  | Host                     | Prod subdomain       |
-| ----------------- | ------------- | -------------------------------------------------------- | ------------------------ | -------------------- |
-| `apps/api`        | `api`         | Hono on Node 24 (tsdown → `node dist/index.mjs`)         | **Railway** (+ Postgres) | `api.qolmeia.com`    |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker (DO, Workflows, D1, R2, KV, Vectorize) | **Cloudflare**           | `agents.qolmeia.com` |
-| `apps/client`     | `client`      | Next.js 16                                               | **Vercel**               | `app.qolmeia.com`    |
-| `apps/backoffice` | `backoffice`  | Next.js 16                                               | **Vercel**               | `admin.qolmeia.com`  |
+| App               | Package       | Runtime                                                      | Host                     | Prod subdomain       |
+| ----------------- | ------------- | ------------------------------------------------------------ | ------------------------ | -------------------- |
+| `apps/api`        | `api`         | Hono on Node 24 (tsdown → `node dist/index.mjs`)             | **Railway** (+ Postgres) | `api.qolmeia.com`    |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker (DO, Workflows, Prisma, R2, KV, Vectorize) | **Cloudflare**           | `agents.qolmeia.com` |
+| `apps/client`     | `client`      | Next.js 16                                                   | **Vercel**               | `app.qolmeia.com`    |
+| `apps/backoffice` | `backoffice`  | Next.js 16                                                   | **Vercel**               | `admin.qolmeia.com`  |
 
-Postgres holds **only** Better Auth tables. All product data (company, ticket,
-action, asset, team, memory_fact, …) lives in Cloudflare **D1**; binary assets in
-**R2**; a session cache in **KV**; agent memory in **Vectorize**.
+Postgres holds Better Auth and product data (company, ticket, action, asset,
+team, memory_fact, …), accessed through Prisma from both the API and Worker.
+Binary assets live in **R2**, the session cache in **KV**, and semantic agent
+memory in **Vectorize**.
 
 ## 2. External accounts you must create
 
-| Service                                     | For                                                                                                           | Secret / config name                       |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| **Cloudflare**                              | the entire agents runtime: Workers, Durable Objects, Workflows, D1, R2, KV, Workers AI, Vectorize, AI Gateway | —                                          |
-| **Railway** (or any Node host + managed PG) | `apps/api` service + Postgres                                                                                 | `DATABASE_URL`                             |
-| **Vercel**                                  | the two Next apps                                                                                             | —                                          |
-| **OpenRouter**                              | every LLM + image-gen call, routed through the CF AI Gateway                                                  | `OPENROUTER_API_KEY`                       |
-| **Resend**                                  | transactional email (magic link, verification, password reset)                                                | `RESEND_API_KEY`                           |
-| **Exa** (optional)                          | `webSearch` agent skill                                                                                       | `EXA_API_KEY`                              |
-| **Firecrawl** (optional)                    | `fetchUrl` agent skill (or self-host keyless)                                                                 | `FIRECRAWL_API_KEY` / `FIRECRAWL_BASE_URL` |
-| **Domain / DNS**                            | `qolmeia.com` + the four subdomains                                                                           | —                                          |
+| Service                                     | For                                                                                                | Secret / config name                       |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **Cloudflare**                              | the agents runtime: Workers, Durable Objects, Workflows, R2, KV, Workers AI, Vectorize, AI Gateway | —                                          |
+| **Railway** (or any Node host + managed PG) | `apps/api` service + Postgres                                                                      | `DATABASE_URL`                             |
+| **Vercel**                                  | the two Next apps                                                                                  | —                                          |
+| **OpenRouter**                              | every LLM + image-gen call, routed through the CF AI Gateway                                       | `OPENROUTER_API_KEY`                       |
+| **Resend**                                  | transactional email (magic link, verification, password reset)                                     | `RESEND_API_KEY`                           |
+| **Exa** (optional)                          | `webSearch` agent skill                                                                            | `EXA_API_KEY`                              |
+| **Firecrawl** (optional)                    | `fetchUrl` agent skill (or self-host keyless)                                                      | `FIRECRAWL_API_KEY` / `FIRECRAWL_BASE_URL` |
+| **Domain / DNS**                            | `qolmeia.com` + the four subdomains                                                                | —                                          |
 
 See [`docs/agent-tools.md`](./agent-tools.md) for the full agent-integration
 catalog (current tools and which agent uses each).
@@ -55,7 +56,6 @@ Everything lives under **`qolmeia.com`**: `app.` (client), `admin.`
 ### 4a. Provision resources
 
 ```bash
-wrangler d1 create worker-bees                          # → copy database_id
 wrangler r2 bucket create qolmeia-assets
 wrangler kv namespace create qolmeia-sessions           # → copy id
 wrangler vectorize create qolmeia-memory --dimensions=1024 --metric=cosine
@@ -68,7 +68,6 @@ your **account id** (`wrangler whoami`).
 
 Replace every `PLACEHOLDER`:
 
-- D1 `database_id` (from 4a)
 - the KV `id` (`SESSIONS`)
 - `AI_GATEWAY_ACCOUNT_ID` (your account id)
 
@@ -87,36 +86,21 @@ lost on DO eviction.
 
 ```bash
 wrangler secret put OPENROUTER_API_KEY
+wrangler secret put DATABASE_URL            # shared Postgres connection string
 wrangler secret put ASSETS_SIGNING_KEY      # openssl rand -hex 32
 wrangler secret put INTERNAL_SHARED_SECRET  # MUST match apps/api
 wrangler secret put EXA_API_KEY             # optional (webSearch skill)
 wrangler secret put FIRECRAWL_API_KEY       # optional (fetchUrl skill)
 ```
 
-### 4d. Apply D1 migrations (the one gotcha)
+### 4d. Initialize Postgres
+
+Push the shared Prisma schema and seed the default template/skill catalog before
+deploying the Worker:
 
 ```bash
-wrangler d1 migrations apply worker-bees --remote
-```
-
-Migration **`0007_agent_instance_multi_hire.sql`** rebuilds an FK table, which
-the migrations runner rejects (it keeps FK enforcement on inside its
-transaction). When it stops there, apply that file directly and record it by
-hand, then resume:
-
-```bash
-wrangler d1 execute worker-bees --remote --file migrations/0007_agent_instance_multi_hire.sql
-wrangler d1 execute worker-bees --remote \
-  --command "INSERT INTO d1_migrations (name, applied_at) VALUES ('0007_agent_instance_multi_hire.sql', CURRENT_TIMESTAMP);"
-wrangler d1 migrations apply worker-bees --remote   # picks up 0008–0012
-```
-
-`0011_operator_assignment` and `0012_asset_visibility` are plain `CREATE`/`ADD`
-and apply normally. Optionally seed the dev org row:
-
-```bash
-wrangler d1 execute worker-bees --remote --file scripts/seed-p2.sql
-wrangler d1 execute worker-bees --remote --file scripts/seed-p3-team.sql
+DATABASE_URL=postgresql://... pnpm --filter=@repo/db db:push
+DATABASE_URL=postgresql://... pnpm --filter=@repo/db db:seed
 ```
 
 ### 4e. Deploy
@@ -138,6 +122,7 @@ Build from the repo root with pnpm (it's a workspace). Build: the monorepo
 
 ```bash
 pnpm --filter=@repo/db db:push   # against the prod DATABASE_URL
+pnpm --filter=@repo/db db:seed   # idempotent product catalog defaults
 ```
 
 Environment:

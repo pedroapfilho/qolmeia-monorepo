@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { logActivity } from "#/activity/log";
+import { getDb } from "#/db/client";
 import { materializeTeam } from "#/db/team";
 import { validateSession, type ValidatedSession } from "#/lib/auth";
 import { parseBrief } from "#/lib/company-brief";
@@ -42,16 +43,18 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
 
-  const company = await c.env.DB.prepare("SELECT status, brief FROM company WHERE id = ?")
-    .bind(companyId)
-    .first<{ brief: string | null; status: string }>();
+  const db = getDb(c.env);
+  const company = await db.company.findUnique({
+    select: { brief: true, status: true },
+    where: { id: companyId },
+  });
   if (!company) {
     return c.text("Not found", 404);
   }
 
   let team;
   try {
-    team = await materializeTeam(c.env.DB, {
+    team = await materializeTeam(db, {
       companyId,
       templateIds: parsed.data.templateIds,
     });
@@ -60,9 +63,7 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     return c.json({ error: message }, 400);
   }
 
-  await c.env.DB.prepare("UPDATE company SET status = 'active', updated_at = ? WHERE id = ?")
-    .bind(Date.now(), companyId)
-    .run();
+  await db.company.update({ data: { status: "active" }, where: { id: companyId } });
 
   try {
     const brief = parseBrief(company.brief);
@@ -75,7 +76,7 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     console.error("[teams] seedCompanyMemory failed (best-effort)", { companyId, error });
   }
 
-  await logActivity(c.env, {
+  await logActivity(db, {
     actorId: session.userId,
     companyId,
     payload: { templateIds: parsed.data.templateIds, ...team },

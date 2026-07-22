@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getDb } from "#/db/client";
 import { getDelegationTargets } from "#/db/team";
 import { setTicketWorkflowId } from "#/db/ticket";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
@@ -46,58 +47,56 @@ const delegateToWorkerSkill: UnknownSkill = {
     "Delega uma tarefa a um especialista do Time. Use quando o pedido exige uma especialidade que você não executa diretamente (ex: criar imagem → designer).",
   async execute(input: unknown, ctx: SkillContext): Promise<DelegateResult> {
     const { brief, workerKind } = delegateInputSchema.parse(input);
-
-    const { results: candidates } = await ctx.env.DB.prepare(
-      `SELECT a.id,
-              (SELECT COUNT(*) FROM ticket
-                WHERE agent_instance_id = a.id
-                  AND status IN ('in_progress', 'awaiting_approval')) AS busy_count
-         FROM agent_instance a
-         JOIN template t ON t.id = a.template_id
-        WHERE a.company_id = ?
-          AND a.role = 'worker'
-          AND a.status = 'active'
-          AND t.worker_kind = ?
-          AND t.status = 'active'`,
-    )
-      .bind(ctx.companyId, workerKind)
-      .all<WorkerCandidate>();
+    const db = getDb(ctx.env);
+    const rows = await db.agentInstance.findMany({
+      include: {
+        _count: {
+          select: {
+            tickets: { where: { status: { in: ["in_progress", "awaiting_approval"] } } },
+          },
+        },
+      },
+      where: {
+        companyId: ctx.companyId,
+        role: "worker",
+        status: "active",
+        template: { status: "active", workerKind },
+      },
+    });
+    const candidates: Array<WorkerCandidate> = rows.map((row) => ({
+      // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
+      busy_count: row._count.tickets,
+      id: row.id,
+    }));
 
     if (candidates.length === 0) {
       return { error: `Nenhum especialista do tipo "${workerKind}" no Time desta empresa.` };
     }
 
-    const delegationTargets = await getDelegationTargets(ctx.env.DB, ctx.agentInstanceId);
+    const delegationTargets = await getDelegationTargets(db, ctx.agentInstanceId);
     const target = pickWorker(candidates, delegationTargets ?? []);
     if (!target) {
       return { error: `Você não tem permissão para delegar para "${workerKind}".` };
     }
 
     const ticketId = crypto.randomUUID();
-    const now = Date.now();
     // oxlint-disable-next-line react-doctor/async-parallel -- ordered: the ticket row must exist before the workflow starts, and the workflow id comes from the create call
-    await ctx.env.DB.prepare(
-      `INSERT INTO ticket
-         (id, company_id, agent_instance_id, parent_ticket_id, title, brief,
-          status, origin, workflow_id, result, created_at, updated_at)
-       VALUES (?, ?, ?, NULL, ?, ?, 'open', 'delegation', NULL, NULL, ?, ?)`,
-    )
-      .bind(
-        ticketId,
-        ctx.companyId,
-        target.id,
-        `${workerKind}: ${brief.slice(0, 80)}`,
+    await db.ticket.create({
+      data: {
+        agentInstanceId: target.id,
         brief,
-        now,
-        now,
-      )
-      .run();
+        companyId: ctx.companyId,
+        id: ticketId,
+        origin: "delegation",
+        title: `${workerKind}: ${brief.slice(0, 80)}`,
+      },
+    });
 
     const instance = await ctx.env.WORKER_JOB.create({
       id: ticketId,
       params: { agentInstanceId: target.id, companyId: ctx.companyId, ticketId },
     });
-    await setTicketWorkflowId(ctx.env.DB, ticketId, instance.id);
+    await setTicketWorkflowId(db, ticketId, instance.id);
     await emitTeamEvent(ctx.env, {
       companyId: ctx.companyId,
       reason: "ticket_changed",

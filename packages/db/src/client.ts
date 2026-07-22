@@ -6,12 +6,18 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const createPrismaClient = () => {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-  return new PrismaClient({ adapter });
-};
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required");
+}
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+const schema = new URL(databaseUrl).searchParams.get("schema") ?? undefined;
+const adapter = new PrismaPg(
+  { connectionString: databaseUrl, options: schema ? `-c search_path=${schema}` : undefined },
+  { schema },
+);
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

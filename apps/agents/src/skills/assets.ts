@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getDb } from "#/db/client";
 import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
@@ -26,7 +27,10 @@ const listAssetsSkill: UnknownSkill = {
     "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads) — use para descobrir o que já foi criado antes. Você enxerga as duas pastas (cliente e agente).",
   async execute(input: unknown, ctx: SkillContext): Promise<{ assets: unknown }> {
     const { folder, kind } = listAssetsInputSchema.parse(input);
-    const assets = await listCompanyAssets(ctx.env.DB, ctx.companyId, { kind, visibility: folder });
+    const assets = await listCompanyAssets(getDb(ctx.env), ctx.companyId, {
+      kind,
+      visibility: folder,
+    });
     return { assets };
   },
   id: "listAssets",

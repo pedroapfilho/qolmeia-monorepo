@@ -6,8 +6,8 @@ import type { SkillContext } from "#/skills/registry";
 
 const COMPANY_ID = "co_multi_test";
 const CORR_ID = `corr-${COMPANY_ID}`;
-const D1 = "wkr_multi_1";
-const D2 = "wkr_multi_2";
+const DESIGNER_1 = "wkr_multi_1";
+const DESIGNER_2 = "wkr_multi_2";
 
 beforeEach(async () => {
   await env.DB.batch([
@@ -26,24 +26,24 @@ beforeEach(async () => {
     ).bind(CORR_ID, COMPANY_ID),
     env.DB.prepare(
       `INSERT OR REPLACE INTO agent_instance (id, company_id, role, template_id, template_version, display_name, model_override, status, prompt_override, created_at, updated_at)
-       VALUES (?, ?, 'worker', 'tpl-designer', 1, 'D1', NULL, 'active', NULL, 0, 0)`,
-    ).bind(D1, COMPANY_ID),
+       VALUES (?, ?, 'worker', 'tpl-designer', 1, 'Designer 1', NULL, 'active', NULL, 0, 0)`,
+    ).bind(DESIGNER_1, COMPANY_ID),
     env.DB.prepare(
       `INSERT OR REPLACE INTO agent_instance (id, company_id, role, template_id, template_version, display_name, model_override, status, prompt_override, created_at, updated_at)
-       VALUES (?, ?, 'worker', 'tpl-designer', 1, 'D2', NULL, 'active', NULL, 0, 0)`,
-    ).bind(D2, COMPANY_ID),
+       VALUES (?, ?, 'worker', 'tpl-designer', 1, 'Designer 2', NULL, 'active', NULL, 0, 0)`,
+    ).bind(DESIGNER_2, COMPANY_ID),
     env.DB.prepare(
       `INSERT OR IGNORE INTO team (id, company_id, confirmed_at, created_at) VALUES (?, ?, 0, 0)`,
     ).bind(`team-${COMPANY_ID}`, COMPANY_ID),
     env.DB.prepare(
       `INSERT OR REPLACE INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, ?)`,
-    ).bind(`team-${COMPANY_ID}`, CORR_ID, JSON.stringify([D1, D2])),
+    ).bind(`team-${COMPANY_ID}`, CORR_ID, JSON.stringify([DESIGNER_1, DESIGNER_2])),
     env.DB.prepare(
       `INSERT OR REPLACE INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')`,
-    ).bind(`team-${COMPANY_ID}`, D1),
+    ).bind(`team-${COMPANY_ID}`, DESIGNER_1),
     env.DB.prepare(
       `INSERT OR REPLACE INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')`,
-    ).bind(`team-${COMPANY_ID}`, D2),
+    ).bind(`team-${COMPANY_ID}`, DESIGNER_2),
   ]);
 });
 
@@ -61,7 +61,7 @@ describe("delegateToWorker multi-instance dispatch", () => {
       `INSERT INTO ticket (id, company_id, agent_instance_id, parent_ticket_id, title, brief, status, origin, workflow_id, result, created_at, updated_at)
        VALUES ('tkt_busy', ?, ?, NULL, 't', 'b', 'in_progress', 'delegation', NULL, NULL, 0, 0)`,
     )
-      .bind(COMPANY_ID, D1)
+      .bind(COMPANY_ID, DESIGNER_1)
       .run();
 
     const result = (await delegateToWorkerSkill.execute(
@@ -74,12 +74,14 @@ describe("delegateToWorker multi-instance dispatch", () => {
     )
       .bind(COMPANY_ID)
       .all<{ agent_instance_id: string }>();
-    expect(tickets.results.some((r) => r.agent_instance_id === D2)).toBe(true);
-    expect(tickets.results.some((r) => r.agent_instance_id === D1)).toBe(false);
+    expect(tickets.results.some((r) => r.agent_instance_id === DESIGNER_2)).toBe(true);
+    expect(tickets.results.some((r) => r.agent_instance_id === DESIGNER_1)).toBe(false);
   });
 
   it("skips paused workers entirely", async () => {
-    await env.DB.prepare("UPDATE agent_instance SET status = 'paused' WHERE id = ?").bind(D2).run();
+    await env.DB.prepare("UPDATE agent_instance SET status = 'paused' WHERE id = ?")
+      .bind(DESIGNER_2)
+      .run();
     const result = (await delegateToWorkerSkill.execute(
       { brief: "fazer logo", workerKind: "designer" },
       ctx,
@@ -90,7 +92,7 @@ describe("delegateToWorker multi-instance dispatch", () => {
     )
       .bind(COMPANY_ID)
       .all<{ agent_instance_id: string }>();
-    expect(tickets.results.every((r) => r.agent_instance_id !== D2)).toBe(true);
+    expect(tickets.results.every((r) => r.agent_instance_id !== DESIGNER_2)).toBe(true);
   });
 
   it("returns an error when all workers of the kind are paused", async () => {

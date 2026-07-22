@@ -8,10 +8,28 @@ permissions:
 jobs:
   vitest:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://qolmeia:qolmeia@localhost:5432/qolmeia_test
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: qolmeia
+          POSTGRES_PASSWORD: qolmeia
+          POSTGRES_DB: qolmeia_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U qolmeia -d qolmeia_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/setup@v1
         with:
           runtime: node@24
           cache: true
+      - run: pnpm db:generate
+      - run: pnpm db:push
       - run: pnpm test

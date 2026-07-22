@@ -1,5 +1,6 @@
+import type { PrismaClient } from "@repo/db/worker";
+
 import { logActivity } from "#/activity/log";
-import { safeJson } from "#/db/mappers";
 import { correspondentIdFor, teamIdFor } from "#/db/team";
 import { getTemplate, isTemplateEntitledForCompany } from "#/db/template";
 import { logError } from "#/lib/logger";
@@ -45,7 +46,7 @@ const NEW_WORKER_PREFIX = "wkr_";
 
 const newWorkerId = (): string => `${NEW_WORKER_PREFIX}${crypto.randomUUID()}`;
 
-const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberView> => {
+const hireMember = async (db: PrismaClient, input: HireInput): Promise<TeamMemberView> => {
   const template = await getTemplate(db, input.templateId);
   if (!template) {
     throw new TemplateNotFoundError(input.templateId);
@@ -72,51 +73,47 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   const teamId = teamIdFor(input.companyId);
   const correspondentId = correspondentIdFor(input.companyId);
 
-  const corrRow = await db
-    .prepare("SELECT can_delegate_to FROM team_member WHERE agent_instance_id = ? AND team_id = ?")
-    .bind(correspondentId, teamId)
-    .first<{ can_delegate_to: string }>();
+  const corrRow = await db.teamMember.findUnique({
+    where: { teamId_agentInstanceId: { agentInstanceId: correspondentId, teamId } },
+  });
   if (!corrRow) {
     throw new CorrespondentMissingError(input.companyId);
   }
-  const targets = safeJson<Array<string>>(corrRow.can_delegate_to, []);
+  const targets = Array.isArray(corrRow.canDelegateTo)
+    ? corrRow.canDelegateTo.filter((value): value is string => typeof value === "string")
+    : [];
   const updatedTargets = [...targets, newId];
-  const now = Date.now();
 
   // oxlint-disable-next-line react-doctor/async-parallel -- ordered: activity log and read-back must observe the committed batch
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO agent_instance
-           (id, company_id, role, template_id, template_version, display_name,
-            model_override, status, prompt_override, created_at, updated_at)
-         VALUES (?, ?, 'worker', ?, ?, ?, NULL, 'active', NULL, ?, ?)`,
-      )
-      .bind(newId, input.companyId, template.id, template.version, desiredName, now, now),
-    db
-      .prepare(
-        "INSERT INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')",
-      )
-      .bind(teamId, newId),
-    db
-      .prepare(
-        "UPDATE team_member SET can_delegate_to = ? WHERE agent_instance_id = ? AND team_id = ?",
-      )
-      .bind(JSON.stringify(updatedTargets), correspondentId, teamId),
-  ]);
+  await db.$transaction(async (tx) => {
+    await tx.agentInstance.create({
+      data: {
+        companyId: input.companyId,
+        displayName: desiredName,
+        id: newId,
+        role: "worker",
+        templateId: template.id,
+        templateVersion: template.version,
+      },
+    });
+    await tx.teamMember.create({
+      data: { agentInstanceId: newId, canDelegateTo: [], teamId },
+    });
+    await tx.teamMember.update({
+      data: { canDelegateTo: updatedTargets },
+      where: { teamId_agentInstanceId: { agentInstanceId: correspondentId, teamId } },
+    });
+  });
 
-  await logActivity(
-    { DB: db },
-    {
-      actorId: input.actorId ?? undefined,
-      companyId: input.companyId,
-      payload: { displayName: desiredName, templateId: template.id },
-      refId: newId,
-      refType: "agent_instance",
-      summary: `Agente "${desiredName}" contratado.`,
-      type: "MEMBER_HIRED",
-    },
-  );
+  await logActivity(db, {
+    actorId: input.actorId ?? undefined,
+    companyId: input.companyId,
+    payload: { displayName: desiredName, templateId: template.id },
+    refId: newId,
+    refType: "agent_instance",
+    summary: `Agente "${desiredName}" contratado.`,
+    type: "MEMBER_HIRED",
+  });
 
   const detail = await getMemberDetail(db, input.companyId, newId);
   if (!detail) {
@@ -131,14 +128,14 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
 };
 
 const assertMemberPausable = async (
-  db: D1Database,
+  db: PrismaClient,
   companyId: string,
   agentInstanceId: string,
 ): Promise<void> => {
-  const row = await db
-    .prepare("SELECT role FROM agent_instance WHERE id = ? AND company_id = ?")
-    .bind(agentInstanceId, companyId)
-    .first<{ role: string }>();
+  const row = await db.agentInstance.findFirst({
+    select: { role: true },
+    where: { companyId, id: agentInstanceId },
+  });
   if (!row) {
     throw new TeamMemberNotFoundError(agentInstanceId, companyId);
   }
@@ -154,28 +151,25 @@ type SetMemberStatusInput = {
 };
 
 const setMemberStatus = async (
-  db: D1Database,
+  db: PrismaClient,
   companyId: string,
   agentInstanceId: string,
   input: SetMemberStatusInput,
 ): Promise<TeamMemberView> => {
   // oxlint-disable-next-line react-doctor/async-parallel -- ordered: assert, then update, then log and read back the committed row
   await assertMemberPausable(db, companyId, agentInstanceId);
-  await db
-    .prepare("UPDATE agent_instance SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?")
-    .bind(input.status, Date.now(), agentInstanceId, companyId)
-    .run();
-  await logActivity(
-    { DB: db },
-    {
-      actorId: input.actorId ?? undefined,
-      companyId,
-      refId: agentInstanceId,
-      refType: "agent_instance",
-      summary: input.status === "paused" ? "Agente pausado." : "Agente retomado.",
-      type: input.activityType,
-    },
-  );
+  await db.agentInstance.updateMany({
+    data: { status: input.status },
+    where: { companyId, id: agentInstanceId },
+  });
+  await logActivity(db, {
+    actorId: input.actorId ?? undefined,
+    companyId,
+    refId: agentInstanceId,
+    refType: "agent_instance",
+    summary: input.status === "paused" ? "Agente pausado." : "Agente retomado.",
+    type: input.activityType,
+  });
   const detail = await getMemberDetail(db, companyId, agentInstanceId);
   if (!detail) {
     logError("team.setMemberStatus.readBack.missing", {
@@ -188,7 +182,7 @@ const setMemberStatus = async (
 };
 
 const pauseMember = (
-  db: D1Database,
+  db: PrismaClient,
   companyId: string,
   agentInstanceId: string,
   actorId: string | null = null,
@@ -200,7 +194,7 @@ const pauseMember = (
   });
 
 const resumeMember = (
-  db: D1Database,
+  db: PrismaClient,
   companyId: string,
   agentInstanceId: string,
   actorId: string | null = null,
@@ -220,19 +214,16 @@ type UpdateInput = {
   promptOverride: string | null | undefined;
 };
 
-const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMemberView> => {
-  const existing = await db
-    .prepare(
-      "SELECT display_name, prompt_override FROM agent_instance WHERE id = ? AND company_id = ?",
-    )
-    .bind(input.agentInstanceId, input.companyId)
-    .first<{ display_name: string; prompt_override: string | null }>();
+const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamMemberView> => {
+  const existing = await db.agentInstance.findFirst({
+    select: { displayName: true, promptOverride: true },
+    where: { companyId: input.companyId, id: input.agentInstanceId },
+  });
   if (!existing) {
     throw new TeamMemberNotFoundError(input.agentInstanceId, input.companyId);
   }
 
-  const sets: Array<string> = [];
-  const binds: Array<string | number | null> = [];
+  const data: { displayName?: string; promptOverride?: string | null } = {};
   let renameLog: { newName: string; oldName: string } | null = null;
   let promptLog: "MEMBER_PROMPT_EDITED" | "MEMBER_PROMPT_RESET" | null = null;
   let nextLength: number | null = null;
@@ -242,10 +233,9 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
     if (trimmed.length === 0) {
       throw new Error("displayName cannot be empty");
     }
-    if (trimmed !== existing.display_name) {
-      sets.push("display_name = ?");
-      binds.push(trimmed);
-      renameLog = { newName: trimmed, oldName: existing.display_name };
+    if (trimmed !== existing.displayName) {
+      data.displayName = trimmed;
+      renameLog = { newName: trimmed, oldName: existing.displayName };
     }
   }
 
@@ -253,65 +243,53 @@ const updateMember = async (db: D1Database, input: UpdateInput): Promise<TeamMem
     const trimmedPrompt =
       typeof input.promptOverride === "string" ? input.promptOverride.trim() : null;
     if (input.promptOverride === null || trimmedPrompt === "") {
-      sets.push("prompt_override = NULL");
+      data.promptOverride = null;
       promptLog = "MEMBER_PROMPT_RESET";
     } else {
-      sets.push("prompt_override = ?");
-      binds.push(input.promptOverride);
+      data.promptOverride = input.promptOverride;
       promptLog = "MEMBER_PROMPT_EDITED";
       nextLength = input.promptOverride.length;
     }
   }
 
-  if (sets.length > 0) {
-    sets.push("updated_at = ?");
-    binds.push(Date.now(), input.agentInstanceId, input.companyId);
-    await db
-      .prepare(`UPDATE agent_instance SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
-      .bind(...binds)
-      .run();
+  if (Object.keys(data).length > 0) {
+    await db.agentInstance.updateMany({
+      data,
+      where: { companyId: input.companyId, id: input.agentInstanceId },
+    });
   }
 
   if (renameLog) {
-    await logActivity(
-      { DB: db },
-      {
-        actorId: input.operatorId ?? undefined,
-        companyId: input.companyId,
-        payload: renameLog,
-        refId: input.agentInstanceId,
-        refType: "agent_instance",
-        summary: `Renomeado de "${renameLog.oldName}" para "${renameLog.newName}".`,
-        type: "MEMBER_RENAMED",
-      },
-    );
+    await logActivity(db, {
+      actorId: input.operatorId ?? undefined,
+      companyId: input.companyId,
+      payload: renameLog,
+      refId: input.agentInstanceId,
+      refType: "agent_instance",
+      summary: `Renomeado de "${renameLog.oldName}" para "${renameLog.newName}".`,
+      type: "MEMBER_RENAMED",
+    });
   }
   if (promptLog === "MEMBER_PROMPT_EDITED") {
-    await logActivity(
-      { DB: db },
-      {
-        actorId: input.operatorId ?? undefined,
-        companyId: input.companyId,
-        payload: { editedBy: input.editedBy, length: nextLength },
-        refId: input.agentInstanceId,
-        refType: "agent_instance",
-        summary: "Prompt personalizado atualizado.",
-        type: "MEMBER_PROMPT_EDITED",
-      },
-    );
+    await logActivity(db, {
+      actorId: input.operatorId ?? undefined,
+      companyId: input.companyId,
+      payload: { editedBy: input.editedBy, length: nextLength },
+      refId: input.agentInstanceId,
+      refType: "agent_instance",
+      summary: "Prompt personalizado atualizado.",
+      type: "MEMBER_PROMPT_EDITED",
+    });
   } else if (promptLog === "MEMBER_PROMPT_RESET") {
-    await logActivity(
-      { DB: db },
-      {
-        actorId: input.operatorId ?? undefined,
-        companyId: input.companyId,
-        payload: { editedBy: input.editedBy },
-        refId: input.agentInstanceId,
-        refType: "agent_instance",
-        summary: "Prompt restaurado ao padrão do template.",
-        type: "MEMBER_PROMPT_RESET",
-      },
-    );
+    await logActivity(db, {
+      actorId: input.operatorId ?? undefined,
+      companyId: input.companyId,
+      payload: { editedBy: input.editedBy },
+      refId: input.agentInstanceId,
+      refType: "agent_instance",
+      summary: "Prompt restaurado ao padrão do template.",
+      type: "MEMBER_PROMPT_RESET",
+    });
   }
 
   const detail = await getMemberDetail(db, input.companyId, input.agentInstanceId);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getDb } from "#/db/client";
 import { insertMemoryFact } from "#/db/schema";
 import { getMemoryAdapter } from "#/lib/memory";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
@@ -20,7 +21,7 @@ const rememberFactSkill: UnknownSkill = {
     const id = crypto.randomUUID();
     const factKind = kind ?? "fact";
     const now = Date.now();
-    await insertMemoryFact(ctx.env.DB, {
+    await insertMemoryFact(getDb(ctx.env), {
       agentInstanceId: ctx.agentInstanceId,
       companyId: ctx.companyId,
       content,

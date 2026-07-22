@@ -1,15 +1,15 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 
-import type { D1Migration } from "@cloudflare/vitest-pool-workers";
+import type { TestDatabase } from "#/__tests__/sql-fixture-compat";
 
 declare global {
   // oxlint-disable typescript/consistent-type-definitions
   interface Env {
-    TEST_MIGRATIONS?: Array<D1Migration>;
+    DB: TestDatabase;
   }
   namespace Cloudflare {
     interface Env {
-      TEST_MIGRATIONS?: Array<D1Migration>;
+      DB: TestDatabase;
     }
   }
   // oxlint-enable typescript/consistent-type-definitions

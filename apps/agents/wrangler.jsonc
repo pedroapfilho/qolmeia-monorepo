@@ -59,20 +59,8 @@
     // customer app runs on :3001 and the operator backoffice on :3000.
     "CLIENT_ORIGINS": "http://localhost:3000,http://localhost:3001",
   },
-  // INTERNAL_SHARED_SECRET is a Worker secret (wrangler secret put), used
-  // to gate /api/internal/* against apps/api's org-create relay. Defined
-  // as a placeholder var here so local dev (which reads .dev.vars) just
-  // works; production sets it via `wrangler secret put`.
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "worker-bees",
-      // PLACEHOLDER: replace with the id printed by `wrangler d1 create worker-bees`.
-      // Local dev and vitest-pool-workers ignore this value; remote deploy needs the real id.
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations",
-    },
-  ],
+  // DATABASE_URL and INTERNAL_SHARED_SECRET are Worker secrets configured
+  // with `wrangler secret put`; local development reads them from .dev.vars.
   "r2_buckets": [
     {
       "binding": "ASSETS",
