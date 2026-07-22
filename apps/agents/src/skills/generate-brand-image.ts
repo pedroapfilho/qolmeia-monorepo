@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getDb } from "#/db/client";
 import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
@@ -51,21 +52,17 @@ const encodeBase64 = (bytes: Uint8Array): string => {
 
 const MAX_BRAND_REFS = 3;
 
-type BrandRefRow = { mime: string; r2_key: string };
-
 const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> => {
-  const { results } = await ctx.env.DB.prepare(
-    `SELECT r2_key, mime FROM asset
-       WHERE company_id = ? AND kind = 'brand_asset' AND mime != 'image/svg+xml'
-       ORDER BY created_at DESC
-       LIMIT ?`,
-  )
-    .bind(ctx.companyId, MAX_BRAND_REFS)
-    .all<BrandRefRow>();
+  const results = await getDb(ctx.env).asset.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { mime: true, r2Key: true },
+    take: MAX_BRAND_REFS,
+    where: { companyId: ctx.companyId, kind: "brand_asset", mime: { not: "image/svg+xml" } },
+  });
 
   const settled = await Promise.allSettled(
     results.map(async (row) => {
-      const object = await ctx.env.ASSETS.get(row.r2_key);
+      const object = await ctx.env.ASSETS.get(row.r2Key);
       if (!object) {
         return null;
       }
@@ -171,30 +168,21 @@ const generateBrandImageSkill: UnknownSkill = {
       { bytes, key, metadata: { aspectRatio, prompt }, mime },
     );
 
-    const assetId = crypto.randomUUID();
-    const now = Date.now();
-    await ctx.env.DB.prepare(
-      `INSERT OR IGNORE INTO asset
-         (id, company_id, kind, r2_key, sha256, mime, bytes, metadata, created_at)
-       VALUES (?, ?, 'generated_image', ?, ?, ?, ?, ?, ?)`,
-    )
-      .bind(
-        assetId,
-        ctx.companyId,
-        key,
-        sha,
+    const asset = await getDb(ctx.env).asset.upsert({
+      create: {
+        bytes: bytes.length,
+        companyId: ctx.companyId,
+        id: crypto.randomUUID(),
+        kind: "generated_image",
+        metadata: { aspectRatio, prompt },
         mime,
-        bytes.length,
-        JSON.stringify({ aspectRatio, prompt }),
-        now,
-      )
-      .run();
-    const row = await ctx.env.DB.prepare(
-      "SELECT id FROM asset WHERE company_id = ? AND sha256 = ? LIMIT 1",
-    )
-      .bind(ctx.companyId, sha)
-      .first<{ id: string }>();
-    const finalAssetId = row?.id ?? assetId;
+        r2Key: key,
+        sha256: sha,
+      },
+      update: {},
+      where: { companyId_sha256: { companyId: ctx.companyId, sha256: sha } },
+    });
+    const finalAssetId = asset.id;
 
     const url = await buildSignedAssetUrl(
       { ASSETS_SIGNING_KEY: ctx.env.ASSETS_SIGNING_KEY },

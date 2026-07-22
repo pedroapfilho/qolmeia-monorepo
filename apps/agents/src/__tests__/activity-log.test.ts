@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe("logActivity + listActivity", () => {
   it("writes a row that listActivity returns", async () => {
-    await logActivity(env, {
+    await logActivity(env.DB, {
       companyId: COMPANY_ID,
       refId: "ticket-roundtrip-1",
       refType: "ticket",
@@ -35,7 +35,7 @@ describe("logActivity + listActivity", () => {
   });
 
   it("filters by since", async () => {
-    await logActivity(env, {
+    await logActivity(env.DB, {
       companyId: COMPANY_ID,
       refId: "action-old",
       refType: "action",
@@ -49,7 +49,7 @@ describe("logActivity + listActivity", () => {
     await new Promise<void>((r) => {
       setTimeout(r, 10);
     });
-    await logActivity(env, {
+    await logActivity(env.DB, {
       companyId: COMPANY_ID,
       payload: { actionId: "a-new", summary: "draft" },
       refId: "a-new",
@@ -64,17 +64,11 @@ describe("logActivity + listActivity", () => {
 
   it("swallows write failures (best-effort) and logs to console", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const badEnv = {
-      DB: {
-        prepare: () => ({
-          bind: () => ({
-            run: () => Promise.reject(new Error("simulated D1 failure")),
-          }),
-        }),
-      } as unknown as D1Database,
-    };
+    const badDb = {
+      activityLog: { create: () => Promise.reject(new Error("simulated database failure")) },
+    } as unknown as typeof env.DB;
     await expect(
-      logActivity(badEnv, {
+      logActivity(badDb, {
         companyId: COMPANY_ID,
         refId: "ticket-broken",
         refType: "ticket",

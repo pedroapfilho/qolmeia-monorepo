@@ -24,13 +24,13 @@ User-facing locale is **pt-BR** across every agent and UI.
                  │   • Flue agents (DOs): Planner · Correspondent · Worker        │
                  │   • WorkerJobWorkflow (Cloudflare Workflow, approval gate)     │
                  │   • REST: /api/me /api/teams /api/backoffice /assets          │
-                 │   • bindings: D1 · R2 · KV · (Vectorize) · Workflows           │
+                 │   • Prisma/Postgres · R2 · KV · (Vectorize) · Workflows        │
                  └───────────┬───────────────────────────────┬──────────────────┘
                              │ /api/v1/me (membership)        │
                  ┌───────────▼─────────────┐                  ▼
-                 │ apps/api  (Hono/Node 24) │           D1 · R2 · KV · Vectorize
-                 │ :4000  Better Auth       │           (product system of record)
-                 │ + Postgres (auth only)   │
+                 │ apps/api  (Hono/Node 24) │           Postgres · R2 · KV · Vectorize
+                 │ :4000  Better Auth       │           (shared system of record)
+                 │ + Prisma/Postgres        │
                  └─────────────────────────┘
 ```
 
@@ -54,7 +54,7 @@ Monorepo: pnpm 11 workspaces + Turborepo, Node 24.
 | Package                   | Purpose                                                                       |
 | ------------------------- | ----------------------------------------------------------------------------- |
 | `@repo/auth`              | `createAuth` factory over Better Auth (magic-link + email/password).          |
-| `@repo/db`                | Prisma client + schema for the **auth-only** Postgres domain.                 |
+| `@repo/db`                | Prisma schema plus Node and Cloudflare Worker client entry points.            |
 | `@repo/transactional`     | React Email templates + Resend sender.                                        |
 | `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps. |
 | `@repo/observability`     | Structured logging helpers.                                                   |
@@ -65,43 +65,42 @@ Monorepo: pnpm 11 workspaces + Turborepo, Node 24.
 
 The agents Worker owns all product data. Each store has a single purpose:
 
-| Store         | Binding                      | Holds                                                                                                  |
-| ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **D1**        | `DB`                         | The product system of record (see §5). SQLite at the edge.                                             |
-| **R2**        | `ASSETS`                     | Binary assets (generated images, uploads, brand files), served via HMAC-signed `/assets/:id` URLs.     |
-| **KV**        | `SESSIONS`                   | A 30s session-validation cache (keeps the auth service off the hot path).                              |
-| **Vectorize** | `VECTORIZE` (prod, optional) | Embeddings for long-term agent memory recall. Falls back to an in-process store when unprovisioned.    |
-| **Postgres**  | (in `apps/api`)              | **Better Auth tables only**: users, sessions, accounts, verification, org membership. No product data. |
-| **Workflows** | `WORKER_JOB`                 | `WorkerJobWorkflow` runs: the durable approval/execution loop for delegated work.                      |
+| Store         | Binding                      | Holds                                                                                               |
+| ------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| **R2**        | `ASSETS`                     | Binary assets (generated images, uploads, brand files), served via HMAC-signed `/assets/:id` URLs.  |
+| **KV**        | `SESSIONS`                   | A 30s session-validation cache (keeps the auth service off the hot path).                           |
+| **Vectorize** | `VECTORIZE` (prod, optional) | Embeddings for long-term agent memory recall. Falls back to an in-process store when unprovisioned. |
+| **Postgres**  | `DATABASE_URL`               | Auth and product system of record, accessed through Prisma from `apps/api` and the Worker.          |
+| **Workflows** | `WORKER_JOB`                 | `WorkerJobWorkflow` runs: the durable approval/execution loop for delegated work.                   |
 
-## §5. Data model (D1)
+## §5. Data model (Prisma/Postgres)
 
-Schema in [`apps/agents/migrations/*.sql`](../apps/agents/migrations); a squashed `0001_schema.sql` baseline (schema only) plus `0002_default_data.sql` (the skill-overlay catalog + the 4 default worker templates). Core tables:
+Schema in [`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma). The idempotent seed in [`packages/db/src/product-seed.ts`](../packages/db/src/product-seed.ts) owns the skill-overlay catalog and default worker templates. Core tables:
 
-| Table                  | Purpose                                                                                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `company`              | The tenant. `status: onboarding \| active`, `brief` (JSON, the AI-extracted business soul), slug, locale, timezone.                                                         |
-| `template`             | System-defined agent blueprint. `worker_kind`, `system_prompt`, `model` (OpenRouter id), `skill_ids`, `default_action_type`, `default_policies`, `status`. Seeded from SQL. |
-| `agent_instance`       | A hired agent for a company. `role: correspondent \| worker`, `template_id`, `prompt_override?`, `status`. One Correspondent per active company; N workers.                 |
-| `team` / `team_member` | The confirmed roster. `team_member.can_delegate_to` (JSON) encodes the delegation graph.                                                                                    |
-| `ticket`               | A unit of delegated work. `status: open \| in_progress \| awaiting_approval \| done`, `origin`, `brief`, `workflow_id`, `result`.                                           |
-| `action`               | A gated side-effect proposed by a Worker. `status: proposed \| executed \| …`, `action_type`, `payload`, decision fields. The backoffice approval card.                     |
-| `memory_fact`          | Long-term agent memory. `kind`, `content`, mirrored into Vectorize for recall.                                                                                              |
-| `asset`                | R2 object metadata. `kind` (`generated_image`/`brand_asset`/`user_upload`/`knowledge_doc`/`audio`), `mime`, `size`, visibility, folder.                                     |
-| `activity_log`         | Append-only pt-BR timeline. `type` strings are stable, free-form; the backoffice categorises by prefix (`ACTION_*`, `TICKET_*`, `WORKER_*`, `TEAM_*`, `MEMBER_*`).          |
-| `operator_assignment`  | Which operator owns which company's approvals.                                                                                                                              |
+| Table                  | Purpose                                                                                                                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `company`              | The tenant. `status: onboarding \| active`, `brief` (JSON, the AI-extracted business soul), slug, locale, timezone.                                                               |
+| `template`             | System-defined agent blueprint. `worker_kind`, `system_prompt`, `model` (OpenRouter id), `skill_ids`, `default_action_type`, `default_policies`, `status`. Seeded through Prisma. |
+| `agent_instance`       | A hired agent for a company. `role: correspondent \| worker`, `template_id`, `prompt_override?`, `status`. One Correspondent per active company; N workers.                       |
+| `team` / `team_member` | The confirmed roster. `team_member.can_delegate_to` (JSON) encodes the delegation graph.                                                                                          |
+| `ticket`               | A unit of delegated work. `status: open \| in_progress \| awaiting_approval \| done`, `origin`, `brief`, `workflow_id`, `result`.                                                 |
+| `action`               | A gated side-effect proposed by a Worker. `status: proposed \| executed \| …`, `action_type`, `payload`, decision fields. The backoffice approval card.                           |
+| `memory_fact`          | Long-term agent memory. `kind`, `content`, mirrored into Vectorize for recall.                                                                                                    |
+| `asset`                | R2 object metadata. `kind` (`generated_image`/`brand_asset`/`user_upload`/`knowledge_doc`/`audio`), `mime`, `size`, visibility, folder.                                           |
+| `activity_log`         | Append-only pt-BR timeline. `type` strings are stable, free-form; the backoffice categorises by prefix (`ACTION_*`, `TICKET_*`, `WORKER_*`, `TEAM_*`, `MEMBER_*`).                |
+| `operator_assignment`  | Which operator owns which company's approvals.                                                                                                                                    |
 
-[ADR 0002](adr/0002-d1-system-of-record.md) covers why D1 (not Postgres) is the product system of record.
+[ADR 0002](adr/0002-d1-system-of-record.md) records the superseded D1 decision; the current implementation uses Postgres through Prisma.
 
 ## §6. The agent layer (Flue)
 
 All three agents run on **[Flue](https://flueframework.com)** (`@flue/runtime` 1.0.0-beta), a Claude-Code-style harness (sessions, tool loop, compaction) on Cloudflare. Each agent is a `createAgent` module under [`apps/agents/src/agents/`](../apps/agents/src/agents); the worker entry is generated by `flue build` and composes them with the REST app. ADR 0004 ("Flue rejected") is superseded by the 2026-06 decision to adopt it.
 
-| Agent             | Instance key    | Role                                                                                                                                       |
-| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Planner**       | companyId       | Onboarding interview. Extracts the brief (`extractBrief`) and proposes a Team (`proposeTeam`); the customer confirms in the UI.            |
-| **Correspondent** | companyId       | The customer's single point of contact once active. Uses memory, manages assets, and delegates work (`delegateToWorker`).                  |
-| **Worker**        | agentInstanceId | Template-driven specialist. Model + system prompt + skill set resolved from its D1 `template` at init. Dispatch-only (never HTTP-exposed). |
+| Agent             | Instance key    | Role                                                                                                                                           |
+| ----------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Planner**       | companyId       | Onboarding interview. Extracts the brief (`extractBrief`) and proposes a Team (`proposeTeam`); the customer confirms in the UI.                |
+| **Correspondent** | companyId       | The customer's single point of contact once active. Uses memory, manages assets, and delegates work (`delegateToWorker`).                      |
+| **Worker**        | agentInstanceId | Template-driven specialist. Model + system prompt + skill set resolved from its Prisma `template` at init. Dispatch-only (never HTTP-exposed). |
 
 **Build & discovery.** There is no `.flue/` directory; Flue falls back to the `src/` source root. Agents are discovered from `src/agents/*`; `src/app.ts` mounts the shared REST app (`src/rest-app.ts`) + `flue()`; `src/cloudflare.ts` exports the `WorkerJobWorkflow` + the `scheduled()` cron; `src/provider.ts` registers OpenRouter. The approval Workflow lives in `src/jobs/` (not `src/workflows/`, which Flue reserves for its own workflow modules). `flue build --target cloudflare` merges `wrangler.jsonc` and emits the Durable Objects (`FlueCorrespondentAgent`, `FluePlannerAgent`, `FlueWorkerAgent`, `FlueRegistry`). The repo uses Node `#/*` subpath imports (not a tsconfig path alias) so Flue's dev loader resolves them.
 
@@ -160,7 +159,7 @@ The customer reaches the Correspondent over the **web chat only**: the Flue agen
 - **Agents bundler** `flue build` (Vite/Rolldown under the hood). **api bundler** tsdown.
 - **Imports** `#/*` → `src/*` (Node subpath imports) in `apps/agents`; `@/*` → `src/*` in the Next apps.
 - **Client chat** uses `@flue/react` (`useFlueAgent` over the SDK's `agents.observe()`: durable history snapshot, live SSE, reconnection from checkpoints, optimistic reconcile); the SSR-safe `Chat` shell gates the hook behind a client-only flag and shows a skeleton until `historyReady`.
-- **Local dev:** `docker compose up -d` (Postgres :5436), push the auth schema + seed (`apps/api`), apply D1 migrations + seeds (`apps/agents/scripts/seed-*.sql`), then `pnpm dev` (turbo runs all four; the agents Worker boots via `flue dev` on :8787). Full steps in [`docs/LOCAL_DEV.md`](LOCAL_DEV.md).
+- **Local dev:** `docker compose up -d` (Postgres :5436), push the shared Prisma schema, run the idempotent dev seed (`apps/api`), then `pnpm dev` (turbo runs all four; the agents Worker boots via `flue dev` on :8787). Full steps in [`docs/LOCAL_DEV.md`](LOCAL_DEV.md).
 
 ## §13. Migration status & open items
 

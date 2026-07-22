@@ -1,6 +1,7 @@
 import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
+import { getDb } from "#/db/client";
 import { listSkillOverlays, type SkillOverlay } from "#/db/template";
 import { logError, logInfo } from "#/lib/logger";
 import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
@@ -99,7 +100,7 @@ const resolveSkills = async (
   if (skillIds.length === 0) {
     return [];
   }
-  const overlays = await listSkillOverlays(ctx.env.DB, skillIds);
+  const overlays = await listSkillOverlays(getDb(ctx.env), skillIds);
   const overlayMap = new Map<string, SkillOverlay>(overlays.map((o) => [o.id, o]));
 
   const resolved: Array<ResolvedSkill> = [];

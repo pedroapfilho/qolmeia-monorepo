@@ -1,61 +1,50 @@
+import type { Database } from "#/db/client";
+
 type OperatorCoverage = {
   companies: ReadonlyArray<string>;
   disciplines: ReadonlyArray<string>;
 };
 
-type AssignmentRow = {
-  kind: string;
-  value: string;
-};
-
-const listCoverage = async (db: D1Database, operatorUserId: string): Promise<OperatorCoverage> => {
-  const { results } = await db
-    .prepare("SELECT kind, value FROM operator_assignment WHERE operator_user_id = ?")
-    .bind(operatorUserId)
-    .all<AssignmentRow>();
-  const companies: Array<string> = [];
-  const disciplines: Array<string> = [];
-  for (const row of results) {
-    if (row.kind === "company") {
-      companies.push(row.value);
-    } else if (row.kind === "discipline") {
-      disciplines.push(row.value);
-    }
-  }
-  return { companies, disciplines };
+const listCoverage = async (db: Database, operatorUserId: string): Promise<OperatorCoverage> => {
+  const rows = await db.operatorAssignment.findMany({ where: { operatorUserId } });
+  return {
+    companies: rows.filter((row) => row.kind === "company").map((row) => row.value),
+    disciplines: rows.filter((row) => row.kind === "discipline").map((row) => row.value),
+  };
 };
 
 const setCoverage = async (
-  db: D1Database,
+  db: Database,
   operatorUserId: string,
   coverage: OperatorCoverage,
 ): Promise<void> => {
-  const now = Date.now();
-  const rows: ReadonlyArray<AssignmentRow> = [
+  const rows = [
     ...coverage.companies.map((value) => ({ kind: "company", value })),
     ...coverage.disciplines.map((value) => ({ kind: "discipline", value })),
   ];
-  await db.batch([
-    db.prepare("DELETE FROM operator_assignment WHERE operator_user_id = ?").bind(operatorUserId),
-    ...rows.map((r) =>
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO operator_assignment
-             (id, operator_user_id, kind, value, created_at)
-           VALUES (?, ?, ?, ?, ?)`,
-        )
-        .bind(crypto.randomUUID(), operatorUserId, r.kind, r.value, now),
-    ),
-  ]);
+  await db.$transaction(async (tx) => {
+    await tx.operatorAssignment.deleteMany({ where: { operatorUserId } });
+    if (rows.length) {
+      await tx.operatorAssignment.createMany({
+        data: rows.map((row) => ({
+          id: crypto.randomUUID(),
+          kind: row.kind,
+          operatorUserId,
+          value: row.value,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  });
 };
 
-const listDisciplines = async (db: D1Database): Promise<ReadonlyArray<string>> => {
-  const { results } = await db
-    .prepare(
-      "SELECT DISTINCT worker_kind FROM template WHERE worker_kind IS NOT NULL ORDER BY worker_kind",
-    )
-    .all<{ worker_kind: string }>();
-  return results.map((r) => r.worker_kind);
+const listDisciplines = async (db: Database): Promise<ReadonlyArray<string>> => {
+  const rows = await db.agentTemplate.findMany({
+    distinct: ["workerKind"],
+    orderBy: { workerKind: "asc" },
+    select: { workerKind: true },
+  });
+  return rows.map((row) => row.workerKind);
 };
 
 export { listCoverage, listDisciplines, setCoverage };

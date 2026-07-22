@@ -3,6 +3,7 @@ import { dispatch } from "@flue/runtime";
 import { logActivity } from "#/activity/log";
 import { decideAction, markExecuted, proposeAction } from "#/db/action";
 import type { DecisionOutcome } from "#/db/action";
+import { getDb } from "#/db/client";
 import { resolvePolicy } from "#/db/policy";
 import { getCompany } from "#/db/schema";
 import { getTemplate } from "#/db/template";
@@ -55,13 +56,14 @@ const proposeDeliverable = async (
   current: GenerateResult,
 ): Promise<ProposeResult> => {
   const { agentInstanceId, companyId, env, ticketId } = ctx;
-  const agentInstance = await loadAgentInstance(env.DB, agentInstanceId);
+  const db = getDb(env);
+  const agentInstance = await loadAgentInstance(db, agentInstanceId);
   if (!agentInstance?.templateId) {
     throw new Error("agent_instance vanished mid-workflow");
   }
   const [template, company] = await Promise.all([
-    getTemplate(env.DB, agentInstance.templateId),
-    getCompany(env.DB, companyId),
+    getTemplate(db, agentInstance.templateId),
+    getCompany(db, companyId),
   ]);
   if (!template || !company) {
     throw new Error("template or company vanished mid-workflow");
@@ -71,9 +73,9 @@ const proposeDeliverable = async (
 
   if (policy === "auto-execute" || policy === "notify-only") {
     await Promise.all([
-      markTicketDone(env.DB, ticketId, { summary: current.summary }),
+      markTicketDone(db, ticketId, { summary: current.summary }),
       emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(env, {
+      logActivity(db, {
         companyId,
         refId: ticketId,
         refType: "ticket",
@@ -85,7 +87,7 @@ const proposeDeliverable = async (
       }),
     ]);
     if (policy === "notify-only") {
-      await logActivity(env, {
+      await logActivity(db, {
         companyId,
         payload: { summary: current.summary },
         refId: ticketId,
@@ -104,7 +106,7 @@ const proposeDeliverable = async (
   if (actionType === "publish_post" && draft !== undefined) {
     proposedPayload.draft = draft;
   }
-  const { id: actionId } = await proposeAction(env.DB, {
+  const { id: actionId } = await proposeAction(db, {
     actionType,
     companyId,
     policy,
@@ -112,10 +114,10 @@ const proposeDeliverable = async (
     ticketId,
   });
   await Promise.all([
-    setTicketStatus(env.DB, ticketId, "awaiting_approval"),
+    setTicketStatus(db, ticketId, "awaiting_approval"),
     emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
     logActivity(
-      env,
+      db,
       round > 0
         ? {
             companyId,
@@ -147,6 +149,7 @@ const applyDecision = async (
   event: DecisionEvent,
 ): Promise<DecisionOutcome> => {
   const { agentInstanceId, companyId, env, ticketId } = ctx;
+  const db = getDb(env);
   const { decidedByUserId, decision, feedback } = event;
   logInfo("workflow.decision.received", {
     actionId,
@@ -157,13 +160,13 @@ const applyDecision = async (
     feedback: feedback ?? null,
     ticketId,
   });
-  await decideAction(env.DB, { actionId, decidedByUserId, decision, feedback });
+  await decideAction(db, { actionId, decidedByUserId, decision, feedback });
   if (decision === "approved") {
     await Promise.all([
-      markExecuted(env.DB, actionId),
-      markTicketDone(env.DB, ticketId, { summary: current.summary }),
+      markExecuted(db, actionId),
+      markTicketDone(db, ticketId, { summary: current.summary }),
       emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(env, {
+      logActivity(db, {
         actorId: decidedByUserId,
         companyId,
         refId: actionId,
@@ -175,9 +178,9 @@ const applyDecision = async (
     await presentToCustomer(ctx, current.summary);
   } else if (decision === "rejected") {
     await Promise.all([
-      setTicketStatus(env.DB, ticketId, "rejected"),
+      setTicketStatus(db, ticketId, "rejected"),
       emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(env, {
+      logActivity(db, {
         actorId: decidedByUserId,
         companyId,
         payload: { feedback: feedback ?? null },
@@ -189,9 +192,9 @@ const applyDecision = async (
     ]);
   } else {
     await Promise.all([
-      setTicketStatus(env.DB, ticketId, "in_progress"),
+      setTicketStatus(db, ticketId, "in_progress"),
       emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(env, {
+      logActivity(db, {
         actorId: decidedByUserId,
         companyId,
         payload: { feedback: feedback ?? null },
@@ -206,7 +209,7 @@ const applyDecision = async (
 };
 
 const logRevisionCapped = async (ctx: JobContext, actionId: string): Promise<void> => {
-  await logActivity(ctx.env, {
+  await logActivity(getDb(ctx.env), {
     companyId: ctx.companyId,
     payload: { revisions: MAX_REVISIONS },
     refId: actionId,

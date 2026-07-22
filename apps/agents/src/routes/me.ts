@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { listActivity } from "#/activity/log";
+import { getDb } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
 import { validateSession, type ValidatedSession } from "#/lib/auth";
 import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
@@ -105,9 +106,10 @@ meRoutes.use("*", async (c, next) => {
 
 meRoutes.get("/company", async (c) => {
   const { companyId } = c.get("session");
-  const row = await c.env.DB.prepare("SELECT id, status, brief, slug FROM company WHERE id = ?")
-    .bind(companyId)
-    .first<{ brief: string | null; id: string; slug: string; status: string }>();
+  const row = await getDb(c.env).company.findUnique({
+    select: { brief: true, id: true, slug: true, status: true },
+    where: { id: companyId },
+  });
   if (!row) {
     return c.json({ error: "company not found" }, 404);
   }
@@ -134,16 +136,16 @@ meRoutes.patch("/company", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  const row = await c.env.DB.prepare("SELECT id, status, brief, slug FROM company WHERE id = ?")
-    .bind(session.companyId)
-    .first<{ brief: string | null; id: string; slug: string; status: string }>();
+  const db = getDb(c.env);
+  const row = await db.company.findUnique({
+    select: { brief: true, id: true, slug: true, status: true },
+    where: { id: session.companyId },
+  });
   if (!row) {
     return c.json({ error: "company not found" }, 404);
   }
   const merged = mergeBrief(parseBrief(row.brief), parsed.data);
-  await c.env.DB.prepare("UPDATE company SET brief = ?, updated_at = ? WHERE id = ?")
-    .bind(JSON.stringify(merged), Date.now(), session.companyId)
-    .run();
+  await db.company.update({ data: { brief: merged }, where: { id: session.companyId } });
   return c.json({
     company: { brief: merged, id: row.id, slug: row.slug, status: row.status },
     completeness: briefCompleteness(merged),
@@ -152,7 +154,7 @@ meRoutes.patch("/company", async (c) => {
 
 meRoutes.get("/templates", async (c) => {
   const { companyId } = c.get("session");
-  const templates = await listEntitledActiveTemplates(c.env.DB, companyId);
+  const templates = await listEntitledActiveTemplates(getDb(c.env), companyId);
   return c.json({
     templates: templates.map((t) => ({
       description: t.description,
@@ -166,7 +168,7 @@ meRoutes.get("/templates", async (c) => {
 meRoutes.get("/team", async (c) => {
   const { companyId } = c.get("session");
   try {
-    const members = await getTeamRoster(c.env.DB, companyId);
+    const members = await getTeamRoster(getDb(c.env), companyId);
     return c.json({ members });
   } catch (error) {
     logError("me.team.failed", {
@@ -184,7 +186,7 @@ meRoutes.get("/team/events", (c) => {
 
 meRoutes.get("/catalogue", async (c) => {
   const session = c.get("session");
-  const templates = await getCatalogue(c.env.DB, session.companyId);
+  const templates = await getCatalogue(getDb(c.env), session.companyId);
   return c.json({ templates });
 });
 
@@ -203,7 +205,7 @@ meRoutes.post("/team/hire", async (c) => {
     return c.json({ error: "invalid body" }, 400);
   }
   try {
-    const member = await hireMember(c.env.DB, {
+    const member = await hireMember(getDb(c.env), {
       actorId: session.userId,
       companyId: session.companyId,
       displayName: parsed.data.displayName,
@@ -240,7 +242,7 @@ meRoutes.patch("/team/members/:id", async (c) => {
     return c.json({ error: "invalid body" }, 400);
   }
   try {
-    const member = await updateMember(c.env.DB, {
+    const member = await updateMember(getDb(c.env), {
       agentInstanceId: id,
       companyId: session.companyId,
       displayName: parsed.data.displayName,
@@ -265,7 +267,7 @@ meRoutes.patch("/team/members/:id", async (c) => {
 
 meRoutes.get("/team/members/:id", async (c) => {
   const session = c.get("session");
-  const member = await getMemberDetail(c.env.DB, session.companyId, c.req.param("id"));
+  const member = await getMemberDetail(getDb(c.env), session.companyId, c.req.param("id"));
   if (!member) {
     return c.json({ error: "not found" }, 404);
   }
@@ -279,7 +281,7 @@ meRoutes.post("/team/members/:id/pause", async (c) => {
   }
   try {
     const member = await pauseMember(
-      c.env.DB,
+      getDb(c.env),
       session.companyId,
       c.req.param("id"),
       session.userId,
@@ -306,7 +308,7 @@ meRoutes.post("/team/members/:id/resume", async (c) => {
   }
   try {
     const member = await resumeMember(
-      c.env.DB,
+      getDb(c.env),
       session.companyId,
       c.req.param("id"),
       session.userId,
@@ -329,7 +331,7 @@ meRoutes.post("/team/members/:id/resume", async (c) => {
 meRoutes.get("/activity", async (c) => {
   const { companyId } = c.get("session");
   const limit = parsePositiveInt(c.req.query("limit"), 50, 200);
-  const entries = await listActivity(c.env.DB, { companyId, limit });
+  const entries = await listActivity(getDb(c.env), { companyId, limit });
   return c.json({
     items: entries.map((entry) => ({
       createdAt: new Date(entry.createdAt).toISOString(),

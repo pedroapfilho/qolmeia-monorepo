@@ -1,34 +1,57 @@
 import path from "node:path";
 
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
-// Tests run inside workerd via Miniflare. D1 migrations are read at config time
-// and handed to the pool as a binding; a setup file applies them to each test's
-// isolated storage. The LLM is the one mocked seam; see correspondent.test.ts.
-export default defineConfig(async () => {
-  const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
+const TEST_DATABASE_URL =
+  process.env.DATABASE_URL ??
+  "postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia?schema=agents_test";
+process.env.DATABASE_URL = TEST_DATABASE_URL;
 
-  return {
-    plugins: [
-      cloudflareTest({
-        main: "./src/index.ts",
-        miniflare: {
-          bindings: {
-            // Deterministic HMAC key so signed-URL tests don't depend on
-            // .dev.vars, which is gitignored and absent in CI.
-            ASSETS_SIGNING_KEY: "vitest-assets-signing-key",
-            TEST_MIGRATIONS: migrations,
+export default defineConfig({
+  plugins: [
+    cloudflareTest({
+      main: "./src/index.ts",
+      miniflare: {
+        bindings: {
+          ASSETS_SIGNING_KEY: "vitest-assets-signing-key",
+          DATABASE_URL: TEST_DATABASE_URL,
+          TEST_DATABASE_URL,
+        },
+      },
+      wrangler: { configPath: "./wrangler.jsonc" },
+    }),
+  ],
+  resolve: {
+    alias: { "@": path.join(import.meta.dirname, "src") },
+  },
+  test: {
+    deps: {
+      optimizer: {
+        ssr: {
+          enabled: true,
+          include: ["pg", "pg-cloudflare", "pg-protocol", "@prisma/adapter-pg"],
+          rolldownOptions: {
+            external: [
+              "assert",
+              "crypto",
+              "dns",
+              "events",
+              "fs",
+              "net",
+              "path",
+              "stream",
+              "string_decoder",
+              "tls",
+              "util",
+              "util/types",
+            ],
           },
         },
-        wrangler: { configPath: "./wrangler.jsonc" },
-      }),
-    ],
-    resolve: {
-      alias: { "@": path.join(import.meta.dirname, "src") },
+      },
     },
-    test: {
-      setupFiles: ["./src/__tests__/apply-migrations.ts"],
-    },
-  };
+    fileParallelism: false,
+    globalSetup: ["./src/__tests__/setup-postgres.ts"],
+    setupFiles: ["./src/__tests__/apply-migrations.ts"],
+  },
 });

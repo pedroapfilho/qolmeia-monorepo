@@ -1,9 +1,8 @@
+import { getDb } from "#/db/client";
 import { companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 const extractBriefInputSchema = companyBriefSchema.partial();
-
-type CompanyRow = { brief: string | null };
 
 const extractBriefSkill: UnknownSkill = {
   description:
@@ -11,15 +10,15 @@ const extractBriefSkill: UnknownSkill = {
   async execute(input: unknown, ctx: SkillContext): Promise<{ brief: Record<string, unknown> }> {
     const updates = extractBriefInputSchema.parse(input);
 
-    const row = await ctx.env.DB.prepare("SELECT brief FROM company WHERE id = ?")
-      .bind(ctx.companyId)
-      .first<CompanyRow>();
+    const db = getDb(ctx.env);
+    const row = await db.company.findUnique({
+      select: { brief: true },
+      where: { id: ctx.companyId },
+    });
     const existing = parseBrief(row?.brief);
     const merged = mergeBrief(existing, updates);
 
-    await ctx.env.DB.prepare("UPDATE company SET brief = ?, updated_at = ? WHERE id = ?")
-      .bind(JSON.stringify(merged), Date.now(), ctx.companyId)
-      .run();
+    await db.company.update({ data: { brief: merged }, where: { id: ctx.companyId } });
 
     return { brief: merged };
   },

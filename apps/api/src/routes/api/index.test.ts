@@ -94,7 +94,7 @@ describe("/api post-P7.2 surface", () => {
     expect(body.user.email).toBe("a@example.com");
   });
 
-  it("POSTs /orgs to create an org + OWNER membership + D1 relay", async () => {
+  it("POSTs /orgs to create an org + OWNER membership + product relay", async () => {
     const prisma = buildMockPrisma();
     const app = buildV1WithMocks(buildAllowGuard(), prisma);
     const res = await app.fetch(

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getDb } from "#/db/client";
 import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
@@ -26,7 +27,10 @@ const listAssetsSkill: UnknownSkill = {
     "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads) — use para descobrir o que já foi criado antes. Você enxerga as duas pastas (cliente e agente).",
   async execute(input: unknown, ctx: SkillContext): Promise<{ assets: unknown }> {
     const { folder, kind } = listAssetsInputSchema.parse(input);
-    const assets = await listCompanyAssets(ctx.env.DB, ctx.companyId, { kind, visibility: folder });
+    const assets = await listCompanyAssets(getDb(ctx.env), ctx.companyId, {
+      kind,
+      visibility: folder,
+    });
     return { assets };
   },
   id: "listAssets",
@@ -56,7 +60,7 @@ const readAssetSkill: UnknownSkill = {
 };
 
 const saveAssetInputSchema = z.object({
-  content: z.string().min(1).describe("O conteúdo do arquivo (texto/markdown)."),
+  content: z.string().min(1).describe("O conteúdo do arquivo (texto/markdown/SVG)."),
   folder: z
     .enum(["agent", "customer"])
     .optional()
@@ -64,9 +68,9 @@ const saveAssetInputSchema = z.object({
       "'customer' (default) = entrega que o cliente vê na biblioteca; 'agent' = material de trabalho interno (rascunhos, recortes) que o cliente não vê.",
     ),
   mime: z
-    .enum(["application/json", "text/csv", "text/markdown", "text/plain"])
+    .enum(["application/json", "image/svg+xml", "text/csv", "text/markdown", "text/plain"])
     .optional()
-    .describe("Tipo do conteúdo. Default: text/markdown."),
+    .describe("Tipo do conteúdo. Use image/svg+xml para vetores. Default: text/markdown."),
   name: z.string().min(1).max(160).describe("Um nome claro para o arquivo."),
 });
 

@@ -127,11 +127,11 @@ describe("POST /api/orgs", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as {
       currentOrg: { id: string; role: string };
-      d1Provisioned: boolean;
+      productProvisioned: boolean;
     };
     expect(body.currentOrg.id).toBe("new_org_id");
     expect(body.currentOrg.role).toBe("OWNER");
-    expect(body.d1Provisioned).toBe(true);
+    expect(body.productProvisioned).toBe(true);
     expect(prisma.organization.create).toHaveBeenCalledWith({
       data: { name: "Fresh Co", slug: "fresh-co" },
     });
@@ -190,7 +190,7 @@ describe("POST /api/orgs", () => {
     expect(body.error.code).toBe("SLUG_TAKEN");
   });
 
-  it("201 with d1Provisioned=false when the agents relay fails (org row still created)", async () => {
+  it("201 with productProvisioned=false when the agents relay fails (org row still created)", async () => {
     const prisma = buildPrisma();
     const fetchMock = vi.fn().mockResolvedValue(new Response("Forbidden", { status: 403 }));
     const app = buildOrgsRoutes({
@@ -200,13 +200,13 @@ describe("POST /api/orgs", () => {
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { d1Provisioned: boolean };
-    expect(body.d1Provisioned).toBe(false);
+    const body = (await res.json()) as { productProvisioned: boolean };
+    expect(body.productProvisioned).toBe(false);
     expect(prisma.organization.create).toHaveBeenCalled();
     expect(prisma.orgMembership.create).toHaveBeenCalled();
   });
 
-  it("201 with d1Provisioned=false when the agents Worker is unreachable", async () => {
+  it("201 with productProvisioned=false when the agents Worker is unreachable", async () => {
     const prisma = buildPrisma();
     const fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
     const app = buildOrgsRoutes({
@@ -216,7 +216,7 @@ describe("POST /api/orgs", () => {
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { d1Provisioned: boolean };
-    expect(body.d1Provisioned).toBe(false);
+    const body = (await res.json()) as { productProvisioned: boolean };
+    expect(body.productProvisioned).toBe(false);
   });
 });

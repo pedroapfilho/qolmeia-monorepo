@@ -1,24 +1,24 @@
 # Qolmeia
 
-Monorepo for Qolmeia, a Cloudflare-native customer support and agent-orchestration product. The current runtime is split across Better Auth, two Next.js surfaces, and a Cloudflare Worker that hosts Flue agents, customer/operator REST APIs, D1 state, R2 assets, and approval workflows.
+Monorepo for Qolmeia, a customer support and agent-orchestration product. The current runtime is split across Better Auth, two Next.js surfaces, and a Cloudflare Worker that hosts Flue agents, customer/operator REST APIs, R2 assets, and approval workflows. Auth and product state share Postgres through Prisma.
 
 Full architecture details live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Local setup is in [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md).
 
 ## Apps
 
-| App               | Package       | Framework         | Dev URL                                | Purpose                                           |
-| ----------------- | ------------- | ----------------- | -------------------------------------- | ------------------------------------------------- |
-| `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost`        | Better Auth and `/api/v1/me` membership relay     |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787`                | Flue agents, D1/R2-backed product APIs, Workflows |
-| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost`     | Customer onboarding and chat                      |
-| `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` | Operator approvals and team management            |
+| App               | Package       | Framework         | Dev URL                                | Purpose                                               |
+| ----------------- | ------------- | ----------------- | -------------------------------------- | ----------------------------------------------------- |
+| `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost`        | Better Auth and `/api/v1/me` membership relay         |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787`                | Flue agents, Prisma/R2-backed product APIs, Workflows |
+| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost`     | Customer onboarding and chat                          |
+| `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` | Operator approvals and team management                |
 
 ## Packages
 
 | Package                   | Purpose                                            |
 | ------------------------- | -------------------------------------------------- |
 | `@repo/auth`              | Better Auth factory shared by API and Next apps    |
-| `@repo/db`                | Prisma client and auth-only Postgres schema        |
+| `@repo/db`                | Prisma clients and the shared Postgres schema      |
 | `@repo/transactional`     | React Email templates and Resend sender            |
 | `@repo/ui`                | Shared shadcn-style UI package and Tailwind preset |
 | `@repo/config-vitest`     | Shared Vitest config                               |
@@ -42,12 +42,6 @@ DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
 
 pnpm --filter=api exec tsx src/scripts/seed-dev.ts
 
-cd apps/agents
-pnpm wrangler d1 migrations apply worker-bees --local
-pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
-pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
-cd -
-
 pnpm dev
 ```
 
@@ -60,7 +54,7 @@ cp apps/backoffice/.env.example apps/backoffice/.env
 cp apps/agents/.dev.vars.example apps/agents/.dev.vars
 ```
 
-`BETTER_AUTH_SECRET` must match across `apps/api`, `apps/client`, and `apps/backoffice`. `apps/agents/.dev.vars` holds Worker-only secrets such as `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`.
+`BETTER_AUTH_SECRET` must match across `apps/api`, `apps/client`, and `apps/backoffice`. `apps/agents/.dev.vars` holds `DATABASE_URL` and Worker-only secrets such as `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`.
 
 ## Useful Commands
 

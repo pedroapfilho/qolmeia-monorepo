@@ -1,4 +1,6 @@
-import { safeJson, toEnum } from "#/db/mappers";
+import type { Database } from "#/db/client";
+import { getDb } from "#/db/client";
+import { toEnum } from "#/db/mappers";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
 
 type AssetKind = "audio" | "brand_asset" | "generated_image" | "knowledge_doc" | "user_upload";
@@ -15,20 +17,11 @@ type AssetSummary = {
   visibility: AssetVisibility;
 };
 
-type AssetRow = {
-  bytes: number;
-  created_at: number;
-  id: string;
-  kind: string;
-  metadata: string | null;
-  mime: string;
-  visibility: string;
-};
-
 const toVisibility = toEnum<AssetVisibility>(["agent", "customer"], "customer");
 
 const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
+  "image/svg+xml": "svg",
   "text/csv": "csv",
   "text/markdown": "md",
   "text/plain": "txt",
@@ -81,63 +74,42 @@ const persistTextAsset = async (
     { bytes, key: r2Key, metadata: { generatedBy: "agent" }, mime },
   );
 
-  const candidateId = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO asset
-       (id, company_id, kind, r2_key, sha256, mime, bytes, metadata, visibility, created_at)
-     VALUES (?, ?, 'knowledge_doc', ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      candidateId,
-      input.companyId,
-      r2Key,
-      sha,
+  const db = getDb(env);
+  const asset = await db.asset.upsert({
+    create: {
+      bytes: bytes.length,
+      companyId: input.companyId,
+      id: crypto.randomUUID(),
+      kind: "knowledge_doc",
+      metadata: { name: input.name, ...input.extraMeta },
       mime,
-      bytes.length,
-      JSON.stringify({ name: input.name, ...input.extraMeta }),
+      r2Key,
+      sha256: sha,
       visibility,
-      Date.now(),
-    )
-    .run();
-  const existing = await env.DB.prepare(
-    "SELECT id FROM asset WHERE company_id = ? AND sha256 = ? LIMIT 1",
-  )
-    .bind(input.companyId, sha)
-    .first<{ id: string }>();
-  return { assetId: existing?.id ?? candidateId };
+    },
+    update: {},
+    where: { companyId_sha256: { companyId: input.companyId, sha256: sha } },
+  });
+  return { assetId: asset.id };
 };
 
 const listCompanyAssets = async (
-  db: D1Database,
+  db: Database,
   companyId: string,
   options: { kind?: AssetKind; limit?: number; visibility?: AssetVisibility } = {},
 ): Promise<Array<AssetSummary>> => {
-  const limit = Math.min(options.limit ?? 100, 200);
-  const clauses: Array<string> = ["company_id = ?"];
-  const params: Array<number | string> = [companyId];
-  if (options.kind) {
-    clauses.push("kind = ?");
-    params.push(options.kind);
-  }
-  if (options.visibility) {
-    clauses.push("visibility = ?");
-    params.push(options.visibility);
-  }
-  params.push(limit);
-  const { results } = await db
-    .prepare(
-      `SELECT id, kind, mime, bytes, metadata, visibility, created_at FROM asset
-        WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC LIMIT ?`,
-    )
-    .bind(...params)
-    .all<AssetRow>();
-  return results.map((row) => ({
+  const rows = await db.asset.findMany({
+    orderBy: { createdAt: "desc" },
+    take: Math.min(options.limit ?? 100, 200),
+    where: { companyId, kind: options.kind, visibility: options.visibility },
+  });
+  return rows.map((row) => ({
     bytes: row.bytes,
-    createdAt: row.created_at,
+    createdAt: row.createdAt.getTime(),
     id: row.id,
     kind: toAssetKind(row.kind),
     mime: row.mime,
-    name: assetName(safeJson<unknown>(row.metadata, null), row.id, row.kind),
+    name: assetName(row.metadata, row.id, row.kind),
     visibility: toVisibility(row.visibility),
   }));
 };
@@ -147,22 +119,18 @@ const readAssetText = async (
   companyId: string,
   assetId: string,
 ): Promise<{ content: string; mime: string; name: string } | null> => {
-  const row = await env.DB.prepare(
-    "SELECT id, kind, mime, metadata, r2_key FROM asset WHERE id = ? AND company_id = ?",
-  )
-    .bind(assetId, companyId)
-    .first<{ id: string; kind: string; metadata: string | null; mime: string; r2_key: string }>();
+  const row = await getDb(env).asset.findFirst({ where: { companyId, id: assetId } });
   if (!row || !isTextMime(row.mime)) {
     return null;
   }
-  const object = await fetchAsset({ ASSETS: env.ASSETS }, row.r2_key);
+  const object = await fetchAsset({ ASSETS: env.ASSETS }, row.r2Key);
   if (!object) {
     return null;
   }
   return {
     content: await object.text(),
     mime: row.mime,
-    name: assetName(safeJson<unknown>(row.metadata, null), row.id, row.kind),
+    name: assetName(row.metadata, row.id, row.kind),
   };
 };
 

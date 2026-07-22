@@ -1,17 +1,15 @@
+import type { PrismaClient } from "@repo/db/worker";
+
+import type { Database } from "#/db/client";
 import { assertTemplatesEntitledForCompany, getTemplate, type Template } from "#/db/template";
 
-type MaterializeInput = {
-  companyId: string;
-  templateIds: ReadonlyArray<string>;
-};
-
+type MaterializeInput = { companyId: string; templateIds: ReadonlyArray<string> };
 type MaterializeResult = {
   correspondentId: string;
   teamId: string;
   workerIds: ReadonlyArray<string>;
 };
-
-type Color = "white" | "gray" | "black";
+type Color = "black" | "gray" | "white";
 
 const isAcyclic = (edges: ReadonlyMap<string, ReadonlyArray<string>>): boolean => {
   const colors = new Map<string, Color>();
@@ -21,11 +19,8 @@ const isAcyclic = (edges: ReadonlyMap<string, ReadonlyArray<string>>): boolean =
   const visit = (node: string): boolean => {
     colors.set(node, "gray");
     for (const next of edges.get(node) ?? []) {
-      const c = colors.get(next) ?? "white";
-      if (c === "gray") {
-        return false;
-      }
-      if (c === "white" && !visit(next)) {
+      const color = colors.get(next) ?? "white";
+      if (color === "gray" || (color === "white" && !visit(next))) {
         return false;
       }
     }
@@ -46,117 +41,105 @@ const workerIdFor = (templateId: string, companyId: string): string =>
 const teamIdFor = (companyId: string): string => `team-${companyId}`;
 
 const materializeTeam = async (
-  db: D1Database,
+  db: PrismaClient,
   input: MaterializeInput,
 ): Promise<MaterializeResult> => {
-  if (input.templateIds.length === 0) {
+  if (!input.templateIds.length) {
     throw new Error("materializeTeam requires at least one templateId");
   }
-
   const fetched = await Promise.all(input.templateIds.map((id) => getTemplate(db, id)));
   const templates: Array<Template> = [];
-  for (const [i, t] of fetched.entries()) {
-    if (!t) {
-      throw new Error(`Template ${input.templateIds[i]} not found`);
+  for (const [index, template] of fetched.entries()) {
+    if (!template) {
+      throw new Error(`Template ${input.templateIds[index]} not found`);
     }
-    templates.push(t);
+    templates.push(template);
   }
-
   await assertTemplatesEntitledForCompany(
     db,
     input.companyId,
-    templates.map((t) => t.id),
+    templates.map(({ id }) => id),
   );
 
   const correspondentId = correspondentIdFor(input.companyId);
-  const workerIds = templates.map((t) => workerIdFor(t.id, input.companyId));
+  const workerIds = templates.map(({ id }) => workerIdFor(id, input.companyId));
   const teamId = teamIdFor(input.companyId);
-  const now = Date.now();
-
   const graph = new Map<string, ReadonlyArray<string>>([[correspondentId, workerIds]]);
-  for (const wid of workerIds) {
-    graph.set(wid, []);
+  for (const workerId of workerIds) {
+    graph.set(workerId, []);
   }
   if (!isAcyclic(graph)) {
     throw new Error("Delegation graph contains a cycle");
   }
 
-  const statements: Array<D1PreparedStatement> = [
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO team (id, company_id, confirmed_at, created_at) VALUES (?, ?, ?, ?)",
-      )
-      .bind(teamId, input.companyId, now, now),
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO agent_instance
-           (id, company_id, role, template_id, template_version, display_name,
-            model_override, status, created_at, updated_at)
-         VALUES (?, ?, 'correspondent', NULL, NULL, ?, NULL, 'active', ?, ?)`,
-      )
-      .bind(correspondentId, input.companyId, "Correspondente", now, now),
-  ];
-  templates.forEach((template, i) => {
-    statements.push(
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO agent_instance
-             (id, company_id, role, template_id, template_version, display_name,
-              model_override, status, created_at, updated_at)
-           VALUES (?, ?, 'worker', ?, ?, ?, NULL, 'active', ?, ?)`,
-        )
-        .bind(
-          workerIds[i],
-          input.companyId,
-          template.id,
-          template.version,
-          template.displayName,
-          now,
-          now,
-        ),
+  await db.$transaction(async (tx) => {
+    await tx.team.upsert({
+      create: { companyId: input.companyId, confirmedAt: new Date(), id: teamId },
+      update: { confirmedAt: new Date() },
+      where: { companyId: input.companyId },
+    });
+    await tx.agentInstance.upsert({
+      create: {
+        companyId: input.companyId,
+        displayName: "Correspondente",
+        id: correspondentId,
+        role: "correspondent",
+      },
+      update: {},
+      where: { id: correspondentId },
+    });
+    await Promise.all(
+      templates.map((template, index) => {
+        const id = workerIds[index];
+        if (!id) {
+          throw new Error(`Missing worker id for template ${template.id}`);
+        }
+        return tx.agentInstance.upsert({
+          create: {
+            companyId: input.companyId,
+            displayName: template.displayName,
+            id,
+            role: "worker",
+            templateId: template.id,
+            templateVersion: template.version,
+          },
+          update: {},
+          where: { id },
+        });
+      }),
+    );
+    await tx.teamMember.upsert({
+      create: { agentInstanceId: correspondentId, canDelegateTo: workerIds, teamId },
+      update: { canDelegateTo: workerIds },
+      where: { teamId_agentInstanceId: { agentInstanceId: correspondentId, teamId } },
+    });
+    await Promise.all(
+      workerIds.map((agentInstanceId) =>
+        tx.teamMember.upsert({
+          create: { agentInstanceId, canDelegateTo: [], teamId },
+          update: {},
+          where: { teamId_agentInstanceId: { agentInstanceId, teamId } },
+        }),
+      ),
     );
   });
-  statements.push(
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, ?)",
-      )
-      .bind(teamId, correspondentId, JSON.stringify(workerIds)),
-  );
-  for (const wid of workerIds) {
-    statements.push(
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO team_member (team_id, agent_instance_id, can_delegate_to) VALUES (?, ?, '[]')",
-        )
-        .bind(teamId, wid),
-    );
-  }
-
-  await db.batch(statements);
-
   return { correspondentId, teamId, workerIds };
 };
 
 const getDelegationTargets = async (
-  db: D1Database,
+  db: Database,
   agentInstanceId: string,
 ): Promise<ReadonlyArray<string> | null> => {
-  const row = await db
-    .prepare("SELECT can_delegate_to FROM team_member WHERE agent_instance_id = ?")
-    .bind(agentInstanceId)
-    .first<{ can_delegate_to: string }>();
+  const row = await db.teamMember.findFirst({
+    select: { canDelegateTo: true },
+    where: { agentInstanceId },
+  });
   if (!row) {
     return null;
   }
-  try {
-    const parsed = JSON.parse(row.can_delegate_to) as unknown;
-    return Array.isArray(parsed)
-      ? (parsed.filter((v) => typeof v === "string") as Array<string>)
-      : [];
-  } catch {
-    return [];
-  }
+  return Array.isArray(row.canDelegateTo)
+    ? row.canDelegateTo.filter((value): value is string => typeof value === "string")
+    : [];
 };
 
 export { correspondentIdFor, getDelegationTargets, isAcyclic, materializeTeam, teamIdFor };

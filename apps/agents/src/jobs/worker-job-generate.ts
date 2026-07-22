@@ -1,5 +1,6 @@
 import { generateText, isStepCount } from "ai";
 
+import { getDb } from "#/db/client";
 import { getTemplate } from "#/db/template";
 import { loadAgentInstance, loadTicket } from "#/db/ticket";
 import type { GenerateResult, JobContext } from "#/jobs/worker-job-steps";
@@ -67,15 +68,16 @@ const generateDeliverable = async (
   feedback: string | null,
 ): Promise<GenerateResult> => {
   const { agentInstanceId, companyId, env, ticketId } = ctx;
+  const db = getDb(env);
   const stepStart = Date.now();
   const [ticket, agentInstance] = await Promise.all([
-    loadTicket(env.DB, ticketId),
-    loadAgentInstance(env.DB, agentInstanceId),
+    loadTicket(db, ticketId),
+    loadAgentInstance(db, agentInstanceId),
   ]);
   if (!ticket || !agentInstance?.templateId) {
     throw new Error(`ticket ${ticketId} or its agent_instance not properly seeded`);
   }
-  const template = await getTemplate(env.DB, agentInstance.templateId);
+  const template = await getTemplate(db, agentInstance.templateId);
   if (!template) {
     throw new Error(`template ${agentInstance.templateId} not found`);
   }

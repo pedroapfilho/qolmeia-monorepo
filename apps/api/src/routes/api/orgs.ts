@@ -47,7 +47,7 @@ const createOrgSchema = z.object({
     .refine(isValidSlug, "slug must be lowercase alphanumeric or dashes"),
 });
 
-const provisionD1Company = async (args: {
+const provisionProductCompany = async (args: {
   companyId: string;
   fetchImpl: typeof fetch;
   name: string;
@@ -133,20 +133,20 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       throw error;
     }
 
-    const relay = await provisionD1Company({
+    const relay = await provisionProductCompany({
       companyId: org.id,
       fetchImpl,
       name: org.name,
       slug: org.slug,
     });
     if (!relay.ok) {
-      log.error({ companyId: org.id, error: relay.error, message: "[orgs] D1 relay failed" });
+      log.error({ companyId: org.id, error: relay.error, message: "[orgs] product relay failed" });
     }
 
     return c.json(
       {
         currentOrg: { id: org.id, name: org.name, role: "OWNER" as const, slug: org.slug },
-        d1Provisioned: relay.ok,
+        productProvisioned: relay.ok,
       },
       201,
     );

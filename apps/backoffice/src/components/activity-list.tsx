@@ -9,11 +9,12 @@ import { apiGet, ApiError } from "@/lib/api-client";
 import type { ActivityEntry, ActivityResponse } from "@/lib/api-types";
 
 type ActivityListProps = {
+  category?: string;
   initial: ReadonlyArray<ActivityEntry>;
   pageSize?: number;
 };
 
-const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
+const ActivityList = ({ category, initial, pageSize = 50 }: ActivityListProps) => {
   const [fetched, setFetched] = useState<ReadonlyArray<ActivityEntry>>([]);
   const [fetchExhausted, setFetchExhausted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,9 @@ const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
       const params = new URLSearchParams({ limit: String(pageSize) });
       if (earliest !== undefined) {
         params.set("before", String(earliest));
+      }
+      if (category) {
+        params.set("category", category);
       }
       const next = await apiGet<ActivityResponse>(`/activity?${params.toString()}`);
       const fresh = next.items.filter((item) => !rows.some((existing) => existing.id === item.id));

@@ -1,8 +1,8 @@
+import type { Database } from "#/db/client";
 import { toEnum } from "#/db/mappers";
 import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 
-type CompanyStatus = "onboarding" | "active" | "paused";
-
+type CompanyStatus = "active" | "onboarding" | "paused";
 type Company = {
   brief: string | null;
   createdAt: number;
@@ -15,49 +15,38 @@ type Company = {
   updatedAt: number;
 };
 
-type CompanyRow = {
-  brief: string | null;
-  created_at: number;
+const toCompanyStatus = toEnum<CompanyStatus>(["onboarding", "active", "paused"], "onboarding");
+const mapCompany = (row: {
+  brief: unknown;
+  createdAt: Date;
   id: string;
   locale: string;
   name: string;
   slug: string;
   status: string;
   timezone: string;
-  updated_at: number;
-};
-
-const toCompanyStatus = toEnum<CompanyStatus>(["onboarding", "active", "paused"], "onboarding");
-
-const mapCompany = (row: CompanyRow): Company => ({
-  brief: row.brief,
-  createdAt: row.created_at,
+  updatedAt: Date;
+}): Company => ({
+  brief: row.brief === null ? null : JSON.stringify(row.brief),
+  createdAt: row.createdAt.getTime(),
   id: row.id,
   locale: row.locale,
   name: row.name,
   slug: row.slug,
   status: toCompanyStatus(row.status),
   timezone: row.timezone,
-  updatedAt: row.updated_at,
+  updatedAt: row.updatedAt.getTime(),
 });
 
-const getCompany = async (db: D1Database, id: string): Promise<Company | null> => {
-  const row = await db.prepare("SELECT * FROM company WHERE id = ?").bind(id).first<CompanyRow>();
+const getCompany = async (db: Database, id: string): Promise<Company | null> => {
+  const row = await db.company.findUnique({ where: { id } });
   return row ? mapCompany(row) : null;
 };
 
-type CompanyOverview = {
-  briefPercent: number;
-  id: string;
-  name: string;
-  status: CompanyStatus;
-};
-
-const listCompaniesOverview = async (db: D1Database): Promise<Array<CompanyOverview>> => {
-  const { results } = await db
-    .prepare("SELECT id, name, status, brief FROM company ORDER BY created_at ASC")
-    .all<{ brief: string | null; id: string; name: string; status: string }>();
-  return results.map((row) => ({
+type CompanyOverview = { briefPercent: number; id: string; name: string; status: CompanyStatus };
+const listCompaniesOverview = async (db: Database): Promise<Array<CompanyOverview>> => {
+  const rows = await db.company.findMany({ orderBy: { createdAt: "asc" } });
+  return rows.map((row) => ({
     briefPercent: briefCompleteness(parseBrief(row.brief)).percent,
     id: row.id,
     name: row.name,
@@ -73,24 +62,12 @@ type InsertMemoryFactInput = {
   kind: string;
   salience?: number;
 };
-
-const insertMemoryFact = async (db: D1Database, input: InsertMemoryFactInput): Promise<void> => {
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO memory_fact
-         (id, company_id, agent_instance_id, kind, content, salience, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      input.id,
-      input.companyId,
-      input.agentInstanceId,
-      input.kind,
-      input.content,
-      input.salience ?? 0.5,
-      Date.now(),
-    )
-    .run();
+const insertMemoryFact = async (db: Database, input: InsertMemoryFactInput): Promise<void> => {
+  await db.memoryFact.upsert({
+    create: { ...input, salience: input.salience ?? 0.5 },
+    update: {},
+    where: { id: input.id },
+  });
 };
 
 export { getCompany, insertMemoryFact, listCompaniesOverview };

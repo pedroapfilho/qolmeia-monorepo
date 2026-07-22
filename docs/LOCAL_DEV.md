@@ -17,7 +17,7 @@ pnpm install
 docker compose up -d
 ```
 
-Docker starts Postgres on host port `5436`. Redis may still be present in compose for legacy compatibility, but product runtime state for agents now lives in D1, KV, and R2.
+Docker starts Postgres on host port `5436`. Redis may still be present in compose for legacy compatibility. Auth and agent product state live in Postgres; Cloudflare KV and R2 retain their cache and binary-asset roles.
 
 ## 3. Environment Files
 
@@ -39,33 +39,23 @@ Important local variables:
 | `apps/api/.env`         | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`                |
 | `apps/client/.env`      | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
 | `apps/backoffice/.env`  | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
-| `apps/agents/.dev.vars` | `OPENROUTER_API_KEY`, `ASSETS_SIGNING_KEY`                                                        |
+| `apps/agents/.dev.vars` | `DATABASE_URL`, `OPENROUTER_API_KEY`, `ASSETS_SIGNING_KEY`                                        |
 
 The Next apps rewrite `/api/auth/*`, `/api/me/*`, `/api/teams/*`, `/api/backoffice/*`, and `/agents/*` to the local API/Worker so cookies stay first-party in development.
 
 ## 4. Initialize Data
 
-Push the auth-only Prisma schema to Postgres:
+Push the shared auth and product Prisma schema to Postgres:
 
 ```bash
 DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
   pnpm --filter=@repo/db db:push
 ```
 
-Seed the dev organization and users:
+Seed the dev organization, users, product catalog, and agent team:
 
 ```bash
 pnpm --filter=api exec tsx src/scripts/seed-dev.ts
-```
-
-Apply Worker D1 migrations and seed the local agent data:
-
-```bash
-cd apps/agents
-pnpm wrangler d1 migrations apply worker-bees --local
-pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p2.sql
-pnpm wrangler d1 execute worker-bees --local --file scripts/seed-p3-team.sql
-cd -
 ```
 
 ## 5. Run the Stack
@@ -129,6 +119,6 @@ pnpm --filter=worker-bees test -- --run apps/agents/src/__tests__/skill-tool-sch
 | Login succeeds but app APIs return 401    | Make `BETTER_AUTH_SECRET` match across API, client, and backoffice       |
 | Client/backoffice cannot reach the Worker | Check `AGENTS_INTERNAL_URL`, defaulting to `http://127.0.0.1:8787`       |
 | Auth routes fail from Next                | Check `AUTH_SERVICE_INTERNAL_URL`, defaulting to `http://127.0.0.1:4000` |
-| Worker has no local data                  | Re-run D1 migrations and seed scripts from `apps/agents`                 |
+| Worker has no local data                  | Check its `DATABASE_URL`, then rerun `apps/api/src/scripts/seed-dev.ts`  |
 | Real agent calls fail                     | Set `OPENROUTER_API_KEY` in `apps/agents/.dev.vars`                      |
 | Asset generation or signed URLs fail      | Set `ASSETS_SIGNING_KEY` in `apps/agents/.dev.vars`                      |

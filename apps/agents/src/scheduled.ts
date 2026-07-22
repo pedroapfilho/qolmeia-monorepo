@@ -1,5 +1,6 @@
 import { dispatch } from "@flue/runtime";
 
+import { getDb } from "#/db/client";
 import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 import { logInfo } from "#/lib/logger";
 import {
@@ -12,9 +13,10 @@ import {
 const runProactiveSweep = async (
   env: Env,
 ): Promise<{ errored: number; skipped: number; suggested: number }> => {
-  const { results } = await env.DB.prepare(
-    `SELECT id, brief FROM company WHERE status = 'active'`,
-  ).all<{ brief: string | null; id: string }>();
+  const results = await getDb(env).company.findMany({
+    select: { brief: true, id: true },
+    where: { status: "active" },
+  });
 
   const eligible = results.filter((row) => briefCompleteness(parseBrief(row.brief)).isComplete);
 
