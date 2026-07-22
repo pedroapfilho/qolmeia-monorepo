@@ -29,9 +29,24 @@
     "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true },
     "deploy": { "dependsOn": ["^build"], "cache": false },
     "start": { "dependsOn": ["^build"], "cache": false },
-    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
-    "test:watch": { "dependsOn": ["^build"], "cache": false, "persistent": true },
-    "test:coverage": { "dependsOn": ["^build"], "outputs": ["coverage/**"], "cache": false },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    },
+    "test:watch": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "env": ["DATABASE_URL"]
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    },
     "clean": { "cache": false },
     "db:generate": { "cache": false, "env": ["DATABASE_URL"] },
     "db:push": { "cache": false, "env": ["DATABASE_URL"] },

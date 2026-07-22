@@ -11,9 +11,16 @@ import type {
   TeamMemberView,
 } from "#/team/types";
 
+const OPEN_TICKET_STATUSES = ["in_progress", "awaiting_approval"];
+
 const rosterInclude = {
+  // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate API.
+  _count: { select: { tickets: { where: { status: "done" } } } },
   template: { select: { workerKind: true } },
-  tickets: { select: { id: true, status: true, title: true } },
+  tickets: {
+    select: { id: true, status: true, title: true },
+    where: { status: { in: OPEN_TICKET_STATUSES } },
+  },
 } as const satisfies Prisma.AgentInstanceInclude;
 type RosterRecord = Prisma.AgentInstanceGetPayload<{ include: typeof rosterInclude }>;
 
@@ -43,7 +50,8 @@ const projectRosterMember = (row: RosterRecord): TeamMemberView => {
     displayName: row.displayName,
     hasPromptOverride: row.promptOverride !== null,
     id: row.id,
-    lifetimeDone: row.tickets.filter(({ status }) => status === "done").length,
+    // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
+    lifetimeDone: row._count.tickets,
     status: resolveAgentStatus(
       { status: row.status === "paused" ? "paused" : "active" },
       currentWork,
@@ -119,9 +127,14 @@ const getMemberDetail = async (
 ): Promise<TeamMemberDetailView | null> => {
   const row = await db.agentInstance.findFirst({
     include: {
+      // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate API.
+      _count: { select: { tickets: { where: { status: "done" } } } },
       company: { select: { name: true } },
       template: { select: { description: true, systemPrompt: true, workerKind: true } },
-      tickets: { select: { id: true, status: true, title: true } },
+      tickets: {
+        select: { id: true, status: true, title: true },
+        where: { status: { in: OPEN_TICKET_STATUSES } },
+      },
     },
     where: { companyId, id: agentInstanceId },
   });
@@ -142,7 +155,8 @@ const getMemberDetail = async (
     displayName: row.displayName,
     hasPromptOverride: row.promptOverride !== null,
     id: row.id,
-    lifetimeDone: row.tickets.filter(({ status }) => status === "done").length,
+    // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
+    lifetimeDone: row._count.tickets,
     status: resolveAgentStatus(
       { status: row.status === "paused" ? "paused" : "active" },
       currentWork,

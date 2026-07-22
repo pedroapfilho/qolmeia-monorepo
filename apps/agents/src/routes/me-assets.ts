@@ -241,7 +241,7 @@ meAssetsRoutes.delete("/brand-assets/:id", async (c) => {
   if (!row) {
     return c.json({ error: "not found" }, 404);
   }
-  await db.asset.delete({ where: { id } });
+  await db.asset.deleteMany({ where: { companyId: session.companyId, id } });
   await c.env.ASSETS.delete(row.r2Key);
   return c.json({ ok: true });
 });

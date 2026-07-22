@@ -60,12 +60,13 @@ backofficeRoutes.get("/actions", async (c) => {
   const sort = c.req.query("sort");
   const companyId = c.req.query("companyId");
 
+  const db = getDb(c.env);
   if (status === "pending") {
     const items = companyId
-      ? await listPendingActions(getDb(c.env), { companyId })
+      ? await listPendingActions(db, { companyId })
       : await (async () => {
-          const coverage = await listCoverage(getDb(c.env), c.get("userId"));
-          return listPendingActions(getDb(c.env), {
+          const coverage = await listCoverage(db, c.get("userId"));
+          return listPendingActions(db, {
             companyIds: coverage.companies,
             disciplines: coverage.disciplines,
           });
@@ -92,7 +93,7 @@ backofficeRoutes.get("/actions", async (c) => {
     return c.json({ items: sorted });
   }
 
-  const items = await listActions(getDb(c.env), { companyId });
+  const items = await listActions(db, { companyId });
   return c.json({ items });
 });
 
@@ -114,7 +115,8 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
 
-  const action = await getAction(getDb(c.env), id);
+  const db = getDb(c.env);
+  const action = await getAction(db, id);
   if (!action) {
     return c.text("Not found", 404);
   }
@@ -122,7 +124,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
     return c.json({ error: `action already ${action.status}` }, 409);
   }
 
-  const ticket = await loadTicket(getDb(c.env), action.ticketId);
+  const ticket = await loadTicket(db, action.ticketId);
   if (!ticket?.workflowId) {
     return c.json({ error: "no workflow for this action" }, 500);
   }
@@ -153,21 +155,23 @@ backofficeRoutes.get("/activity", async (c) => {
 
 backofficeRoutes.get("/tickets/:id", async (c) => {
   const id = c.req.param("id");
-  const ticket = await loadTicket(getDb(c.env), id);
+  const db = getDb(c.env);
+  const ticket = await loadTicket(db, id);
   if (!ticket) {
     return c.text("Not found", 404);
   }
-  const actions = await listActionsForTicket(getDb(c.env), id);
+  const actions = await listActionsForTicket(db, id);
   return c.json({ actions, ticket });
 });
 
 backofficeRoutes.get("/actions/:id", async (c) => {
   const id = c.req.param("id");
-  const action = await getAction(getDb(c.env), id);
+  const db = getDb(c.env);
+  const action = await getAction(db, id);
   if (!action) {
     return c.text("Not found", 404);
   }
-  const ticket = await loadTicket(getDb(c.env), action.ticketId);
+  const ticket = await loadTicket(db, action.ticketId);
   const ageSeconds = Math.floor((Date.now() - action.createdAt) / 1000);
   return c.json({ action, ageSeconds, ticket });
 });
@@ -179,9 +183,10 @@ const backofficePatchSchema = z.object({
 });
 
 backofficeRoutes.get("/companies", async (c) => {
-  const companies = await listCompaniesOverview(getDb(c.env));
+  const db = getDb(c.env);
+  const companies = await listCompaniesOverview(db);
   const rosters = await listTeamRosters(
-    getDb(c.env),
+    db,
     companies.map((company) => company.id),
   );
   const withRosters = companies.map((company) => ({
@@ -195,10 +200,11 @@ backofficeRoutes.get("/companies", async (c) => {
 });
 
 backofficeRoutes.get("/assignments/me", async (c) => {
+  const db = getDb(c.env);
   const [coverage, disciplines, companies] = await Promise.all([
-    listCoverage(getDb(c.env), c.get("userId")),
-    listDisciplines(getDb(c.env)),
-    listCompaniesOverview(getDb(c.env)),
+    listCoverage(db, c.get("userId")),
+    listDisciplines(db),
+    listCompaniesOverview(db),
   ]);
   return c.json({
     assigned: coverage,
