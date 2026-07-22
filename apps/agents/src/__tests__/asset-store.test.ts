@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
@@ -16,7 +16,7 @@ beforeEach(async () => {
 
 describe("asset-store", () => {
   it("persists a text deliverable, lists it, and reads it back", async () => {
-    const { assetId } = await persistTextAsset(env as Env, {
+    const { assetId } = await persistTextAsset(env, {
       companyId: COMPANY_ID,
       name: "Plano semanal",
       text: "# Plano\n\nSegunda: post de lançamento.",
@@ -28,18 +28,18 @@ describe("asset-store", () => {
     expect(found?.kind).toBe("knowledge_doc");
     expect(found?.name).toBe("Plano semanal");
 
-    const read = await readAssetText(env as Env, COMPANY_ID, assetId);
+    const read = await readAssetText(env, COMPANY_ID, assetId);
     expect(read?.content).toContain("post de lançamento");
     expect(read?.name).toBe("Plano semanal");
   });
 
   it("dedups identical content on (company, sha256)", async () => {
-    const first = await persistTextAsset(env as Env, {
+    const first = await persistTextAsset(env, {
       companyId: COMPANY_ID,
       name: "Nota",
       text: "conteúdo idêntico para dedup",
     });
-    const second = await persistTextAsset(env as Env, {
+    const second = await persistTextAsset(env, {
       companyId: COMPANY_ID,
       name: "Nota (de novo)",
       text: "conteúdo idêntico para dedup",
@@ -48,22 +48,22 @@ describe("asset-store", () => {
   });
 
   it("is tenant-scoped: another company cannot read the asset", async () => {
-    const { assetId } = await persistTextAsset(env as Env, {
+    const { assetId } = await persistTextAsset(env, {
       companyId: COMPANY_ID,
       name: "Privado",
       text: "segredo da empresa A que B não deve ler",
     });
-    const read = await readAssetText(env as Env, "co_other_tenant", assetId);
+    const read = await readAssetText(env, "co_other_tenant", assetId);
     expect(read).toBeNull();
   });
 
   it("defaults to the customer folder; honors the agent folder (ADR 0007)", async () => {
-    const customer = await persistTextAsset(env as Env, {
+    const customer = await persistTextAsset(env, {
       companyId: COMPANY_ID,
       name: "Entrega",
       text: "documento de entrega para o cliente",
     });
-    const agentScratch = await persistTextAsset(env as Env, {
+    const agentScratch = await persistTextAsset(env, {
       companyId: COMPANY_ID,
       name: "Recorte",
       text: "rascunho interno do agente",

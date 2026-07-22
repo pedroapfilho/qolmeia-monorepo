@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const COMPANY_ID = "co_meteam_test";
@@ -59,23 +59,23 @@ afterEach(() => {
 describe("GET /api/me/team", () => {
   it("returns the roster for CUSTOMER", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/team?cf_session=tok");
+    const res = await exports.default.fetch("https://agents.test/api/me/team?cf_session=tok");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       members: Array<{ displayName: string; id: string; status: string }>;
-    };
+    }>();
     expect(body.members.some((m) => m.id === WORKER_ID)).toBe(true);
   });
 
   it("admits STAFF reading their own company's team", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch("https://agents.test/api/me/team?cf_session=tok");
+    const res = await exports.default.fetch("https://agents.test/api/me/team?cf_session=tok");
     expect(res.status).toBe(200);
   });
 
   it("rejects unauthenticated with 401", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(new Response("Unauthorized", { status: 401 })));
-    const res = await SELF.fetch("https://agents.test/api/me/team?cf_session=tok");
+    const res = await exports.default.fetch("https://agents.test/api/me/team?cf_session=tok");
     expect(res.status).toBe(401);
   });
 });
@@ -83,11 +83,11 @@ describe("GET /api/me/team", () => {
 describe("GET /api/me/catalogue", () => {
   it("returns active worker templates with hiredCount", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/catalogue?cf_session=tok");
+    const res = await exports.default.fetch("https://agents.test/api/me/catalogue?cf_session=tok");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       templates: Array<{ hiredCount: number; id: string }>;
-    };
+    }>();
     const designer = body.templates.find((t) => t.id === "tpl-designer");
     expect(designer?.hiredCount).toBe(1);
   });
@@ -96,19 +96,19 @@ describe("GET /api/me/catalogue", () => {
 describe("POST /api/me/team/hire", () => {
   it("creates a new instance and emits team:roster", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+    const res = await exports.default.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
       body: JSON.stringify({ templateId: "tpl-designer" }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { member: { id: string; templateId: string } };
+    const body = await res.json<{ member: { id: string; templateId: string } }>();
     expect(body.member.templateId).toBe("tpl-designer");
   });
 
   it("400 when templateId missing", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+    const res = await exports.default.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
       body: JSON.stringify({}),
       headers: { "content-type": "application/json" },
       method: "POST",
@@ -120,7 +120,7 @@ describe("POST /api/me/team/hire", () => {
 describe("/api/me/team mutations — CUSTOMER role gate", () => {
   it("403 when STAFF tries to hire", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+    const res = await exports.default.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
       body: JSON.stringify({ templateId: "tpl-designer" }),
       headers: { "content-type": "application/json" },
       method: "POST",
@@ -130,7 +130,7 @@ describe("/api/me/team mutations — CUSTOMER role gate", () => {
 
   it("403 when STAFF tries to pause", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/me/team/members/${WORKER_ID}/pause?cf_session=tok`,
       { method: "POST" },
     );
@@ -141,7 +141,7 @@ describe("/api/me/team mutations — CUSTOMER role gate", () => {
 describe("POST /api/me/team/hire — error mapping", () => {
   it("404 when template doesn't exist", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
+    const res = await exports.default.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
       body: JSON.stringify({ templateId: "tpl-does-not-exist" }),
       headers: { "content-type": "application/json" },
       method: "POST",
@@ -153,34 +153,40 @@ describe("POST /api/me/team/hire — error mapping", () => {
 describe("PATCH /api/me/team/members/:id", () => {
   it("renames + sets prompt override", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok", {
-      body: JSON.stringify({ displayName: "Marina", promptOverride: "minimalista" }),
-      headers: { "content-type": "application/json" },
-      method: "PATCH",
-    });
+    const res = await exports.default.fetch(
+      "https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok",
+      {
+        body: JSON.stringify({ displayName: "Marina", promptOverride: "minimalista" }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      },
+    );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       member: { displayName: string; hasPromptOverride: boolean };
-    };
+    }>();
     expect(body.member.displayName).toBe("Marina");
     expect(body.member.hasPromptOverride).toBe(true);
   });
 
   it("clears prompt override when promptOverride: null", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok", {
-      body: JSON.stringify({ promptOverride: null }),
-      headers: { "content-type": "application/json" },
-      method: "PATCH",
-    });
+    const res = await exports.default.fetch(
+      "https://agents.test/api/me/team/members/ai_mt_d?cf_session=tok",
+      {
+        body: JSON.stringify({ promptOverride: null }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      },
+    );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { member: { hasPromptOverride: boolean } };
+    const body = await res.json<{ member: { hasPromptOverride: boolean } }>();
     expect(body.member.hasPromptOverride).toBe(false);
   });
 
   it("404 when the member doesn't belong to the company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       "https://agents.test/api/me/team/members/ai_does_not_exist?cf_session=tok",
       {
         body: JSON.stringify({ displayName: "x" }),
@@ -195,19 +201,19 @@ describe("PATCH /api/me/team/members/:id", () => {
 describe("GET /api/me/team/members/:id", () => {
   it("returns the detail view for a member of the customer's company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/me/team/members/${WORKER_ID}?cf_session=tok`,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       member: { id: string; promptOverride: string | null; templateSystemPrompt: string };
-    };
+    }>();
     expect(body.member.id).toBe(WORKER_ID);
   });
 
   it("404 when the member doesn't belong to the company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/me/team/members/ai_does_not_exist?cf_session=tok`,
     );
     expect(res.status).toBe(404);
@@ -217,25 +223,25 @@ describe("GET /api/me/team/members/:id", () => {
 describe("POST /api/me/team/members/:id/pause + /resume", () => {
   it("pauses then resumes the worker", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const paused = await SELF.fetch(
+    const paused = await exports.default.fetch(
       "https://agents.test/api/me/team/members/ai_mt_d/pause?cf_session=tok",
       { method: "POST" },
     );
     expect(paused.status).toBe(200);
-    expect(((await paused.json()) as { member: { status: string } }).member.status).toBe("paused");
+    const pausedBody = await paused.json<{ member: { status: string } }>();
+    expect(pausedBody.member.status).toBe("paused");
 
-    const resumed = await SELF.fetch(
+    const resumed = await exports.default.fetch(
       "https://agents.test/api/me/team/members/ai_mt_d/resume?cf_session=tok",
       { method: "POST" },
     );
-    expect(((await resumed.json()) as { member: { status: string } }).member.status).toBe(
-      "available",
-    );
+    const resumedBody = await resumed.json<{ member: { status: string } }>();
+    expect(resumedBody.member.status).toBe("available");
   });
 
   it("rejects pausing the correspondent with 400", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/me/team/members/corr-${COMPANY_ID}/pause?cf_session=tok`,
       { method: "POST" },
     );

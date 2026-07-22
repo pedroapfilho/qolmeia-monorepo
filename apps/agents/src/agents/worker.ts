@@ -9,7 +9,7 @@ import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 export default defineAgent<Env>(async (context) => {
   const agentInstanceId = context.id;
   const instance = await loadAgentInstance(context.env.DB, agentInstanceId);
-  if (!instance?.templateId) {
+  if (instance === null || instance.templateId === null || instance.templateId === "") {
     throw new Error(`flue worker ${agentInstanceId}: agent_instance has no template`);
   }
   const template = await getTemplate(context.env.DB, instance.templateId);
@@ -19,13 +19,14 @@ export default defineAgent<Env>(async (context) => {
   const row = await context.env.DB.prepare("SELECT company_id FROM agent_instance WHERE id = ?")
     .bind(agentInstanceId)
     .first<{ company_id: string }>();
-  if (!row?.company_id) {
+  const companyId = row?.company_id;
+  if (companyId === undefined || companyId === "") {
     throw new Error(`flue worker ${agentInstanceId}: no company_id`);
   }
 
   const ctx: SkillContext = {
     agentInstanceId,
-    companyId: row.company_id,
+    companyId,
     env: context.env,
   };
 

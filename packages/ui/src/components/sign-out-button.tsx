@@ -10,7 +10,9 @@ import { toast } from "../lib/toast";
 import { Button } from "./button";
 
 const authUrl = process.env.NEXT_PUBLIC_AUTH_URL;
-const authClient = createBetterAuthClient(authUrl ? `${authUrl}/api/auth` : "");
+const authClient = createBetterAuthClient(
+  authUrl !== undefined && authUrl !== "" ? `${authUrl}/api/auth` : "",
+);
 
 type SignOutButtonProps = {
   className?: string;
@@ -40,7 +42,9 @@ const SignOutButton = ({ className, label = "Sair" }: SignOutButtonProps) => {
     <Button
       className={className}
       disabled={pending}
-      onClick={signOut}
+      onClick={() => {
+        void signOut();
+      }}
       type="button"
       variant="ghost"
     >

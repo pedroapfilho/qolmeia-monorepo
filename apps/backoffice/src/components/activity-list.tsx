@@ -58,7 +58,14 @@ const ActivityList = ({ initial, pageSize = 50 }: ActivityListProps) => {
       </ul>
       {!exhausted && (
         <div className="flex justify-center px-5 pt-4 pb-2">
-          <Button disabled={loading} onClick={handleLoadMore} type="button" variant="outline">
+          <Button
+            disabled={loading}
+            onClick={() => {
+              void handleLoadMore();
+            }}
+            type="button"
+            variant="outline"
+          >
             {loading ? "Carregando…" : "Carregar mais"}
           </Button>
         </div>

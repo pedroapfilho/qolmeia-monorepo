@@ -40,7 +40,7 @@ const RecoverPage = () => {
     validators: { onSubmit: recoverSchema },
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();
@@ -69,7 +69,9 @@ const RecoverPage = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       placeholder="voce@empresa.com"
                       type="email"
                       value={field.state.value}

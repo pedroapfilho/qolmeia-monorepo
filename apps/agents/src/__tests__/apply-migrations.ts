@@ -1,4 +1,5 @@
-import { applyD1Migrations, env } from "cloudflare:test";
+import { applyD1Migrations } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
 
 if (env.TEST_MIGRATIONS) {
@@ -6,8 +7,6 @@ if (env.TEST_MIGRATIONS) {
 }
 
 beforeEach(async () => {
-  if (env.SESSIONS) {
-    const list = await env.SESSIONS.list();
-    await Promise.all(list.keys.map((k) => env.SESSIONS.delete(k.name)));
-  }
+  const list = await env.SESSIONS.list();
+  await Promise.all(list.keys.map((k) => env.SESSIONS.delete(k.name)));
 });

@@ -58,7 +58,7 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
 
   const feedbackRequired = decision !== "approved";
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (submitting) {
       return;
@@ -92,7 +92,12 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
   };
 
   return (
-    <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
+    <form
+      className="flex flex-col gap-3.5"
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
+    >
       <fieldset className="flex flex-col gap-2">
         <legend className="sr-only">Decisão</legend>
         {OPTIONS.map((opt) => {
@@ -116,7 +121,9 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
                 className="sr-only"
                 id={inputId}
                 name="decision"
-                onChange={() => setDecision(opt.value)}
+                onChange={() => {
+                  setDecision(opt.value);
+                }}
                 type="radio"
                 value={opt.value}
               />
@@ -160,7 +167,9 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
         <Textarea
           id="decision-feedback"
           maxLength={MAX_FEEDBACK}
-          onChange={(e) => setFeedback(e.target.value)}
+          onChange={(e) => {
+            setFeedback(e.target.value);
+          }}
           placeholder={PLACEHOLDER[decision]}
           value={feedback}
         />

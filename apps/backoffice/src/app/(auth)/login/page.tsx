@@ -54,7 +54,7 @@ const LoginForm = () => {
     validators: { onSubmit: loginSchema },
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();
@@ -81,7 +81,9 @@ const LoginForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       placeholder="voce@empresa.com"
                       type="email"
                       value={field.state.value}
@@ -112,7 +114,9 @@ const LoginForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       type="password"
                       value={field.state.value}
                     />

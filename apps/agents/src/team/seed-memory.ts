@@ -11,25 +11,25 @@ const seedCompanyMemory = async (
   const memory = getMemoryAdapter(env);
 
   const facts: Array<{ content: string; kind: string }> = [];
-  if (input.brief.industry) {
+  if (input.brief.industry !== undefined && input.brief.industry !== "") {
     facts.push({ content: `Setor: ${input.brief.industry}`, kind: "industry" });
   }
-  if (input.brief.primaryGoal) {
+  if (input.brief.primaryGoal !== undefined && input.brief.primaryGoal !== "") {
     facts.push({ content: `Objetivo principal: ${input.brief.primaryGoal}`, kind: "goal" });
   }
-  if (input.brief.audience) {
+  if (input.brief.audience !== undefined && input.brief.audience !== "") {
     facts.push({ content: `Público: ${input.brief.audience}`, kind: "audience" });
   }
-  if (input.brief.channels?.length) {
+  if (input.brief.channels !== undefined && input.brief.channels.length > 0) {
     facts.push({ content: `Canais ativos: ${input.brief.channels.join(", ")}`, kind: "channels" });
   }
-  if (input.brief.brand?.voice) {
+  if (input.brief.brand?.voice !== undefined && input.brief.brand.voice !== "") {
     facts.push({ content: `Tom da marca: ${input.brief.brand.voice}`, kind: "brand_voice" });
   }
-  if (input.brief.brand?.palette) {
+  if (input.brief.brand?.palette !== undefined && input.brief.brand.palette !== "") {
     facts.push({ content: `Paleta: ${input.brief.brand.palette}`, kind: "brand_palette" });
   }
-  if (input.debriefSummary) {
+  if (input.debriefSummary !== "") {
     facts.push({ content: input.debriefSummary, kind: "onboarding_summary" });
   }
 

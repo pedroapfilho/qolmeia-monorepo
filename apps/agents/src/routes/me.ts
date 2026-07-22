@@ -50,7 +50,9 @@ const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 meRoutes.get("/", async (c) => {
   const tokenParam = new URL(c.req.url).searchParams.get("cf_session");
   const cookieHeader = c.req.header("Cookie") ?? null;
-  if (!tokenParam && !cookieHeader) {
+  const hasToken = tokenParam !== null && tokenParam !== "";
+  const hasCookie = cookieHeader !== null && cookieHeader !== "";
+  if (!hasToken && !hasCookie) {
     return c.text("Unauthorized", 401);
   }
 
@@ -60,7 +62,7 @@ meRoutes.get("/", async (c) => {
     token: tokenParam,
   });
   const cached = await readCachedString(c.env, cacheKey);
-  if (cached) {
+  if (cached !== null && cached !== "") {
     return new Response(cached, {
       headers: { "Content-Type": "application/json", "X-Cache": "hit" },
       status: 200,
@@ -68,9 +70,9 @@ meRoutes.get("/", async (c) => {
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (tokenParam) {
+  if (hasToken) {
     headers.Authorization = `Bearer ${tokenParam}`;
-  } else if (cookieHeader) {
+  } else if (hasCookie) {
     headers.Cookie = cookieHeader;
   }
   let response: Response;

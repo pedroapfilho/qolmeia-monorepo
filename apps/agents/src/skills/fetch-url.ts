@@ -24,15 +24,16 @@ const fetchUrlSkill: UnknownSkill = {
   ): Promise<{ markdown: string; title: string; url: string }> {
     const { url } = fetchUrlInputSchema.parse(input);
     const apiKey = ctx.env.FIRECRAWL_API_KEY;
+    const hasApiKey = apiKey !== undefined && apiKey !== "";
     const baseUrl = ctx.env.FIRECRAWL_BASE_URL ?? FIRECRAWL_CLOUD;
-    if (baseUrl === FIRECRAWL_CLOUD && !apiKey) {
+    if (baseUrl === FIRECRAWL_CLOUD && !hasApiKey) {
       throw new Error(
         "Firecrawl não configurado: defina FIRECRAWL_API_KEY (cloud) ou FIRECRAWL_BASE_URL (instância self-hosted).",
       );
     }
 
     const headers: Record<string, string> = { "content-type": "application/json" };
-    if (apiKey) {
+    if (hasApiKey) {
       headers.authorization = `Bearer ${apiKey}`;
     }
     const res = await fetch(`${baseUrl}/v2/scrape`, {
@@ -44,14 +45,16 @@ const fetchUrlSkill: UnknownSkill = {
       throw new Error(`Firecrawl respondeu ${res.status}`);
     }
 
-    const body = (await res.json()) as FirecrawlResponse;
-    if (!body.success || !body.data?.markdown) {
+    const body = await res.json<FirecrawlResponse>();
+    const data = body.data;
+    const markdown = data?.markdown;
+    if (body.success !== true || data === undefined || markdown === undefined || markdown === "") {
       throw new Error(`Firecrawl não retornou conteúdo: ${body.error ?? "resposta vazia"}`);
     }
     return {
-      markdown: body.data.markdown.slice(0, CONTENT_MAX),
-      title: body.data.metadata?.title ?? url,
-      url: body.data.metadata?.sourceURL ?? url,
+      markdown: markdown.slice(0, CONTENT_MAX),
+      title: data.metadata?.title ?? url,
+      url: data.metadata?.sourceURL ?? url,
     };
   },
   id: "fetchUrl",

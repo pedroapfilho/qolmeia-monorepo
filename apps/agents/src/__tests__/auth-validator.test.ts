@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { validateSession } from "#/lib/auth";
@@ -41,7 +41,7 @@ describe("validateSession", () => {
     const fetchSpy = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
       Promise.resolve(Response.json(meCustomer)),
     );
-    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
     const req = new Request("http://agents.test/api/me", {
       headers: { Authorization: "Bearer header-tok" },
     });
@@ -54,7 +54,7 @@ describe("validateSession", () => {
     const fetchSpy = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
       Promise.resolve(Response.json(meCustomer)),
     );
-    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
     const req = new Request("http://agents.test/api/me?cf_session=query-tok", {
       headers: { Authorization: "Bearer header-tok" },
     });

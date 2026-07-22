@@ -162,11 +162,19 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {member.companyName}
-            {member.templateId ? ` · ${member.templateId}` : ""}
+            {member.templateId !== null && member.templateId !== ""
+              ? ` · ${member.templateId}`
+              : ""}
           </p>
         </div>
         {member.role === "worker" ? (
-          <Button disabled={busy} onClick={handleTogglePause} variant="outline">
+          <Button
+            disabled={busy}
+            onClick={() => {
+              void handleTogglePause();
+            }}
+            variant="outline"
+          >
             {member.status === "paused" ? "Retomar" : "Pausar"}
           </Button>
         ) : null}
@@ -207,12 +215,16 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
               <Input
                 disabled={busy}
                 id="member-name"
-                onChange={(e) => setNameDraft(e.target.value)}
+                onChange={(e) => {
+                  setNameDraft(e.target.value);
+                }}
                 value={name}
               />
               <Button
                 disabled={busy || name === member.displayName}
-                onClick={handleSaveName}
+                onClick={() => {
+                  void handleSaveName();
+                }}
                 variant="outline"
               >
                 Renomear

@@ -45,7 +45,8 @@ const RegisterForm = () => {
           toast.error(result.error.message ?? "Não foi possível criar a conta.");
           return;
         }
-        if (!result.data?.token) {
+        const token = result.data?.token;
+        if (token === undefined || token === null || token === "") {
           setSentToEmail(value.email);
           return;
         }
@@ -60,13 +61,13 @@ const RegisterForm = () => {
     validators: { onSubmit: registerSchema },
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();
   };
 
-  if (sentToEmail) {
+  if (sentToEmail !== null) {
     return (
       <Card>
         <CardHeader>
@@ -104,7 +105,9 @@ const RegisterForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       type="text"
                       value={field.state.value}
                     />
@@ -126,7 +129,9 @@ const RegisterForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       placeholder="voce@empresa.com"
                       type="email"
                       value={field.state.value}
@@ -149,7 +154,9 @@ const RegisterForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       type="password"
                       value={field.state.value}
                     />
@@ -171,7 +178,9 @@ const RegisterForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       type="password"
                       value={field.state.value}
                     />

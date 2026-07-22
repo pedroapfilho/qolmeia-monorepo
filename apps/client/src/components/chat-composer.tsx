@@ -15,7 +15,7 @@ import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeft, Paperclip, Square, X } from "lucide-react";
-import type { ChangeEvent, ClipboardEvent, FormEvent, KeyboardEvent } from "react";
+import type { ChangeEvent, ClipboardEvent, KeyboardEvent, SubmitEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { apiSendForm } from "@/lib/api-client";
@@ -176,7 +176,7 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = input.trim();
     if (disabled || isUploading) {
@@ -251,7 +251,9 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
                 <AttachmentActions>
                   <AttachmentAction
                     aria-label={`Remover ${attachment.name}`}
-                    onClick={() => handleRemoveAttachment(attachment)}
+                    onClick={() => {
+                      handleRemoveAttachment(attachment);
+                    }}
                     type="button"
                   >
                     <X aria-hidden />
@@ -270,7 +272,9 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
             "placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:text-sm",
           )}
           name="message"
-          onChange={(event) => setInput(event.currentTarget.value)}
+          onChange={(event) => {
+            setInput(event.currentTarget.value);
+          }}
           onInput={resizeTextarea}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}

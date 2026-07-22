@@ -49,7 +49,7 @@ test.describe("Client magic-link login", () => {
     // rewrite proxies to the auth service, the session cookie comes back
     // FIRST-PARTY on the client origin, and Better Auth redirects to
     // callbackURL (/auth/verify), which 302s to `/` once a session exists.
-    const verifyUrl = extractLink(mail, /\/api\/auth\/magic-link\/verify/v);
+    const verifyUrl = extractLink(mail, /\/api\/auth\/magic-link\/verify/u);
     expect(verifyUrl.startsWith(`${clientUrl}/api/auth/magic-link/verify`)).toBe(true);
 
     await page.goto(verifyUrl);

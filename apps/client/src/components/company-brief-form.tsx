@@ -92,10 +92,11 @@ const BriefCard = ({ initial }: BriefCardProps) => {
   const percent = Math.round((filled / REQUIRED_COUNT) * 100);
   const isComplete = filled === REQUIRED_COUNT;
 
-  const setField = (key: keyof FormState) => (value: string) =>
+  const setField = (key: keyof FormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     mutation.mutate(buildPatch(form));
   };
@@ -121,7 +122,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               <Input
                 autoComplete="off"
                 id="brief-industry"
-                onChange={(e) => setField("industry")(e.currentTarget.value)}
+                onChange={(e) => {
+                  setField("industry")(e.currentTarget.value);
+                }}
                 placeholder="Ex: alimentação saudável"
                 value={form.industry}
               />
@@ -134,7 +137,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               <Input
                 autoComplete="off"
                 id="brief-goal"
-                onChange={(e) => setField("primaryGoal")(e.currentTarget.value)}
+                onChange={(e) => {
+                  setField("primaryGoal")(e.currentTarget.value);
+                }}
                 placeholder="Ex: aumentar vendas no Instagram"
                 value={form.primaryGoal}
               />
@@ -150,7 +155,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               autoComplete="off"
               className="min-h-20"
               id="brief-audience"
-              onChange={(e) => setField("audience")(e.currentTarget.value)}
+              onChange={(e) => {
+                setField("audience")(e.currentTarget.value);
+              }}
               placeholder="Quem é o cliente final: perfil, dor, contexto"
               value={form.audience}
             />
@@ -165,7 +172,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               <Input
                 autoComplete="off"
                 id="brief-voice"
-                onChange={(e) => setField("voice")(e.currentTarget.value)}
+                onChange={(e) => {
+                  setField("voice")(e.currentTarget.value);
+                }}
                 placeholder="Ex: descontraído e próximo"
                 value={form.voice}
               />
@@ -178,7 +187,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               <Input
                 autoComplete="off"
                 id="brief-palette"
-                onChange={(e) => setField("palette")(e.currentTarget.value)}
+                onChange={(e) => {
+                  setField("palette")(e.currentTarget.value);
+                }}
                 placeholder="Ex: #E11D48, off-white"
                 value={form.palette}
               />
@@ -194,7 +205,9 @@ const BriefCard = ({ initial }: BriefCardProps) => {
               autoComplete="off"
               className="min-h-20"
               id="brief-references"
-              onChange={(e) => setField("references")(e.currentTarget.value)}
+              onChange={(e) => {
+                setField("references")(e.currentTarget.value);
+              }}
               placeholder="Marcas ou estilos que inspiram você"
               value={form.references}
             />

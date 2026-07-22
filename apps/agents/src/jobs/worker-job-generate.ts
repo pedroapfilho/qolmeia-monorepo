@@ -16,7 +16,7 @@ const buildRevisionMessages = (
   feedback: string | null,
 ): Array<ChatMessage> => {
   const messages: Array<ChatMessage> = [{ content: brief, role: "user" }];
-  if (priorSummary && feedback) {
+  if (priorSummary !== null && priorSummary !== "" && feedback !== null && feedback !== "") {
     messages.push(
       { content: priorSummary, role: "assistant" },
       {
@@ -72,7 +72,12 @@ const generateDeliverable = async (
     loadTicket(env.DB, ticketId),
     loadAgentInstance(env.DB, agentInstanceId),
   ]);
-  if (!ticket || !agentInstance?.templateId) {
+  if (
+    ticket === null ||
+    agentInstance === null ||
+    agentInstance.templateId === null ||
+    agentInstance.templateId === ""
+  ) {
     throw new Error(`ticket ${ticketId} or its agent_instance not properly seeded`);
   }
   const template = await getTemplate(env.DB, agentInstance.templateId);
@@ -94,19 +99,18 @@ const generateDeliverable = async (
     template.skillIds,
   );
   const result = await generateText({
+    instructions: resolveSystemPrompt(agentInstance, template),
     messages: buildRevisionMessages(ticket.brief, priorSummary, feedback),
     model: getModel(env, template.model),
     stopWhen: isStepCount(5),
-    system: resolveSystemPrompt(agentInstance, template),
     tools,
   });
   const summary = result.text.trim();
   const skillResults: Record<string, unknown> = {};
   for (const stepResult of result.steps ?? []) {
     for (const toolResult of stepResult.toolResults ?? []) {
-      const name = (toolResult as { toolName?: string }).toolName;
-      const output =
-        (toolResult as { output?: unknown }).output ?? (toolResult as { result?: unknown }).result;
+      const name = toolResult.toolName;
+      const output: unknown = toolResult.output;
       if (typeof name === "string" && output !== undefined) {
         skillResults[name] = output;
       }

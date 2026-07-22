@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const SECRET = "test-internal-secret-rotate-me";
@@ -14,11 +14,13 @@ afterAll(() => {
 });
 
 const post = (body: unknown, init: { authorization?: string } = {}) =>
-  SELF.fetch("https://agents.test/api/internal/companies", {
+  exports.default.fetch("https://agents.test/api/internal/companies", {
     body: JSON.stringify(body),
     headers: {
       "Content-Type": "application/json",
-      ...(init.authorization ? { Authorization: init.authorization } : {}),
+      ...(init.authorization === undefined || init.authorization === ""
+        ? {}
+        : { Authorization: init.authorization }),
     },
     method: "POST",
   });
@@ -56,7 +58,7 @@ describe("POST /api/internal/companies", () => {
   });
 
   it("400 on invalid JSON body", async () => {
-    const res = await SELF.fetch("https://agents.test/api/internal/companies", {
+    const res = await exports.default.fetch("https://agents.test/api/internal/companies", {
       body: "{not json",
       headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" },
       method: "POST",

@@ -125,7 +125,7 @@ const assertTemplatesEntitledForCompany = async (
     .all<{ template_id: string }>();
   const entitled = new Set(results.map((row) => row.template_id));
   const missing = uniqueIds.find((id) => !entitled.has(id));
-  if (missing) {
+  if (missing !== undefined) {
     throw new Error(`Template ${missing} is not entitled for company ${companyId}`);
   }
 };

@@ -60,7 +60,7 @@ const hireMember = async (db: D1Database, input: HireInput): Promise<TeamMemberV
   const existingRoster = await getTeamRoster(db, input.companyId);
   const trimmedName = input.displayName?.trim();
   const desiredName =
-    trimmedName && trimmedName.length > 0
+    trimmedName !== undefined && trimmedName.length > 0
       ? trimmedName
       : nextDisplayName(
           template.displayName,

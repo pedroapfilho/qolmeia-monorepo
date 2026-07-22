@@ -210,7 +210,9 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
                     : "border border-border bg-card text-muted-foreground hover:text-foreground",
                 )}
                 key={chip.key}
-                onClick={() => dispatch({ key: chip.key, type: "setFilter" })}
+                onClick={() => {
+                  dispatch({ key: chip.key, type: "setFilter" });
+                }}
                 type="button"
               >
                 {chip.label}
@@ -226,13 +228,13 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
             aria-label="Selecionar todos os arquivos"
             checked={allSelected}
             className="size-4 accent-primary"
-            onChange={() =>
+            onChange={() => {
               dispatch({
                 ids: filtered.map((a) => a.id),
                 selectAll: !allSelected,
                 type: "toggleSelectAll",
-              })
-            }
+              });
+            }}
             type="checkbox"
           />
           {selected.size > 0 ? `${selected.size} selecionado(s)` : "Selecionar todos"}
@@ -240,7 +242,9 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
         {selected.size > 0 ? (
           <Button
             className="ml-auto rounded-lg"
-            onClick={() => dispatch({ ids: [...selected], type: "requestDelete" })}
+            onClick={() => {
+              dispatch({ ids: [...selected], type: "requestDelete" });
+            }}
             size="sm"
             variant="destructive"
           >
@@ -264,7 +268,9 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
                 <button
                   aria-label={`Pré-visualizar ${asset.name}`}
                   className="block w-full cursor-pointer text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  onClick={() => setPreviewing(asset)}
+                  onClick={() => {
+                    setPreviewing(asset);
+                  }}
                   type="button"
                 >
                   <AssetPreview asset={asset} />
@@ -283,13 +289,17 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
                 aria-label={`Selecionar ${asset.name}`}
                 checked={isSelected}
                 className="absolute top-2 left-2 size-4 cursor-pointer accent-primary"
-                onChange={() => dispatch({ id: asset.id, type: "toggleSelect" })}
+                onChange={() => {
+                  dispatch({ id: asset.id, type: "toggleSelect" });
+                }}
                 type="checkbox"
               />
               <button
                 aria-label={`Excluir ${asset.name}`}
                 className="absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-md bg-background/80 text-muted-foreground backdrop-blur transition-colors hover:bg-background hover:text-destructive"
-                onClick={() => dispatch({ ids: [asset.id], type: "requestDelete" })}
+                onClick={() => {
+                  dispatch({ ids: [asset.id], type: "requestDelete" });
+                }}
                 type="button"
               >
                 <Trash2 aria-hidden className="size-4" />
@@ -317,13 +327,22 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
           <DialogFooter>
             <Button
               disabled={deleting}
-              onClick={() => dispatch({ type: "cancelDelete" })}
+              onClick={() => {
+                dispatch({ type: "cancelDelete" });
+              }}
               type="button"
               variant="outline"
             >
               Cancelar
             </Button>
-            <Button disabled={deleting} onClick={confirmDelete} type="button" variant="destructive">
+            <Button
+              disabled={deleting}
+              onClick={() => {
+                void confirmDelete();
+              }}
+              type="button"
+              variant="destructive"
+            >
               {deleting ? (
                 <Loader2 aria-hidden className="size-4 animate-spin" />
               ) : (
@@ -335,7 +354,12 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
         </DialogContent>
       </Dialog>
 
-      <AssetPreviewDialog asset={previewing} onClose={() => setPreviewing(null)} />
+      <AssetPreviewDialog
+        asset={previewing}
+        onClose={() => {
+          setPreviewing(null);
+        }}
+      />
     </div>
   );
 };

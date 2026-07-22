@@ -69,7 +69,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
       to: currentEmail,
     });
     expect(stage1Mail.last_event).not.toBe("bounced");
-    const stage1Url = extractLink(stage1Mail, /\/api\/auth\/verify-email\?token=/v);
+    const stage1Url = extractLink(stage1Mail, /\/api\/auth\/verify-email\?token=/u);
 
     // Stage-1 click: Better Auth's verify-email handler issues stage-2
     // internally (sent to newEmail) and redirects to its callbackURL.
@@ -85,7 +85,7 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
       to: newEmail,
     });
     expect(stage2Mail.last_event).not.toBe("bounced");
-    const stage2Url = extractLink(stage2Mail, /\/api\/auth\/verify-email\?token=/v);
+    const stage2Url = extractLink(stage2Mail, /\/api\/auth\/verify-email\?token=/u);
 
     // Stage-2 click: proves new-mailbox access and triggers the actual
     // user-record update.

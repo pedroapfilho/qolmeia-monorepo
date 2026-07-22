@@ -51,7 +51,7 @@ test.describe("Password reset", () => {
     // (token is a path segment). The GET handler validates and redirects to
     // `${callbackURL}?token=…`. We extract the token and call the POST endpoint
     // directly so the test doesn't need a UI reset form.
-    const resetUrl = extractLink(mail, /\/api\/auth\/reset-password\/[^"?]+\?callbackURL=/v);
+    const resetUrl = extractLink(mail, /\/api\/auth\/reset-password\/[^"?]+\?callbackURL=/u);
     const token = new URL(resetUrl).pathname.split("/").pop() ?? "";
     expect(token).not.toBe("");
 

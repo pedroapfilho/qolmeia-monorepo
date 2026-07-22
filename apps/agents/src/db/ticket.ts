@@ -98,11 +98,11 @@ const listTickets = async (
   const limit = Math.min(options.limit ?? 50, 200);
   const clauses: Array<string> = [];
   const params: Array<number | string> = [];
-  if (options.companyId) {
+  if (options.companyId !== undefined && options.companyId !== "") {
     clauses.push("t.company_id = ?");
     params.push(options.companyId);
   }
-  if (options.status) {
+  if (options.status !== undefined && options.status !== "") {
     clauses.push("t.status = ?");
     params.push(options.status);
   }

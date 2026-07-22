@@ -151,9 +151,7 @@ const getDelegationTargets = async (
   }
   try {
     const parsed = JSON.parse(row.can_delegate_to) as unknown;
-    return Array.isArray(parsed)
-      ? (parsed.filter((v) => typeof v === "string") as Array<string>)
-      : [];
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
   } catch {
     return [];
   }

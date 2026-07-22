@@ -50,9 +50,6 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
             generateDeliverable(ctx, round, priorForRound, feedbackForRound),
         );
       }
-      if (!generated) {
-        throw new Error("worker-job: deliverable missing after generate step");
-      }
       const current = generated;
 
       const proposed = await step.do(
@@ -60,7 +57,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         (): Promise<ProposeResult> => proposeDeliverable(ctx, round, feedbackForRound, current),
       );
 
-      if (!proposed.actionId) {
+      if (proposed.actionId === null || proposed.actionId === "") {
         logInfo("workflow.done.nogate", {
           agentInstanceId,
           companyId,

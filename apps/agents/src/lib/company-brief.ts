@@ -70,11 +70,13 @@ const mergeBrief = (
     ...parsed,
     locale: parsed.locale ?? "pt-BR",
     schemaVersion: parsed.schemaVersion ?? BRIEF_SCHEMA_VERSION,
-  } as CompanyBrief;
+  };
 };
 
+const hasText = (value: string | undefined): boolean => value !== undefined && value !== "";
+
 const parseBrief = (raw: string | null | undefined): Partial<CompanyBrief> => {
-  if (!raw) {
+  if (raw === null || raw === undefined || raw === "") {
     return {};
   }
   try {
@@ -91,8 +93,12 @@ const isBriefEmpty = (brief: Partial<CompanyBrief> | null | undefined): boolean 
     return true;
   }
   const brand = brief.brand;
-  const hasBrand = !!brand && (!!brand.palette || !!brand.voice || !!brand.references);
-  return !brief.industry && !brief.primaryGoal && !brief.audience && !hasBrand;
+  const hasBrand =
+    brand !== undefined &&
+    (hasText(brand.palette) || hasText(brand.voice) || hasText(brand.references));
+  return (
+    !hasText(brief.industry) && !hasText(brief.primaryGoal) && !hasText(brief.audience) && !hasBrand
+  );
 };
 
 const BRIEF_REQUIRED_FIELDS = [
@@ -107,12 +113,12 @@ const BRIEF_REQUIRED_FIELDS = [
 type BriefFieldId = (typeof BRIEF_REQUIRED_FIELDS)[number];
 
 const BRIEF_FIELD_FILLED: Record<BriefFieldId, (brief: Partial<CompanyBrief>) => boolean> = {
-  audience: (brief) => !!brief.audience,
-  "brand.palette": (brief) => !!brief.brand?.palette,
-  "brand.references": (brief) => !!brief.brand?.references,
-  "brand.voice": (brief) => !!brief.brand?.voice,
-  industry: (brief) => !!brief.industry,
-  primaryGoal: (brief) => !!brief.primaryGoal,
+  audience: (brief) => hasText(brief.audience),
+  "brand.palette": (brief) => hasText(brief.brand?.palette),
+  "brand.references": (brief) => hasText(brief.brand?.references),
+  "brand.voice": (brief) => hasText(brief.brand?.voice),
+  industry: (brief) => hasText(brief.industry),
+  primaryGoal: (brief) => hasText(brief.primaryGoal),
 };
 
 const isBriefFieldFilled = (brief: Partial<CompanyBrief>, field: BriefFieldId): boolean =>

@@ -2,8 +2,23 @@ import type { Context, Next } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { secureHeaders } from "hono/secure-headers";
 
-const getClientIp = (c: Context): string =>
-  c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || c.env?.remoteAddr || "unknown";
+const firstNonEmpty = (...candidates: Array<string | undefined>): string | undefined =>
+  candidates.find((value) => value !== undefined && value !== "");
+
+const getClientIp = (c: Context): string => {
+  const env: unknown = c.env;
+  const remoteAddr =
+    typeof env === "object" &&
+    env !== null &&
+    "remoteAddr" in env &&
+    typeof env.remoteAddr === "string"
+      ? env.remoteAddr
+      : undefined;
+  return (
+    firstNonEmpty(c.req.header("x-forwarded-for"), c.req.header("x-real-ip"), remoteAddr) ??
+    "unknown"
+  );
+};
 
 export const securityHeaders = secureHeaders({
   contentSecurityPolicy: {
@@ -33,7 +48,7 @@ export const securityHeaders = secureHeaders({
 
 export const standardRateLimit = rateLimiter({
   handler: (c: Context) => {
-    return c.json(
+    c.res = c.json(
       {
         error: {
           code: "RATE_LIMIT_EXCEEDED",
@@ -51,7 +66,7 @@ export const standardRateLimit = rateLimiter({
 
 export const apiRateLimit = rateLimiter({
   handler: (c: Context) => {
-    return c.json(
+    c.res = c.json(
       {
         error: {
           code: "API_RATE_LIMIT_EXCEEDED",
@@ -71,7 +86,11 @@ export const requestSizeLimit = (maxSize: number = 10 * 1024 * 1024) => {
   return async (c: Context, next: Next) => {
     const contentLength = c.req.header("content-length");
 
-    if (contentLength && Math.trunc(Number(contentLength)) > maxSize) {
+    if (
+      contentLength !== undefined &&
+      contentLength !== "" &&
+      Math.trunc(Number(contentLength)) > maxSize
+    ) {
       return c.json(
         {
           error: {
@@ -83,12 +102,14 @@ export const requestSizeLimit = (maxSize: number = 10 * 1024 * 1024) => {
       );
     }
 
-    return await next();
+    // oxlint-disable-next-line callback-return -- Hono middleware: the size guard returns early; nothing runs after next()
+    await next();
+    return undefined;
   };
 };
 
 export const requestId = (c: Context, next: Next) => {
-  const id = c.req.header("x-request-id") || crypto.randomUUID();
+  const id = firstNonEmpty(c.req.header("x-request-id")) ?? crypto.randomUUID();
   c.set("requestId", id);
   c.header("x-request-id", id);
   return next();

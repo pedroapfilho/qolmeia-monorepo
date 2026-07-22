@@ -166,7 +166,7 @@ const listPendingActions = async (
   const limit = options.limit ?? 100;
   const clauses: Array<string> = ["action.status = 'pending'"];
   const params: Array<number | string> = [];
-  if (options.companyId) {
+  if (options.companyId !== undefined && options.companyId !== "") {
     clauses.push("action.company_id = ?");
     params.push(options.companyId);
   } else if (options.companyIds && options.companyIds.length > 0) {
@@ -192,17 +192,18 @@ const listActions = async (
   options: { companyId?: string; limit?: number } = {},
 ): Promise<ReadonlyArray<Action>> => {
   const limit = Math.min(options.limit ?? 200, 500);
-  const cursor = options.companyId
-    ? db
-        .prepare(
-          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.company_id = ? ORDER BY action.created_at DESC LIMIT ?`,
-        )
-        .bind(options.companyId, limit)
-    : db
-        .prepare(
-          `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} ORDER BY action.created_at DESC LIMIT ?`,
-        )
-        .bind(limit);
+  const cursor =
+    options.companyId !== undefined && options.companyId !== ""
+      ? db
+          .prepare(
+            `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} WHERE action.company_id = ? ORDER BY action.created_at DESC LIMIT ?`,
+          )
+          .bind(options.companyId, limit)
+      : db
+          .prepare(
+            `SELECT ${ACTION_WITH_AGENT_COLS} ${ACTION_WITH_AGENT_FROM} ORDER BY action.created_at DESC LIMIT ?`,
+          )
+          .bind(limit);
   const { results } = await cursor.all<ActionRow>();
   return results.map(mapAction);
 };

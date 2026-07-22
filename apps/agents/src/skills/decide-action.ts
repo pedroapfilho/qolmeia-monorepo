@@ -34,7 +34,7 @@ const decideActionSkill: UnknownSkill = {
     }
 
     const ticket = await loadTicket(ctx.env.DB, action.ticketId);
-    if (!ticket?.workflowId) {
+    if (ticket === null || ticket.workflowId === null || ticket.workflowId === "") {
       return { error: "Workflow não encontrado para essa ação." };
     }
 

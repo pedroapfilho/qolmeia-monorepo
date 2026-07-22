@@ -3,6 +3,10 @@ import awesomeness from "oxlint-config-awesomeness";
 
 export default defineConfig({
   extends: [awesomeness],
+  options: {
+    typeAware: true,
+    typeCheck: true,
+  },
   overrides: [
     // `new-cap` enforces `new` for PascalCase callables, but several frameworks
     // expose factory functions whose names are PascalCase by convention:
@@ -88,6 +92,16 @@ export default defineConfig({
       files: ["playwright.config.ts", "**/next.config.ts"],
       rules: {
         "node/no-sync": "off",
+      },
+    },
+    // playwright.config.ts sits outside every tsconfig project, so typeCheck
+    // compiles it with a default target below es2024 and rejects the `v` flag
+    // (TS1501) that require-unicode-regexp demands. The testMatch/testIgnore
+    // regexes use no v-only syntax; `u` is equivalent there.
+    {
+      files: ["playwright.config.ts"],
+      rules: {
+        "require-unicode-regexp": "off",
       },
     },
   ],

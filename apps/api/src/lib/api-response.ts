@@ -11,7 +11,7 @@ type ApiErrorCode =
 
 type ApiErrorBody = {
   error: {
-    code: ApiErrorCode | string;
+    code: ApiErrorCode | (string & Record<never, never>);
     details?: ReadonlyArray<{ field: string; message: string }>;
     message: string;
   };
@@ -24,7 +24,7 @@ type ApiListBody<T> = {
 
 type JsonErrorArgs = {
   c: Context;
-  code: ApiErrorCode | string;
+  code: ApiErrorCode | (string & Record<never, never>);
   details?: ReadonlyArray<{ field: string; message: string }>;
   message: string;
   status: 400 | 401 | 403 | 404 | 422 | 500;
@@ -102,7 +102,10 @@ const parsePagination = (args: ParsePaginationArgs): ParsedPagination => {
       limit = Math.min(parsed, maxLimit);
     }
   }
-  const cursorDate = args.cursor ? decodeCursor(args.cursor) : null;
+  const cursorDate =
+    args.cursor !== undefined && args.cursor !== null && args.cursor !== ""
+      ? decodeCursor(args.cursor)
+      : null;
   return { cursorDate, limit };
 };
 

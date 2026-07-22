@@ -45,7 +45,7 @@ type ActivityEntry = {
   refId: string | null;
   refType: string | null;
   summary: string;
-  type: ActivityType | string;
+  type: ActivityType | (string & Record<never, never>);
 };
 
 type ActivityRow = {
@@ -88,7 +88,7 @@ const listActivity = async (
   const limit = options.limit ?? 100;
   const clauses: Array<string> = [];
   const params: Array<number | string> = [];
-  if (options.companyId) {
+  if (options.companyId !== undefined && options.companyId !== "") {
     clauses.push("al.company_id = ?");
     params.push(options.companyId);
   }

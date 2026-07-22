@@ -58,7 +58,9 @@ const TemplateRow = ({ busy, onToggle, template }: TemplateRowProps) => {
           <Button
             aria-label={`${toggleLabel} ${template.displayName}`}
             disabled={busy}
-            onClick={() => onToggle(template)}
+            onClick={() => {
+              onToggle(template);
+            }}
             size="sm"
             variant="ghost"
           >

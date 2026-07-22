@@ -12,7 +12,7 @@ import type { TestInfo } from "@playwright/test";
 // doesn't tip the address past 64 and trip Resend's "Invalid `to`
 // field" rejection.
 const makeTestEmail = (info: TestInfo): string => {
-  const slug = info.title.replaceAll(/\W+/gv, "-").toLowerCase().slice(0, 28);
+  const slug = info.title.replaceAll(/\W+/gu, "-").toLowerCase().slice(0, 28);
   const run = (process.env.GITHUB_RUN_ID ?? crypto.randomBytes(4).toString("hex")).slice(-8);
   return `delivered+${run}-${slug}@resend.dev`;
 };

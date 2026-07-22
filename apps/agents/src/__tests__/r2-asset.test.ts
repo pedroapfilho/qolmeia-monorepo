@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -60,7 +60,7 @@ describe("signed asset URL", () => {
     expect(url.startsWith("http://worker.test/assets/asset-xyz?token=")).toBe(true);
     const token = new URL(url).searchParams.get("token");
     expect(token).not.toBeNull();
-    if (token) {
+    if (token !== null && token !== "") {
       const ok = await verifyAssetToken(env.ASSETS_SIGNING_KEY, "asset-xyz", token);
       expect(ok).toBe(true);
     }
@@ -92,7 +92,7 @@ describe("asset serving headers", () => {
       "https://agents.test",
       "svg-asset-1",
     );
-    const res = await SELF.fetch(url);
+    const res = await exports.default.fetch(url);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
     expect(res.headers.get("content-security-policy")).toContain("sandbox");
@@ -106,7 +106,7 @@ describe("asset serving headers", () => {
       "https://agents.test",
       "png-asset-1",
     );
-    const res = await SELF.fetch(url);
+    const res = await exports.default.fetch(url);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-security-policy")).toBeNull();
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");

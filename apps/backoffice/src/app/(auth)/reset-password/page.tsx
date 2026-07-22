@@ -55,7 +55,7 @@ const ResetPasswordForm = () => {
     validators: { onSubmit: resetPasswordSchema },
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();
@@ -82,7 +82,9 @@ const ResetPasswordForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       type="password"
                       value={field.state.value}
                     />
@@ -104,7 +106,9 @@ const ResetPasswordForm = () => {
                       id={field.name}
                       name={field.name}
                       onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                      }}
                       type="password"
                       value={field.state.value}
                     />

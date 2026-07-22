@@ -8,7 +8,7 @@ let cachedAuth: Auth | undefined;
 export const getAuth = (): Auth => {
   if (!cachedAuth) {
     const secret = process.env.BETTER_AUTH_SECRET;
-    if (!secret || secret.length < 32) {
+    if (secret === undefined || secret.length < 32) {
       throw new Error(
         "BETTER_AUTH_SECRET must be set to at least 32 characters (generate with: openssl rand -base64 32)",
       );

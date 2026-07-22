@@ -97,7 +97,12 @@ const buildRoster = (
     const id = row.id;
     const lifetimeDone = doneByAgent.get(row.id) ?? 0;
     if (role === "worker") {
-      if (!row.template_id || !row.worker_kind) {
+      if (
+        row.template_id === null ||
+        row.template_id === "" ||
+        row.worker_kind === null ||
+        row.worker_kind === ""
+      ) {
         throw new Error(`worker ${row.id} missing template_id or worker_kind`);
       }
       return {
@@ -320,7 +325,12 @@ const getMemberDetail = async (
     status: resolveAgentStatus({ status: toInstanceStatus(row.status) }, currentWork),
   };
   if (role === "worker") {
-    if (!row.template_id || !row.worker_kind) {
+    if (
+      row.template_id === null ||
+      row.template_id === "" ||
+      row.worker_kind === null ||
+      row.worker_kind === ""
+    ) {
       throw new Error(`worker ${row.id} missing template_id or worker_kind`);
     }
     return {

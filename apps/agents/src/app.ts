@@ -1,6 +1,7 @@
 import { registerProvider } from "@flue/runtime";
 import { flue } from "@flue/runtime/routing";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { cors } from "hono/cors";
 
 import { logError } from "#/lib/logger";
@@ -20,9 +21,8 @@ app.use(
   cors({
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    origin: (origin, c) => {
-      const env = c.env as Env;
-      const allowed = env.CLIENT_ORIGINS.split(",").map((value) => value.trim());
+    origin: (origin, c: Context<{ Bindings: Env }>) => {
+      const allowed = c.env.CLIENT_ORIGINS.split(",").map((value) => value.trim());
       return allowed.includes(origin) ? origin : null;
     },
   }),
@@ -31,7 +31,7 @@ app.use(
 app.use("*", async (c, next) => {
   // oxlint-disable-next-line callback-return -- Hono after-middleware: headers are set post-next()
   await next();
-  if (c.res.headers.get("content-type")?.startsWith("text/event-stream")) {
+  if (c.res.headers.get("content-type")?.startsWith("text/event-stream") === true) {
     c.res.headers.set("cache-control", "no-cache, no-transform");
   }
 });

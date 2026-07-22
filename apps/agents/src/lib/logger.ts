@@ -41,8 +41,12 @@ const emit = (level: Level, event: string, payload: LogPayload): void => {
   console.log(serialised);
 };
 
-const logInfo = (event: string, payload: LogPayload = {}): void => emit("info", event, payload);
-const logError = (event: string, payload: LogPayload = {}): void => emit("error", event, payload);
+const logInfo = (event: string, payload: LogPayload = {}): void => {
+  emit("info", event, payload);
+};
+const logError = (event: string, payload: LogPayload = {}): void => {
+  emit("error", event, payload);
+};
 
 export { logError, logInfo };
 export type { LogPayload };

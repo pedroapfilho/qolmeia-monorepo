@@ -8,14 +8,20 @@ const internalRoutes = new Hono<{ Bindings: Env }>();
 
 internalRoutes.use("*", async (c, next) => {
   const expected = c.env.INTERNAL_SHARED_SECRET;
-  if (!expected) {
+  if (expected === undefined || expected === "") {
     return c.text("Internal endpoint disabled (missing INTERNAL_SHARED_SECRET)", 503);
   }
   const auth = c.req.header("Authorization");
-  if (!auth || !auth.startsWith("Bearer ") || !constantTimeEqual(auth.slice(7), expected)) {
+  if (
+    auth === undefined ||
+    !auth.startsWith("Bearer ") ||
+    !constantTimeEqual(auth.slice(7), expected)
+  ) {
     return c.text("Forbidden", 403);
   }
-  return await next();
+  // oxlint-disable-next-line callback-return -- Hono middleware: the guards return early; nothing runs after next()
+  await next();
+  return undefined;
 });
 
 const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");

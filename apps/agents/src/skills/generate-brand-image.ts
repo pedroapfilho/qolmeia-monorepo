@@ -74,12 +74,14 @@ const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> =>
     }),
   );
   return settled.flatMap((result) =>
-    result.status === "fulfilled" && result.value ? [result.value] : [],
+    result.status === "fulfilled" && result.value !== null && result.value !== ""
+      ? [result.value]
+      : [],
   );
 };
 
 const parseDataUrl = (url: string): { bytes: Uint8Array; mime: string } | null => {
-  const match = url.match(/^data:(?<mime>[^;]+);base64,(?<b64>.+)$/v);
+  const match = /^data:(?<mime>[^;]+);base64,(?<b64>.+)$/v.exec(url);
   if (!match) {
     return null;
   }
@@ -152,9 +154,9 @@ const generateBrandImageSkill: UnknownSkill = {
       return { error: `Image gen HTTP ${response.status}: ${body.slice(0, 200)}` };
     }
 
-    const json = (await response.json()) as ChatCompletionResponse;
+    const json = await response.json<ChatCompletionResponse>();
     const imageUrl = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) {
+    if (imageUrl === undefined || imageUrl === "") {
       return { error: "Image gen response missing choices[0].message.images[0].image_url.url" };
     }
 
