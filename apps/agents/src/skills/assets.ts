@@ -77,7 +77,7 @@ const saveAssetInputSchema = z.object({
 const saveAssetSkill: UnknownSkill = {
   description:
     "Salva um documento de texto na biblioteca da empresa. Use 'customer' para uma entrega final que o cliente deve ver, ou 'agent' para material de trabalho interno.",
-  execute(input: unknown, ctx: SkillContext): Promise<{ assetId: string }> {
+  execute: (input: unknown, ctx: SkillContext): Promise<{ assetId: string }> => {
     const { content, folder, mime, name } = saveAssetInputSchema.parse(input);
     return persistTextAsset(ctx.env, {
       companyId: ctx.companyId,

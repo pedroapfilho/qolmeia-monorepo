@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";

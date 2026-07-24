@@ -1,5 +1,5 @@
 import { seedProductDefaults } from "@repo/db/worker";
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
 
 import { createSqlFixtureCompat } from "#/__tests__/sql-fixture-compat";

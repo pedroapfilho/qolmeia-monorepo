@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { handlerMock } = vi.hoisted(() => ({ handlerMock: vi.fn() }));
+const { handlerMock } = vi.hoisted(() => ({
+  handlerMock: vi.fn<(request: Request) => Promise<Response>>(),
+}));
 
 vi.mock("../lib/auth", () => ({
   auth: { handler: handlerMock },
@@ -29,7 +31,7 @@ describe("authRoutes adapter", () => {
     const res = await authRoutes.fetch(req);
 
     expect(handlerMock).toHaveBeenCalledTimes(1);
-    const forwarded = handlerMock.mock.calls[0]![0] as Request;
+    const forwarded = handlerMock.mock.calls[0][0];
     expect(forwarded.url).toBe("http://localhost:4000/auth/sign-in/email");
     expect(forwarded.method).toBe("POST");
     expect(res.status).toBe(200);

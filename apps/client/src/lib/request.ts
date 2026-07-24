@@ -7,6 +7,7 @@ const request = async <T>(path: string, label: string, init?: RequestInit): Prom
   if (!res.ok) {
     throw new Error(`${label} failed (${res.status})`);
   }
+  // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
   return (await res.json()) as T;
 };
 

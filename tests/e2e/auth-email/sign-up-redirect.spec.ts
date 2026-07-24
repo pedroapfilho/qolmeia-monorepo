@@ -54,7 +54,7 @@ test.describe("Sign-up with redirect context", () => {
     // packages/auth rebuilt the form's relative callbackURL (its ?from=
     // context) against the backoffice origin, so the emailed link carries
     // the absolute /tickets callback, not the app root.
-    const verifyUrl = extractLink(mail, /\/api\/auth\/verify-email\?token=/v);
+    const verifyUrl = extractLink(mail, /\/api\/auth\/verify-email\?token=/u);
     expect(new URL(verifyUrl).searchParams.get("callbackURL")).toBe(`${backofficeUrl}${fromPath}`);
 
     // The link IS the login: the verify handler mints a session for the

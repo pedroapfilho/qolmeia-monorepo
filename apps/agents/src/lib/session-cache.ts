@@ -20,10 +20,10 @@ type CacheKeyInput = {
 };
 
 const buildCacheKey = async (input: CacheKeyInput): Promise<string | null> => {
-  if (input.token) {
+  if (input.token !== null && input.token !== "") {
     return `${input.namespace}:tok:${await sha256Hex(input.token)}`;
   }
-  if (input.cookie) {
+  if (input.cookie !== null && input.cookie !== "") {
     return `${input.namespace}:cookie:${await sha256Hex(input.cookie)}`;
   }
   return null;
@@ -35,7 +35,7 @@ const describeCacheKey = (key: string): string => {
 };
 
 const readCachedString = async (env: Env, key: string | null): Promise<string | null> => {
-  if (!key || !env.SESSIONS) {
+  if (key === null || key === "") {
     return null;
   }
   try {
@@ -55,7 +55,7 @@ const writeCachedString = async (
   value: string,
   ttlSeconds: number,
 ): Promise<void> => {
-  if (!key || !env.SESSIONS) {
+  if (key === null || key === "") {
     return;
   }
   try {

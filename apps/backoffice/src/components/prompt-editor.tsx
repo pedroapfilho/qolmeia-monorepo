@@ -57,27 +57,36 @@ const PromptEditor = ({
           className="min-h-[150px] resize-y text-[13.5px] leading-relaxed"
           disabled={busy}
           id="prompt-editor"
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+          }}
           placeholder="Escreva instruções específicas para este agente, em pt-BR."
           rows={8}
           value={value}
         />
         <FieldDescription>
-          {overridden && updatedAt
+          {overridden && updatedAt !== null
             ? `Você modificou este prompt em ${formatDate(updatedAt)}. Mudanças passam a valer na próxima interação.`
             : "Mudanças passam a valer na próxima interação."}
         </FieldDescription>
       </Field>
 
       <div className="flex gap-2">
-        <Button disabled={busy || !dirty} onClick={() => onSave(value)}>
+        <Button
+          disabled={busy === true || !dirty}
+          onClick={() => {
+            void onSave(value);
+          }}
+        >
           Salvar prompt
         </Button>
         <Button
-          disabled={busy || !overridden}
-          onClick={async () => {
-            await onReset();
-            setValue("");
+          disabled={busy === true || !overridden}
+          onClick={() => {
+            void (async () => {
+              await onReset();
+              setValue("");
+            })();
           }}
           variant="ghost"
         >

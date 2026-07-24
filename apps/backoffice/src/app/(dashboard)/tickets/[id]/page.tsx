@@ -53,7 +53,7 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
   }
 
   const { actions, ticket } = detail;
-  const relatedAction = actions[0] ?? null;
+  const relatedAction = actions.at(0) ?? null;
 
   return (
     <div className="flex flex-col gap-6">

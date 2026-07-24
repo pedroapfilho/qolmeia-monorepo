@@ -10,9 +10,9 @@ const mockFetchTeam = vi.fn();
 const mockSubscribeTeamEvents = vi.fn();
 
 vi.mock("@/lib/team", async () => {
-  const actual = (await vi.importActual("@/lib/team")) as {
+  const actual = await vi.importActual<{
     fetchTeam: () => Promise<Array<TeamMemberView>>;
-  };
+  }>("@/lib/team");
   return {
     ...actual,
     fetchTeam: () => mockFetchTeam(),
@@ -48,7 +48,9 @@ describe("useTeamRoster", () => {
   it("fetches on mount", async () => {
     const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
 
     expect(mockFetchTeam).toHaveBeenCalledOnce();
     expect(result.current.members).toEqual([]);
@@ -57,7 +59,9 @@ describe("useTeamRoster", () => {
   it("refetches on visibility change to visible", async () => {
     const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
 
     act(() => {
       Object.defineProperty(document, "visibilityState", {
@@ -67,20 +71,26 @@ describe("useTeamRoster", () => {
       window.dispatchEvent(new Event("visibilitychange"));
     });
 
-    await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => {
+      expect(mockFetchTeam).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("exposes refetch method for manual triggers", async () => {
     const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
     expect(mockFetchTeam).toHaveBeenCalledOnce();
 
     act(() => {
       void result.current.refetch();
     });
 
-    await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => {
+      expect(mockFetchTeam).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("refetches when a team event arrives", async () => {
@@ -92,14 +102,18 @@ describe("useTeamRoster", () => {
 
     const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
     expect(mockFetchTeam).toHaveBeenCalledOnce();
 
     act(() => {
       notify?.();
     });
 
-    await vi.waitFor(() => expect(mockFetchTeam).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => {
+      expect(mockFetchTeam).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("unsubscribes from team events on unmount", async () => {
@@ -107,7 +121,9 @@ describe("useTeamRoster", () => {
     mockSubscribeTeamEvents.mockReturnValue(unsubscribe);
 
     const { result, unmount } = renderRoster();
-    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
 
     unmount();
 
@@ -120,7 +136,9 @@ describe("useTeamRoster", () => {
 
     const { result } = renderRoster();
 
-    await vi.waitFor(() => expect(result.current.status).toBe("error"));
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
 
     expect(result.current.error).toEqual(testError);
     expect(result.current.members).toEqual([]);

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const EmpresaContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
   const companyId = me.currentOrg?.id;
-  if (!companyId) {
+  if (companyId === undefined || companyId === "") {
     throw new Error("CUSTOMER has no currentOrg; auth invariant broken");
   }
 

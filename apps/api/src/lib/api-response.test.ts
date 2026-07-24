@@ -83,12 +83,12 @@ describe("validationError", () => {
       }
     }
     validationError(c, zerr!);
-    const arg = json.mock.calls[0]![0] as {
+    const arg = json.mock.calls[0][0] as {
       error: { code: string; details: ReadonlyArray<{ field: string; message: string }> };
     };
-    expect(json.mock.calls[0]![1]).toBe(422);
+    expect(json.mock.calls[0][1]).toBe(422);
     expect(arg.error.code).toBe("VALIDATION_ERROR");
-    expect(arg.error.details[0]!.field).toBe("name");
+    expect(arg.error.details[0].field).toBe("name");
   });
 
   it("falls back to '(root)' when path is empty", () => {
@@ -102,10 +102,10 @@ describe("validationError", () => {
       }
     }
     validationError(c, zerr!);
-    const arg = json.mock.calls[0]![0] as {
+    const arg = json.mock.calls[0][0] as {
       error: { details: ReadonlyArray<{ field: string }> };
     };
-    expect(arg.error.details[0]!.field).toBe("(root)");
+    expect(arg.error.details[0].field).toBe("(root)");
   });
 });
 

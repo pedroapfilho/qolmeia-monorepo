@@ -39,7 +39,7 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
 
   const seesEverything = companies.size === 0 && disciplines.size === 0;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (submitting) {
       return;
@@ -63,7 +63,12 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
   };
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+    <form
+      className="flex flex-col gap-6"
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
+    >
       <fieldset className="flex flex-col gap-2.5">
         <legend className="text-sm font-semibold text-foreground">Empresas</legend>
         <p className="text-xs text-muted-foreground">
@@ -89,7 +94,9 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
                     aria-label={company.name}
                     checked={checked}
                     className="size-4 accent-primary"
-                    onChange={() => setCompanies((s) => toggle(s, company.id))}
+                    onChange={() => {
+                      setCompanies((s) => toggle(s, company.id));
+                    }}
                     type="checkbox"
                   />
                   <span className="text-sm font-medium text-foreground">{company.name}</span>
@@ -126,7 +133,9 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
                     aria-label={disciplineLabel(discipline)}
                     checked={checked}
                     className="size-3.5 accent-primary"
-                    onChange={() => setDisciplines((s) => toggle(s, discipline))}
+                    onChange={() => {
+                      setDisciplines((s) => toggle(s, discipline));
+                    }}
                     type="checkbox"
                   />
                   <span className="text-sm font-medium text-foreground">

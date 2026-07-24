@@ -11,7 +11,13 @@ const DashboardError = ({ reset }: { error: Error & { digest?: string }; reset: 
         instantes.
       </p>
     </div>
-    <Button onClick={() => reset()}>Tentar novamente</Button>
+    <Button
+      onClick={() => {
+        reset();
+      }}
+    >
+      Tentar novamente
+    </Button>
   </main>
 );
 

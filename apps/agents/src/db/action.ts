@@ -66,6 +66,7 @@ const mapAction = (row: ActionRecord): Action => ({
   feedback: row.feedback,
   id: row.id,
   policy: toPolicy(row.policy),
+  // oxlint-disable-next-line no-unsafe-type-assertion -- proposed is a JSON column written by proposeAction in this module
   proposed: row.proposed as Record<string, unknown>,
   status: toStatus(row.status),
   ticketId: row.ticketId,
@@ -93,6 +94,7 @@ const proposeAction = async (db: Database, input: ProposeActionInput): Promise<{
       companyId: input.companyId,
       id: crypto.randomUUID(),
       policy: input.policy,
+      // oxlint-disable-next-line no-unsafe-type-assertion -- callers pass JSON-serializable proposals; Prisma's write type is narrower than Record<string, unknown>
       proposed: input.proposed as Prisma.InputJsonValue,
       status: "pending",
       ticketId: input.ticketId,
@@ -142,9 +144,9 @@ const listPendingActions = async (
   options: PendingOptions = {},
 ): Promise<ReadonlyArray<Action>> => {
   let companyId: string | { in: Array<string> } | undefined;
-  if (options.companyId) {
+  if (options.companyId !== undefined && options.companyId !== "") {
     companyId = options.companyId;
-  } else if (options.companyIds?.length) {
+  } else if (options.companyIds !== undefined && options.companyIds.length > 0) {
     companyId = { in: [...options.companyIds] };
   }
   const rows = await db.action.findMany({
@@ -154,9 +156,10 @@ const listPendingActions = async (
     where: {
       companyId,
       status: "pending",
-      ticket: options.disciplines?.length
-        ? { agentInstance: { template: { workerKind: { in: [...options.disciplines] } } } }
-        : undefined,
+      ticket:
+        options.disciplines !== undefined && options.disciplines.length > 0
+          ? { agentInstance: { template: { workerKind: { in: [...options.disciplines] } } } }
+          : undefined,
     },
   });
   return rows.map(mapAction);

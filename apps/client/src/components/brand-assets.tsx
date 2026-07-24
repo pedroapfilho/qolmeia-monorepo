@@ -24,6 +24,9 @@ import {
   uploadBrandAsset,
 } from "@/lib/company";
 
+const isBrandCategory = (value: string): value is BrandCategory =>
+  BRAND_CATEGORIES.some((category) => category.value === value);
+
 const BRAND_QUERY_KEY = ["brand-assets"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = ["image/gif", "image/jpeg", "image/png", "image/svg+xml", "image/webp"];
@@ -92,7 +95,12 @@ const BrandAssets = () => {
             Categoria
             <select
               className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
-              onChange={(e) => setCategory(e.currentTarget.value as BrandCategory)}
+              onChange={(e) => {
+                const { value } = e.currentTarget;
+                if (isBrandCategory(value)) {
+                  setCategory(value);
+                }
+              }}
               value={category}
             >
               {BRAND_CATEGORIES.map((c) => (
@@ -157,7 +165,9 @@ const BrandAssets = () => {
                   aria-label="Remover referência"
                   className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-md bg-background/80 text-muted-foreground backdrop-blur transition-colors hover:bg-background hover:text-foreground disabled:opacity-50"
                   disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate(asset.id)}
+                  onClick={() => {
+                    deleteMutation.mutate(asset.id);
+                  }}
                   type="button"
                 >
                   <X aria-hidden className="size-3.5" />

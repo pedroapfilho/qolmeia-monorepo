@@ -36,12 +36,17 @@ const toAssetKind = toEnum<AssetKind>(
   "knowledge_doc",
 );
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const assetName = (metadata: unknown, id: string, kind: string): string => {
-  const meta = (metadata ?? {}) as Record<string, unknown>;
-  const candidate =
-    (typeof meta.name === "string" && meta.name) ||
-    (typeof meta.originalName === "string" && meta.originalName);
-  return candidate || `${kind} ${id.slice(0, 6)}`;
+  const meta = isRecord(metadata) ? metadata : {};
+  const name = typeof meta.name === "string" && meta.name !== "" ? meta.name : undefined;
+  const originalName =
+    typeof meta.originalName === "string" && meta.originalName !== ""
+      ? meta.originalName
+      : undefined;
+  return name ?? originalName ?? `${kind} ${id.slice(0, 6)}`;
 };
 
 const sha256Hex = async (bytes: Uint8Array): Promise<string> => {

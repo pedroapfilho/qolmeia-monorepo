@@ -14,15 +14,16 @@ const SESSION_CACHE_NAMESPACE = "session";
 const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
   const authHeader = request.headers.get("Authorization");
-  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const bearerToken =
+    authHeader !== null && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const cookieHeader = request.headers.get("Cookie");
 
   const token = bearerToken ?? tokenParam;
 
   const headers: Record<string, string> = {};
-  if (token) {
+  if (token !== null && token !== "") {
     headers.Authorization = `Bearer ${token}`;
-  } else if (cookieHeader) {
+  } else if (cookieHeader !== null && cookieHeader !== "") {
     headers.Cookie = cookieHeader;
   } else {
     return null;
@@ -34,9 +35,14 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     token,
   });
   const cachedRaw = await readCachedString(env, cacheKey);
-  if (cachedRaw) {
+  if (cachedRaw !== null && cachedRaw !== "") {
     const parsed = safeJson<ValidatedSession | null>(cachedRaw, null);
-    if (parsed?.companyId && parsed.role && parsed.userId) {
+    if (
+      parsed !== null &&
+      parsed.companyId !== "" &&
+      typeof parsed.role === "string" &&
+      parsed.userId !== ""
+    ) {
       return parsed;
     }
   }

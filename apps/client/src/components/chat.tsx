@@ -79,6 +79,9 @@ const hasVisibleContent = (message: ChatMessage): boolean =>
       case "text": {
         return part.text.length > 0;
       }
+      case "reasoning": {
+        return false;
+      }
       default: {
         return false;
       }
@@ -116,7 +119,7 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
           );
         }
         if (part.type === "file" && part.mediaType?.startsWith("image/")) {
-          if (!part.url) {
+          if (part.url === undefined || part.url === "") {
             return (
               <span
                 className={cn(

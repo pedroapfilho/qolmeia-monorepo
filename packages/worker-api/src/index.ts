@@ -15,7 +15,7 @@ class ApiError extends Error {
 const buildHeaders = (init?: FetchInit, contentType?: string): Headers => {
   const headers = new Headers(init?.headers);
   headers.set("Accept", "application/json");
-  if (contentType && !headers.has("Content-Type")) {
+  if (contentType !== undefined && contentType !== "" && !headers.has("Content-Type")) {
     headers.set("Content-Type", contentType);
   }
   return headers;
@@ -27,8 +27,10 @@ const handleResponse = async <T>(res: Response): Promise<T> => {
     throw new ApiError(res.status, body);
   }
   if (res.status === 204) {
+    // oxlint-disable-next-line no-unsafe-type-assertion -- 204 has no body; callers request T = null for delete endpoints
     return null as T;
   }
+  // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
   return res.json() as Promise<T>;
 };
 
@@ -63,7 +65,7 @@ const createBrowserApi = (agentsUrl: string, basePath = ""): BrowserApi => {
         ...init,
         body: serialized,
         credentials: "include",
-        headers: buildHeaders(init, serialized ? "application/json" : undefined),
+        headers: buildHeaders(init, serialized === undefined ? undefined : "application/json"),
         method,
       });
       return handleResponse<T>(res);

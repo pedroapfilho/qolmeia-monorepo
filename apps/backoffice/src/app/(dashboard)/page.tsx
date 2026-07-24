@@ -44,24 +44,30 @@ type StatCardProps = {
 };
 
 const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
+  const hasHref = href !== undefined && href !== "";
   const body = (
     <Card
-      className={cn("gap-0 px-5 py-4", href ? "transition-colors hover:border-input" : undefined)}
+      className={cn(
+        "gap-0 px-5 py-4",
+        hasHref ? "transition-colors hover:border-input" : undefined,
+      )}
     >
       <p className="text-[13px] text-muted-foreground">{label}</p>
       <p
         className={cn(
           "mt-2 font-display text-3xl font-bold tracking-tight tabular-nums",
-          accent ? "text-destructive" : "text-foreground",
+          accent === true ? "text-destructive" : "text-foreground",
         )}
       >
         {value}
       </p>
-      {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
+      {sub !== undefined && sub !== "" ? (
+        <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
+      ) : null}
     </Card>
   );
 
-  return href ? (
+  return hasHref ? (
     <Link className="block" href={href}>
       {body}
     </Link>

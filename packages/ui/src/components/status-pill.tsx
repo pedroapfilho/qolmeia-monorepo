@@ -33,13 +33,13 @@ const StatusPill = ({ className, dotless, label, pulse, tone, ...props }: Status
       )}
       {...props}
     >
-      {dotless ? null : (
+      {dotless === true ? null : (
         <span
           aria-hidden
           className={cn(
             "size-1.5 shrink-0 rounded-full",
             t.dot,
-            pulse && "motion-safe:animate-qpulse",
+            pulse === true && "motion-safe:animate-qpulse",
           )}
         />
       )}

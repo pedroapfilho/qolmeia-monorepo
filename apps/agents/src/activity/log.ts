@@ -39,7 +39,7 @@ type ActivityEntry = {
   refId: string | null;
   refType: string | null;
   summary: string;
-  type: ActivityType | string;
+  type: ActivityType | (string & Record<never, never>);
 };
 const ACTIVITY_CATEGORIES = ["ACTION", "TICKET", "WORKER", "TEAM", "MEMBER"] as const;
 type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
@@ -74,6 +74,7 @@ const listActivity = async (
     companyName: row.company.name,
     createdAt: row.createdAt.getTime(),
     id: row.id,
+    // oxlint-disable-next-line no-unsafe-type-assertion -- payload is a JSON column written by logActivity in this module
     payload: row.payload as Record<string, unknown> | null,
     refId: row.refId,
     refType: row.refType,

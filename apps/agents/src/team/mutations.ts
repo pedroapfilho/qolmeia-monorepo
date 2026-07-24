@@ -61,7 +61,7 @@ const hireMember = async (db: PrismaClient, input: HireInput): Promise<TeamMembe
   const existingRoster = await getTeamRoster(db, input.companyId);
   const trimmedName = input.displayName?.trim();
   const desiredName =
-    trimmedName && trimmedName.length > 0
+    trimmedName !== undefined && trimmedName.length > 0
       ? trimmedName
       : nextDisplayName(
           template.displayName,

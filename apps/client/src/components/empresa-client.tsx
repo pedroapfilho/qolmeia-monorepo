@@ -127,17 +127,31 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
                   {m.role === "worker" && (
                     <>
                       {detail?.id === m.id ? (
-                        <Button onClick={() => handleCloseDetail(m.id)} size="sm" variant="outline">
+                        <Button
+                          onClick={() => {
+                            handleCloseDetail(m.id);
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
                           Fechar editor
                         </Button>
                       ) : (
-                        <Button onClick={() => handleOpenDetail(m.id)} size="sm" variant="outline">
+                        <Button
+                          onClick={() => {
+                            void handleOpenDetail(m.id);
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
                           Editar prompt
                         </Button>
                       )}
                       <Button
                         disabled={busyId === m.id}
-                        onClick={() => handleTogglePause(m.id, m.status !== "paused")}
+                        onClick={() => {
+                          void handleTogglePause(m.id, m.status !== "paused");
+                        }}
                         size="sm"
                         variant="ghost"
                       >
@@ -177,7 +191,12 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
                 <span className="font-mono text-xs tracking-wide text-muted-foreground">
                   {t.hiredCount > 0 ? `Você já tem ${t.hiredCount}` : "Nenhum ainda"}
                 </span>
-                <Button onClick={() => setHireTemplate(t)} size="sm">
+                <Button
+                  onClick={() => {
+                    setHireTemplate(t);
+                  }}
+                  size="sm"
+                >
                   Contratar
                 </Button>
               </CardContent>
@@ -187,7 +206,9 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
       </section>
 
       <HireDialog
-        onClose={() => setHireTemplate(null)}
+        onClose={() => {
+          setHireTemplate(null);
+        }}
         onHired={handleHired}
         open={hireTemplate !== null}
         template={hireTemplate}

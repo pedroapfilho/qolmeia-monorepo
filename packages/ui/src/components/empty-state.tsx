@@ -17,7 +17,7 @@ const EmptyState = ({ action, className, description, icon, title }: EmptyStateP
       className,
     )}
   >
-    {icon ? (
+    {icon !== undefined && icon !== null ? (
       <div
         aria-hidden
         className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5"
@@ -25,9 +25,13 @@ const EmptyState = ({ action, className, description, icon, title }: EmptyStateP
         {icon}
       </div>
     ) : null}
-    {title ? <p className="text-sm font-medium text-foreground">{title}</p> : null}
-    {description ? <p className="max-w-md text-sm text-muted-foreground">{description}</p> : null}
-    {action ? <div className="pt-2">{action}</div> : null}
+    {title !== undefined && title !== null ? (
+      <p className="text-sm font-medium text-foreground">{title}</p>
+    ) : null}
+    {description !== undefined && description !== null ? (
+      <p className="max-w-md text-sm text-muted-foreground">{description}</p>
+    ) : null}
+    {action !== undefined && action !== null ? <div className="pt-2">{action}</div> : null}
   </div>
 );
 

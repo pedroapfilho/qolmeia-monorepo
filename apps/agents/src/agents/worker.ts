@@ -11,7 +11,7 @@ export default defineAgent<Env>(async (context) => {
   const agentInstanceId = context.id;
   const db = getDb(context.env);
   const instance = await loadAgentInstance(db, agentInstanceId);
-  if (!instance?.templateId) {
+  if (instance === null || instance.templateId === null || instance.templateId === "") {
     throw new Error(`flue worker ${agentInstanceId}: agent_instance has no template`);
   }
   const template = await getTemplate(db, instance.templateId);
@@ -22,13 +22,14 @@ export default defineAgent<Env>(async (context) => {
     select: { companyId: true },
     where: { id: agentInstanceId },
   });
-  if (!row?.companyId) {
+  const companyId = row?.companyId;
+  if (companyId === undefined || companyId === "") {
     throw new Error(`flue worker ${agentInstanceId}: no company_id`);
   }
 
   const ctx: SkillContext = {
     agentInstanceId,
-    companyId: row.companyId,
+    companyId,
     env: context.env,
   };
 

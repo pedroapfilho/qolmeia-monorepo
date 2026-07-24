@@ -65,6 +65,7 @@ export const requireCustomer = async (): Promise<MeResponse> => {
     throw new Error(`/api/me responded ${res.status}`);
   }
 
+  // oxlint-disable-next-line no-unsafe-type-assertion -- trusted first-party auth-service response; the role check below rejects malformed payloads
   const me = (await res.json()) as MeResponse;
   if (me.role !== "CUSTOMER") {
     redirect("/no-access");

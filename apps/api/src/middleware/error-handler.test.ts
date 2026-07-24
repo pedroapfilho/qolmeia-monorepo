@@ -52,11 +52,11 @@ describe("AppError", () => {
 });
 
 describe("errorHandler", () => {
-  it("should handle HTTPException", async () => {
+  it("should handle HTTPException", () => {
     const c = createMockContext();
     const err = new HTTPException(403, { message: "Forbidden" });
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     expect(c.json).toHaveBeenCalledWith(
       { error: { code: "HTTP_EXCEPTION", message: "Forbidden" } },
@@ -64,7 +64,7 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle ZodError with field details", async () => {
+  it("should handle ZodError with field details", () => {
     const c = createMockContext();
     const err = new ZodError([
       {
@@ -77,7 +77,7 @@ describe("errorHandler", () => {
       },
     ]);
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     expect(c.json).toHaveBeenCalledWith(
       {
@@ -91,11 +91,11 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle AppError with custom code", async () => {
+  it("should handle AppError with custom code", () => {
     const c = createMockContext();
     const err = new AppError("User not found", 404, true, "USER_NOT_FOUND");
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     expect(c.json).toHaveBeenCalledWith(
       { error: { code: "USER_NOT_FOUND", message: "User not found" } },
@@ -103,11 +103,11 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle AppError without code defaulting to APP_ERROR", async () => {
+  it("should handle AppError without code defaulting to APP_ERROR", () => {
     const c = createMockContext();
     const err = new AppError("Something wrong", 422);
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     expect(c.json).toHaveBeenCalledWith(
       { error: { code: "APP_ERROR", message: "Something wrong" } },
@@ -115,14 +115,14 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle P2002 as 409 DUPLICATE_ENTRY", async () => {
+  it("should handle P2002 as 409 DUPLICATE_ENTRY", () => {
     const c = createMockContext();
     const err = Object.assign(new Error("Unique constraint failed"), {
       clientVersion: "7.0.0",
       code: "P2002",
     });
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     expect(c.json).toHaveBeenCalledWith(
       { error: { code: "DUPLICATE_ENTRY", message: "A record with this value already exists" } },
@@ -130,14 +130,14 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle P2025 as 404 NOT_FOUND", async () => {
+  it("should handle P2025 as 404 NOT_FOUND", () => {
     const c = createMockContext();
     const err = Object.assign(new Error("Record not found"), {
       clientVersion: "7.0.0",
       code: "P2025",
     });
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     expect(c.json).toHaveBeenCalledWith(
       { error: { code: "NOT_FOUND", message: "Record not found" } },
@@ -145,11 +145,11 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should include error message and stack in development", async () => {
+  it("should include error message and stack in development", () => {
     const c = createMockContext();
     const err = new Error("dev error");
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     const call = c.json.mock.calls[0];
     expect(call?.[0]?.error?.message).toBe("dev error");
@@ -157,14 +157,14 @@ describe("errorHandler", () => {
     expect(call?.[1]).toBe(500);
   });
 
-  it("should hide error message in production", async () => {
+  it("should hide error message in production", () => {
     const mutableEnv = env as { NODE_ENV: string };
     mutableEnv.NODE_ENV = "production";
 
     const c = createMockContext();
     const err = new Error("secret detail");
 
-    await errorHandler(err, c);
+    errorHandler(err, c);
 
     const call = c.json.mock.calls[0];
     expect(call?.[0]?.error?.message).toBe("An unexpected error occurred");
