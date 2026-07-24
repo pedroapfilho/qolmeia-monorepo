@@ -161,7 +161,7 @@ export const createAuth = (config: AuthConfig) => {
       sendVerificationEmail: async ({ url, user }, request) => {
         const origin = request?.headers.get("origin");
         const verificationUrl = (() => {
-          if (origin === null || origin === "") {
+          if (origin === undefined || origin === null || origin === "") {
             return url;
           }
           try {

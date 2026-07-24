@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "../lib/utils";
+import { cn, isRenderable } from "../lib/utils";
 
 type EmptyStateProps = {
   action?: ReactNode;
@@ -17,7 +17,7 @@ const EmptyState = ({ action, className, description, icon, title }: EmptyStateP
       className,
     )}
   >
-    {icon !== undefined && icon !== null ? (
+    {isRenderable(icon) ? (
       <div
         aria-hidden
         className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5"
@@ -25,13 +25,11 @@ const EmptyState = ({ action, className, description, icon, title }: EmptyStateP
         {icon}
       </div>
     ) : null}
-    {title !== undefined && title !== null ? (
-      <p className="text-sm font-medium text-foreground">{title}</p>
-    ) : null}
-    {description !== undefined && description !== null ? (
+    {isRenderable(title) ? <p className="text-sm font-medium text-foreground">{title}</p> : null}
+    {isRenderable(description) ? (
       <p className="max-w-md text-sm text-muted-foreground">{description}</p>
     ) : null}
-    {action !== undefined && action !== null ? <div className="pt-2">{action}</div> : null}
+    {isRenderable(action) ? <div className="pt-2">{action}</div> : null}
   </div>
 );
 
