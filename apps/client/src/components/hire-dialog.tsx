@@ -48,7 +48,14 @@ const HireDialog = ({ onClose, onHired, open, template }: HireDialogProps) => {
   };
 
   return (
-    <Dialog onOpenChange={(o) => !o && onClose()} open={open}>
+    <Dialog
+      onOpenChange={(o) => {
+        if (!o) {
+          onClose();
+        }
+      }}
+      open={open}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Contratar {template?.displayName ?? ""}</DialogTitle>
@@ -62,7 +69,9 @@ const HireDialog = ({ onClose, onHired, open, template }: HireDialogProps) => {
           <Input
             disabled={busy}
             id="hire-name"
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+            }}
             placeholder={template?.displayName ?? ""}
             value={name}
           />
@@ -71,7 +80,12 @@ const HireDialog = ({ onClose, onHired, open, template }: HireDialogProps) => {
           <Button disabled={busy} onClick={onClose} variant="outline">
             Cancelar
           </Button>
-          <Button disabled={busy} onClick={confirm}>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              void confirm();
+            }}
+          >
             Contratar
           </Button>
         </DialogFooter>

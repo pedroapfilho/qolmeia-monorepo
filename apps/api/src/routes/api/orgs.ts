@@ -53,7 +53,7 @@ const provisionProductCompany = async (args: {
   name: string;
   slug: string;
 }): Promise<{ ok: true } | { error: string; ok: false }> => {
-  if (!env.INTERNAL_SHARED_SECRET) {
+  if (env.INTERNAL_SHARED_SECRET === undefined || env.INTERNAL_SHARED_SECRET === "") {
     return {
       error:
         "INTERNAL_SHARED_SECRET not configured on apps/api; set it and apps/agents to the same value",
@@ -86,7 +86,7 @@ const provisionProductCompany = async (args: {
 
 const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
   const prisma = deps.prisma ?? defaultPrisma;
-  const auth = deps.auth ?? (defaultAuth as unknown as AuthLike);
+  const auth = deps.auth ?? defaultAuth;
   const fetchImpl = deps.fetch ?? fetch;
   const app = new Hono();
 

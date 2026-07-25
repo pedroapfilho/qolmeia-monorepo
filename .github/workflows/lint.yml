@@ -14,4 +14,8 @@ jobs:
         with:
           runtime: node@24
           cache: true
+      # Type-aware linting resolves generated Prisma client types.
+      - run: pnpm turbo db:generate
+      # worker-bees types its bindings from the gitignored worker-configuration.d.ts.
+      - run: pnpm --filter worker-bees cf-typegen
       - run: pnpm oxlint --format=github .

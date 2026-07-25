@@ -11,8 +11,8 @@ declare module "hono" {
   }
 }
 
-const createOpenAPIApp = <V extends Record<string, unknown> = Record<string, never>>() => {
-  const app = new OpenAPIHono<{ Variables: EvlogContextVars & V }>();
+const createOpenAPIApp = () => {
+  const app = new OpenAPIHono<{ Variables: EvlogContextVars }>();
 
   app.doc("/openapi.json", {
     info: {

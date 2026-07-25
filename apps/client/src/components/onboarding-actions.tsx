@@ -102,7 +102,9 @@ const OnboardingActions = ({
                     checked={checked}
                     className="mt-0.5 size-4 accent-primary"
                     id={inputId}
-                    onChange={() => toggle(t.id)}
+                    onChange={() => {
+                      toggle(t.id);
+                    }}
                     type="checkbox"
                   />
                   <span className="flex flex-col gap-0.5">
@@ -123,7 +125,9 @@ const OnboardingActions = ({
           <Button
             className="rounded-lg"
             disabled={submitting || selected.size === 0}
-            onClick={handleConfirm}
+            onClick={() => {
+              void handleConfirm();
+            }}
             size="lg"
             type="button"
           >

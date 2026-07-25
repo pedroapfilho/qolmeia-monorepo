@@ -89,7 +89,7 @@ const useFlueChat = ({
       createFlueClient({
         baseUrl: baseUrl || "/",
         fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
-        ...(sessionToken ? { token: sessionToken } : {}),
+        ...(sessionToken !== undefined && sessionToken !== "" ? { token: sessionToken } : {}),
       }),
     [baseUrl, sessionToken],
   );

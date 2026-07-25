@@ -60,6 +60,12 @@ const formSchema = z.object({
   workerKind: z.string().trim().min(1, "Informe o tipo (worker kind)."),
 });
 
+const isFieldKey = (key: unknown): key is FieldKey =>
+  typeof key === "string" && key in formSchema.shape;
+
+const fieldError = (message: string | undefined): [string] | undefined =>
+  message !== undefined && message !== "" ? [message] : undefined;
+
 const parsePolicies = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
   if (trimmed === "") {
@@ -102,7 +108,9 @@ const SkillPicker = ({ busy, loading, onToggle, selected, skills }: SkillPickerP
               checked={checked}
               className="mt-0.5 size-4 accent-primary"
               disabled={busy}
-              onChange={() => onToggle(skill.id)}
+              onChange={() => {
+                onToggle(skill.id);
+              }}
               type="checkbox"
             />
             <span className="min-w-0">
@@ -192,20 +200,20 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
     el?.focus();
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const parsed = formSchema.safeParse(values);
     if (!parsed.success) {
       const fieldErrors: Partial<Record<FieldKey, string>> = {};
       for (const issue of parsed.error.issues) {
-        const key = issue.path[0] as FieldKey;
-        if (fieldErrors[key] === undefined) {
-          fieldErrors[key] = issue.message;
+        const key = issue.path[0];
+        if (isFieldKey(key)) {
+          fieldErrors[key] ??= issue.message;
         }
       }
       setErrors(fieldErrors);
-      const firstKey = parsed.error.issues[0]?.path[0] as FieldKey | undefined;
-      if (firstKey) {
+      const firstKey = parsed.error.issues[0]?.path[0];
+      if (isFieldKey(firstKey)) {
         focusFirstError(firstKey);
       }
       return;
@@ -265,10 +273,12 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                   disabled={busy}
                   id="displayName"
                   name="displayName"
-                  onChange={(e) => setField("displayName", e.target.value)}
+                  onChange={(e) => {
+                    setField("displayName", e.target.value);
+                  }}
                   value={values.displayName}
                 />
-                <FieldError errors={errors.displayName ? [errors.displayName] : undefined} />
+                <FieldError errors={fieldError(errors.displayName)} />
               </Field>
 
               <Field>
@@ -278,11 +288,13 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                   disabled={busy}
                   id="workerKind"
                   name="workerKind"
-                  onChange={(e) => setField("workerKind", e.target.value)}
+                  onChange={(e) => {
+                    setField("workerKind", e.target.value);
+                  }}
                   placeholder="seo-researcher"
                   value={values.workerKind}
                 />
-                <FieldError errors={errors.workerKind ? [errors.workerKind] : undefined} />
+                <FieldError errors={fieldError(errors.workerKind)} />
               </Field>
             </div>
 
@@ -292,10 +304,12 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                 disabled={busy}
                 id="description"
                 name="description"
-                onChange={(e) => setField("description", e.target.value)}
+                onChange={(e) => {
+                  setField("description", e.target.value);
+                }}
                 value={values.description}
               />
-              <FieldError errors={errors.description ? [errors.description] : undefined} />
+              <FieldError errors={fieldError(errors.description)} />
             </Field>
 
             <Field>
@@ -305,10 +319,12 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                 disabled={busy}
                 id="systemPrompt"
                 name="systemPrompt"
-                onChange={(e) => setField("systemPrompt", e.target.value)}
+                onChange={(e) => {
+                  setField("systemPrompt", e.target.value);
+                }}
                 value={values.systemPrompt}
               />
-              <FieldError errors={errors.systemPrompt ? [errors.systemPrompt] : undefined} />
+              <FieldError errors={fieldError(errors.systemPrompt)} />
             </Field>
 
             <div className="grid gap-5 sm:grid-cols-2">
@@ -319,11 +335,13 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                   disabled={busy}
                   id="model"
                   name="model"
-                  onChange={(e) => setField("model", e.target.value)}
+                  onChange={(e) => {
+                    setField("model", e.target.value);
+                  }}
                   placeholder="openai/gpt-4o-mini"
                   value={values.model}
                 />
-                <FieldError errors={errors.model ? [errors.model] : undefined} />
+                <FieldError errors={fieldError(errors.model)} />
               </Field>
 
               <Field>
@@ -333,12 +351,12 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                   disabled={busy}
                   id="defaultActionType"
                   name="defaultActionType"
-                  onChange={(e) => setField("defaultActionType", e.target.value)}
+                  onChange={(e) => {
+                    setField("defaultActionType", e.target.value);
+                  }}
                   value={values.defaultActionType}
                 />
-                <FieldError
-                  errors={errors.defaultActionType ? [errors.defaultActionType] : undefined}
-                />
+                <FieldError errors={fieldError(errors.defaultActionType)} />
               </Field>
             </div>
           </CardContent>
@@ -374,11 +392,13 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                 disabled={busy}
                 id={policiesFieldId}
                 name="defaultPolicies"
-                onChange={(e) => setField("defaultPolicies", e.target.value)}
+                onChange={(e) => {
+                  setField("defaultPolicies", e.target.value);
+                }}
                 spellCheck={false}
                 value={values.defaultPolicies}
               />
-              <FieldError errors={errors.defaultPolicies ? [errors.defaultPolicies] : undefined} />
+              <FieldError errors={fieldError(errors.defaultPolicies)} />
             </Field>
           </CardContent>
         </Card>

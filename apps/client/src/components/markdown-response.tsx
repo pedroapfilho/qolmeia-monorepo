@@ -29,7 +29,7 @@ const PlainLink = ({ children, className, href }: AnchorOverrideProps) => (
 );
 
 type StreamdownComponents = NonNullable<ComponentProps<typeof Streamdown>["components"]>;
-const STREAMDOWN_COMPONENTS = { a: PlainLink, img: PlainImage } as unknown as StreamdownComponents;
+const STREAMDOWN_COMPONENTS: StreamdownComponents = { a: PlainLink, img: PlainImage };
 
 type MessageResponseProps = ComponentProps<typeof Streamdown>;
 

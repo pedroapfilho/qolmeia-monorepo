@@ -8,13 +8,13 @@ type TeamEventSubscriber = {
 };
 
 class TeamEvents extends DurableObject<Env> {
-  #subscribers = new Set<TeamEventSubscriber>();
+  readonly #subscribers = new Set<TeamEventSubscriber>();
 
   // fallow-ignore-next-line unused-class-member
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/broadcast") {
-      const event = (await request.json()) as TeamEvent;
+      const event = await request.json<TeamEvent>();
       this.#broadcast(event);
       return new Response(null, { status: 204 });
     }

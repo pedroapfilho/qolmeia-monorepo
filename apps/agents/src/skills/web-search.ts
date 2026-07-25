@@ -39,7 +39,7 @@ const webSearchSkill: UnknownSkill = {
   async execute(input: unknown, ctx: SkillContext): Promise<WebSearchResult> {
     const { numResults, query } = webSearchInputSchema.parse(input);
     const apiKey = ctx.env.EXA_API_KEY;
-    if (!apiKey) {
+    if (apiKey === undefined || apiKey === "") {
       throw new Error("EXA_API_KEY não configurada; busca na web indisponível.");
     }
 
@@ -57,7 +57,7 @@ const webSearchSkill: UnknownSkill = {
       throw new Error(`Exa respondeu ${res.status}`);
     }
 
-    const data = (await res.json()) as { results?: ReadonlyArray<ExaResult> };
+    const data = await res.json<{ results?: ReadonlyArray<ExaResult> }>();
     return {
       results: (data.results ?? []).map((r) => ({
         publishedDate: r.publishedDate ?? null,

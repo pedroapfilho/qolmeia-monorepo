@@ -105,7 +105,7 @@ const forResetPassword = async (
     });
 
     if (row) {
-      const token = row.identifier.replace(/^reset-password:/v, "");
+      const token = row.identifier.replace(/^reset-password:/u, "");
       const url = `${authUrl}/reset-password?token=${token}`;
       return { token, url };
     }

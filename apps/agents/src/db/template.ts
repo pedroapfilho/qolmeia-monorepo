@@ -33,11 +33,13 @@ const toTemplateStatus = toEnum<TemplateStatus>(["active", "retired"], "active")
 const mapTemplate = (row: AgentTemplate): Template => ({
   createdAt: row.createdAt.getTime(),
   defaultActionType: row.defaultActionType,
+  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
   defaultPolicies: row.defaultPolicies as Record<string, string>,
   description: row.description,
   displayName: row.displayName,
   id: row.id,
   model: row.model,
+  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
   skillIds: row.skillIds as Array<string>,
   status: toTemplateStatus(row.status),
   systemPrompt: row.systemPrompt,
@@ -46,11 +48,13 @@ const mapTemplate = (row: AgentTemplate): Template => ({
   workerKind: row.workerKind,
 });
 const mapSkillOverlay = (row: PrismaSkill): SkillOverlay => ({
+  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
   defaultConfig: row.defaultConfig as Record<string, unknown> | null,
   description: row.description,
   displayName: row.displayName,
   enabled: row.enabled === 1,
   id: row.id,
+  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
   paramHints: row.paramHints as Record<string, string> | null,
   updatedAt: row.updatedAt.getTime(),
 });
@@ -86,7 +90,7 @@ const assertTemplatesEntitledForCompany = async (
   });
   const entitled = new Set(rows.map((row) => row.templateId));
   const missing = uniqueIds.find((id) => !entitled.has(id));
-  if (missing) {
+  if (missing !== undefined) {
     throw new Error(`Template ${missing} is not entitled for company ${companyId}`);
   }
 };

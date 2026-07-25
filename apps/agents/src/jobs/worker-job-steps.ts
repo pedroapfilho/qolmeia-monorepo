@@ -11,6 +11,9 @@ import { loadAgentInstance, markTicketDone, setTicketStatus } from "#/db/ticket"
 import { logError, logInfo } from "#/lib/logger";
 import { emitTeamEvent } from "#/team/events";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const MAX_REVISIONS = 3;
 
 type JobContext = {
@@ -58,7 +61,11 @@ const proposeDeliverable = async (
   const { agentInstanceId, companyId, env, ticketId } = ctx;
   const db = getDb(env);
   const agentInstance = await loadAgentInstance(db, agentInstanceId);
-  if (!agentInstance?.templateId) {
+  if (
+    agentInstance === null ||
+    agentInstance.templateId === null ||
+    agentInstance.templateId === ""
+  ) {
     throw new Error("agent_instance vanished mid-workflow");
   }
   const [template, company] = await Promise.all([
@@ -100,7 +107,8 @@ const proposeDeliverable = async (
     return { actionId: null, policy };
   }
 
-  const skillResults = JSON.parse(current.skillResultsJson) as Record<string, unknown>;
+  const parsedSkillResults: unknown = JSON.parse(current.skillResultsJson);
+  const skillResults = isRecord(parsedSkillResults) ? parsedSkillResults : {};
   const draft = skillResults.draftSocialPost;
   const proposedPayload: Record<string, unknown> = { summary: current.summary, ticketId };
   if (actionType === "publish_post" && draft !== undefined) {

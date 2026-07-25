@@ -1,5 +1,5 @@
 const parsePositiveInt = (raw: string | undefined, fallback: number, max: number): number => {
-  if (!raw) {
+  if (raw === undefined || raw === "") {
     return fallback;
   }
   const parsed = Math.trunc(Number(raw));
@@ -10,7 +10,7 @@ const parsePositiveInt = (raw: string | undefined, fallback: number, max: number
 };
 
 const parseTimestamp = (raw: string | undefined): number | undefined => {
-  if (!raw) {
+  if (raw === undefined || raw === "") {
     return undefined;
   }
   const parsed = Math.trunc(Number(raw));

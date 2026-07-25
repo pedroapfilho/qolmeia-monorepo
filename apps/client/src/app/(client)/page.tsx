@@ -36,6 +36,7 @@ const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
     if (!res.ok) {
       return null;
     }
+    // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
     return (await res.json()) as T;
   } catch {
     return null;
@@ -45,7 +46,7 @@ const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
 const ChatContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
   const companyId = me.currentOrg?.id;
-  if (!companyId) {
+  if (companyId === undefined || companyId === "") {
     throw new Error("CUSTOMER has no currentOrg; auth invariant broken");
   }
 

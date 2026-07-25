@@ -4,7 +4,7 @@ const EMBEDDING_MODEL = "@cf/baai/bge-m3";
 
 type Bindings = { AI: Ai; VECTORIZE: VectorizeIndex };
 
-type EmbedResult = { data?: Array<Array<number>> };
+const metaString = (value: unknown): string => (typeof value === "string" ? value : "");
 
 class VectorizeMemoryAdapter implements MemoryAdapter {
   constructor(private readonly env: Bindings) {}
@@ -25,12 +25,12 @@ class VectorizeMemoryAdapter implements MemoryAdapter {
       }
       const m = match.metadata ?? {};
       records.push({
-        agentInstanceId: String(m.agentInstanceId ?? ""),
-        companyId: String(m.companyId ?? ""),
-        content: String(m.content ?? ""),
+        agentInstanceId: metaString(m.agentInstanceId),
+        companyId: metaString(m.companyId),
+        content: metaString(m.content),
         createdAt: Number(m.createdAt ?? 0),
         id: match.id,
-        kind: String(m.kind ?? ""),
+        kind: metaString(m.kind),
         score: match.score,
       });
     }
@@ -56,10 +56,16 @@ class VectorizeMemoryAdapter implements MemoryAdapter {
   }
 
   private async embed(text: string): Promise<Array<number>> {
-    const result = (await this.env.AI.run(EMBEDDING_MODEL, { text: [text] })) as EmbedResult;
-    const vector = result.data?.[0];
-    if (!vector) {
-      throw new Error("Workers AI embedding returned no vector");
+    const result: unknown = await this.env.AI.run(EMBEDDING_MODEL, { text: [text] });
+    const data =
+      typeof result === "object" && result !== null && "data" in result ? result.data : undefined;
+    const first: unknown = Array.isArray(data) ? data[0] : undefined;
+    if (!Array.isArray(first)) {
+      throw new TypeError("Workers AI embedding returned no vector");
+    }
+    const vector = first.filter((n): n is number => typeof n === "number");
+    if (vector.length !== first.length) {
+      throw new Error("Workers AI embedding returned a non-numeric vector");
     }
     return vector;
   }

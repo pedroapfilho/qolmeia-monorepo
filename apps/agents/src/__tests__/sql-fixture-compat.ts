@@ -31,6 +31,7 @@ const JSON_COLUMNS = new Set([
   "skill_ids",
 ]);
 
+// oxlint-disable-next-line no-unnecessary-type-parameters -- mirrors D1's PreparedStatement.all<T>(): the row shape is asserted by the caller, as the real binding does
 const normalizeRow = <T>(row: Record<string, unknown>): T =>
   Object.fromEntries(
     Object.entries(row).map(([key, value]) => {
@@ -61,11 +62,12 @@ const primaryKeyFor = (table: string): ReadonlyArray<string> => {
 };
 
 const transformInsert = (input: string): string => {
-  const behavior = input.match(/INSERT OR (?<behavior>IGNORE|REPLACE) INTO/iv)?.groups?.behavior;
+  const behavior = /INSERT OR (?<behavior>IGNORE|REPLACE) INTO/iv.exec(input)?.groups?.behavior;
   let sql = input.replace(/INSERT OR (?:IGNORE|REPLACE) INTO/iv, "INSERT INTO").trim();
-  const match = sql.match(
-    /INSERT INTO\s+["']?(?<table>[a-z_]+)["']?\s*\((?<columns>[^\)]+)\)\s*VALUES\s*\((?<values>[\s\S]+)\)\s*;?$/iv,
-  );
+  const match =
+    /INSERT INTO\s+["']?(?<table>[a-z_]+)["']?\s*\((?<columns>[^\)]+)\)\s*VALUES\s*\((?<values>[\s\S]+)\)\s*;?$/iv.exec(
+      sql,
+    );
   if (!match?.groups) {
     return sql;
   }
@@ -92,11 +94,12 @@ const transformInsert = (input: string): string => {
 };
 
 const transformInsertSelect = (input: string): string => {
-  const behavior = input.match(/INSERT OR (?<behavior>IGNORE|REPLACE) INTO/iv)?.groups?.behavior;
+  const behavior = /INSERT OR (?<behavior>IGNORE|REPLACE) INTO/iv.exec(input)?.groups?.behavior;
   let sql = input.replace(/INSERT OR (?:IGNORE|REPLACE) INTO/iv, "INSERT INTO").trim();
-  const match = sql.match(
-    /INSERT INTO\s+["']?(?<table>[a-z_]+)["']?\s*\((?<columns>[^\)]+)\)\s*SELECT\s+(?<values>[\s\S]+?)\s+FROM\s+/iv,
-  );
+  const match =
+    /INSERT INTO\s+["']?(?<table>[a-z_]+)["']?\s*\((?<columns>[^\)]+)\)\s*SELECT\s+(?<values>[\s\S]+?)\s+FROM\s+/iv.exec(
+      sql,
+    );
   if (!match?.groups) {
     return sql;
   }
@@ -134,7 +137,7 @@ class PrismaFixtureStatement implements FixtureStatement {
     this.#sql = toPostgres(sql);
   }
 
-  bind(...values: Array<unknown>): PrismaFixtureStatement {
+  bind(...values: Array<unknown>): this {
     this.#bindings = values;
     return this;
   }
@@ -168,7 +171,7 @@ const createSqlFixtureCompat = (db: PrismaClient): TestDatabase => {
     }
     return results;
   };
-  return Object.assign(db, { batch, prepare }) as TestDatabase;
+  return Object.assign(db, { batch, prepare });
 };
 
 export { createSqlFixtureCompat };

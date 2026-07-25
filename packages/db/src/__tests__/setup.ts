@@ -5,6 +5,7 @@ const result = dotenv.config({
   path: new URL("../../.env", import.meta.url).pathname,
 });
 
-if (result.parsed?.DATABASE_URL) {
-  vi.stubEnv("DATABASE_URL", result.parsed.DATABASE_URL);
+const parsedDatabaseUrl = result.parsed?.DATABASE_URL;
+if (parsedDatabaseUrl !== undefined && parsedDatabaseUrl !== "") {
+  vi.stubEnv("DATABASE_URL", parsedDatabaseUrl);
 }

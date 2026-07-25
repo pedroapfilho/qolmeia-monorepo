@@ -6,7 +6,10 @@ import { DEFAULT_SKILLS, DEFAULT_TEMPLATES } from "./product-seed";
 const createPrismaClient = (connectionString: string): PrismaClient => {
   const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
   const adapter = new PrismaPg(
-    { connectionString, options: schema ? `-c search_path=${schema}` : undefined },
+    {
+      connectionString,
+      options: schema === undefined || schema === "" ? undefined : `-c search_path=${schema}`,
+    },
     { schema },
   );
   return new PrismaClient({ adapter });

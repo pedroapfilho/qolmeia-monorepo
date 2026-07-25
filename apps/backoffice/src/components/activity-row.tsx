@@ -44,7 +44,7 @@ const hasPayload = (payload: unknown): boolean => {
   if (typeof payload !== "object") {
     return true;
   }
-  return Object.keys(payload as Record<string, unknown>).length > 0;
+  return Object.keys(payload).length > 0;
 };
 
 const ActivityRow = ({ row }: ActivityRowProps) => {

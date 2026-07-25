@@ -55,6 +55,7 @@ const STATUS_TONE: Record<AgentDisplayStatus, StatusTone> = {
 };
 
 const AgentCard = ({ member, variant }: AgentCardProps) => {
+  const currentWork = member.currentWork.at(0);
   const detailed = variant === "detailed";
   const tone = STATUS_TONE[member.status];
   return (
@@ -81,10 +82,8 @@ const AgentCard = ({ member, variant }: AgentCardProps) => {
             ? `${roleLabel(member)} · ${member.lifetimeDone} entregas`
             : `${member.lifetimeDone} entregas`}
         </p>
-        {detailed && member.currentWork[0] && (
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            → {member.currentWork[0].summary}
-          </p>
+        {detailed && currentWork !== undefined && (
+          <p className="mt-1 truncate text-xs text-muted-foreground">→ {currentWork.summary}</p>
         )}
       </div>
       <StatusPill

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+// oxlint-disable-next-line strict-void-return -- execFile returns a ChildProcess while promisify's parameter is typed void-returning; promisify resolves execFile's own promisified form
 const execFileAsync = promisify(execFile);
 const databaseUrl =
   process.env.DATABASE_URL ??

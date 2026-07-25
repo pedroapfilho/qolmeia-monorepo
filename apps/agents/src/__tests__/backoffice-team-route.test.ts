@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const COMPANY_ID = "co_bot_test";
@@ -37,17 +37,17 @@ afterEach(() => {
 describe("/api/backoffice/teams/:companyId/members", () => {
   it("lists members for STAFF", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members?cf_session=tok`,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { members: Array<{ id: string }> };
+    const body = await res.json<{ members: Array<{ id: string }> }>();
     expect(body.members.some((m) => m.id === "ai_bot_d")).toBe(true);
   });
 
   it("403 for CUSTOMER", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members?cf_session=tok`,
     );
     expect(res.status).toBe(403);
@@ -55,20 +55,20 @@ describe("/api/backoffice/teams/:companyId/members", () => {
 
   it("GET member detail returns templateSystemPrompt and promptOverride", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/ai_bot_d?cf_session=tok`,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       member: { promptOverride: string | null; templateSystemPrompt: string };
-    };
+    }>();
     expect(body.member.templateSystemPrompt).toBe("TPL_PROMPT");
     expect(body.member.promptOverride).toBeNull();
   });
 
   it("PATCH member updates promptOverride and writes operator-tagged activity", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/ai_bot_d?cf_session=tok`,
       {
         body: JSON.stringify({ promptOverride: "novo prompt" }),
@@ -88,17 +88,17 @@ describe("/api/backoffice/teams/:companyId/members", () => {
 describe("backoffice team routes — cross-tenant", () => {
   it("STAFF queries another company's members list (empty when it has none)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/co_other_company/members?cf_session=tok`,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { members: Array<{ id: string }> };
+    const body = await res.json<{ members: Array<{ id: string }> }>();
     expect(body.members).toEqual([]);
   });
 
   it("404 (not 403) when STAFF reads a member that doesn't exist in that company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/co_other_company/members/ai_bot_d?cf_session=tok`,
     );
     expect(res.status).toBe(404);
@@ -106,7 +106,7 @@ describe("backoffice team routes — cross-tenant", () => {
 
   it("404 (not 403) when STAFF PATCHes a member that doesn't exist in that company", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/co_other_company/members/ai_bot_d?cf_session=tok`,
       {
         body: JSON.stringify({ displayName: "evil" }),
@@ -121,11 +121,13 @@ describe("backoffice team routes — cross-tenant", () => {
 describe("/api/backoffice/companies", () => {
   it("returns every company with its roster + brief completeness for STAFF", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch("https://agents.test/api/backoffice/companies?cf_session=tok");
+    const res = await exports.default.fetch(
+      "https://agents.test/api/backoffice/companies?cf_session=tok",
+    );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       companies: Array<{ briefPercent: number; id: string; members: Array<{ id: string }> }>;
-    };
+    }>();
     const co = body.companies.find((c) => c.id === COMPANY_ID);
     expect(co).toBeDefined();
     expect(typeof co?.briefPercent).toBe("number");
@@ -134,7 +136,9 @@ describe("/api/backoffice/companies", () => {
 
   it("403 for CUSTOMER", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
-    const res = await SELF.fetch("https://agents.test/api/backoffice/companies?cf_session=tok");
+    const res = await exports.default.fetch(
+      "https://agents.test/api/backoffice/companies?cf_session=tok",
+    );
     expect(res.status).toBe(403);
   });
 });
@@ -142,10 +146,10 @@ describe("/api/backoffice/companies", () => {
 describe("backoffice member detail extras + pause/resume", () => {
   it("member detail exposes companyName and createdAt", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
-    const res = await SELF.fetch(
+    const res = await exports.default.fetch(
       `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/ai_bot_d?cf_session=tok`,
     );
-    const body = (await res.json()) as { member: { companyName: string; createdAt: number } };
+    const body = await res.json<{ member: { companyName: string; createdAt: number } }>();
     expect(body.member.companyName).toBe("BT");
     expect(typeof body.member.createdAt).toBe("number");
   });
@@ -155,26 +159,26 @@ describe("backoffice member detail extras + pause/resume", () => {
     const url = `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/ai_bot_d?cf_session=tok`;
     const headers = { "content-type": "application/json" };
 
-    const pause = await SELF.fetch(url, {
+    const pause = await exports.default.fetch(url, {
       body: JSON.stringify({ status: "paused" }),
       headers,
       method: "PATCH",
     });
     expect(pause.status).toBe(200);
-    expect(((await pause.json()) as { member: { status: string } }).member.status).toBe("paused");
+    const pauseBody = await pause.json<{ member: { status: string } }>();
+    expect(pauseBody.member.status).toBe("paused");
     const row = await env.DB.prepare(
       "SELECT status FROM agent_instance WHERE id = 'ai_bot_d'",
     ).first<{ status: string }>();
     expect(row?.status).toBe("paused");
 
-    const resume = await SELF.fetch(url, {
+    const resume = await exports.default.fetch(url, {
       body: JSON.stringify({ status: "active" }),
       headers,
       method: "PATCH",
     });
     expect(resume.status).toBe(200);
-    expect(((await resume.json()) as { member: { status: string } }).member.status).toBe(
-      "available",
-    );
+    const resumeBody = await resume.json<{ member: { status: string } }>();
+    expect(resumeBody.member.status).toBe("available");
   });
 });

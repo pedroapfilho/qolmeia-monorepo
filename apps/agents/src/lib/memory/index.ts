@@ -8,9 +8,7 @@ const getMemoryAdapter = (env: Env): MemoryAdapter => {
   if (env.AI && env.VECTORIZE) {
     return new VectorizeMemoryAdapter({ AI: env.AI, VECTORIZE: env.VECTORIZE });
   }
-  if (!inMemorySingleton) {
-    inMemorySingleton = new InMemoryMemoryAdapter();
-  }
+  inMemorySingleton ??= new InMemoryMemoryAdapter();
   return inMemorySingleton;
 };
 

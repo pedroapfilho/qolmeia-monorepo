@@ -84,7 +84,7 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
               <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
                 Proposta
               </span>
-              {summary && (
+              {summary !== null && summary !== "" && (
                 <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
                   {summary}
                 </p>
@@ -172,13 +172,15 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
                 <span className="text-muted-foreground">Status final:</span>
                 <StatusPill status={action.status} />
               </div>
-              {action.decidedAt && (
+              {action.decidedAt !== null && (
                 <p className="text-xs text-muted-foreground">
                   Decisão em {formatDateTime(action.decidedAt)}
-                  {action.decidedByUserId ? ` por ${action.decidedByUserId}` : ""}
+                  {action.decidedByUserId !== null && action.decidedByUserId !== ""
+                    ? ` por ${action.decidedByUserId}`
+                    : ""}
                 </p>
               )}
-              {action.feedback && (
+              {action.feedback !== null && action.feedback !== "" && (
                 <div className="rounded-lg border border-border bg-secondary/40 p-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
                   {action.feedback}
                 </div>

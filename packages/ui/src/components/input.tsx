@@ -19,7 +19,7 @@ const resolveTrailingPad = (hasEnd: boolean, hasStart: boolean) => {
   return "px-3";
 };
 
-function Input({ className, endIcon, startIcon, type, ...props }: InputProps) {
+const Input = ({ className, endIcon, startIcon, type, ...props }: InputProps) => {
   if (startIcon || endIcon) {
     return (
       <div className={cn("relative", className)}>
@@ -66,6 +66,6 @@ function Input({ className, endIcon, startIcon, type, ...props }: InputProps) {
       {...props}
     />
   );
-}
+};
 
 export { Input };

@@ -117,7 +117,7 @@ const TEMPLATES = {
     to: userEmail,
   }),
   welcome: ({ userEmail, username, verificationUrl }: WelcomePayload) => ({
-    subject: `Welcome to Qolmeia${username ? `, ${username}` : ""}! Please verify your email`,
+    subject: `Welcome to Qolmeia${username !== undefined && username !== "" ? `, ${username}` : ""}! Please verify your email`,
     template: React.createElement(WelcomeEmail, { userEmail, username, verificationUrl }),
     to: userEmail,
   }),
@@ -130,16 +130,19 @@ const TEMPLATES = {
 };
 
 const sendTransactionalEmail = (email: TransactionalEmail, config: MailerConfig) => {
+  // oxlint-disable-next-line no-unsafe-type-assertion -- discriminated-union dispatch: the satisfies block above proves each key maps to its payload's builder
   const builder = TEMPLATES[email.type] as TemplateBuilder<typeof email>;
   const { subject, template, to } = builder(email);
   return sendEmail({
     apiKey: config.apiKey,
     defaultReplyTo: config.defaultReplyTo,
-    from: config.from || DEFAULT_FROM,
+    from: config.from !== undefined && config.from !== "" ? config.from : DEFAULT_FROM,
     subject,
     tags: [
       { name: "type", value: email.type },
-      ...(email.userId ? [{ name: "userId", value: email.userId }] : []),
+      ...(email.userId !== undefined && email.userId !== ""
+        ? [{ name: "userId", value: email.userId }]
+        : []),
     ],
     template,
     to,

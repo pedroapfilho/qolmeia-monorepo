@@ -41,7 +41,7 @@ const buildRoleGuard = (
   acceptedRoles: ReadonlyArray<OrgRole>,
   deps: RoleGuardDeps = {},
 ): MiddlewareHandler => {
-  const auth = deps.auth ?? (defaultAuth as unknown as AuthLike);
+  const auth = deps.auth ?? defaultAuth;
   const prisma = deps.prisma ?? defaultPrisma;
 
   return async (c: Context, next: Next) => {

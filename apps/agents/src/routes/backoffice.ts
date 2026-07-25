@@ -62,15 +62,16 @@ backofficeRoutes.get("/actions", async (c) => {
 
   const db = getDb(c.env);
   if (status === "pending") {
-    const items = companyId
-      ? await listPendingActions(db, { companyId })
-      : await (async () => {
-          const coverage = await listCoverage(db, c.get("userId"));
-          return listPendingActions(db, {
-            companyIds: coverage.companies,
-            disciplines: coverage.disciplines,
-          });
-        })();
+    const items =
+      companyId !== undefined && companyId !== ""
+        ? await listPendingActions(db, { companyId })
+        : await (async () => {
+            const coverage = await listCoverage(db, c.get("userId"));
+            return listPendingActions(db, {
+              companyIds: coverage.companies,
+              disciplines: coverage.disciplines,
+            });
+          })();
     const now = Date.now();
     const enriched = items.map((a) => ({
       actionType: a.actionType,
@@ -125,7 +126,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
   }
 
   const ticket = await loadTicket(db, action.ticketId);
-  if (!ticket?.workflowId) {
+  if (ticket === null || ticket.workflowId === null || ticket.workflowId === "") {
     return c.json({ error: "no workflow for this action" }, 500);
   }
 

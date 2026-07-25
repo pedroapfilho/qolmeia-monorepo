@@ -20,7 +20,7 @@ const buildAssetHeaders = (mime: string): Record<string, string> => {
 assetsRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
   const token = c.req.query("token");
-  if (!token) {
+  if (token === undefined || token === "") {
     return c.text("Missing token", 401);
   }
 

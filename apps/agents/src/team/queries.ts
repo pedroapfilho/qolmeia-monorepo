@@ -59,7 +59,13 @@ const projectRosterMember = (row: RosterRecord): TeamMemberView => {
   };
   const role = toRole(row.role);
   if (role === "worker") {
-    if (!row.templateId || !row.template?.workerKind) {
+    if (
+      row.templateId === null ||
+      row.templateId === "" ||
+      row.template?.workerKind === undefined ||
+      row.template.workerKind === null ||
+      row.template.workerKind === ""
+    ) {
       throw new Error(`worker ${row.id} missing template_id or worker_kind`);
     }
     return {
@@ -172,7 +178,13 @@ const getMemberDetail = async (
   };
   const role = toRole(row.role);
   if (role === "worker") {
-    if (!row.templateId || !row.template?.workerKind) {
+    if (
+      row.templateId === null ||
+      row.templateId === "" ||
+      row.template?.workerKind === undefined ||
+      row.template.workerKind === null ||
+      row.template.workerKind === ""
+    ) {
       throw new Error(`worker ${row.id} missing template_id or worker_kind`);
     }
     return {

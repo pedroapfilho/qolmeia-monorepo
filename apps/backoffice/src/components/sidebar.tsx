@@ -95,7 +95,7 @@ const isActive = (pathname: string, href: string): boolean => {
 const initialsFrom = (name: string): string => {
   const parts = name.trim().split(/\s+/v).filter(Boolean);
   const first = parts.at(0);
-  if (!first) {
+  if (first === undefined || first === "") {
     return "?";
   }
   if (parts.length === 1) {

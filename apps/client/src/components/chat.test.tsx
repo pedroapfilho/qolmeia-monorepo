@@ -10,10 +10,10 @@ class MockObserver {
   }
 }
 
-globalThis.ResizeObserver = MockObserver as unknown as typeof ResizeObserver;
+globalThis.ResizeObserver = MockObserver;
 globalThis.IntersectionObserver = MockObserver as unknown as typeof IntersectionObserver;
 
-if (!Element.prototype.scrollTo) {
+if (typeof Element.prototype.scrollTo !== "function") {
   Element.prototype.scrollTo = () => {};
 }
 
@@ -90,7 +90,9 @@ describe("Chat", () => {
         sessionToken="tok"
       />,
     );
-    await vi.waitFor(() => expect(kickoff).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => {
+      expect(kickoff).toHaveBeenCalledTimes(1);
+    });
     expect(screen.queryByText(/Um agente está respondendo/v)).not.toBeInTheDocument();
   });
 

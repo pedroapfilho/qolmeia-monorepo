@@ -50,7 +50,7 @@ test.describe("Sign-up email verification", () => {
     // (autoSignInAfterVerification: true) and 302s to the app-root callback.
     // failOnStatusCode: false because Playwright treats 3xx as failures by
     // default.
-    const verifyUrl = extractLink(mail, /\/api\/auth\/verify-email\?token=/v);
+    const verifyUrl = extractLink(mail, /\/api\/auth\/verify-email\?token=/u);
     const verifyResponse = await request.get(verifyUrl, {
       failOnStatusCode: false,
       maxRedirects: 0,

@@ -10,7 +10,7 @@ import { username } from "better-auth/plugins/username";
 import type { BetterAuthPlugin } from "better-auth/types";
 
 const parseEnvList = (value: string | undefined): Array<string> => {
-  if (!value) {
+  if (value === undefined || value === "") {
     return [];
   }
   const result: Array<string> = [];
@@ -28,7 +28,7 @@ const CALLBACK_FALLBACK_PATH = "/";
 const CALLBACK_ANCHOR_ORIGIN = "https://qolmeia.invalid";
 
 export const safeCallbackPath = (value: string | null): string => {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+  if (value === null || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
     return CALLBACK_FALLBACK_PATH;
   }
   try {
@@ -60,9 +60,10 @@ export const createAuth = (config: AuthConfig) => {
 
   const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
 
-  const mailer: MailerConfig | null = resendApiKey
-    ? { apiKey: resendApiKey, from: fromEmail }
-    : null;
+  const mailer: MailerConfig | null =
+    resendApiKey !== undefined && resendApiKey !== ""
+      ? { apiKey: resendApiKey, from: fromEmail }
+      : null;
 
   return betterAuth({
     account: {
@@ -74,7 +75,10 @@ export const createAuth = (config: AuthConfig) => {
 
     advanced: {
       cookiePrefix: "qolmeia",
-      crossSubDomainCookies: cookieDomain ? { domain: cookieDomain, enabled: true } : undefined,
+      crossSubDomainCookies:
+        cookieDomain !== undefined && cookieDomain !== ""
+          ? { domain: cookieDomain, enabled: true }
+          : undefined,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax" as const,
@@ -157,7 +161,7 @@ export const createAuth = (config: AuthConfig) => {
       sendVerificationEmail: async ({ url, user }, request) => {
         const origin = request?.headers.get("origin");
         const verificationUrl = (() => {
-          if (!origin) {
+          if (origin === undefined || origin === null || origin === "") {
             return url;
           }
           try {
@@ -219,7 +223,9 @@ export const createAuth = (config: AuthConfig) => {
     ],
 
     rateLimit: {
-      enabled: process.env.NODE_ENV === "production" && !process.env.CI,
+      enabled:
+        process.env.NODE_ENV === "production" &&
+        (process.env.CI === undefined || process.env.CI === ""),
       max: 100,
       storage: "database",
       window: 60,

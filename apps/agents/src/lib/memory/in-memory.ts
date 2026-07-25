@@ -55,7 +55,7 @@ type Stored = { embedding: ReadonlyArray<number>; record: MemoryRecord };
 class InMemoryMemoryAdapter implements MemoryAdapter {
   private readonly storage = new Map<string, Array<Stored>>();
 
-  retrieve(args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>> {
+  retrieve = (args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>> => {
     const bucket = this.storage.get(args.agentInstanceId) ?? [];
     if (bucket.length === 0) {
       return Promise.resolve([]);
@@ -71,9 +71,9 @@ class InMemoryMemoryAdapter implements MemoryAdapter {
     }
     scored.sort((a, b) => b.score - a.score);
     return Promise.resolve(scored.slice(0, args.topK));
-  }
+  };
 
-  upsert(record: MemoryRecord): Promise<void> {
+  upsert = (record: MemoryRecord): Promise<void> => {
     const bucket = this.storage.get(record.agentInstanceId) ?? [];
     const existing = bucket.findIndex((entry) => entry.record.id === record.id);
     const stored: Stored = { embedding: embed(record.content), record };
@@ -84,7 +84,7 @@ class InMemoryMemoryAdapter implements MemoryAdapter {
     }
     this.storage.set(record.agentInstanceId, bucket);
     return Promise.resolve();
-  }
+  };
 }
 
 export { InMemoryMemoryAdapter };

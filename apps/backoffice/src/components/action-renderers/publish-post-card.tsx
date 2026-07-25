@@ -24,20 +24,24 @@ type Draft = {
   tone?: string;
 };
 
+const hasText = (value: string | undefined): value is string => value !== undefined && value !== "";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const readDraft = (proposed: Action["proposed"]): Draft | null => {
-  const draft = (proposed as Record<string, unknown>).draft;
-  if (!draft || typeof draft !== "object") {
+  const draft = proposed.draft;
+  if (!isRecord(draft)) {
     return null;
   }
-  const d = draft as Record<string, unknown>;
   return {
-    body: typeof d.body === "string" ? d.body : undefined,
-    callToAction: typeof d.callToAction === "string" ? d.callToAction : undefined,
-    hashtags: Array.isArray(d.hashtags)
-      ? (d.hashtags.filter((h): h is string => typeof h === "string") as ReadonlyArray<string>)
+    body: typeof draft.body === "string" ? draft.body : undefined,
+    callToAction: typeof draft.callToAction === "string" ? draft.callToAction : undefined,
+    hashtags: Array.isArray(draft.hashtags)
+      ? draft.hashtags.filter((h): h is string => typeof h === "string")
       : undefined,
-    platform: typeof d.platform === "string" ? d.platform : undefined,
-    tone: typeof d.tone === "string" ? d.tone : undefined,
+    platform: typeof draft.platform === "string" ? draft.platform : undefined,
+    tone: typeof draft.tone === "string" ? draft.tone : undefined,
   };
 };
 
@@ -51,10 +55,10 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
     return null;
   }
 
-  const platformLabel = draft.platform
+  const platformLabel = hasText(draft.platform)
     ? (PLATFORM_COPY[draft.platform] ?? draft.platform)
     : "Rede social";
-  const platformAbbr = draft.platform ? (PLATFORM_ABBR[draft.platform] ?? "•") : "•";
+  const platformAbbr = hasText(draft.platform) ? (PLATFORM_ABBR[draft.platform] ?? "•") : "•";
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
@@ -67,7 +71,9 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
         </div>
         <div className="min-w-0">
           <div className="text-sm font-bold text-foreground">Publicar em {platformLabel}</div>
-          {draft.tone && <div className="text-xs text-muted-foreground">Tom · {draft.tone}</div>}
+          {hasText(draft.tone) && (
+            <div className="text-xs text-muted-foreground">Tom · {draft.tone}</div>
+          )}
         </div>
         <span className="ml-auto font-mono text-[10.5px] text-muted-foreground">
           feed · 1080×1080
@@ -84,13 +90,13 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
       </div>
 
       <div className="flex flex-col gap-3 px-4 py-4">
-        {draft.body && (
+        {hasText(draft.body) && (
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {draft.body}
           </p>
         )}
 
-        {draft.callToAction && (
+        {hasText(draft.callToAction) && (
           <p className="text-sm font-medium text-foreground">{draft.callToAction}</p>
         )}
 

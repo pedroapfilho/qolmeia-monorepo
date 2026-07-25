@@ -29,9 +29,17 @@ export class AppError extends Error {
   }
 }
 
+const APP_ERROR_STATUSES = [400, 401, 403, 404, 409, 422, 500] as const;
+type AppErrorStatus = (typeof APP_ERROR_STATUSES)[number];
+
+const toAppErrorStatus = (status: number): AppErrorStatus =>
+  APP_ERROR_STATUSES.find((known) => known === status) ?? 500;
+
 export const errorHandler = (err: Error, c: Context) => {
+  const forwardedFor = c.req.header("x-forwarded-for");
   c.get("log").error(err, {
-    ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip"),
+    ip:
+      forwardedFor !== undefined && forwardedFor !== "" ? forwardedFor : c.req.header("x-real-ip"),
     method: c.req.method,
     url: c.req.url,
     userAgent: c.req.header("user-agent"),
@@ -69,11 +77,11 @@ export const errorHandler = (err: Error, c: Context) => {
     return c.json(
       {
         error: {
-          code: err.code || "APP_ERROR",
+          code: err.code !== undefined && err.code !== "" ? err.code : "APP_ERROR",
           message: err.message,
         },
       },
-      err.statusCode as 400 | 401 | 403 | 404 | 409 | 422 | 500,
+      toAppErrorStatus(err.statusCode),
     );
   }
 

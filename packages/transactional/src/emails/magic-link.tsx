@@ -22,7 +22,7 @@ const MagicLinkEmail = ({ url, userEmail, username }: MagicLinkEmailProps) => {
       </Heading>
 
       <Text className="m-0 mb-2 text-base text-pretty break-words text-muted-foreground">
-        Olá{username ? ` ${username}` : ""},
+        Olá{username !== undefined && username !== "" ? ` ${username}` : ""},
       </Text>
 
       <Text className="m-0 mb-6 text-base text-pretty break-words text-muted-foreground">

@@ -48,13 +48,13 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));
 
 const previewResult = (result: unknown): unknown => {
-  if (result === null || result === undefined) {
-    return result;
+  if (typeof result === "string") {
+    return result.slice(0, 200);
   }
-  if (typeof result === "object") {
-    return result;
+  if (typeof result === "number" || typeof result === "boolean" || typeof result === "bigint") {
+    return String(result).slice(0, 200);
   }
-  return String(result).slice(0, 200);
+  return result;
 };
 
 type ResolvedSkill = {
