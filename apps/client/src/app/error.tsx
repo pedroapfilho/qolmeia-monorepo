@@ -1,24 +1,48 @@
 "use client";
 
 import { Button } from "@repo/ui/components/button";
+import { useEffect, useRef } from "react";
 
-const ClientError = ({ reset }: { error: Error & { digest?: string }; reset: () => void }) => (
-  <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center">
-    <div className="flex flex-col gap-2">
-      <h1 className="text-2xl font-semibold text-foreground">Não foi possível conectar ao chat</h1>
-      <p className="max-w-md text-sm text-muted-foreground">
-        O serviço de autenticação pode ter ficado indisponível por um instante. Tente novamente em
-        instantes.
-      </p>
-    </div>
-    <Button
-      onClick={() => {
-        reset();
-      }}
+import { log } from "@/lib/observability-client";
+
+type ClientErrorProps = {
+  error: Error & { digest?: string };
+  reset: () => void;
+};
+
+const ClientError = ({ error, reset }: ClientErrorProps) => {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    log.error({ digest: error.digest, error: error.message, message: "Route error boundary" });
+    // The boundary unmounts whatever held focus, dropping it on <body>. Focusing the heading
+    // both announces the failure and puts the keyboard caret inside the replacement content.
+    headingRef.current?.focus();
+  }, [error]);
+
+  return (
+    <main
+      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center"
+      id="main-content"
     >
-      Tentar novamente
-    </Button>
-  </main>
-);
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold text-foreground" ref={headingRef} tabIndex={-1}>
+          Não foi possível conectar ao chat
+        </h1>
+        <p className="max-w-md text-sm text-muted-foreground">
+          O serviço de autenticação pode ter ficado indisponível por um instante. Tente novamente em
+          instantes.
+        </p>
+      </div>
+      <Button
+        onClick={() => {
+          reset();
+        }}
+      >
+        Tentar novamente
+      </Button>
+    </main>
+  );
+};
 
 export default ClientError;
