@@ -2,6 +2,7 @@ import type { Database } from "#/db/client";
 import { getDb } from "#/db/client";
 import { toEnum } from "#/db/mappers";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
+import { toRecord } from "#/lib/records";
 
 type AssetKind = "audio" | "brand_asset" | "generated_image" | "knowledge_doc" | "user_upload";
 
@@ -29,18 +30,13 @@ const EXT_BY_MIME: Record<string, string> = {
 
 const TEXT_MIME_PREFIXES = ["text/", "application/json"];
 
-const isTextMime = (mime: string): boolean => TEXT_MIME_PREFIXES.some((p) => mime.startsWith(p));
-
 const toAssetKind = toEnum<AssetKind>(
   ["audio", "brand_asset", "generated_image", "knowledge_doc", "user_upload"],
   "knowledge_doc",
 );
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
 const assetName = (metadata: unknown, id: string, kind: string): string => {
-  const meta = isRecord(metadata) ? metadata : {};
+  const meta = toRecord(metadata);
   const name = typeof meta.name === "string" && meta.name !== "" ? meta.name : undefined;
   const originalName =
     typeof meta.originalName === "string" && meta.originalName !== ""
@@ -125,7 +121,7 @@ const readAssetText = async (
   assetId: string,
 ): Promise<{ content: string; mime: string; name: string } | null> => {
   const row = await getDb(env).asset.findFirst({ where: { companyId, id: assetId } });
-  if (!row || !isTextMime(row.mime)) {
+  if (!row || !TEXT_MIME_PREFIXES.some((prefix) => row.mime.startsWith(prefix))) {
     return null;
   }
   const object = await fetchAsset({ ASSETS: env.ASSETS }, row.r2Key);

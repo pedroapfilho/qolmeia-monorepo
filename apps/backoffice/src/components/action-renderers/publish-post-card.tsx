@@ -1,4 +1,5 @@
 import { Card } from "@repo/ui/components/card";
+import { z } from "zod";
 
 import type { Action } from "@/lib/api-types";
 
@@ -26,14 +27,16 @@ type Draft = {
 
 const hasText = (value: string | undefined): value is string => value !== undefined && value !== "";
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const draftSchema = z.record(z.string(), z.unknown());
 
+// Fields are read one by one instead of being required by the schema: the agent writes this
+// draft, so a field it got wrong should drop out of the card rather than blank the proposal.
 const readDraft = (proposed: Action["proposed"]): Draft | null => {
-  const draft = proposed.draft;
-  if (!isRecord(draft)) {
+  const parsed = draftSchema.safeParse(proposed.draft);
+  if (!parsed.success) {
     return null;
   }
+  const draft = parsed.data;
   return {
     body: typeof draft.body === "string" ? draft.body : undefined,
     callToAction: typeof draft.callToAction === "string" ? draft.callToAction : undefined,
