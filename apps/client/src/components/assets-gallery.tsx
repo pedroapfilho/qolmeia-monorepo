@@ -31,9 +31,6 @@ const KIND_LABEL: Record<string, string> = {
 
 const kindLabel = (kind: string): string => KIND_LABEL[kind] ?? "Outros";
 
-const isImage = (mime: string): boolean => mime.startsWith("image/");
-const isAudio = (mime: string): boolean => mime.startsWith("audio/");
-
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -123,7 +120,7 @@ const galleryReducer = (state: GalleryState, action: GalleryAction): GalleryStat
 };
 
 const AssetPreview = ({ asset }: { asset: WebChatAsset }) => {
-  if (isImage(asset.mimeType)) {
+  if (asset.mimeType.startsWith("image/")) {
     return (
       // oxlint-disable-next-line no-img-element
       <img
@@ -133,7 +130,7 @@ const AssetPreview = ({ asset }: { asset: WebChatAsset }) => {
       />
     );
   }
-  const Icon = isAudio(asset.mimeType) ? Music : FileText;
+  const Icon = asset.mimeType.startsWith("audio/") ? Music : FileText;
   return (
     <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-muted text-muted-foreground">
       <Icon aria-hidden className="size-9" />

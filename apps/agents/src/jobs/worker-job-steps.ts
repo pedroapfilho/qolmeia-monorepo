@@ -9,10 +9,8 @@ import { getCompany } from "#/db/schema";
 import { getTemplate } from "#/db/template";
 import { loadAgentInstance, markTicketDone, setTicketStatus } from "#/db/ticket";
 import { logError, logInfo } from "#/lib/logger";
+import { toRecord } from "#/lib/records";
 import { emitTeamEvent } from "#/team/events";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
 
 const MAX_REVISIONS = 3;
 
@@ -107,8 +105,7 @@ const proposeDeliverable = async (
     return { actionId: null, policy };
   }
 
-  const parsedSkillResults: unknown = JSON.parse(current.skillResultsJson);
-  const skillResults = isRecord(parsedSkillResults) ? parsedSkillResults : {};
+  const skillResults = toRecord(JSON.parse(current.skillResultsJson));
   const draft = skillResults.draftSocialPost;
   const proposedPayload: Record<string, unknown> = { summary: current.summary, ticketId };
   if (actionType === "publish_post" && draft !== undefined) {
