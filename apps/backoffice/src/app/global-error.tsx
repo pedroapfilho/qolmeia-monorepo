@@ -10,12 +10,15 @@ type GlobalErrorProps = {
 };
 
 // global-error replaces the root layout, so globals.css never loads here and Tailwind
-// classes would resolve to nothing. Every rule below has to be inline.
+// classes would resolve to nothing. Every rule below has to be inline. The palette is
+// pinned light because the app has no dark theme: its dark tokens live only under a
+// `.dark` selector that nothing ever applies, so `light-dark()` would hand a dark error
+// page to a dark-OS visitor of an always-light app.
 const styles = {
   body: {
     alignItems: "center",
-    backgroundColor: "light-dark(#ffffff, #0a0a0a)",
-    color: "light-dark(#0a0a0a, #fafafa)",
+    backgroundColor: "#ffffff",
+    color: "#0a0a0a",
     display: "flex",
     fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     justifyContent: "center",
@@ -24,10 +27,10 @@ const styles = {
     padding: "1.5rem",
   },
   button: {
-    backgroundColor: "light-dark(#0a0a0a, #fafafa)",
+    backgroundColor: "#0a0a0a",
     border: "none",
     borderRadius: "0.5rem",
-    color: "light-dark(#fafafa, #0a0a0a)",
+    color: "#fafafa",
     cursor: "pointer",
     fontSize: "0.875rem",
     fontWeight: 500,
@@ -35,7 +38,7 @@ const styles = {
     padding: "0.625rem 1.25rem",
   },
   digest: {
-    color: "light-dark(#71717a, #a1a1aa)",
+    color: "#71717a",
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     fontSize: "0.75rem",
     margin: 0,
@@ -54,7 +57,7 @@ const styles = {
     textAlign: "center",
   },
   text: {
-    color: "light-dark(#52525b, #a1a1aa)",
+    color: "#52525b",
     fontSize: "0.875rem",
     lineHeight: 1.6,
     margin: 0,
@@ -67,7 +70,7 @@ const GlobalError = ({ error, reset }: GlobalErrorProps) => {
   }, [error]);
 
   return (
-    <html lang="pt-BR" style={{ colorScheme: "light dark" }}>
+    <html lang="pt-BR" style={{ colorScheme: "light" }}>
       <body style={styles.body}>
         <main id="main-content" style={styles.main}>
           <h1 style={styles.heading}>Algo deu errado</h1>
