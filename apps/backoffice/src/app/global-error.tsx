@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { log } from "@/lib/observability-client";
 
@@ -65,15 +65,22 @@ const styles = {
 } as const;
 
 const GlobalError = ({ error, reset }: GlobalErrorProps) => {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
   useEffect(() => {
     log.error({ digest: error.digest, error: error.message, message: "Global error boundary" });
+    // The boundary unmounts whatever held focus, dropping it on <body>. Focusing the heading
+    // both announces the failure and puts the keyboard caret inside the replacement content.
+    headingRef.current?.focus();
   }, [error]);
 
   return (
     <html lang="pt-BR" style={{ colorScheme: "light" }}>
       <body style={styles.body}>
         <main id="main-content" style={styles.main}>
-          <h1 style={styles.heading}>Algo deu errado</h1>
+          <h1 ref={headingRef} style={styles.heading} tabIndex={-1}>
+            Algo deu errado
+          </h1>
           <p style={styles.text}>
             O aplicativo parou de funcionar inesperadamente. Tente novamente e, se o problema
             continuar, recarregue a página ou volte em alguns minutos.
