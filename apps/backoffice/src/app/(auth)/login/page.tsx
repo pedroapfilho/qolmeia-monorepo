@@ -14,17 +14,39 @@ import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Suspense, use, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { loginSchema } from "@/lib/form-schemas";
 import { safeRedirectPath } from "@/lib/redirect-validation";
 
-const LoginForm = () => {
+type Props = {
+  searchParams: Promise<{ from?: string }>;
+};
+
+const RegisterLinkFallback = () => (
+  <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/register">
+    Criar conta
+  </Link>
+);
+
+const RegisterLink = ({ searchParams }: Props) => {
+  const { from } = use(searchParams);
+  const redirectTo = safeRedirectPath(from);
+
+  return (
+    <Link
+      className="font-medium text-primary underline-offset-4 hover:underline"
+      href={redirectTo === "/" ? "/register" : `/register?from=${encodeURIComponent(redirectTo)}`}
+    >
+      Criar conta
+    </Link>
+  );
+};
+
+const LoginForm = ({ searchParams }: Props) => {
   const { push, refresh } = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = safeRedirectPath(searchParams.get("from"));
   const [showUnverifiedNotice, setShowUnverifiedNotice] = useState(false);
 
   const form = useForm({
@@ -48,7 +70,10 @@ const LoginForm = () => {
         toast.error("Não foi possível conectar ao servidor. Tente novamente.");
         return;
       }
-      push(redirectTo);
+      // proxy.ts sends logged-out visitors here with ?from=<pathname>; gate it
+      // to an in-app path before it becomes a navigation target.
+      const { from } = await searchParams;
+      push(safeRedirectPath(from));
       refresh();
     },
     validators: { onSubmit: loginSchema },
@@ -148,16 +173,9 @@ const LoginForm = () => {
           </form.Subscribe>
           <p className="text-center text-sm text-muted-foreground">
             Ainda não tem conta?{" "}
-            <Link
-              className="font-medium text-primary underline-offset-4 hover:underline"
-              href={
-                redirectTo === "/"
-                  ? "/register"
-                  : `/register?from=${encodeURIComponent(redirectTo)}`
-              }
-            >
-              Criar conta
-            </Link>
+            <Suspense fallback={<RegisterLinkFallback />}>
+              <RegisterLink searchParams={searchParams} />
+            </Suspense>
           </p>
         </CardFooter>
       </form>
@@ -165,10 +183,6 @@ const LoginForm = () => {
   );
 };
 
-const LoginPage = () => (
-  <Suspense fallback={null}>
-    <LoginForm />
-  </Suspense>
-);
+const LoginPage = ({ searchParams }: Props) => <LoginForm searchParams={searchParams} />;
 
 export default LoginPage;
