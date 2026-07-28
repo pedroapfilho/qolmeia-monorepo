@@ -48,4 +48,51 @@ describe("team events DO fan-out", () => {
     controller.abort();
     await reader.cancel().catch(() => undefined);
   });
+
+  it("still delivers to healthy subscribers when an earlier one is dead", async () => {
+    const companyId = "co_team_events_dead_subscriber";
+    const deadController = new AbortController();
+    const liveController = new AbortController();
+
+    const deadResponse = await subscribeTeamEvents(env, companyId, deadController.signal);
+    const liveResponse = await subscribeTeamEvents(env, companyId, liveController.signal);
+
+    const deadReader = deadResponse.body?.getReader();
+    const liveReader = liveResponse.body?.getReader();
+    if (!deadReader || !liveReader) {
+      throw new Error("SSE body missing");
+    }
+
+    const decoder = new TextDecoder();
+    await deadReader.read();
+    await liveReader.read();
+
+    // Cancel without aborting the signal: the DO never learns the stream
+    // is gone, so the next enqueue on it throws.
+    await deadReader.cancel().catch(() => undefined);
+
+    await emitTeamEvent(env, { companyId, reason: "hired", type: "team:roster" });
+
+    const readUntilEvent = (): Promise<string> => {
+      let buffer = "";
+      const step = async (): Promise<string> => {
+        if (buffer.includes("event: team:roster")) {
+          return buffer;
+        }
+        const { done, value } = await liveReader.read();
+        if (done) {
+          throw new Error(`SSE closed before the event; got: ${buffer}`);
+        }
+        buffer += decoder.decode(value, { stream: true });
+        return step();
+      };
+      return step();
+    };
+
+    expect(await readUntilEvent()).toContain('"reason":"hired"');
+
+    liveController.abort();
+    deadController.abort();
+    await liveReader.cancel().catch(() => undefined);
+  });
 });
