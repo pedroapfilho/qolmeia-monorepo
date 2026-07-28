@@ -14,26 +14,28 @@ import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 import { resetPasswordSchema } from "@/lib/form-schemas";
 
-const ResetPasswordForm = () => {
+type Props = {
+  searchParams: Promise<{ token?: string }>;
+};
+
+const ResetPasswordForm = ({ searchParams }: Props) => {
   const { push } = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
 
   const form = useForm({
     defaultValues: { confirmPassword: "", password: "" },
     onSubmit: async ({ value }) => {
-      if (!token) {
-        toast.error("Link inválido ou expirado. Solicite um novo.");
-        return;
-      }
       if (value.password !== value.confirmPassword) {
         toast.error("As senhas não conferem.");
+        return;
+      }
+      const { token } = await searchParams;
+      if (token === undefined || token === "") {
+        toast.error("Link inválido ou expirado. Solicite um novo.");
         return;
       }
       try {
@@ -146,10 +148,8 @@ const ResetPasswordForm = () => {
   );
 };
 
-const ResetPasswordPage = () => (
-  <Suspense fallback={null}>
-    <ResetPasswordForm />
-  </Suspense>
+const ResetPasswordPage = ({ searchParams }: Props) => (
+  <ResetPasswordForm searchParams={searchParams} />
 );
 
 export default ResetPasswordPage;

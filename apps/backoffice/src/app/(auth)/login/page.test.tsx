@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -27,13 +26,13 @@ const { default: LoginPage } = await import("./page");
 
 describe("LoginPage", () => {
   it("renders the e-mail and password inputs", () => {
-    render(<LoginPage />);
+    render(<LoginPage searchParams={Promise.resolve({})} />);
     expect(screen.getByLabelText(/E-mail/v)).toBeInTheDocument();
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
   });
 
   it("shows the primary CTA and the secondary links", () => {
-    render(<LoginPage />);
+    render(<LoginPage searchParams={Promise.resolve({})} />);
     expect(screen.getByRole("button", { name: /Entrar/v })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Esqueci minha senha" })).toHaveAttribute(
       "href",
