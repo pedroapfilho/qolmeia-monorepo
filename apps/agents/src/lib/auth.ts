@@ -1,3 +1,5 @@
+import type { MiddlewareHandler } from "hono";
+
 import { safeJson } from "#/db/mappers";
 import { parseMeResponse, type Role } from "#/lib/membership";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
@@ -72,5 +74,26 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   return validated;
 };
 
-export { validateSession };
+const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Every write behind a customer session is a customer action: STAFF and OWNER
+ * operate through the backoffice router, which authorizes them separately.
+ * Gating by method rather than by handler means a write route is guarded the
+ * day it is added. The two that shipped unguarded (POST /api/me/uploads and
+ * POST /api/teams/:companyId/confirm) were each a missing copy of a line that
+ * every sibling handler had.
+ */
+const requireCustomerForWrites: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: { session: ValidatedSession };
+}> = (c, next) => {
+  if (READ_ONLY_METHODS.has(c.req.method) || c.get("session").role === "CUSTOMER") {
+    return next();
+  }
+  // Hono middleware must hand back a promise; the 403 is built synchronously.
+  return Promise.resolve(c.json({ error: "forbidden" }, 403));
+};
+
+export { requireCustomerForWrites, validateSession };
 export type { ValidatedSession };

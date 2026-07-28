@@ -4,7 +4,7 @@ import { z } from "zod";
 import { listActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
-import { validateSession, type ValidatedSession } from "#/lib/auth";
+import { requireCustomerForWrites, validateSession, type ValidatedSession } from "#/lib/auth";
 import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
@@ -106,6 +106,8 @@ meRoutes.use("*", async (c, next) => {
   return next();
 });
 
+meRoutes.use("*", requireCustomerForWrites);
+
 meRoutes.get("/company", async (c) => {
   const { companyId } = c.get("session");
   const row = await getDb(c.env).company.findUnique({
@@ -131,9 +133,6 @@ const briefPatchSchema = companyBriefSchema.partial();
 
 meRoutes.patch("/company", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   const parsed = briefPatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
@@ -199,9 +198,6 @@ const hireSchema = z.object({
 
 meRoutes.post("/team/hire", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   const parsed = hireSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
@@ -235,9 +231,6 @@ const patchSchema = z.object({
 
 meRoutes.patch("/team/members/:id", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   const id = c.req.param("id");
   const parsed = patchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
@@ -278,9 +271,6 @@ meRoutes.get("/team/members/:id", async (c) => {
 
 meRoutes.post("/team/members/:id/pause", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   try {
     const member = await pauseMember(
       getDb(c.env),
@@ -305,9 +295,6 @@ meRoutes.post("/team/members/:id/pause", async (c) => {
 
 meRoutes.post("/team/members/:id/resume", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   try {
     const member = await resumeMember(
       getDb(c.env),
