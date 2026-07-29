@@ -35,7 +35,7 @@ const SNIPPET_MAX = 800;
 
 const webSearchSkill: UnknownSkill = {
   description:
-    "Busca na web (notícias, tendências, concorrentes, fatos atuais) e retorna trechos com as fontes — use para fundamentar conteúdo em informação verificável e recente.",
+    "Busca na web (notícias, tendências, concorrentes, fatos atuais) e retorna trechos com as fontes. Use para fundamentar conteúdo em informação verificável e recente.",
   async execute(input: unknown, ctx: SkillContext): Promise<WebSearchResult> {
     const { numResults, query } = webSearchInputSchema.parse(input);
     const apiKey = ctx.env.EXA_API_KEY;

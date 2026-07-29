@@ -11,7 +11,7 @@ const delegateInputSchema = z.object({
     .string()
     .min(1)
     .max(2000)
-    .describe("Resumo claro da tarefa em pt-BR — o que o especialista precisa fazer."),
+    .describe("Resumo claro da tarefa em pt-BR: o que o especialista precisa fazer."),
   workerKind: z
     .string()
     .min(1)

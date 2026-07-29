@@ -41,7 +41,7 @@ const presentToCustomer = async (ctx: JobContext, result: string): Promise<void>
       agent: "correspondent",
       id: companyId,
       input: {
-        message: `Um especialista do Time concluiu uma tarefa. Apresente este material ao cliente, em pt-BR, de forma calorosa e direta — mantenha as imagens em markdown e não altere o conteúdo:\n\n${result}`,
+        message: `Um especialista do Time concluiu uma tarefa. Apresente este material ao cliente, em pt-BR, de forma calorosa e direta; mantenha as imagens em markdown e não altere o conteúdo:\n\n${result}`,
       },
     });
   } catch (error) {

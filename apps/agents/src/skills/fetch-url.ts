@@ -17,7 +17,7 @@ const CONTENT_MAX = 8000;
 
 const fetchUrlSkill: UnknownSkill = {
   description:
-    "Lê o conteúdo de uma página da web (texto em markdown) a partir da sua URL — use para analisar o site do cliente, de um concorrente, ou uma referência específica.",
+    "Lê o conteúdo de uma página da web (texto em markdown) a partir da sua URL. Use para analisar o site do cliente, de um concorrente, ou uma referência específica.",
   async execute(
     input: unknown,
     ctx: SkillContext,
