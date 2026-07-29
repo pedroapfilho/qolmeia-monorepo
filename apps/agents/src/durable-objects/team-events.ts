@@ -26,8 +26,23 @@ class TeamEvents extends DurableObject<Env> {
 
   #broadcast(event: TeamEvent): void {
     const chunk = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+    // `enqueue` throws on a stream whose client vanished without a clean
+    // abort, and an unguarded throw here escapes to emitTeamEvent, which
+    // logs and returns. So one dead subscriber silently dropped the event
+    // for every subscriber after it in iteration order.
+    const dead: Array<TeamEventSubscriber> = [];
+
     for (const subscriber of this.#subscribers) {
-      subscriber.send(chunk);
+      try {
+        subscriber.send(chunk);
+      } catch {
+        dead.push(subscriber);
+      }
+    }
+
+    for (const subscriber of dead) {
+      this.#subscribers.delete(subscriber);
+      subscriber.close();
     }
   }
 
