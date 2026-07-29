@@ -13,7 +13,11 @@ type WriteRoute = { body?: BodyInit; method: string; path: string };
 
 const WRITE_ROUTES: Array<WriteRoute> = [
   { body: JSON.stringify({}), method: "PATCH", path: "/api/me/company" },
-  { body: JSON.stringify({ templateId: "tpl-designer" }), method: "POST", path: "/api/me/team/hire" },
+  {
+    body: JSON.stringify({ templateId: "tpl-designer" }),
+    method: "POST",
+    path: "/api/me/team/hire",
+  },
   { body: JSON.stringify({}), method: "PATCH", path: "/api/me/team/members/ai_1" },
   { method: "POST", path: "/api/me/team/members/ai_1/pause" },
   { method: "POST", path: "/api/me/team/members/ai_1/resume" },
