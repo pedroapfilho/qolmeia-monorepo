@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "#/db/client";
 import { assetName } from "#/lib/asset-store";
 import type { ValidatedSession } from "#/lib/auth";
-import { validateSession } from "#/lib/auth";
+import { requireCustomerForWrites, validateSession } from "#/lib/auth";
 import { parsePositiveInt } from "#/lib/pagination";
 import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
 
@@ -20,6 +20,8 @@ meAssetsRoutes.use("*", async (c, next) => {
   c.set("session", session);
   return next();
 });
+
+meAssetsRoutes.use("*", requireCustomerForWrites);
 
 meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");
@@ -193,9 +195,6 @@ meAssetsRoutes.get("/brand-assets", async (c) => {
 
 meAssetsRoutes.post("/brand-assets", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
 
   let form: FormData;
   try {
@@ -230,9 +229,6 @@ meAssetsRoutes.post("/brand-assets", async (c) => {
 
 meAssetsRoutes.delete("/brand-assets/:id", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   const id = c.req.param("id");
   const db = getDb(c.env);
   const row = await db.asset.findFirst({
@@ -253,9 +249,6 @@ const deleteAssetsInputSchema = z.object({
 
 meAssetsRoutes.post("/assets/delete", async (c) => {
   const session = c.get("session");
-  if (session.role !== "CUSTOMER") {
-    return c.json({ error: "forbidden" }, 403);
-  }
   const parsed = deleteAssetsInputSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);

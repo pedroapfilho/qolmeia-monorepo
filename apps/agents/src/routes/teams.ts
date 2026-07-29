@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 import { materializeTeam } from "#/db/team";
-import { validateSession, type ValidatedSession } from "#/lib/auth";
+import { requireCustomerForWrites, validateSession, type ValidatedSession } from "#/lib/auth";
 import { parseBrief } from "#/lib/company-brief";
 import { seedCompanyMemory } from "#/team/seed-memory";
 
@@ -20,6 +20,8 @@ teamsRoutes.use("*", async (c, next) => {
   c.set("session", session);
   return next();
 });
+
+teamsRoutes.use("*", requireCustomerForWrites);
 
 const confirmBodySchema = z.object({
   templateIds: z.array(z.string().min(1)).min(1).max(20),
