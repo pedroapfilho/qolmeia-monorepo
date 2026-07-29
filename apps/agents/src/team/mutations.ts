@@ -12,28 +12,8 @@ import {
   TemplateRetiredError,
 } from "#/team/errors";
 import { nextDisplayName } from "#/team/naming";
-import { getMemberDetail, getTeamRoster } from "#/team/queries";
-import type { TeamMemberBase, TeamMemberDetailView, TeamMemberView } from "#/team/types";
-
-const projectMemberView = (detail: TeamMemberDetailView): TeamMemberView => {
-  const base: TeamMemberBase = {
-    currentWork: detail.currentWork,
-    displayName: detail.displayName,
-    hasPromptOverride: detail.hasPromptOverride,
-    id: detail.id,
-    lifetimeDone: detail.lifetimeDone,
-    status: detail.status,
-  };
-  if (detail.role === "worker") {
-    return {
-      ...base,
-      role: "worker",
-      templateId: detail.templateId,
-      workerKind: detail.workerKind,
-    };
-  }
-  return { ...base, role: detail.role, templateId: null, workerKind: null };
-};
+import { getTeamMember, getTeamRoster } from "#/team/queries";
+import type { TeamMemberView } from "#/team/types";
 
 type HireInput = {
   actorId: string | null;
@@ -115,8 +95,8 @@ const hireMember = async (db: PrismaClient, input: HireInput): Promise<TeamMembe
     type: "MEMBER_HIRED",
   });
 
-  const detail = await getMemberDetail(db, input.companyId, newId);
-  if (!detail) {
+  const member = await getTeamMember(db, input.companyId, newId);
+  if (!member) {
     logError("team.hireMember.readBack.missing", {
       agentInstanceId: newId,
       companyId: input.companyId,
@@ -124,7 +104,7 @@ const hireMember = async (db: PrismaClient, input: HireInput): Promise<TeamMembe
     throw new Error("hireMember: failed to read back the new member");
   }
 
-  return projectMemberView(detail);
+  return member;
 };
 
 const assertMemberPausable = async (
@@ -170,15 +150,15 @@ const setMemberStatus = async (
     summary: input.status === "paused" ? "Agente pausado." : "Agente retomado.",
     type: input.activityType,
   });
-  const detail = await getMemberDetail(db, companyId, agentInstanceId);
-  if (!detail) {
+  const member = await getTeamMember(db, companyId, agentInstanceId);
+  if (!member) {
     logError("team.setMemberStatus.readBack.missing", {
       agentInstanceId,
       companyId,
     });
     throw new Error("setMemberStatus: read-back failed");
   }
-  return projectMemberView(detail);
+  return member;
 };
 
 const pauseMember = (
@@ -292,15 +272,15 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
     });
   }
 
-  const detail = await getMemberDetail(db, input.companyId, input.agentInstanceId);
-  if (!detail) {
+  const member = await getTeamMember(db, input.companyId, input.agentInstanceId);
+  if (!member) {
     logError("team.updateMember.readBack.missing", {
       agentInstanceId: input.agentInstanceId,
       companyId: input.companyId,
     });
     throw new Error("updateMember: read-back failed");
   }
-  return projectMemberView(detail);
+  return member;
 };
 
 export { hireMember, pauseMember, resumeMember, updateMember };

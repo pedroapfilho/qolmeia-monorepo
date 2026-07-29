@@ -22,7 +22,6 @@ const rosterInclude = {
     where: { status: { in: OPEN_TICKET_STATUSES } },
   },
 } as const satisfies Prisma.AgentInstanceInclude;
-type RosterRecord = Prisma.AgentInstanceGetPayload<{ include: typeof rosterInclude }>;
 
 const toOpenStatus = (status: string): OpenTicketSlim["status"] | null =>
   status === "in_progress" || status === "awaiting_approval" ? status : null;
@@ -40,7 +39,23 @@ const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberVie
   return [...correspondent, ...others];
 };
 
-const projectRosterMember = (row: RosterRecord): TeamMemberView => {
+// Every read path (roster list, single read-back, detail) narrows the same row
+// into the same discriminated union, so they share one projection. Detail rows
+// select extra template/company columns; the excess is ignored here.
+type ProjectableRow = {
+  // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
+  _count: { tickets: number };
+  displayName: string;
+  id: string;
+  promptOverride: string | null;
+  role: string;
+  status: string;
+  template: { workerKind: string | null } | null;
+  templateId: string | null;
+  tickets: ReadonlyArray<{ id: string; status: string; title: string }>;
+};
+
+const projectMember = (row: ProjectableRow): TeamMemberView => {
   const currentWork = row.tickets.flatMap((ticket) => {
     const status = toOpenStatus(ticket.status);
     return status ? [{ status, summary: ticket.title, ticketId: ticket.id }] : [];
@@ -95,7 +110,7 @@ const listTeamRosters = async (
   for (const companyId of ids) {
     result.set(
       companyId,
-      sortRoster(rows.filter((row) => row.companyId === companyId).map(projectRosterMember)),
+      sortRoster(rows.filter((row) => row.companyId === companyId).map(projectMember)),
     );
   }
   return result;
@@ -103,6 +118,18 @@ const listTeamRosters = async (
 const getTeamRoster = async (db: Database, companyId: string): Promise<Array<TeamMemberView>> => {
   const rosters = await listTeamRosters(db, [companyId]);
   return rosters.get(companyId) ?? [];
+};
+
+const getTeamMember = async (
+  db: Database,
+  companyId: string,
+  agentInstanceId: string,
+): Promise<TeamMemberView | null> => {
+  const row = await db.agentInstance.findFirst({
+    include: rosterInclude,
+    where: { companyId, id: agentInstanceId },
+  });
+  return row ? projectMember(row) : null;
 };
 
 const getCatalogue = async (db: Database, companyId: string): Promise<Array<HireableTemplate>> => {
@@ -152,23 +179,8 @@ const getMemberDetail = async (
     select: { createdAt: true },
     where: { companyId, refId: agentInstanceId, type: "MEMBER_PROMPT_EDITED" },
   });
-  const currentWork = row.tickets.flatMap((ticket) => {
-    const status = toOpenStatus(ticket.status);
-    return status ? [{ status, summary: ticket.title, ticketId: ticket.id }] : [];
-  });
-  const base: TeamMemberBase = {
-    currentWork,
-    displayName: row.displayName,
-    hasPromptOverride: row.promptOverride !== null,
-    id: row.id,
-    // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
-    lifetimeDone: row._count.tickets,
-    status: resolveAgentStatus(
-      { status: row.status === "paused" ? "paused" : "active" },
-      currentWork,
-    ),
-  };
-  const extras = {
+  return {
+    ...projectMember(row),
     capabilities: row.template?.description ?? "",
     companyName: row.company.name,
     createdAt: row.createdAt.getTime(),
@@ -176,27 +188,7 @@ const getMemberDetail = async (
     promptOverrideUpdatedAt: edited?.createdAt.getTime() ?? null,
     templateSystemPrompt: row.template?.systemPrompt ?? "",
   };
-  const role = toRole(row.role);
-  if (role === "worker") {
-    if (
-      row.templateId === null ||
-      row.templateId === "" ||
-      row.template?.workerKind === undefined ||
-      row.template.workerKind === null ||
-      row.template.workerKind === ""
-    ) {
-      throw new Error(`worker ${row.id} missing template_id or worker_kind`);
-    }
-    return {
-      ...base,
-      ...extras,
-      role: "worker",
-      templateId: row.templateId,
-      workerKind: row.template.workerKind,
-    };
-  }
-  return { ...base, ...extras, role, templateId: null, workerKind: null };
 };
 
-export { getCatalogue, getMemberDetail, getTeamRoster, listTeamRosters };
+export { getCatalogue, getMemberDetail, getTeamMember, getTeamRoster, listTeamRosters };
 export type { HireableTemplate, TeamMemberDetailView, TeamMemberView } from "#/team/types";
