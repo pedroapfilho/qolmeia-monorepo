@@ -24,7 +24,7 @@ const listAssetsInputSchema = z.object({
 
 const listAssetsSkill: UnknownSkill = {
   description:
-    "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads) — use para descobrir o que já foi criado antes. Você enxerga as duas pastas (cliente e agente).",
+    "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads). Use para descobrir o que já foi criado antes. Você enxerga as duas pastas (cliente e agente).",
   async execute(input: unknown, ctx: SkillContext): Promise<{ assets: unknown }> {
     const { folder, kind } = listAssetsInputSchema.parse(input);
     const assets = await listCompanyAssets(getDb(ctx.env), ctx.companyId, {
@@ -43,7 +43,7 @@ const readAssetInputSchema = z.object({
 
 const readAssetSkill: UnknownSkill = {
   description:
-    "Lê o conteúdo de um documento de texto da biblioteca (markdown, texto, JSON, CSV). Imagens e binários não podem ser lidos — referencie o asset pelo id.",
+    "Lê o conteúdo de um documento de texto da biblioteca (markdown, texto, JSON, CSV). Imagens e binários não podem ser lidos; referencie o asset pelo id.",
   async execute(
     input: unknown,
     ctx: SkillContext,

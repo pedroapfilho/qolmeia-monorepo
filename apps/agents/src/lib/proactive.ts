@@ -3,7 +3,7 @@ import { getDb } from "#/db/client";
 
 const PROACTIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const PROACTIVE_PROMPT = `Esta é uma mensagem proativa que VOCÊ está iniciando — o cliente não perguntou nada agora. Com base no brief da empresa, sugira de 2 a 3 entregas concretas e específicas para esta semana (por exemplo: posts para redes, peças de design, ações de marketing). Seja breve e caloroso, conecte cada ideia ao negócio do cliente, e convide-o a confirmar para você já acionar o especialista.`;
+const PROACTIVE_PROMPT = `Esta é uma mensagem proativa que VOCÊ está iniciando; o cliente não perguntou nada agora. Com base no brief da empresa, sugira de 2 a 3 entregas concretas e específicas para esta semana (por exemplo: posts para redes, peças de design, ações de marketing). Seja breve e caloroso, conecte cada ideia ao negócio do cliente, e convide-o a confirmar para você já acionar o especialista.`;
 
 const proactiveGate = (input: {
   isComplete: boolean;

@@ -47,7 +47,7 @@ const DEFAULT_TEMPLATES = [
   {
     defaultActionType: "worker_deliverable",
     defaultPolicies: {},
-    description: "Escreve textos no tom de voz da marca — legendas, e-mails, blog e anúncios.",
+    description: "Escreve textos no tom de voz da marca: legendas, e-mails, blog e anúncios.",
     displayName: "Redator",
     id: "tpl-redator",
     model: "openai/gpt-5.4-mini",
@@ -82,7 +82,7 @@ const DEFAULT_TEMPLATES = [
       "fetchUrl",
     ],
     systemPrompt:
-      "Você é o Pesquisador SEO da Qolmeia. Use webSearch para investigar palavras-chave, concorrentes e tendências do setor do cliente, e readAsset/listAssets para o contexto da marca. Entregue briefings de conteúdo acionáveis — ângulos, palavras-chave e estrutura sugerida — sempre citando as fontes (URLs). Salve o briefing com saveAsset. Responda sempre em português do Brasil.",
+      "Você é o Pesquisador SEO da Qolmeia. Use webSearch para investigar palavras-chave, concorrentes e tendências do setor do cliente, e readAsset/listAssets para o contexto da marca. Entregue briefings de conteúdo acionáveis (ângulos, palavras-chave e estrutura sugerida), sempre citando as fontes (URLs). Salve o briefing com saveAsset. Responda sempre em português do Brasil.",
     workerKind: "seo-researcher",
   },
 ] as const;

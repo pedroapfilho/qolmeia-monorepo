@@ -20,7 +20,7 @@ type RecallResult = {
 
 const recallMemorySkill: UnknownSkill = {
   description:
-    "Busca na memória deste agente fatos relevantes para uma consulta — use quando precisar de algo específico que pode estar fora do contexto atual.",
+    "Busca na memória deste agente fatos relevantes para uma consulta. Use quando precisar de algo específico que pode estar fora do contexto atual.",
   async execute(input: unknown, ctx: SkillContext): Promise<RecallResult> {
     const { query, topK } = recallMemoryInputSchema.parse(input);
     const memory = getMemoryAdapter(ctx.env);
