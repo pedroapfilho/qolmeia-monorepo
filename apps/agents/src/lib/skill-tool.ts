@@ -3,7 +3,7 @@ import * as v from "valibot";
 import * as z from "zod";
 import type { ZodType } from "zod";
 
-import { resolveSkills, type SkillContext } from "#/skills/registry";
+import { resolveSkills, type SkillContext, type SkillOverlayMap } from "#/skills/registry";
 
 type JsonSchemaNode = {
   description?: string;
@@ -96,20 +96,19 @@ const buildInputSchema = (
   return convert(node, skillId) as v.GenericSchema<Record<string, unknown>, unknown>;
 };
 
-const buildFlueTools = async (
+const buildFlueTools = (
   ctx: SkillContext,
   skillIds: ReadonlyArray<string>,
-): Promise<Array<ToolDefinition>> => {
-  const resolved = await resolveSkills(ctx, skillIds);
-  return resolved.map((skill) =>
+  overlays: SkillOverlayMap | null,
+): Array<ToolDefinition> =>
+  resolveSkills(ctx, skillIds, overlays).map((skill) =>
     defineTool({
       description: skill.description,
       input: buildInputSchema(skill.inputSchema, skill.id),
       name: skill.id,
       // oxlint-disable-next-line no-unsafe-type-assertion -- skill outputs are JSON-serializable by the skill contract; flue requires JsonValue
-      run: async ({ input }) => (await skill.execute(input)) as JsonValue,
+      run: async ({ data }) => ({ output: (await skill.execute(data)) as JsonValue }),
     }),
   );
-};
 
 export { buildFlueTools, buildInputSchema };

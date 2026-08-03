@@ -1,7 +1,15 @@
-import { defineAgent } from "@flue/runtime";
+"use agent";
+import {
+  type AgentProps,
+  useAgentStart,
+  useModel,
+  usePersistentState,
+  useTool,
+} from "@flue/runtime";
+import { env } from "cloudflare:workers";
 
 import { buildFlueTools } from "#/lib/skill-tool";
-import type { SkillContext } from "#/skills/registry";
+import { loadSkillOverlays, type SkillContext, type SkillOverlayMap } from "#/skills/registry";
 
 const PLANNER_SKILLS = ["extractBrief", "proposeTeam"];
 
@@ -17,18 +25,23 @@ O cliente confirma fora do chat (botão na UI). Quando isso acontecer, o Corresp
 
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-export default defineAgent<Env>(async (context) => {
-  const ctx: SkillContext = {
-    agentInstanceId: `planner-${context.id}`,
-    companyId: context.id,
-    env: context.env,
-  };
+// Flue 2 cannot read the beta runtime's persisted schema, so this fresh export
+// intentionally derives FluePlannerV2Agent. Keep this identity stable after
+// the v3 reset migration in wrangler.jsonc is deployed.
+export function PlannerV2({ id }: AgentProps): string {
+  // See Correspondent: overlays are read at the intake seam because renders
+  // are synchronous.
+  const [overlays, setOverlays] = usePersistentState<SkillOverlayMap | null>("skillOverlays", null);
+  useAgentStart(async () => {
+    setOverlays(await loadSkillOverlays(env, PLANNER_SKILLS));
+  });
 
-  return {
-    instructions: PLANNER_INSTRUCTIONS,
-    model: DEFAULT_MODEL,
-    tools: await buildFlueTools(ctx, PLANNER_SKILLS),
-  };
-});
+  useModel(DEFAULT_MODEL);
 
-export { requireCustomerAgent as route } from "#/lib/agent-route-auth";
+  const ctx: SkillContext = { agentInstanceId: `planner-${id}`, companyId: id, env };
+  for (const skillTool of buildFlueTools(ctx, PLANNER_SKILLS, overlays)) {
+    useTool(skillTool);
+  }
+
+  return PLANNER_INSTRUCTIONS;
+}

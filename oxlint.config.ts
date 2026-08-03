@@ -104,5 +104,16 @@ export default defineConfig({
         "node/no-sync": "off",
       },
     },
+    // Flue agent modules use hooks (`useModel`, `useTool`, `useAgentStart`)
+    // that only share React's naming. Flue re-renders before every model call
+    // and keys resource hooks by name rather than call order, so declaring
+    // them in a loop or behind a condition is the documented pattern, not a
+    // bug. The React rules would reject both.
+    {
+      files: ["apps/agents/src/agents/**/*.ts"],
+      rules: {
+        "react-hooks/rules-of-hooks": "off",
+      },
+    },
   ],
 });

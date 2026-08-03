@@ -80,7 +80,7 @@ pnpm dev --filter=backoffice
 | Surface    | URL                                    |
 | ---------- | -------------------------------------- |
 | API        | `https://qolmeia.api.localhost`        |
-| Worker     | `http://localhost:8787`                |
+| Worker     | `http://127.0.0.1:8787`                |
 | Client     | `https://qolmeia.client.localhost`     |
 | Backoffice | `https://qolmeia.backoffice.localhost` |
 
@@ -100,7 +100,7 @@ pnpm typecheck
 pnpm lint
 pnpm test
 
-curl http://localhost:8787/healthz
+curl http://127.0.0.1:8787/healthz
 ```
 
 Useful targeted checks:

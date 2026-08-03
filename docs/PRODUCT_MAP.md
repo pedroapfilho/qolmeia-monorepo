@@ -1,12 +1,17 @@
 # Qolmeia Product Map
 
-Every screen, flow, and feature the platform offers today, plus what it can offer next. Screenshots live in [`docs/product-map/`](product-map/) and were captured from a live local stack (real agents, real deliverable, real approval) on 2026-07-21.
+Visual walkthrough of every shipped screen and primary product flow. The canonical implementation
+inventory, including platform capabilities and explicit product boundaries, is
+[`FEATURES.md`](FEATURES.md). Screenshots live in [`docs/product-map/`](product-map/) and were captured
+from a live local stack (real agents, real deliverable, real approval) on 2026-07-21.
 
 ## What Qolmeia is
 
 An AI team as a service for Brazilian small businesses (pt-BR across the whole product). A customer signs up, is interviewed by a Planner agent, confirms a team of AI specialists, and from then on talks to a single Correspondent (account manager) in chat. Specialists (Designer, Marketing Strategist, Redator, Pesquisador SEO) produce real deliverables: brand images, social posts, copy, and research. Every deliverable passes through an internal human approval gate operated from the backoffice before it reaches the customer.
 
-The runtime is Cloudflare-native: per-tenant Durable Object agents, Workflows for the approval lifecycle, D1 as the system of record, R2 for assets, KV for session caching. Auth (Better Auth on Postgres) lives in a separate Hono service.
+The agent runtime is Cloudflare-native: per-tenant Flue 2 Durable Object conversations, Workflows for
+specialist execution and approvals, R2 for assets, KV for session caching, and Workers AI + Vectorize
+for semantic memory. Better Auth and product data share Postgres through Prisma.
 
 ---
 
@@ -46,7 +51,7 @@ Four sections on one page:
 
 1. **Sobre a empresa**: editable brief (setor, objetivo, público, tom, cores, referências) with a live completeness meter.
 2. **Identidade da marca**: brand asset upload by category (logo, post, reference, other). The Designer conditions image generation on these references.
-3. **Meu time**: roster cards; workers can be renamed, paused/resumed, and have their prompt customized per instance.
+3. **Meu time**: roster cards; workers can be paused/resumed and have their prompt customized per instance.
 4. **Contratar mais agentes**: the template catalogue with hired counts and a hire dialog (optional custom name).
 
 ![Empresa page](product-map/client-empresa.png)
@@ -146,13 +151,13 @@ reject   -> ticket rejected, customer notified via chat
 
 ## 3. The engine (`apps/agents` + `apps/api`)
 
-### 3.1 Agents (Durable Objects, one per company)
+### 3.1 Agents and specialist execution
 
-| Agent             | Role                                                                  | Tools                                                                                                                               |
-| ----------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Planner**       | Onboarding interview; stays in standby for re-planning                | `extractBrief`, `proposeTeam`                                                                                                       |
-| **Correspondent** | Single point of contact; delegates, remembers, researches             | `rememberFact`, `recallMemory`, `delegateToWorker`, `extractBrief`, `listAssets`, `readAsset`, `saveAsset`, `webSearch`, `fetchUrl` |
-| **Worker**        | Template-driven specialist; prompt = template + per-instance override | the template's `skillIds`                                                                                                           |
+| Role              | Runtime                                                                                            | Tools                                                                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Planner**       | One Flue 2 Durable Object per company for onboarding and future re-planning                        | `extractBrief`, `proposeTeam`                                                                                                       |
+| **Correspondent** | One Flue 2 Durable Object per company; the customer's single point of contact                      | `rememberFact`, `recallMemory`, `delegateToWorker`, `extractBrief`, `listAssets`, `readAsset`, `saveAsset`, `webSearch`, `fetchUrl` |
+| **Specialist**    | Template-driven `generateText` run inside `WorkerJobWorkflow`, not a conversational Durable Object | the template's `skillIds`                                                                                                           |
 
 ### 3.2 The 13 skills
 
@@ -178,13 +183,20 @@ Every delegation spawns a Cloudflare Workflow: generate the deliverable (LLM + s
 - `rejected`: end the ticket.
 - `auto-execute` / `notify-only`: skip the gate entirely. Implemented and reachable from the template editor, unused by shipped templates.
 
-### 3.4 Data model (D1)
+### 3.4 Data model (Postgres + Prisma)
 
-`company`, `agent_instance`, `template`, `skill` (overlay: enable/disable, description and param hints), `company_template_entitlement`, `team`, `team_member` (with a cycle-checked `can_delegate_to` graph), `ticket`, `action`, `activity_log`, `memory_fact`, `operator_assignment`, `asset` (kinds: `generated_image`, `knowledge_doc`, `audio`, `brand_asset`, `user_upload`; customer/agent visibility; sha256 dedup).
+`company`, `agent_instance`, `template`, `skill` (overlay: enable/disable, description and param hints),
+`company_template_entitlement`, `team`, `team_member` (with a cycle-checked `can_delegate_to` graph),
+`ticket`, `action`, `activity_log`, `memory_fact`, `operator_assignment`, and `asset` (kinds:
+`generated_image`, `knowledge_doc`, `audio`, `brand_asset`, `user_upload`; customer/agent visibility;
+SHA-256 deduplication).
 
 ### 3.5 Auth and tenancy
 
-Better Auth (magic link, email + password, verification, reset, change-email, username, bearer tokens) on Postgres. Roles: OWNER, STAFF, CUSTOMER. The Postgres organization id is reused verbatim as the D1 company id, so a user's org role directly gates the Worker surfaces. The agents Worker validates sessions by relaying to `/api/me` with a 60s KV cache.
+Better Auth provides magic link, email + password, verification, reset, change-email, username, and
+bearer-token support on Postgres. Roles are OWNER, STAFF, and CUSTOMER. The organization id is reused
+verbatim as the product company id, so membership directly gates the Worker surfaces. The agents
+Worker validates sessions by relaying to `/api/me` with a 60-second KV cache.
 
 ---
 
@@ -195,7 +207,7 @@ Better Auth (magic link, email + password, verification, reset, change-email, us
 1. An AI account manager in chat with memory, web research, and full context on the company.
 2. Guided onboarding that produces a structured business brief and a working team in minutes.
 3. Human-reviewed deliverables in chat: brand images, social post drafts, copy, SEO and content research.
-4. Self-serve team management: hire, rename, pause, and customize each specialist's prompt.
+4. Self-serve team management: hire, pause, and customize each specialist's prompt.
 5. A brand kit and asset library the team both reads from and delivers into.
 6. Full transparency: activity feed and live team status.
 

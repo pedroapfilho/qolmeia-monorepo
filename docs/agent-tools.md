@@ -10,7 +10,7 @@ each mapped to the agent(s) that use it. Companion to
    `apps/agents/src/skills/`, registered in `skills/registry.ts` `ALL_SKILLS`.
    An agent only gets a skill if its skill set lists the id: the **Correspondent**
    has a hardcoded set (`CORRESPONDENT_SKILLS` in `agents/correspondent.ts`);
-   **Workers** get `template.skill_ids` (Prisma/Postgres, seeded in `@repo/db`). Adding a tool
+   **Specialist Workflow runs** get `template.skillIds` (Prisma/Postgres, seeded in `@repo/db`). Adding a tool
    = a new skill file + registry entry + the template/correspondent skill list.
 2. **Channel**: how the customer reaches the Correspondent. Today the only
    channel is the **web chat** (the Correspondent's Flue agent route, HTTP+SSE).
@@ -19,7 +19,9 @@ each mapped to the agent(s) that use it. Companion to
 
 Outward, hard-to-reverse tools (publishing, sending, spending) should propose a
 **gated action** (`require-approval` policy, ADR 0006) rather than firing
-directly; deliverables (drafts, images, research) `auto-execute`.
+directly. The shipped templates currently resolve all deliverables to
+`require-approval`; `auto-execute` and `notify-only` are available as template
+policies when the product is ready to trust a fast lane.
 
 ## Current tools (live)
 
@@ -30,18 +32,19 @@ directly; deliverables (drafts, images, research) `auto-execute`.
 | `generateBrandImage`                     | image generation                          | OpenRouter image model                           | Designer                                                     |
 | `draftSocialPost`                        | structured post draft (platform/body/CTA) | — (LLM)                                          | Marketing Strategist                                         |
 | `listAssets` / `readAsset` / `saveAsset` | the asset library (R2)                    | R2                                               | Correspondent + all workers (0008)                           |
-| `rememberFact` / `recallMemory`          | semantic memory                           | Workers AI + Vectorize                           | every agent                                                  |
+| `rememberFact` / `recallMemory`          | semantic memory                           | Workers AI + Vectorize                           | Correspondent + all seeded specialists                       |
 | `delegateToWorker`                       | spawn a child ticket                      | —                                                | Correspondent                                                |
-| `extractBrief` / `proposeTeam`           | onboarding                                | — (LLM)                                          | Planner                                                      |
-| `decideAction`                           | resume a gated action                     | —                                                | operator path                                                |
+| `extractBrief`                           | update the company brief                  | — (LLM)                                          | Planner, Correspondent                                       |
+| `proposeTeam`                            | onboarding team proposal                  | — (LLM)                                          | Planner                                                      |
+| `decideAction`                           | resume a gated action                     | —                                                | registered but currently unassigned                          |
 
 **Channel:** web chat only: the Correspondent's Flue agent route (HTTP+SSE).
 
 ### Agent → tools today
 
 - **Correspondent**: `rememberFact`, `recallMemory`, `delegateToWorker`,
-  `listAssets`, `readAsset`, `saveAsset`, `webSearch`, `fetchUrl`
-- **Planner**: `extractBrief`, `proposeTeam` (+ memory)
+  `extractBrief`, `listAssets`, `readAsset`, `saveAsset`, `webSearch`, `fetchUrl`
+- **Planner**: `extractBrief`, `proposeTeam`
 - **Designer**: `generateBrandImage` + assets + web + memory
 - **Marketing Strategist**: `draftSocialPost` + assets + web + memory
 - **Redator**: `webSearch`, assets, memory (+ `fetchUrl`)
@@ -146,9 +149,9 @@ spike (2026-06-19):
 
 **Skill:** create `src/skills/<name>.ts` (`{ id, description, inputSchema,
 execute }`) → add to `ALL_SKILLS` in `registry.ts` → add the id to the relevant
-template `skill_ids` in `packages/db/src/product-seed.ts` and/or `CORRESPONDENT_SKILLS` → declare any
+template `skillIds` in `packages/db/src/product-seed.ts` and/or `CORRESPONDENT_SKILLS` → declare any
 secret in `env.d.ts` + `wrangler secret put` + `docs/deploy.md` → if it's an
-outward action, give the template a `default_policies` entry so it's gated.
+outward action, give the template a `defaultPolicies` entry so it's gated.
 
 **Connector:** add the connector type + webhook route → store per-tenant secret
 in `CONNECTOR_SECRETS` KV → route inbound messages to the Correspondent DO.

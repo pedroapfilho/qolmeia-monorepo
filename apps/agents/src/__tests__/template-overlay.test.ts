@@ -1,10 +1,16 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { getTemplate, listSkillOverlays } from "#/db/template";
 import { buildFlueTools } from "#/lib/skill-tool";
-import { buildSkillTools, registerSkill, type UnknownSkill } from "#/skills/registry";
+import {
+  buildSkillTools,
+  loadSkillOverlays,
+  registerSkill,
+  resolveSkills,
+  type UnknownSkill,
+} from "#/skills/registry";
 
 const COMPANY_ID = "co_tpl_test";
 const AGENT_INSTANCE_ID = "agent_tpl_test";
@@ -116,6 +122,11 @@ describe("buildSkillTools — Prisma overlay join", () => {
 describe("buildFlueTools — agents share the overlay + kill-switch core", () => {
   const ctx = { agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env };
 
+  // Mirrors what the agents do: loadSkillOverlays at the intake seam, then a
+  // synchronous render off the snapshot.
+  const buildWithOverlays = async (skillIds: ReadonlyArray<string>) =>
+    buildFlueTools(ctx, skillIds, await loadSkillOverlays(env, skillIds));
+
   it("omits a skill whose database overlay is disabled (the kill-switch reaches the Flue agents)", async () => {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO skill
@@ -129,7 +140,7 @@ describe("buildFlueTools — agents share the overlay + kill-switch core", () =>
       inputSchema: z.object({}),
     });
 
-    const tools = await buildFlueTools(ctx, ["flue-disabled"]);
+    const tools = await buildWithOverlays(["flue-disabled"]);
     expect(tools).toHaveLength(0);
   });
 
@@ -146,13 +157,40 @@ describe("buildFlueTools — agents share the overlay + kill-switch core", () =>
       inputSchema: z.object({}),
     });
 
-    const tools = await buildFlueTools(ctx, ["flue-described"]);
+    const tools = await buildWithOverlays(["flue-described"]);
     expect(tools.find((t) => t.name === "flue-described")?.description).toBe(
       "Database desc for the agent",
     );
   });
 
-  it("throws when an agent references an unknown skill id", async () => {
-    await expect(buildFlueTools(ctx, ["nope-not-a-skill"])).rejects.toThrow(/unknown skill id/v);
+  it("blocks a skill disabled after the agent snapshot was rendered", async () => {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO skill
+         (id, display_name, description, param_hints, default_config, enabled, updated_at)
+       VALUES ('flue-live-toggle', 'Flue Live Toggle', 'd', NULL, NULL, 1, 0)`,
+    ).run();
+    await env.DB.prepare("UPDATE skill SET enabled = 1 WHERE id = 'flue-live-toggle'").run();
+    const execute = vi.fn(() => Promise.resolve({ ok: true }));
+    registerSkill({
+      description: "x",
+      execute,
+      id: "flue-live-toggle",
+      inputSchema: z.object({}),
+    });
+
+    const [resolved] = resolveSkills(ctx, ["flue-live-toggle"], {
+      "flue-live-toggle": { description: "d", enabled: true },
+    });
+    if (resolved === undefined) {
+      throw new Error("flue-live-toggle was not resolved");
+    }
+    await env.DB.prepare("UPDATE skill SET enabled = 0 WHERE id = 'flue-live-toggle'").run();
+
+    await expect(resolved.execute({})).rejects.toThrow(/disabled/v);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("throws when an agent references an unknown skill id", () => {
+    expect(() => buildFlueTools(ctx, ["nope-not-a-skill"], null)).toThrow(/unknown skill id/v);
   });
 });

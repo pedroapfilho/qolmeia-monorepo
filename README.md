@@ -2,14 +2,17 @@
 
 Monorepo for Qolmeia, a customer support and agent-orchestration product. The current runtime is split across Better Auth, two Next.js surfaces, and a Cloudflare Worker that hosts Flue agents, customer/operator REST APIs, R2 assets, and approval workflows. Auth and product state share Postgres through Prisma.
 
-Full architecture details live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Local setup is in [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md).
+The complete shipped-feature inventory lives in [`docs/FEATURES.md`](docs/FEATURES.md), with screenshots
+and product flows in [`docs/PRODUCT_MAP.md`](docs/PRODUCT_MAP.md). Architecture details live in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and local setup is in
+[`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md).
 
 ## Apps
 
 | App               | Package       | Framework         | Dev URL                                | Purpose                                               |
 | ----------------- | ------------- | ----------------- | -------------------------------------- | ----------------------------------------------------- |
 | `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost`        | Better Auth and `/api/v1/me` membership relay         |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787`                | Flue agents, Prisma/R2-backed product APIs, Workflows |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://127.0.0.1:8787`                | Flue agents, Prisma/R2-backed product APIs, Workflows |
 | `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost`     | Customer onboarding and chat                          |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` | Operator approvals and team management                |
 

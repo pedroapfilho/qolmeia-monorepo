@@ -1,9 +1,11 @@
-import { registerProvider } from "@flue/runtime";
-import { flue } from "@flue/runtime/routing";
+import { createAgentRouter } from "@flue/runtime/routing";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
+import { CorrespondentV2 } from "#/agents/correspondent";
+import { PlannerV2 } from "#/agents/planner";
+import { requireCustomerAgent } from "#/lib/agent-route-auth";
 import { logError } from "#/lib/logger";
 import { assetsRoutes } from "#/routes/assets";
 import { backofficeRoutes } from "#/routes/backoffice";
@@ -11,8 +13,6 @@ import { internalRoutes } from "#/routes/internal";
 import { meRoutes } from "#/routes/me";
 import { meAssetsRoutes } from "#/routes/me-assets";
 import { teamsRoutes } from "#/routes/teams";
-
-registerProvider("openrouter", {});
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -52,6 +52,14 @@ app.route("/api/me", meRoutes);
 app.route("/api/me", meAssetsRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);
-app.route("/", flue());
+
+// Flue 2 mounts agents explicitly and dropped the agent-module `route` export,
+// so the CUSTOMER guard is ordinary middleware. The `/agents/<name>/<companyId>`
+// shape is preserved because requireCustomerAgent compares the third path
+// segment against the session's company, and the client rewrites this prefix.
+app.use("/agents/correspondent/*", requireCustomerAgent);
+app.use("/agents/planner/*", requireCustomerAgent);
+app.route("/agents/correspondent", createAgentRouter(CorrespondentV2));
+app.route("/agents/planner", createAgentRouter(PlannerV2));
 
 export default app;

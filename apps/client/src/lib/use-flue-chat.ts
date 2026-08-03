@@ -1,7 +1,11 @@
 "use client";
 
 import { useFlueAgent } from "@flue/react";
-import { type AgentPromptImage, createFlueClient, type FlueConversationMessage } from "@flue/sdk";
+import {
+  createFlueClient,
+  type DeliveredAttachment,
+  type FlueConversationMessage,
+} from "@flue/sdk";
 import type { FileUIPart } from "ai";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -24,7 +28,6 @@ type UseFlueChatOptions = {
 
 type UseFlueChatResult = {
   historyReady: boolean;
-  kickoff: (prompt: string) => Promise<void>;
   messages: Array<ChatMessage>;
   sendMessage: (input: SendInput) => Promise<void>;
   status: FlueChatStatus;
@@ -49,7 +52,7 @@ const toBase64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
-const toPromptImage = async (url: string, mimeType: string): Promise<AgentPromptImage> => {
+const toPromptImage = async (url: string, mimeType: string): Promise<DeliveredAttachment> => {
   if (url.startsWith("data:")) {
     return { data: url.slice(url.indexOf(",") + 1), mimeType, type: "image" };
   }
@@ -60,14 +63,14 @@ const toPromptImage = async (url: string, mimeType: string): Promise<AgentPrompt
   return { data: toBase64(await response.arrayBuffer()), mimeType, type: "image" };
 };
 
-const toPromptImages = async (files: Array<FileUIPart>): Promise<Array<AgentPromptImage>> => {
+const toPromptImages = async (files: Array<FileUIPart>): Promise<Array<DeliveredAttachment>> => {
   const imageFiles = files.flatMap((file) =>
     file.mediaType?.startsWith("image/") ? [{ mimeType: file.mediaType, url: file.url }] : [],
   );
   const settled = await Promise.allSettled(
     imageFiles.map((file) => toPromptImage(file.url, file.mimeType)),
   );
-  const images: Array<AgentPromptImage> = [];
+  const images: Array<DeliveredAttachment> = [];
   for (const result of settled) {
     if (result.status === "rejected") {
       throw result.reason instanceof Error ? result.reason : new Error(String(result.reason));
@@ -84,17 +87,18 @@ const useFlueChat = ({
   onError,
   sessionToken,
 }: UseFlueChatOptions): UseFlueChatResult => {
+  // Flue 2 clients are conversation-scoped: one client per agent mount + id.
   const client = useMemo(
     () =>
       createFlueClient({
-        baseUrl: baseUrl || "/",
         fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
+        url: `${(baseUrl || "").replace(/\/+$/v, "")}/agents/${agent}/${companyId}`,
         ...(sessionToken !== undefined && sessionToken !== "" ? { token: sessionToken } : {}),
       }),
-    [baseUrl, sessionToken],
+    [agent, baseUrl, companyId, sessionToken],
   );
 
-  const conversation = useFlueAgent({ client, id: companyId, live: "sse", name: agent });
+  const conversation = useFlueAgent({ client, live: "sse" });
 
   const lastErrorRef = useRef<Error | undefined>(undefined);
   useEffect(() => {
@@ -118,18 +122,8 @@ const useFlueChat = ({
     }
   };
 
-  const kickoff = async (prompt: string) => {
-    try {
-      await conversation.sendMessage(prompt);
-    } catch (error) {
-      onError?.(error);
-      throw error;
-    }
-  };
-
   return {
     historyReady: conversation.historyReady,
-    kickoff,
     messages: conversation.messages,
     sendMessage,
     status: STATUS_MAP[conversation.status],

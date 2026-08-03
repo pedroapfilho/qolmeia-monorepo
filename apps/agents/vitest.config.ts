@@ -11,7 +11,7 @@ process.env.DATABASE_URL = TEST_DATABASE_URL;
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      main: "./src/index.ts",
+      main: "./src/__tests__/worker-entry.ts",
       miniflare: {
         bindings: {
           ASSETS_SIGNING_KEY: "vitest-assets-signing-key",
