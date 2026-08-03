@@ -23,7 +23,6 @@ const nextConfig: NextConfig = {
   ],
   cacheComponents: true,
 
-  // These only work as real HTTP headers; browsers ignore them as <meta http-equiv>.
   headers: () =>
     Promise.resolve([
       {

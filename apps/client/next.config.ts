@@ -23,7 +23,6 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["qolmeia.client.localhost", "*.qolmeia.client.localhost", "*.vercel.app"],
   cacheComponents: true,
 
-  // These only work as real HTTP headers; browsers ignore them as <meta http-equiv>.
   headers: () =>
     Promise.resolve([
       {
