@@ -1,5 +1,6 @@
 import { dispatch } from "@flue/runtime";
 
+import { CorrespondentV2 } from "#/agents/correspondent";
 import { getDb } from "#/db/client";
 import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 import { logInfo } from "#/lib/logger";
@@ -30,10 +31,10 @@ const runProactiveSweep = async (
       if (!gate.ok) {
         return "skipped";
       }
-      await dispatch({
-        agent: "correspondent",
+      // Signal, not a user turn: see presentToCustomer in worker-job-steps.
+      await dispatch(CorrespondentV2, {
         id: company.id,
-        input: { message: PROACTIVE_PROMPT },
+        message: { body: PROACTIVE_PROMPT, kind: "signal", type: "proactive.nudge" },
       });
       await recordProactiveSuggestion(env, company.id);
       return "suggested";

@@ -8,7 +8,7 @@ This file provides guidance to AI coding agents when working with code in this r
 # Development
 pnpm dev                                 # turbo runs all four apps in parallel
 pnpm dev --filter=api                   # api service (Hono, https://qolmeia.api.localhost via portless)
-pnpm dev --filter=worker-bees            # Cloudflare Worker (wrangler dev, :8787)
+pnpm dev --filter=worker-bees            # Cloudflare Worker (vite dev, 127.0.0.1:8787)
 pnpm dev --filter=client                 # customer app (Next.js, https://qolmeia.client.localhost)
 pnpm dev --filter=backoffice             # operator panel (Next.js, https://qolmeia.backoffice.localhost)
 
@@ -37,7 +37,7 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 | Folder            | Package name  | Framework         | Dev URL                                           | Audience                                                                                                                            |
 | ----------------- | ------------- | ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost` (portless)        | General API service: auth (`/api/auth/*` Better Auth) + `/api/v1/me` (relay target); home for future non-agent management features. |
-| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://localhost:8787` (wrangler dev)            | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                |
+| `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://127.0.0.1:8787` (vite dev)                | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                |
 | `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface (CUSTOMER role).                                                                                          |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel (OWNER/STAFF roles).                                                                                                 |
 
@@ -45,7 +45,10 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 
 ### Key runtime moves (P1–P7)
 
-- **Per-tenant agents are Durable Objects**: `CorrespondentAgent`, `WorkerAgent`, `PlannerAgent` (one DO instance per company id).
+- **Per-tenant agents are Durable Objects**: `CorrespondentV2` and `PlannerV2` in `src/agents/` are `'use agent'`
+  modules whose exported function names generate `FlueCorrespondentV2Agent` / `FluePlannerV2Agent` (one DO
+  instance per company id). Renaming a function changes its storage identity unless pinned with `agentName`.
+  Both are mounted explicitly in `app.ts` via `createAgentRouter`, behind `requireCustomerAgent` middleware.
 - **Approvals run on Workflows**: every Worker job spawns a `WorkerJobWorkflow`; gated actions pause on `waitForEvent("decision:<actionId>")` until an operator decides via `/api/backoffice/actions/:id/decide`.
 - **Postgres is the system of record for auth and product data**, accessed through Prisma from both `apps/api` and the agents Worker. Schema in `packages/db/prisma/schema.prisma`.
 - **R2 holds binary assets** (`ASSETS` binding), served via HMAC-signed URLs from `/assets/:id`.
@@ -68,10 +71,10 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 2. **Client opens**: `requireCustomer` → `apps/agents/api/me` (relays to `apps/api/api/v1/me` for membership).
 3. **status === "onboarding"**: chat against `/agents/planner/<companyId>`. Planner calls `extractBrief` and `proposeTeam`, then surfaces a "Confirmar Time" button.
 4. **Customer confirms**: `POST /api/teams/:companyId/confirm` materialises `team` + `team_member`, flips `company.status = 'active'`, and seeds Correspondent memory.
-5. **status === "active"**: chat against `/agents/correspondent/<companyId>`. Correspondent uses `delegateToWorker` to spawn child tickets; Worker DO instantiates a `WorkerJobWorkflow`.
+5. **status === "active"**: chat against `/agents/correspondent/<companyId>`. Correspondent uses `delegateToWorker` to spawn child tickets, each of which instantiates a `WorkerJobWorkflow` (the deliverable is generated with `generateText`, not a Flue agent).
 6. **Workflow proposes a `require-approval` action**: injects a 🟡 message via Correspondent, then `waitForEvent("decision:<actionId>")`.
 7. **Operator on `apps/backoffice`**: `requireStaff` → `/approvals` lists pending oldest-first → `/approvals/:id` shows the decide form → POST `/api/backoffice/actions/:id/decide` resumes the Workflow.
-8. **Workflow executes**: side-effect (e.g. `generateBrandImage` → R2 → signed URL) → marks the action `executed` and ticket `done` → Correspondent renders the result in chat (markdown, so images appear inline).
+8. **Workflow executes**: side-effect (e.g. `generateBrandImage` → R2 → signed URL) → marks the action `executed` and ticket `done` → dispatches a `worker.deliverable_ready` **signal** to Correspondent, which renders the result in chat (markdown, so images appear inline). Internal dispatches must be signals: Flue marks them `display: "diagnostic"` so the prompt itself stays out of the customer's transcript, and the client filters on that field.
 
 ## Tooling
 
@@ -79,7 +82,9 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 - **Formatter**: oxfmt (NOT Prettier). Config in `.oxfmtrc.json`. Sorts imports.
 - **Pre-commit**: Husky + lint-staged runs `oxlint` + `oxfmt`.
 - **Testing**: Vitest. `apps/agents` uses `@cloudflare/vitest-pool-workers` against Miniflare.
-- **Bundler (api)**: tsdown. **Bundler (agents)**: wrangler.
+- **Bundler (api)**: tsdown. **Bundler (agents)**: Vite, via `@flue/vite` + `@cloudflare/vite-plugin`. The
+  Worker entry and the per-agent Durable Object bindings are generated (`.flue-vite/`,
+  `.flue-vite.wrangler.jsonc`); `wrangler.jsonc` has no `main`. Deploy is `vite build && wrangler deploy`.
 
 ## Environment
 

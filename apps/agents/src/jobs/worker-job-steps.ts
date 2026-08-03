@@ -1,6 +1,7 @@
 import { dispatch } from "@flue/runtime";
 
 import { logActivity } from "#/activity/log";
+import { CorrespondentV2 } from "#/agents/correspondent";
 import { decideAction, markExecuted, proposeAction } from "#/db/action";
 import type { DecisionOutcome } from "#/db/action";
 import { getDb } from "#/db/client";
@@ -37,11 +38,15 @@ type DecisionEvent = {
 const presentToCustomer = async (ctx: JobContext, result: string): Promise<void> => {
   const { companyId, ticketId } = ctx;
   try {
-    await dispatch({
-      agent: "correspondent",
+    // A signal, not a user turn: Flue classifies signals as purpose "dispatch"
+    // with display "diagnostic", which keeps this internal prompt out of the
+    // customer's transcript. A bare string would render as if they typed it.
+    await dispatch(CorrespondentV2, {
       id: companyId,
-      input: {
-        message: `Um especialista do Time concluiu uma tarefa. Apresente este material ao cliente, em pt-BR, de forma calorosa e direta; mantenha as imagens em markdown e não altere o conteúdo:\n\n${result}`,
+      message: {
+        body: `Um especialista do Time concluiu uma tarefa. Apresente este material ao cliente, em pt-BR, de forma calorosa e direta; mantenha as imagens em markdown e não altere o conteúdo:\n\n${result}`,
+        kind: "signal",
+        type: "worker.deliverable_ready",
       },
     });
   } catch (error) {

@@ -16,17 +16,17 @@ const ctx: SkillContext = {
 };
 
 describe("buildFlueTools — zod input schemas re-expressed as Valibot", () => {
-  it("converts every registered skill's input schema without throwing", async () => {
+  it("converts every registered skill's input schema without throwing", () => {
     const ids = listSkillCatalog().map((entry) => entry.id);
-    const tools = await buildFlueTools(ctx, ids);
+    const tools = buildFlueTools(ctx, ids, null);
     expect(tools.map((tool) => tool.name).toSorted()).toEqual(ids.toSorted());
     for (const tool of tools) {
       expect(tool.input).toBeDefined();
     }
   });
 
-  it("keeps required fields and length limits enforceable", async () => {
-    const [delegate] = await buildFlueTools(ctx, ["delegateToWorker"]);
+  it("keeps required fields and length limits enforceable", () => {
+    const [delegate] = buildFlueTools(ctx, ["delegateToWorker"], null);
     const input = delegate?.input;
     if (!input) {
       throw new Error("delegateToWorker input schema missing");
@@ -38,8 +38,8 @@ describe("buildFlueTools — zod input schemas re-expressed as Valibot", () => {
     expect(v.safeParse(input, { brief: "", workerKind: "designer" }).success).toBe(false);
   });
 
-  it("keeps enums and optional fields enforceable", async () => {
-    const [listAssets] = await buildFlueTools(ctx, ["listAssets"]);
+  it("keeps enums and optional fields enforceable", () => {
+    const [listAssets] = buildFlueTools(ctx, ["listAssets"], null);
     const input = listAssets?.input;
     if (!input) {
       throw new Error("listAssets input schema missing");

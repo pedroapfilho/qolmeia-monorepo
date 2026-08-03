@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  AGENTS_INTERNAL_URL: z.string().default("http://localhost:8787"),
+  AGENTS_INTERNAL_URL: z.string().default("http://127.0.0.1:8787"),
   AUTH_ALLOWED_HOSTS: z.string().optional(),
   AUTH_FROM_EMAIL: z.string().optional(),
   BETTER_AUTH_SECRET: z.string().min(32),

@@ -1,17 +1,18 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "worker-bees",
-  "main": "src/index.ts",
+  // No "main": the flue() Vite plugin generates the Worker entry and merges it
+  // (with the per-agent Durable Object bindings) into .flue-vite.wrangler.jsonc.
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   // Weekly proactive "suggest next work" sweep (Mondays 13:00 UTC ≈ 10:00 BRT).
-  // → src/index.ts scheduled() → runProactiveSweep.
+  // → src/cloudflare.ts scheduled() → runProactiveSweep.
   "triggers": { "crons": ["0 13 * * 1"] },
-  // All agents are Flue agents now. The Flue agent + registry Durable Object
-  // bindings are added by `flue build` when it merges this config; their SQLite
-  // migration must be declared here (flue build doesn't generate it). Single
-  // from-scratch migration; nothing in production to preserve.
+  // One Durable Object class per exported agent function, named after it. The
+  // bindings are generated at build time; migration history stays append-only.
+  // Flue beta used persisted schema v5 while Flue 2 uses v8, so v3 drains the
+  // reset-only beta classes and creates fresh V2 identities.
   "migrations": [
     {
       "tag": "v1",
@@ -25,6 +26,16 @@
     {
       "tag": "v2",
       "new_classes": ["TeamEvents"],
+    },
+    {
+      "tag": "v3",
+      "deleted_classes": [
+        "FlueCorrespondentAgent",
+        "FluePlannerAgent",
+        "FlueWorkerAgent",
+        "FlueRegistry",
+      ],
+      "new_sqlite_classes": ["FlueCorrespondentV2Agent", "FluePlannerV2Agent"],
     },
   ],
   "durable_objects": {
@@ -52,7 +63,9 @@
     "IMAGE_GEN_MODEL": "google/gemini-3.1-flash-image-preview",
     // Public URL of this Worker, used to build absolute asset URLs the client
     // can fetch. Override at deploy with the *.workers.dev / custom domain URL.
-    "WORKER_PUBLIC_URL": "http://localhost:8787",
+    // 127.0.0.1, not localhost: `vite dev` binds one address and vite.config.ts
+    // pins it to IPv4 so the Next rewrites reach it.
+    "WORKER_PUBLIC_URL": "http://127.0.0.1:8787",
     // Better Auth service (apps/api); the Worker validates sessions against it.
     "AUTH_SERVICE_URL": "http://localhost:4000",
     // Comma-separated client origins allowed to call the Worker. The

@@ -17,7 +17,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { FileUIPart } from "ai";
 import { ImageIcon, Maximize2, MessageSquare, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import { ChatComposer } from "@/components/chat-composer";
 import { MessageResponse } from "@/components/markdown-response";
@@ -31,8 +31,12 @@ type ChatProps = {
   sessionToken: string;
 };
 
+// Kept only to hide the synthetic user message already stored in conversations
+// created before the deterministic greeting replaced model-generated kickoff.
 const PLANNER_KICKOFF =
   "O cliente acabou de abrir o chat de onboarding. Cumprimente-o de forma calorosa e breve, diga em uma frase que você vai fazer algumas perguntas para entender o negócio dele, e já faça a primeira pergunta da entrevista.";
+const PLANNER_GREETING =
+  "Oi! Vou fazer algumas perguntas para conhecer seu negócio e montar o time certo para você. Para começar: o que sua empresa faz e quem ela atende?";
 
 const TOOL_ACTIVITY_LABELS: Record<string, string> = {
   delegateToWorker: "Encaminhando para o time…",
@@ -54,18 +58,12 @@ const isKickoffMessage = (message: ChatMessage): boolean =>
   message.role === "user" &&
   message.parts.some((part) => part.type === "text" && part.text === PLANNER_KICKOFF);
 
-// Workflow deliveries and proactive nudges reach the agent via flue dispatch,
-// and the runtime projects that dispatch into history as a user-role message
-// whose text is the pretty-printed JSON payload ({ "message": … }) with no
-// submissionId. Real customer messages carry a submissionId once canonical;
-// the optimistic echo of one doesn't, so the payload-shape check keeps it
-// visible.
-const DISPATCH_PAYLOAD_PATTERN = /^\{\s*"message":/v;
-
-const isInternalDispatchMessage = (message: ChatMessage): boolean =>
-  message.role === "user" &&
-  message.submissionId === undefined &&
-  message.parts.some((part) => part.type === "text" && DISPATCH_PAYLOAD_PATTERN.test(part.text));
+// Flue labels every message it does not consider chat: server-side dispatches
+// (workflow deliveries, proactive nudges) and runtime advisories (tool-set
+// changes, abort markers) both arrive as "diagnostic". Only optimistic echoes
+// carry no display yet, and those are always the customer's own.
+const isChatMessage = (message: ChatMessage): boolean =>
+  message.display === undefined || message.display === "visible";
 
 const hasVisibleContent = (message: ChatMessage): boolean =>
   message.parts.some((part) => {
@@ -199,13 +197,28 @@ const ChatSkeleton = () => (
   </div>
 );
 
+const PlannerGreeting = ({ scrollAnchor }: { scrollAnchor: boolean }) => (
+  <MessageScrollerItem messageId="planner-greeting" scrollAnchor={scrollAnchor}>
+    <Message align="start">
+      <MessageAvatar className="size-7 self-end rounded-lg bg-avatar-1 text-[11px] font-bold text-white">
+        C
+      </MessageAvatar>
+      <MessageContent>
+        <div className="w-fit max-w-full min-w-0 rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-2 text-sm text-foreground">
+          <MessageResponse>{PLANNER_GREETING}</MessageResponse>
+        </div>
+      </MessageContent>
+    </Message>
+  </MessageScrollerItem>
+);
+
 const ChatInner = ({
   agent: agentName = "correspondent",
   agentsUrl,
   companyId,
   sessionToken,
 }: ChatProps) => {
-  const { historyReady, kickoff, messages, sendMessage, status } = useFlueChat({
+  const { historyReady, messages, sendMessage, status } = useFlueChat({
     agent: agentName,
     baseUrl: agentsUrl,
     companyId,
@@ -216,27 +229,11 @@ const ChatInner = ({
   });
 
   const visibleMessages = messages.filter(
-    (message) =>
-      !isKickoffMessage(message) &&
-      !isInternalDispatchMessage(message) &&
-      hasVisibleContent(message),
+    (message) => !isKickoffMessage(message) && isChatMessage(message) && hasVisibleContent(message),
   );
-
-  const kickedOffRef = useRef(false);
-  useEffect(() => {
-    if (agentName !== "planner" || !historyReady || messages.length > 0 || kickedOffRef.current) {
-      return;
-    }
-    kickedOffRef.current = true;
-    const run = async () => {
-      try {
-        await kickoff(PLANNER_KICKOFF);
-      } catch {
-        kickedOffRef.current = false;
-      }
-    };
-    void run();
-  }, [agentName, historyReady, messages.length, kickoff]);
+  const showPlannerGreeting =
+    agentName === "planner" && !messages.some((message) => isKickoffMessage(message));
+  const hasConversation = showPlannerGreeting || visibleMessages.length > 0;
 
   const isThinking = status === "submitted" || status === "streaming";
   const isCorrespondent = agentName === "correspondent";
@@ -283,17 +280,14 @@ const ChatInner = ({
         <MessageScroller className="flex-1">
           <MessageScrollerViewport aria-label="Mensagens da conversa">
             <MessageScrollerContent className="p-4">
-              {visibleMessages.length === 0 ? (
-                <ChatEmptyState
-                  description="Os agentes da Qolmeia respondem em segundos."
-                  icon={<MessageSquare aria-hidden className="size-10" />}
-                  title="Comece a conversa"
-                />
-              ) : (
+              {hasConversation ? (
                 <>
                   <Marker variant="separator">
                     <MarkerContent>Início da conversa</MarkerContent>
                   </Marker>
+                  {showPlannerGreeting ? (
+                    <PlannerGreeting scrollAnchor={visibleMessages.length === 0} />
+                  ) : null}
                   {visibleMessages.map((message, index) => (
                     <MessageScrollerItem
                       key={message.id}
@@ -313,6 +307,12 @@ const ChatInner = ({
                     </MessageScrollerItem>
                   ))}
                 </>
+              ) : (
+                <ChatEmptyState
+                  description="Os agentes da Qolmeia respondem em segundos."
+                  icon={<MessageSquare aria-hidden className="size-10" />}
+                  title="Comece a conversa"
+                />
               )}
 
               {isThinking ? (
@@ -356,4 +356,4 @@ const Chat = (props: ChatProps) => {
   return <ChatInner {...props} />;
 };
 
-export { Chat, PLANNER_KICKOFF };
+export { Chat, PLANNER_GREETING, PLANNER_KICKOFF };

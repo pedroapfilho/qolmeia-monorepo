@@ -1,7 +1,15 @@
-import { defineAgent } from "@flue/runtime";
+"use agent";
+import {
+  type AgentProps,
+  useAgentStart,
+  useModel,
+  usePersistentState,
+  useTool,
+} from "@flue/runtime";
+import { env } from "cloudflare:workers";
 
 import { buildFlueTools } from "#/lib/skill-tool";
-import type { SkillContext } from "#/skills/registry";
+import { loadSkillOverlays, type SkillContext, type SkillOverlayMap } from "#/skills/registry";
 
 const CORRESPONDENT_SKILLS = [
   "rememberFact",
@@ -25,18 +33,26 @@ Use recallMemory no início de pedidos relevantes para lembrar o que já sabe so
 
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
 
-export default defineAgent<Env>(async (context) => {
-  const ctx: SkillContext = {
-    agentInstanceId: `corr-${context.id}`,
-    companyId: context.id,
-    env: context.env,
-  };
+// Flue 2 cannot read the beta runtime's persisted schema, so this fresh export
+// intentionally derives FlueCorrespondentV2Agent. Keep this identity stable
+// after the v3 reset migration in wrangler.jsonc is deployed.
+export function CorrespondentV2({ id }: AgentProps): string {
+  // Overlays (operator description overrides + the per-skill kill switch) come
+  // from Postgres, but agent renders are synchronous, so the read happens at the
+  // intake seam and the render works off the persisted snapshot. The snapshot
+  // is refreshed for every delivery; runSkill also rechecks the kill switch at
+  // invocation time because state writes become visible only on the next render.
+  const [overlays, setOverlays] = usePersistentState<SkillOverlayMap | null>("skillOverlays", null);
+  useAgentStart(async () => {
+    setOverlays(await loadSkillOverlays(env, CORRESPONDENT_SKILLS));
+  });
 
-  return {
-    instructions: CORRESPONDENT_INSTRUCTIONS,
-    model: `openrouter/${context.env.CORRESPONDENT_MODEL || DEFAULT_MODEL}`,
-    tools: await buildFlueTools(ctx, CORRESPONDENT_SKILLS),
-  };
-});
+  useModel(`openrouter/${env.CORRESPONDENT_MODEL || DEFAULT_MODEL}`);
 
-export { requireCustomerAgent as route } from "#/lib/agent-route-auth";
+  const ctx: SkillContext = { agentInstanceId: `corr-${id}`, companyId: id, env };
+  for (const skillTool of buildFlueTools(ctx, CORRESPONDENT_SKILLS, overlays)) {
+    useTool(skillTool);
+  }
+
+  return CORRESPONDENT_INSTRUCTIONS;
+}

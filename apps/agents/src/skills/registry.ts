@@ -2,7 +2,7 @@ import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
 import { getDb } from "#/db/client";
-import { listSkillOverlays, type SkillOverlay } from "#/db/template";
+import { listSkillOverlays } from "#/db/template";
 import { logError, logInfo } from "#/lib/logger";
 import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
 import { decideActionSkill } from "#/skills/decide-action";
@@ -79,6 +79,13 @@ const runSkill = async (
   };
   logInfo("agent.tool.start", baseFields);
   try {
+    // Agent renders are synchronous and use a persisted overlay snapshot. Read
+    // the current row again at the execution boundary so a newly-disabled
+    // skill cannot run during the one-render refresh window.
+    const [liveOverlay] = await listSkillOverlays(getDb(ctx.env), [id]);
+    if (liveOverlay !== undefined && !liveOverlay.enabled) {
+      throw new Error(`Skill "${id}" is disabled`);
+    }
     const result = await code.execute(input, ctx);
     logInfo("agent.tool.ok", {
       ...baseFields,
@@ -93,23 +100,42 @@ const runSkill = async (
   }
 };
 
-const resolveSkills = async (
+// Flue 2 agent functions must be synchronous, so the overlay read (one
+// Postgres query) is split off from tool assembly: agents await it in
+// useAgentStart on every delivery and hand the latest persisted snapshot to a
+// synchronous resolveSkills. runSkill independently enforces the live switch.
+// Narrow projection, because it round-trips through usePersistentState and
+// must stay JSON.
+type SkillOverlaySnapshot = { description: string; enabled: boolean };
+type SkillOverlayMap = Record<string, SkillOverlaySnapshot>;
+
+const loadSkillOverlays = async (
+  env: Env,
+  skillIds: ReadonlyArray<string>,
+): Promise<SkillOverlayMap> => {
+  if (skillIds.length === 0) {
+    return {};
+  }
+  const overlays = await listSkillOverlays(getDb(env), skillIds);
+  const map: SkillOverlayMap = {};
+  for (const overlay of overlays) {
+    map[overlay.id] = { description: overlay.description, enabled: overlay.enabled };
+  }
+  return map;
+};
+
+const resolveSkills = (
   ctx: SkillContext,
   skillIds: ReadonlyArray<string>,
-): Promise<ReadonlyArray<ResolvedSkill>> => {
-  if (skillIds.length === 0) {
-    return [];
-  }
-  const overlays = await listSkillOverlays(getDb(ctx.env), skillIds);
-  const overlayMap = new Map<string, SkillOverlay>(overlays.map((o) => [o.id, o]));
-
+  overlays: SkillOverlayMap | null,
+): ReadonlyArray<ResolvedSkill> => {
   const resolved: Array<ResolvedSkill> = [];
   for (const id of skillIds) {
     const code = codeRegistry.get(id);
     if (!code) {
       throw new Error(`References unknown skill id: ${id}`);
     }
-    const overlay = overlayMap.get(id);
+    const overlay = overlays?.[id];
     if (overlay && !overlay.enabled) {
       continue;
     }
@@ -127,8 +153,9 @@ const buildSkillTools = async (
   ctx: SkillContext,
   skillIds: ReadonlyArray<string>,
 ): Promise<ToolSet> => {
+  const overlays = await loadSkillOverlays(ctx.env, skillIds);
   const tools: ToolSet = {};
-  for (const skill of await resolveSkills(ctx, skillIds)) {
+  for (const skill of resolveSkills(ctx, skillIds, overlays)) {
     tools[skill.id] = tool({
       description: skill.description,
       execute: skill.execute,
@@ -165,5 +192,12 @@ const listSkillCatalog = (): ReadonlyArray<SkillCatalogEntry> =>
     id: s.id,
   })).toSorted((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
 
-export { buildSkillTools, isKnownSkill, listSkillCatalog, registerSkill, resolveSkills };
-export type { ResolvedSkill, SkillCatalogEntry, SkillContext, UnknownSkill };
+export {
+  buildSkillTools,
+  isKnownSkill,
+  listSkillCatalog,
+  loadSkillOverlays,
+  registerSkill,
+  resolveSkills,
+};
+export type { ResolvedSkill, SkillCatalogEntry, SkillContext, SkillOverlayMap, UnknownSkill };
