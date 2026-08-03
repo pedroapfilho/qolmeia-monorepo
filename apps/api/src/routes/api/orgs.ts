@@ -3,6 +3,7 @@ import { Prisma, prisma as defaultPrisma } from "@repo/db";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { jsonError, unauthorized } from "@/lib/api-response";
 import { auth as defaultAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
@@ -93,26 +94,24 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
   app.post("/", async (c) => {
     const session = await auth.api.getSession({ headers: c.req.raw.headers });
     if (!session) {
-      return c.json({ error: { code: "UNAUTHORIZED", message: "Sign in first" } }, 401);
+      return unauthorized(c, "Sign in first");
     }
 
     let body: unknown;
     try {
       body = await c.req.json();
     } catch {
-      return c.json({ error: { code: "INVALID_JSON", message: "Invalid JSON body" } }, 400);
+      return jsonError({ c, code: "INVALID_JSON", message: "Invalid JSON body", status: 400 });
     }
     const parsed = createOrgSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json(
-        { error: { code: "INVALID_BODY", issues: parsed.error.issues, message: "Invalid body" } },
-        400,
-      );
-    }
-
-    const existing = await prisma.organization.findUnique({ where: { slug: parsed.data.slug } });
-    if (existing) {
-      return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
+      return jsonError({
+        c,
+        code: "INVALID_BODY",
+        issues: parsed.error.issues,
+        message: "Invalid body",
+        status: 400,
+      });
     }
 
     let org: { id: string; name: string; slug: string };
@@ -128,7 +127,7 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        return c.json({ error: { code: "SLUG_TAKEN", message: "Slug already in use" } }, 409);
+        return jsonError({ c, code: "SLUG_TAKEN", message: "Slug already in use", status: 409 });
       }
       throw error;
     }

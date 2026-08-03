@@ -1,3 +1,4 @@
+import { Prisma } from "@repo/db";
 import type { Context, Hono, MiddlewareHandler, Next } from "hono";
 import { describe, expect, it, vi } from "vitest";
 
@@ -111,11 +112,13 @@ describe("/api post-P7.2 surface", () => {
 
   it("rejects /orgs with a duplicate slug as 409", async () => {
     const prisma = buildMockPrisma();
-    prisma.organization.findUnique.mockResolvedValueOnce({
-      id: "existing",
-      name: "X",
-      slug: "new-org",
-    });
+    prisma.$transaction.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        clientVersion: "test",
+        code: "P2002",
+        meta: { target: ["slug"] },
+      }),
+    );
     const app = buildV1WithMocks(buildAllowGuard(), prisma);
     const res = await app.fetch(
       new Request("http://localhost/orgs", {

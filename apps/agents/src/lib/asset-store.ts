@@ -1,3 +1,5 @@
+import type { Prisma } from "@repo/db/worker";
+
 import type { Database } from "#/db/client";
 import { getDb } from "#/db/client";
 import { toEnum } from "#/db/mappers";
@@ -22,7 +24,11 @@ const toVisibility = toEnum<AssetVisibility>(["agent", "customer"], "customer");
 
 const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
+  "image/gif": "gif",
+  "image/jpeg": "jpg",
+  "image/png": "png",
   "image/svg+xml": "svg",
+  "image/webp": "webp",
   "text/csv": "csv",
   "text/markdown": "md",
   "text/plain": "txt",
@@ -50,46 +56,42 @@ const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
-type PersistTextInput = {
+type PersistAssetInput = {
+  bytes: Uint8Array;
   companyId: string;
-  extraMeta?: Record<string, unknown>;
-  mime?: string;
-  name: string;
-  text: string;
-  visibility?: AssetVisibility;
+  kind: AssetKind;
+  metadata: Prisma.InputJsonObject;
+  mime: string;
+  uploadMetadata: Record<string, string>;
+  visibility: AssetVisibility;
 };
 
-const persistTextAsset = async (
-  env: Env,
-  input: PersistTextInput,
-): Promise<{ assetId: string }> => {
-  const mime = input.mime ?? "text/markdown";
-  const visibility = input.visibility ?? "customer";
-  const bytes = new TextEncoder().encode(input.text);
+const persistAsset = async (env: Env, input: PersistAssetInput): Promise<{ assetId: string }> => {
+  const { bytes, companyId, kind, metadata, mime, visibility } = input;
   const sha = await sha256Hex(bytes);
-  const ext = EXT_BY_MIME[mime] ?? "txt";
-  const r2Key = `org_${input.companyId}/${visibility}/${sha}.${ext}`;
+  const ext = EXT_BY_MIME[mime] ?? "bin";
+  const folder = kind === "brand_asset" ? `${visibility}/brand` : visibility;
+  const r2Key = `org_${companyId}/${folder}/${sha}.${ext}`;
 
   await uploadAsset(
     { ASSETS: env.ASSETS },
-    { bytes, key: r2Key, metadata: { generatedBy: "agent" }, mime },
+    { bytes, key: r2Key, metadata: input.uploadMetadata, mime },
   );
 
-  const db = getDb(env);
-  const asset = await db.asset.upsert({
+  const asset = await getDb(env).asset.upsert({
     create: {
       bytes: bytes.length,
-      companyId: input.companyId,
+      companyId,
       id: crypto.randomUUID(),
-      kind: "knowledge_doc",
-      metadata: { name: input.name, ...input.extraMeta },
+      kind,
+      metadata,
       mime,
       r2Key,
       sha256: sha,
       visibility,
     },
     update: {},
-    where: { companyId_sha256: { companyId: input.companyId, sha256: sha } },
+    where: { companyId_sha256: { companyId, sha256: sha } },
   });
   return { assetId: asset.id };
 };
@@ -135,5 +137,5 @@ const readAssetText = async (
   };
 };
 
-export { assetName, listCompanyAssets, persistTextAsset, readAssetText };
+export { assetName, listCompanyAssets, persistAsset, readAssetText };
 export type { AssetKind, AssetSummary, AssetVisibility };

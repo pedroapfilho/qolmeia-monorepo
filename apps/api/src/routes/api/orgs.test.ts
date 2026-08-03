@@ -23,7 +23,6 @@ const buildPrisma = () => {
         .mockImplementation((args: { data: { name: string; slug: string } }) =>
           Promise.resolve({ id: "new_org_id", name: args.data.name, slug: args.data.slug }),
         ),
-      findUnique: vi.fn().mockResolvedValue(null),
     },
     orgMembership: {
       create: vi.fn().mockResolvedValue({}),
@@ -97,22 +96,6 @@ describe("POST /api/orgs", () => {
     });
     const res = await postOrgs(app, { name: "X", slug: "" });
     expect(res.status).toBe(400);
-  });
-
-  it("409 when slug is already taken", async () => {
-    const prisma = buildPrisma();
-    prisma.organization.findUnique.mockResolvedValueOnce({
-      id: "existing",
-      name: "Existing",
-      slug: "taken",
-    });
-    const app = buildOrgsRoutes({
-      auth: buildAuth(sessionA),
-      fetch: vi.fn(),
-      prisma: prisma as never,
-    });
-    const res = await postOrgs(app, { name: "X", slug: "taken" });
-    expect(res.status).toBe(409);
   });
 
   it("201 happy path: creates org + OWNER membership + relays to agents", async () => {

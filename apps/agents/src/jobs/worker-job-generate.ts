@@ -1,8 +1,7 @@
 import { generateText, isStepCount } from "ai";
 
 import { getDb } from "#/db/client";
-import { getTemplate } from "#/db/template";
-import { loadAgentInstance, loadTicket } from "#/db/ticket";
+import { loadInstanceWithTemplate, loadTicket } from "#/db/ticket";
 import type { GenerateResult, JobContext } from "#/jobs/worker-job-steps";
 import { getModel } from "#/lib/ai-gateway";
 import { logInfo } from "#/lib/logger";
@@ -70,21 +69,12 @@ const generateDeliverable = async (
   const { agentInstanceId, companyId, env, ticketId } = ctx;
   const db = getDb(env);
   const stepStart = Date.now();
-  const [ticket, agentInstance] = await Promise.all([
+  const [ticket, { agentInstance, template }] = await Promise.all([
     loadTicket(db, ticketId),
-    loadAgentInstance(db, agentInstanceId),
+    loadInstanceWithTemplate(db, agentInstanceId),
   ]);
-  if (
-    ticket === null ||
-    agentInstance === null ||
-    agentInstance.templateId === null ||
-    agentInstance.templateId === ""
-  ) {
-    throw new Error(`ticket ${ticketId} or its agent_instance not properly seeded`);
-  }
-  const template = await getTemplate(db, agentInstance.templateId);
-  if (!template) {
-    throw new Error(`template ${agentInstance.templateId} not found`);
+  if (ticket === null) {
+    throw new Error(`ticket ${ticketId} not properly seeded`);
   }
   logInfo("workflow.generate.start", {
     agentInstanceId,

@@ -1,12 +1,13 @@
+import type { Prisma } from "@repo/db/worker";
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { getDb } from "#/db/client";
-import { assetName } from "#/lib/asset-store";
+import { assetName, persistAsset } from "#/lib/asset-store";
 import type { ValidatedSession } from "#/lib/auth";
 import { requireCustomerForWrites, validateSession } from "#/lib/auth";
 import { parsePositiveInt } from "#/lib/pagination";
-import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
+import { buildSignedAssetUrl } from "#/lib/r2";
 
 type Vars = { session: ValidatedSession };
 
@@ -60,57 +61,29 @@ const ALLOWED_UPLOAD_MIME = new Set([
   "image/svg+xml",
   "image/webp",
 ]);
-const EXT_BY_MIME: Record<string, string> = {
-  "image/gif": "gif",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/svg+xml": "svg",
-  "image/webp": "webp",
-};
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-const sha256OfBytes = async (bytes: Uint8Array): Promise<string> => {
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-};
 
 const persistImageAsset = async (
   env: Env,
   opts: {
     companyId: string;
-    extraMeta: Record<string, unknown>;
+    extraMeta: Prisma.InputJsonObject;
     file: File;
     kind: "brand_asset" | "user_upload";
   },
 ): Promise<{ assetId: string; bytes: number; mime: string }> => {
   const { companyId, extraMeta, file, kind } = opts;
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  const sha = await sha256OfBytes(bytes);
-  const ext = EXT_BY_MIME[file.type] ?? "bin";
-  const folder = kind === "brand_asset" ? "customer/brand" : "customer";
-  const r2Key = `org_${companyId}/${folder}/${sha}.${ext}`;
-
-  await uploadAsset(
-    { ASSETS: env.ASSETS },
-    { bytes, key: r2Key, metadata: { uploader: "customer" }, mime: file.type },
-  );
-
-  const asset = await getDb(env).asset.upsert({
-    create: {
-      bytes: bytes.length,
-      companyId,
-      id: crypto.randomUUID(),
-      kind,
-      metadata: { originalName: file.name || null, ...extraMeta },
-      mime: file.type,
-      r2Key,
-      sha256: sha,
-    },
-    update: {},
-    where: { companyId_sha256: { companyId, sha256: sha } },
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { assetId } = await persistAsset(env, {
+    bytes,
+    companyId,
+    kind,
+    metadata: { originalName: file.name || null, ...extraMeta },
+    mime: file.type,
+    uploadMetadata: { uploader: "customer" },
+    visibility: "customer",
   });
-  return { assetId: asset.id, bytes: bytes.length, mime: file.type };
+  return { assetId, bytes: bytes.length, mime: file.type };
 };
 
 const readUploadedImage = (
