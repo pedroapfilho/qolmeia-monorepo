@@ -22,6 +22,20 @@ const nextConfig: NextConfig = {
     "*.vercel.app",
   ],
   cacheComponents: true,
+
+  // Browsers ignore both of these when they arrive as <meta http-equiv>, which is
+  // where they used to live, so the app was shipping no clickjacking protection.
+  headers: () =>
+    Promise.resolve([
+      {
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+        source: "/:path*",
+      },
+    ]),
+
   reactCompiler: true,
   reactStrictMode: true,
 

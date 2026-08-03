@@ -21,9 +21,6 @@ export const metadata: Metadata = {
   creator: "Qolmeia",
   description:
     "Converse com os agentes de IA da Qolmeia para criar materiais de marca, agendar campanhas e acompanhar o trabalho em tempo real.",
-  icons: {
-    icon: "/favicon.ico",
-  },
   keywords: ["qolmeia", "chat", "ai", "clientes"],
   metadataBase: new URL(process.env.CLIENT_APP_URL ?? "https://chat.qolmeia.ai"),
   openGraph: {
@@ -66,8 +63,6 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
       <head>
         <meta content="telephone=no" name="format-detection" />
         <meta content="#000000" name="msapplication-TileColor" />
-        <meta content="nosniff" httpEquiv="X-Content-Type-Options" />
-        <meta content="DENY" httpEquiv="X-Frame-Options" />
       </head>
       <body className={hanken.className} suppressHydrationWarning>
         <a
