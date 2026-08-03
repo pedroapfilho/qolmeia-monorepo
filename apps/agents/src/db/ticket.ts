@@ -163,8 +163,6 @@ export {
   loadAgentInstance,
   loadInstanceWithTemplate,
   loadTicket,
-  markTicketDone,
-  setTicketStatus,
   setTicketWorkflowId,
   transitionTicket,
 };
