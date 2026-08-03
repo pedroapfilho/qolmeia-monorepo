@@ -26,6 +26,8 @@ const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
   "image/gif": "gif",
   "image/jpeg": "jpg",
+  // Not a registered mime, but image generators emit it.
+  "image/jpg": "jpg",
   "image/png": "png",
   "image/svg+xml": "svg",
   "image/webp": "webp",
@@ -59,6 +61,7 @@ const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
 type PersistAssetInput = {
   bytes: Uint8Array;
   companyId: string;
+  fallbackExt?: string;
   kind: AssetKind;
   metadata: Prisma.InputJsonObject;
   mime: string;
@@ -69,7 +72,7 @@ type PersistAssetInput = {
 const persistAsset = async (env: Env, input: PersistAssetInput): Promise<{ assetId: string }> => {
   const { bytes, companyId, kind, metadata, mime, visibility } = input;
   const sha = await sha256Hex(bytes);
-  const ext = EXT_BY_MIME[mime] ?? "bin";
+  const ext = EXT_BY_MIME[mime] ?? input.fallbackExt ?? "bin";
   const folder = kind === "brand_asset" ? `${visibility}/brand` : visibility;
   const r2Key = `org_${companyId}/${folder}/${sha}.${ext}`;
 
