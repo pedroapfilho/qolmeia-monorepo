@@ -1,14 +1,15 @@
+import type { OrgRole } from "@repo/worker-api/contracts";
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { safeJson } from "#/db/mappers";
 import { logError } from "#/lib/logger";
-import { parseMeResponse, type OrgSummary, type Role } from "#/lib/membership";
+import { parseMeResponse, type OrgSummary } from "#/lib/membership";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
 
 type ValidatedSession = {
   companyId: string;
-  role: Role;
+  role: OrgRole;
   userId: string;
 };
 

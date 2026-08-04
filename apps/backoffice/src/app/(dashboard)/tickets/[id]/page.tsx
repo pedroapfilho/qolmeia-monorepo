@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@repo/ui/components/card";
 import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
+import type { Action, TicketDetailResponse } from "@repo/worker-api/contracts";
 import { ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,7 +12,6 @@ import { BackLink } from "@/components/back-link";
 import { StatusPill } from "@/components/status-pill";
 import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
-import type { Action, TicketDetailResponse } from "@/lib/api-types";
 import { formatRelative, truncate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Ticket" };

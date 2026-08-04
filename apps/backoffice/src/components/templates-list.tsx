@@ -7,11 +7,11 @@ import { PageHeader } from "@repo/ui/components/page-header";
 import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
 import { buttonVariants } from "@repo/ui/lib/button-variants";
 import { toast } from "@repo/ui/lib/toast";
+import type { Template, TemplateStatus } from "@repo/worker-api/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { ApiError } from "@/lib/api-client";
-import type { Template, TemplateStatus } from "@/lib/api-types";
 import { fetchTemplates, setTemplateStatus, templateKeys } from "@/lib/templates-api";
 
 const STATUS_LABEL: Record<TemplateStatus, { label: string; tone: StatusTone }> = {

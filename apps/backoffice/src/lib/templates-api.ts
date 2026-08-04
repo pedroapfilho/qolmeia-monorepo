@@ -1,11 +1,12 @@
-import { apiGet, apiSend } from "@/lib/api-client";
 import type {
   SkillCatalogResponse,
   TemplateInput,
   TemplateResponse,
   TemplatesResponse,
   TemplateStatus,
-} from "@/lib/api-types";
+} from "@repo/worker-api/contracts";
+
+import { apiGet, apiSend } from "@/lib/api-client";
 
 const templateKeys = {
   all: ["templates"] as const,

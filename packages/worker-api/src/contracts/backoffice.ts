@@ -128,31 +128,6 @@ type TemplatesResponse = { items: ReadonlyArray<Template> };
 type TemplateResponse = { template: Template };
 type SkillCatalogResponse = { items: ReadonlyArray<SkillCatalogEntry> };
 
-type OrgRole = "OWNER" | "STAFF" | "CUSTOMER";
-
-type Org = {
-  id: string;
-  name: string;
-  role: OrgRole;
-  slug: string;
-};
-
-// currentOrg and role are null when the account belongs to more than one org
-// and the request named none; orgs is answered either way.
-type MeResponse = {
-  currentOrg: Org | null;
-  orgs: ReadonlyArray<Org>;
-  role: OrgRole | null;
-  user: {
-    displayName: string | null;
-    email: string;
-    id: string;
-    name: string;
-  };
-};
-
-type StaffMe = MeResponse & { currentOrg: Org; role: "OWNER" | "STAFF" };
-
 export type {
   Action,
   ActionAgent,
@@ -165,13 +140,9 @@ export type {
   ActivityResponse,
   CoverageResponse,
   DecisionOutcome,
-  MeResponse,
   OperatorCoverage,
-  Org,
-  OrgRole,
   SkillCatalogEntry,
   SkillCatalogResponse,
-  StaffMe,
   Template,
   TemplateInput,
   TemplateResponse,

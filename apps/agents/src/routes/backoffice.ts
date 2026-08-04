@@ -1,3 +1,15 @@
+import type {
+  ActionDetailResponse,
+  ActionsResponse,
+  ActivityResponse,
+  CoverageResponse,
+  SkillCatalogResponse,
+  TemplateInput,
+  TemplateResponse,
+  TemplatesResponse,
+  TicketDetailResponse,
+  TicketsResponse,
+} from "@repo/worker-api/contracts";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -38,7 +50,8 @@ backofficeRoutes.get("/tickets", async (c) => {
   const status = c.req.query("status");
   const limit = parsePositiveInt(c.req.query("limit"), 50, 200);
   const items = await listTickets(getDb(c.env), { companyId, limit, status });
-  return c.json({ items });
+  const body: TicketsResponse = { items };
+  return c.json(body);
 });
 
 backofficeRoutes.get("/actions", async (c) => {
@@ -77,11 +90,13 @@ backofficeRoutes.get("/actions", async (c) => {
     }));
     const sorted =
       sort === "age" ? enriched.toSorted((x, y) => y.ageSeconds - x.ageSeconds) : enriched;
-    return c.json({ items: sorted });
+    const pendingBody: ActionsResponse = { items: sorted };
+    return c.json(pendingBody);
   }
 
   const items = await listActions(db, { companyId });
-  return c.json({ items });
+  const body: ActionsResponse = { items };
+  return c.json(body);
 });
 
 const decideBodySchema = z.object({
@@ -137,7 +152,8 @@ backofficeRoutes.get("/activity", async (c) => {
   const rawCategory = c.req.query("category");
   const category = ACTIVITY_CATEGORIES.find((value) => value === rawCategory);
   const items = await listActivity(getDb(c.env), { before, category, companyId, limit, since });
-  return c.json({ items });
+  const body: ActivityResponse = { items };
+  return c.json(body);
 });
 
 backofficeRoutes.get("/tickets/:id", async (c) => {
@@ -148,7 +164,8 @@ backofficeRoutes.get("/tickets/:id", async (c) => {
     return c.text("Not found", 404);
   }
   const actions = await listActionsForTicket(db, id);
-  return c.json({ actions, ticket });
+  const body: TicketDetailResponse = { actions, ticket };
+  return c.json(body);
 });
 
 backofficeRoutes.get("/actions/:id", async (c) => {
@@ -160,7 +177,8 @@ backofficeRoutes.get("/actions/:id", async (c) => {
   }
   const ticket = await loadTicket(db, action.ticketId);
   const ageSeconds = Math.floor((Date.now() - action.createdAt) / 1000);
-  return c.json({ action, ageSeconds, ticket });
+  const body: ActionDetailResponse = { action, ageSeconds, ticket };
+  return c.json(body);
 });
 
 const backofficePatchSchema = z.object({
@@ -193,13 +211,14 @@ backofficeRoutes.get("/assignments/me", async (c) => {
     listDisciplines(db),
     listCompaniesOverview(db),
   ]);
-  return c.json({
+  const body: CoverageResponse = {
     assigned: coverage,
     options: {
       companies: companies.map((co) => ({ id: co.id, name: co.name })),
       disciplines,
     },
-  });
+  };
+  return c.json(body);
 });
 
 const coverageBodySchema = z.object({
@@ -295,12 +314,14 @@ const templateStatusSchema = z.object({
 });
 
 backofficeRoutes.get("/skills", (c) => {
-  return c.json({ items: listSkillCatalog() });
+  const body: SkillCatalogResponse = { items: listSkillCatalog() };
+  return c.json(body);
 });
 
 backofficeRoutes.get("/templates", async (c) => {
   const items = await listAllTemplates(getDb(c.env));
-  return c.json({ items });
+  const body: TemplatesResponse = { items };
+  return c.json(body);
 });
 
 backofficeRoutes.get("/templates/:id", async (c) => {
@@ -308,7 +329,8 @@ backofficeRoutes.get("/templates/:id", async (c) => {
   if (!template) {
     return c.json({ error: "not found" }, 404);
   }
-  return c.json({ template });
+  const body: TemplateResponse = { template };
+  return c.json(body);
 });
 
 backofficeRoutes.post("/templates", async (c) => {
@@ -316,8 +338,10 @@ backofficeRoutes.post("/templates", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
-  const template = await createTemplate(getDb(c.env), parsed.data);
-  return c.json({ template }, 201);
+  const input: TemplateInput = parsed.data;
+  const template = await createTemplate(getDb(c.env), input);
+  const body: TemplateResponse = { template };
+  return c.json(body, 201);
 });
 
 backofficeRoutes.patch("/templates/:id", async (c) => {
@@ -325,11 +349,13 @@ backofficeRoutes.patch("/templates/:id", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
-  const template = await updateTemplate(getDb(c.env), c.req.param("id"), parsed.data);
+  const input: TemplateInput = parsed.data;
+  const template = await updateTemplate(getDb(c.env), c.req.param("id"), input);
   if (!template) {
     return c.json({ error: "not found" }, 404);
   }
-  return c.json({ template });
+  const body: TemplateResponse = { template };
+  return c.json(body);
 });
 
 backofficeRoutes.patch("/templates/:id/status", async (c) => {
@@ -341,7 +367,8 @@ backofficeRoutes.patch("/templates/:id/status", async (c) => {
   if (!template) {
     return c.json({ error: "not found" }, 404);
   }
-  return c.json({ template });
+  const body: TemplateResponse = { template };
+  return c.json(body);
 });
 
 export { backofficeRoutes };

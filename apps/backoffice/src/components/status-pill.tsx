@@ -1,6 +1,5 @@
 import { cn } from "@repo/ui/lib/utils";
-
-import type { ActionStatus, TicketStatus } from "@/lib/api-types";
+import type { ActionStatus, TicketStatus } from "@repo/worker-api/contracts";
 
 type StatusKind = ActionStatus | TicketStatus;
 

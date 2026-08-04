@@ -7,6 +7,7 @@ import { Input } from "@repo/ui/components/input";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
+import type { SkillCatalogEntry, Template, TemplateInput } from "@repo/worker-api/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
@@ -14,7 +15,6 @@ import { z } from "zod";
 
 import { BackLink } from "@/components/back-link";
 import { ApiError } from "@/lib/api-client";
-import type { SkillCatalogEntry, Template, TemplateInput } from "@/lib/api-types";
 import {
   createTemplate,
   fetchSkillCatalog,

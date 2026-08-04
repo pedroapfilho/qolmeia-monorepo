@@ -20,6 +20,7 @@
     "@ai-sdk/openai-compatible": "^3.0.6",
     "@flue/runtime": "2.0.0",
     "@repo/db": "workspace:*",
+    "@repo/worker-api": "workspace:*",
     "agents": "^0.20.1",
     "ai": "^7.0.18",
     "hono": "^4.12.28",

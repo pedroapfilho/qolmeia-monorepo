@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@repo/db";
 import { prisma as defaultPrisma } from "@repo/db";
+import type { MeResponse } from "@repo/worker-api/contracts";
 import { Hono } from "hono";
 
 import { notFound } from "@/lib/api-response";
@@ -48,7 +49,9 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: DiscoveryConte
 
     const currentOrgRow = memberships.find((m) => m.orgId === currentOrgId);
 
-    return c.json({
+    // Typed against the contract the Worker and both Next apps consume, so a
+    // renamed field fails here instead of at runtime in a browser.
+    const body: MeResponse = {
       currentOrg: currentOrgRow
         ? {
             id: currentOrgRow.org.id,
@@ -73,7 +76,9 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: DiscoveryConte
         name: user.name,
         username: user.username,
       },
-    });
+    };
+
+    return c.json(body);
   });
 
   return app;

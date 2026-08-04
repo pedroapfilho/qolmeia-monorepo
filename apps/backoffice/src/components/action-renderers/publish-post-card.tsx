@@ -1,7 +1,6 @@
 import { Card } from "@repo/ui/components/card";
+import type { Action } from "@repo/worker-api/contracts";
 import { z } from "zod";
-
-import type { Action } from "@/lib/api-types";
 
 const PLATFORM_COPY: Record<string, string> = {
   facebook: "Facebook",

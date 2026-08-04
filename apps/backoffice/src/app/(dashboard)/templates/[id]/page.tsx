@@ -1,4 +1,5 @@
 import { Skeleton } from "@repo/ui/components/skeleton";
+import type { TemplateResponse } from "@repo/worker-api/contracts";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -6,7 +7,6 @@ import { Suspense } from "react";
 import { TemplateForm } from "@/components/template-form";
 import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
-import type { TemplateResponse } from "@/lib/api-types";
 import { requireStaff } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = { title: "Editar modelo" };

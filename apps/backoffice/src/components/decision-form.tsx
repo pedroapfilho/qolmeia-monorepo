@@ -4,11 +4,11 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
+import type { DecisionOutcome } from "@repo/worker-api/contracts";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { apiSend, ApiError } from "@/lib/api-client";
-import type { DecisionOutcome } from "@/lib/api-types";
 
 type DecisionFormProps = {
   actionId: string;

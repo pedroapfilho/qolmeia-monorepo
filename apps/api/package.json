@@ -21,6 +21,7 @@
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/observability": "workspace:*",
+    "@repo/worker-api": "workspace:*",
     "@scalar/hono-api-reference": "^0.11.9",
     "@scalar/openapi-to-markdown": "^0.5.32",
     "dotenv": "^17.4.2",

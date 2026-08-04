@@ -1,11 +1,9 @@
+import { ORG_ROLES, type MeOrg, type MeResponse } from "@repo/worker-api/contracts";
 import { z } from "zod";
-
-const ROLES = ["OWNER", "STAFF", "CUSTOMER"] as const;
-type Role = (typeof ROLES)[number];
 
 const orgSchema = z.object({
   id: z.string(),
-  role: z.enum(ROLES),
+  role: z.enum(ORG_ROLES),
 });
 
 const namedOrgSchema = orgSchema.extend({ name: z.string() });
@@ -16,15 +14,17 @@ const meResponseSchema = z.object({
   user: z.object({ id: z.string() }),
 });
 
-type OrgSummary = { id: string; name: string; role: Role };
+// The fields the Worker needs off the shared /api/me contract, keyed off it so
+// a rename upstream breaks here instead of at runtime.
+type OrgSummary = Pick<MeOrg, "id" | "name" | "role">;
 
-type MeResponse = {
-  currentOrg: { id: string; role: Role } | null;
+type MeSessionClaims = {
+  currentOrg: Pick<NonNullable<MeResponse["currentOrg"]>, "id" | "role"> | null;
   orgs: ReadonlyArray<OrgSummary>;
-  userId: string;
+  userId: MeResponse["user"]["id"];
 };
 
-const parseMeResponse = (data: unknown): MeResponse | null => {
+const parseMeResponse = (data: unknown): MeSessionClaims | null => {
   const parsed = meResponseSchema.safeParse(data);
   if (!parsed.success) {
     return null;
@@ -37,4 +37,4 @@ const parseMeResponse = (data: unknown): MeResponse | null => {
 };
 
 export { parseMeResponse };
-export type { MeResponse, OrgSummary, Role };
+export type { MeSessionClaims, OrgSummary };

@@ -85,5 +85,37 @@ const createBrowserApi = (agentsUrl: string, basePath = ""): BrowserApi => {
   };
 };
 
-export { ApiError, createBrowserApi, handleResponse };
-export type { BrowserApi, FetchInit };
+type ServerApiConfig = {
+  basePath?: string;
+  baseUrl: string;
+  // The cookie header is read per request. It stays a callback so this package
+  // owes nothing to next/headers and can still be imported by the Workers app.
+  readCookieHeader: () => Promise<string>;
+  // Every server read names its tenant so the Worker never falls back to
+  // oldest-wins. Same callback shape as the cookie, for the same reason.
+  readOrgId: () => Promise<string>;
+};
+
+type ServerApi = {
+  apiGetServer: <T>(path: string) => Promise<T>;
+};
+
+const createServerApi = (config: ServerApiConfig): ServerApi => ({
+  apiGetServer: async <T>(path: string): Promise<T> => {
+    // Resolving the org can redirect an unauthorized caller, so a rejection has
+    // to propagate instead of being collected alongside the cookie.
+    const [cookie, orgId] = await Promise.all([config.readCookieHeader(), config.readOrgId()]);
+    const res = await fetch(`${config.baseUrl}${config.basePath ?? ""}${path}`, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "X-Org-Id": orgId,
+        ...(cookie === "" ? {} : { Cookie: cookie }),
+      },
+    });
+    return handleResponse<T>(res);
+  },
+});
+
+export { ApiError, createBrowserApi, createServerApi, handleResponse };
+export type { BrowserApi, FetchInit, ServerApi, ServerApiConfig };

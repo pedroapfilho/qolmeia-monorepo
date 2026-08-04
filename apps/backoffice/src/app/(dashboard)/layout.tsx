@@ -1,10 +1,10 @@
 import { Skeleton } from "@repo/ui/components/skeleton";
+import type { ActionsResponse } from "@repo/worker-api/contracts";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import { Sidebar } from "@/components/sidebar";
 import { apiGetServer } from "@/lib/api-server";
-import type { ActionsResponse } from "@/lib/api-types";
 import { requireStaff } from "@/lib/auth-helpers";
 
 const SidebarData = async () => {

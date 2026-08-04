@@ -2,6 +2,7 @@ import { Card, CardContent } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { Skeleton } from "@repo/ui/components/skeleton";
+import type { TicketsResponse } from "@repo/worker-api/contracts";
 import { Ticket as TicketIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -9,7 +10,6 @@ import { Suspense } from "react";
 
 import { StatusPill } from "@/components/status-pill";
 import { apiGetServer } from "@/lib/api-server";
-import type { TicketsResponse } from "@/lib/api-types";
 import { formatRelative } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Tickets" };
