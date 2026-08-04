@@ -32,6 +32,19 @@ type StaffContextVars = {
   session: AuthSession;
 };
 
+/**
+ * The discovery guard leaves orgId and role null when the caller belongs to
+ * more than one org, so a route mounted on it must handle "authenticated
+ * member, org not chosen yet".
+ */
+type DiscoveryContextVars = {
+  orgId: string | null;
+  role: OrgRole | null;
+  session: AuthSession;
+};
+
+type AmbiguousOrgPolicy = "allow-unscoped" | "reject";
+
 type ResolvedMembership =
   | { kind: "ambiguous" }
   | { kind: "no-membership" }
@@ -66,8 +79,10 @@ const resolveMembership = async (
       : { kind: "resolved", orgId: membership.orgId, role: membership.role };
   }
 
-  // Two rows is enough to know the caller has to name an org; the rest of the
-  // list is the client's business, and /api/me already returns it.
+  // Two rows is enough to know the caller has to name an org. Which orgs those
+  // are is answered by GET /api/me, the one route mounted on the
+  // "allow-unscoped" policy precisely so a caller can read the list before it
+  // is able to name one.
   const memberships = await prisma.orgMembership.findMany({
     orderBy: { createdAt: "asc" },
     take: 2,
@@ -86,6 +101,7 @@ const resolveMembership = async (
 const buildRoleGuard = (
   acceptedRoles: ReadonlyArray<OrgRole>,
   deps: RoleGuardDeps = {},
+  onAmbiguousOrg: AmbiguousOrgPolicy = "reject",
 ): MiddlewareHandler => {
   const auth = deps.auth ?? defaultAuth;
   const prisma = deps.prisma ?? defaultPrisma;
@@ -114,12 +130,20 @@ const buildRoleGuard = (
     });
 
     if (membership.kind === "ambiguous") {
-      return jsonError({
-        c,
-        code: "ORG_ID_REQUIRED",
-        message: `This account belongs to more than one organization; send the ${ORG_ID_HEADER} header to choose one`,
-        status: 400,
-      });
+      if (onAmbiguousOrg === "reject") {
+        return jsonError({
+          c,
+          code: "ORG_ID_REQUIRED",
+          message: `This account belongs to more than one organization; send the ${ORG_ID_HEADER} header to choose one`,
+          status: 400,
+        });
+      }
+
+      c.set("session", session);
+      c.set("orgId", null);
+      c.set("role", null);
+
+      return next();
     }
 
     if (membership.kind === "no-membership") {
@@ -142,5 +166,19 @@ const buildRoleGuard = (
 const requireAnyMember = (deps: RoleGuardDeps = {}): MiddlewareHandler =>
   buildRoleGuard(["OWNER", "STAFF", "CUSTOMER"], deps);
 
-export { buildRoleGuard, requireAnyMember };
-export type { AuthLike, AuthSession, RoleGuardDeps, StaffContextVars };
+/**
+ * Guards the org-list read itself. Rejecting an ambiguous caller here would be
+ * a deadlock: the 400 asks for an org id that only this route can supply.
+ */
+const requireMemberForDiscovery = (deps: RoleGuardDeps = {}): MiddlewareHandler =>
+  buildRoleGuard(["OWNER", "STAFF", "CUSTOMER"], deps, "allow-unscoped");
+
+export { buildRoleGuard, requireAnyMember, requireMemberForDiscovery };
+export type {
+  AmbiguousOrgPolicy,
+  AuthLike,
+  AuthSession,
+  DiscoveryContextVars,
+  RoleGuardDeps,
+  StaffContextVars,
+};

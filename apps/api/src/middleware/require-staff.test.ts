@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildRoleGuard, requireAnyMember } from "./require-staff";
+import { buildRoleGuard, requireAnyMember, requireMemberForDiscovery } from "./require-staff";
 
 type Membership = {
   createdAt: Date;
@@ -221,6 +221,50 @@ describe("tenant resolution", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ orgId: "org_only", role: "OWNER" });
+  });
+});
+
+describe("requireMemberForDiscovery", () => {
+  const buildDiscoveryApp = (memberships: ReadonlyArray<Membership>) =>
+    buildApp(
+      requireMemberForDiscovery({
+        auth: buildAuth(session),
+        prisma: buildPrisma(memberships) as never,
+      }),
+      (c) => c.json({ orgId: c.get("orgId"), role: c.get("role") }),
+    );
+
+  it("lets a multi-org user through with no X-Org-Id so it can read its org list", async () => {
+    const res = await getAs(buildDiscoveryApp(MULTI_ORG_MEMBERSHIPS));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: null, role: null });
+  });
+
+  it("still resolves the named org for a multi-org user", async () => {
+    const res = await getAs(buildDiscoveryApp(MULTI_ORG_MEMBERSHIPS), "org_newer");
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_newer", role: "STAFF" });
+  });
+
+  it("still resolves the only org for a single-org user", async () => {
+    const res = await getAs(buildDiscoveryApp(SINGLE_ORG_MEMBERSHIPS));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_only", role: "OWNER" });
+  });
+
+  it("still returns 403 when the caller belongs to no org at all", async () => {
+    const res = await getAs(buildDiscoveryApp([]));
+
+    expect(res.status).toBe(403);
+  });
+
+  it("still returns 403 for an org the caller is not a member of", async () => {
+    const res = await getAs(buildDiscoveryApp(MULTI_ORG_MEMBERSHIPS), "org_someone_else");
+
+    expect(res.status).toBe(403);
   });
 });
 

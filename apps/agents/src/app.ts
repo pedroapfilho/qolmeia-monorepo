@@ -2,6 +2,7 @@ import { createAgentRouter } from "@flue/runtime/routing";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 
 import { CorrespondentV2 } from "#/agents/correspondent";
 import { PlannerV2 } from "#/agents/planner";
@@ -19,7 +20,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.use(
   "*",
   cors({
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Org-Id"],
     credentials: true,
     origin: (origin, c: Context<{ Bindings: Env }>) => {
       const allowed = c.env.CLIENT_ORIGINS.split(",").map((value) => value.trim());
@@ -37,6 +38,11 @@ app.use("*", async (c, next) => {
 });
 
 app.onError((error, c) => {
+  // A guard reports an actionable refusal (an unchosen org, say) as an
+  // HTTPException; flattening it to 500 would hide the fix from the caller.
+  if (error instanceof HTTPException) {
+    return error.getResponse();
+  }
   logError("worker.unhandled", {
     error: error instanceof Error ? error.message : String(error),
     method: c.req.method,

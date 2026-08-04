@@ -42,6 +42,32 @@ describe("GET /api/me/company", () => {
   });
 });
 
+describe("a multi-org client that named no org", () => {
+  it("gets 400 with the org list, not a 401 that would send it back to login", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          currentOrg: null,
+          orgs: [
+            { id: "co_a", name: "A", role: "CUSTOMER" },
+            { id: "co_b", name: "B", role: "CUSTOMER" },
+          ],
+          user: { id: "user-1" },
+        }),
+      ),
+    );
+
+    const res = await exports.default.fetch(
+      "https://agents.test/api/me/company?cf_session=ambiguous-tok",
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: string; orgs: ReadonlyArray<{ id: string }> }>();
+    expect(body.error).toBe("org_required");
+    expect(body.orgs.map((org) => org.id)).toEqual(["co_a", "co_b"]);
+  });
+});
+
 describe("PATCH /api/me/company", () => {
   it("merges a partial brief and recomputes completeness", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));

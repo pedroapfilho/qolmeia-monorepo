@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { Chat } from "@/components/chat";
 import { OnboardingActions } from "@/components/onboarding-actions";
 import { TeamSidebar } from "@/components/team-sidebar";
-import { AGENTS_SERVER_URL } from "@/lib/api-server";
+import { AGENTS_SERVER_URL } from "@/lib/agents-url";
 import { requireCustomer, requireSession } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = {
@@ -27,30 +27,37 @@ type TemplatesResponse = {
   }>;
 };
 
-// orgId is sent explicitly so these reads land on the same org the page just
-// rendered, instead of whichever one the Worker would resolve on its own.
-const fetchJson = async <T,>(url: string, token: string, orgId: string): Promise<T | null> => {
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${token}`, "X-Org-Id": orgId },
-    });
-    if (!res.ok) {
-      return null;
-    }
-    // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
-    return (await res.json()) as T;
-  } catch {
-    return null;
+type FetchOutcome<T> = { data: T; kind: "ok" } | { kind: "missing" };
+
+/**
+ * orgId is sent explicitly so these reads land on the same org the page just
+ * rendered, instead of whichever one the Worker would resolve on its own. Only
+ * 404 folds into a value, because a company with no row genuinely has not been
+ * onboarded. Every other refusal (403 for the wrong org, 5xx, a dead socket) is
+ * raised: rendering onboarding at an onboarded customer would hide it.
+ */
+const fetchJson = async <T,>(
+  url: string,
+  token: string,
+  orgId: string,
+): Promise<FetchOutcome<T>> => {
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${token}`, "X-Org-Id": orgId },
+  });
+  if (res.status === 404) {
+    return { kind: "missing" };
   }
+  if (!res.ok) {
+    throw new Error(`${url} responded ${res.status}`);
+  }
+  // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
+  return { data: (await res.json()) as T, kind: "ok" };
 };
 
 const ChatContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
-  const companyId = me.currentOrg?.id;
-  if (companyId === undefined || companyId === "") {
-    throw new Error("CUSTOMER has no currentOrg; auth invariant broken");
-  }
+  const companyId = me.currentOrg.id;
 
   const token = session.session.token;
   const companyRes = await fetchJson<CompanyResponse>(
@@ -58,7 +65,7 @@ const ChatContent = async () => {
     token,
     companyId,
   );
-  const status = companyRes?.company.status ?? "onboarding";
+  const status = companyRes.kind === "ok" ? companyRes.data.company.status : "onboarding";
 
   if (status === "onboarding") {
     const templatesRes = await fetchJson<TemplatesResponse>(
@@ -75,7 +82,7 @@ const ChatContent = async () => {
           agentsUrl={AGENTS_URL}
           companyId={companyId}
           sessionToken={token}
-          templates={templatesRes?.templates ?? []}
+          templates={templatesRes.kind === "ok" ? templatesRes.data.templates : []}
         />
       </div>
     );

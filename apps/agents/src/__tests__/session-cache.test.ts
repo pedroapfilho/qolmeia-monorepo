@@ -39,6 +39,17 @@ describe("buildCacheKey", () => {
     expect(orgA).not.toContain("org_a");
   });
 
+  it("keeps an org/credential pair that shares a delimiter in its own entry", async () => {
+    const [split, shifted] = await Promise.all(
+      [
+        { orgId: "a", token: "b:c" },
+        { orgId: "a:b", token: "c" },
+      ].map((scope) => buildCacheKey({ cookie: null, namespace: "session", ...scope })),
+    );
+
+    expect(split).not.toBe(shifted);
+  });
+
   it("scopes cookie entries per org too", async () => {
     const [orgA, orgB] = await Promise.all(
       ["org_a", "org_b"].map((orgId) =>

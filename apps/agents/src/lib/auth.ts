@@ -1,7 +1,8 @@
 import type { MiddlewareHandler } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import { safeJson } from "#/db/mappers";
-import { parseMeResponse, type Role } from "#/lib/membership";
+import { parseMeResponse, type OrgSummary, type Role } from "#/lib/membership";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
 
 type ValidatedSession = {
@@ -13,11 +14,30 @@ type ValidatedSession = {
 const SESSION_CACHE_TTL_SECONDS = 60;
 const SESSION_CACHE_NAMESPACE = "session";
 const ORG_ID_HEADER = "X-Org-Id";
+const ORG_ID_QUERY_PARAM = "org_id";
 
+// EventSource cannot set request headers, so the SSE subscription names its org
+// in the query string the same way it already passes cf_session.
 const readOrgId = (request: Request): string | null => {
-  const value = request.headers.get(ORG_ID_HEADER)?.trim() ?? "";
-  return value === "" ? null : value;
+  const header = request.headers.get(ORG_ID_HEADER)?.trim() ?? "";
+  if (header !== "") {
+    return header;
+  }
+  const query = new URL(request.url).searchParams.get(ORG_ID_QUERY_PARAM)?.trim() ?? "";
+  return query === "" ? null : query;
 };
+
+const orgSelectionRequired = (orgs: ReadonlyArray<OrgSummary>): HTTPException =>
+  new HTTPException(400, {
+    res: Response.json(
+      {
+        error: "org_required",
+        message: `This account belongs to more than one organization; send the ${ORG_ID_HEADER} header to choose one`,
+        orgs,
+      },
+      { status: 400 },
+    ),
+  });
 
 const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
@@ -73,7 +93,16 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   }
 
   const me = parseMeResponse(await response.json());
-  if (!me?.currentOrg) {
+  if (me === null) {
+    return null;
+  }
+  if (me.currentOrg === null) {
+    // The auth service answers /api/me for a multi-org caller with a null
+    // currentOrg and the full list. Collapsing that into 401 sent the user back
+    // to a login screen that could not fix it, so it surfaces as its own 400.
+    if (me.orgs.length > 1) {
+      throw orgSelectionRequired(me.orgs);
+    }
     return null;
   }
   const validated: ValidatedSession = {

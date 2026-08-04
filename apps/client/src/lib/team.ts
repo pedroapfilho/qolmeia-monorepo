@@ -1,4 +1,4 @@
-import { apiUrl, jsonInit, request } from "@/lib/request";
+import { activeOrgId, apiUrl, jsonInit, request } from "@/lib/request";
 
 type AgentDisplayStatus = "available" | "awaiting_approval" | "paused" | "working";
 
@@ -63,12 +63,14 @@ const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
 
 type SharedTeamEvents = {
   listeners: Set<() => void>;
+  opening: boolean;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   source: EventSource | null;
 };
 
 const sharedTeamEvents: SharedTeamEvents = {
   listeners: new Set(),
+  opening: false,
   reconnectTimer: null,
   source: null,
 };
@@ -92,11 +94,28 @@ const closeSharedSource = (): void => {
   }
 };
 
-const openSharedSource = (): void => {
-  if (typeof EventSource === "undefined" || sharedTeamEvents.source) {
+// EventSource cannot carry X-Org-Id, so the org rides in the query string next
+// to the session the Worker already reads from there.
+const openSharedSource = async (): Promise<void> => {
+  if (typeof EventSource === "undefined" || sharedTeamEvents.source || sharedTeamEvents.opening) {
     return;
   }
-  const source = new EventSource(apiUrl("/api/me/team/events"), { withCredentials: true });
+  sharedTeamEvents.opening = true;
+  let orgId: string | null = null;
+  try {
+    orgId = await activeOrgId();
+  } catch {
+    // The roster query runs the same discovery and raises this to the user, so
+    // the stream opens unscoped and its own error path retries the lookup.
+  } finally {
+    sharedTeamEvents.opening = false;
+  }
+  if (sharedTeamEvents.listeners.size === 0) {
+    return;
+  }
+  const source = new EventSource(apiUrl("/api/me/team/events", orgId), {
+    withCredentials: true,
+  });
   sharedTeamEvents.source = source;
   source.addEventListener("team:roster", notifyTeamEventListeners);
   source.addEventListener("team:status", notifyTeamEventListeners);
@@ -110,7 +129,7 @@ const openSharedSource = (): void => {
     }
     sharedTeamEvents.reconnectTimer = setTimeout(() => {
       sharedTeamEvents.reconnectTimer = null;
-      openSharedSource();
+      void openSharedSource();
     }, RECONNECT_MS);
   });
 };
@@ -120,7 +139,7 @@ const subscribeTeamEvents = (onEvent: () => void): (() => void) | null => {
     return null;
   }
   sharedTeamEvents.listeners.add(onEvent);
-  openSharedSource();
+  void openSharedSource();
   return () => {
     sharedTeamEvents.listeners.delete(onEvent);
     if (sharedTeamEvents.listeners.size === 0) {

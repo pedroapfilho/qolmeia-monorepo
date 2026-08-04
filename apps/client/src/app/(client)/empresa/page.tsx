@@ -12,14 +12,8 @@ export const metadata: Metadata = {
 
 const EmpresaContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
-  const companyId = me.currentOrg?.id;
-  if (companyId === undefined || companyId === "") {
-    throw new Error("CUSTOMER has no currentOrg; auth invariant broken");
-  }
 
-  const token = session.session.token;
-
-  return <EmpresaClient companyId={companyId} sessionToken={token} />;
+  return <EmpresaClient companyId={me.currentOrg.id} sessionToken={session.session.token} />;
 };
 
 // Static shell for the prerender: the page is bound to the per-request

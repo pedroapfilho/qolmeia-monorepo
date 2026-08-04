@@ -7,7 +7,7 @@ import { requireCustomer } from "@/lib/auth-helpers";
 
 const NavData = async () => {
   const me = await requireCustomer();
-  return <Nav orgName={me.currentOrg?.name ?? null} />;
+  return <Nav orgName={me.currentOrg.name} />;
 };
 
 const NavSkeleton = () => (
