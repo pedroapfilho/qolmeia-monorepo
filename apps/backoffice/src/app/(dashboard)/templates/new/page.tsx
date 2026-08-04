@@ -7,6 +7,9 @@ import { requireStaff } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = { title: "Novo modelo" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const NewTemplateContent = async () => {
   await requireStaff();
   return <TemplateForm />;

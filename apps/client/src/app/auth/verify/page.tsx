@@ -7,17 +7,19 @@ import {
 } from "@repo/ui/components/card";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Entrando",
 };
 
+/** @public Next.js reads this segment config; the magic-link callback normally redirects, so it may block. */
+export const instant = false;
+
 type VerifyPageProps = {
   searchParams: Promise<{ error?: string }>;
 };
 
-const VerifyContent = async ({ searchParams }: VerifyPageProps) => {
+const VerifyPage = async ({ searchParams }: VerifyPageProps) => {
   const { error } = await searchParams;
   if (error === undefined || error === "") {
     redirect("/");
@@ -39,14 +41,5 @@ const VerifyContent = async ({ searchParams }: VerifyPageProps) => {
     </Card>
   );
 };
-
-// Redirect-first route: the magic-link callback normally redirects home, so
-// the Suspense shell is empty; cacheComponents requires a boundary above the
-// search-param read.
-const VerifyPage = (props: VerifyPageProps) => (
-  <Suspense fallback={null}>
-    <VerifyContent {...props} />
-  </Suspense>
-);
 
 export default VerifyPage;

@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "Chat",
 };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
 
 type CompanyResponse = {

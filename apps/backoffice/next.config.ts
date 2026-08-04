@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
   ],
   cacheComponents: true,
 
+  // turbopackRustReactCompiler only selects the implementation, so reactCompiler has to stay on.
+  experimental: { turbopackRustReactCompiler: true },
+
   headers: () =>
     Promise.resolve([
       {
@@ -34,6 +37,7 @@ const nextConfig: NextConfig = {
       },
     ]),
 
+  partialPrefetching: true,
   reactCompiler: true,
   reactStrictMode: true,
 

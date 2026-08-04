@@ -22,6 +22,9 @@ import {
 
 export const metadata: Metadata = { title: "Revisar aprovação" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 type ApprovalDetailPageProps = {
   params: Promise<{ id: string }>;
 };

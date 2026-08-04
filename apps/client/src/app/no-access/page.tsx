@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   title: "Sem acesso",
 };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const NoAccessPage = () => (
   <main
     className="flex min-h-screen items-center justify-center bg-background px-4 py-12"
