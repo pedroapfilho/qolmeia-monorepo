@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["qolmeia.client.localhost", "*.qolmeia.client.localhost", "*.vercel.app"],
   cacheComponents: true,
 
+  // turbopackRustReactCompiler only selects the implementation, so reactCompiler has to stay on.
+  experimental: { turbopackRustReactCompiler: true },
+
   headers: () =>
     Promise.resolve([
       {
@@ -31,6 +34,7 @@ const nextConfig: NextConfig = {
       },
     ]),
 
+  partialPrefetching: true,
   reactCompiler: true,
   reactStrictMode: true,
 

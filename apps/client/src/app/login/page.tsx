@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "Entrar",
 };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const LoginPage = () => (
   <main
     className="flex min-h-svh flex-col items-center justify-center bg-background px-4 py-10"

@@ -11,6 +11,9 @@ import { requireStaff } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = { title: "Editar modelo" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 type EditTemplatePageProps = {
   params: Promise<{ id: string }>;
 };

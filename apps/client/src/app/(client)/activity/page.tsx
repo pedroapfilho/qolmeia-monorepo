@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   title: "Atividade",
 };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 type ActivityRow = {
   createdAt: string;
   id: string;

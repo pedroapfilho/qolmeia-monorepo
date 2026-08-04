@@ -12,6 +12,9 @@ import { apiGetServer } from "@/lib/api-server";
 
 export const metadata: Metadata = { title: "Cobertura" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const CoverageContent = async () => {
   const coverage = await apiGetServer<CoverageResponse>("/assignments/me").catch(() => null);
 

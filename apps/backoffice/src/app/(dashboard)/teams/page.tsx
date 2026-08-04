@@ -12,6 +12,9 @@ import { apiGetServer } from "@/lib/api-server";
 import { requireStaff } from "@/lib/auth-helpers";
 import type { CompanyOverview, TeamMemberView } from "@/lib/team-fetch";
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const COMPANY_STATUS: Record<CompanyOverview["status"], { label: string; tone: StatusTone }> = {
   active: { label: "Ativo", tone: "success" },
   onboarding: { label: "Onboarding", tone: "warning" },

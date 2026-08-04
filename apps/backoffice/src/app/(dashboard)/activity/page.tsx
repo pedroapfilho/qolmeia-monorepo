@@ -14,6 +14,9 @@ import { apiGetServer } from "@/lib/api-server";
 
 export const metadata: Metadata = { title: "Atividade" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const CATEGORIES = ["ACTION", "TICKET", "WORKER", "TEAM", "MEMBER"] as const;
 
 type Category = (typeof CATEGORIES)[number];

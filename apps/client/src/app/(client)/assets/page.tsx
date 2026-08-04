@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   title: "Assets",
 };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
   try {
     const result = await apiGetServer<ListResponse<WebChatAsset>>("/api/me/assets?limit=200");

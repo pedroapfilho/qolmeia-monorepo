@@ -16,6 +16,9 @@ import { formatRelative, truncate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Ticket" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 type TicketDetailPageProps = {
   params: Promise<{ id: string }>;
 };

@@ -7,6 +7,9 @@ import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
 import type { TeamMemberDetailView } from "@/lib/team-fetch";
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 type Props = { params: Promise<{ companyId: string; memberId: string }> };
 
 const MemberEditContent = async ({ params }: Props) => {

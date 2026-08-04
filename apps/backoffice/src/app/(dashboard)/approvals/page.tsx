@@ -22,6 +22,9 @@ import {
 
 export const metadata: Metadata = { title: "Aprovações" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const AGE_TIER_CLASS: Record<AgeTier, string> = {
   calm: "text-muted-foreground",
   urgent: "font-semibold text-destructive-surface-foreground",

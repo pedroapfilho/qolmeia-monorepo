@@ -7,6 +7,9 @@ import { requireStaff } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = { title: "Modelos" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const TemplatesContent = async () => {
   await requireStaff();
   return <TemplatesList />;

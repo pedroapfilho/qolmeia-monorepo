@@ -20,6 +20,9 @@ import type { CompanyOverview } from "@/lib/team-fetch";
 
 export const metadata: Metadata = { title: "Início" };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const eventDotClass = (type: string): string => {
   if (type.startsWith("ACTION_")) {
     return "bg-primary";

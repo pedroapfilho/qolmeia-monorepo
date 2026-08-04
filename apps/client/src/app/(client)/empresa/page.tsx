@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "Minha empresa",
 };
 
+/** @public Next.js app-router reads the instant segment config via the module loader */
+export const instant = true;
+
 const EmpresaContent = async () => {
   const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
 
