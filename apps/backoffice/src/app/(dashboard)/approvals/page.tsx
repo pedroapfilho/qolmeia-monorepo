@@ -4,6 +4,7 @@ import { PageHeader } from "@repo/ui/components/page-header";
 import { Skeleton } from "@repo/ui/components/skeleton";
 import { buttonVariants } from "@repo/ui/lib/button-variants";
 import { cn } from "@repo/ui/lib/utils";
+import type { ActionsResponse } from "@repo/worker-api/contracts";
 import { Inbox } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,7 +12,6 @@ import { Suspense } from "react";
 
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
-import type { ActionsResponse } from "@/lib/api-types";
 import {
   actionTypeLabel,
   type AgeTier,

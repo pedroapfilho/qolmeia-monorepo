@@ -3,6 +3,7 @@ import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
+import type { ActivityResponse } from "@repo/worker-api/contracts";
 import { Activity } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,7 +11,6 @@ import { Suspense } from "react";
 
 import { ActivityList } from "@/components/activity-list";
 import { apiGetServer } from "@/lib/api-server";
-import type { ActivityResponse } from "@/lib/api-types";
 
 export const metadata: Metadata = { title: "Atividade" };
 

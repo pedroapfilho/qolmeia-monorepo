@@ -1,6 +1,5 @@
+import type { Action } from "@repo/worker-api/contracts";
 import type { ComponentType } from "react";
-
-import type { Action } from "@/lib/api-types";
 
 import { PublishPostCard } from "./publish-post-card";
 

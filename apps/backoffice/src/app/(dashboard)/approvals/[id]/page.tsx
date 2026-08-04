@@ -1,5 +1,6 @@
 import { Card } from "@repo/ui/components/card";
 import { Skeleton } from "@repo/ui/components/skeleton";
+import type { ActionDetailResponse } from "@repo/worker-api/contracts";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,7 +13,6 @@ import { StatusPill } from "@/components/status-pill";
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
-import type { ActionDetailResponse } from "@/lib/api-types";
 import {
   actionTypeLabel,
   formatDateTime,

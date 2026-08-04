@@ -2,13 +2,13 @@ import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { Skeleton } from "@repo/ui/components/skeleton";
+import type { CoverageResponse } from "@repo/worker-api/contracts";
 import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { CoverageForm } from "@/components/coverage-form";
 import { apiGetServer } from "@/lib/api-server";
-import type { CoverageResponse } from "@/lib/api-types";
 
 export const metadata: Metadata = { title: "Cobertura" };
 

@@ -1,3 +1,5 @@
+import { handleResponse } from "@repo/worker-api";
+import type { MeOrg, MeResponse } from "@repo/worker-api/contracts";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -5,6 +7,8 @@ import { cache } from "react";
 import { AGENTS_SERVER_URL } from "@/lib/agents-url";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
+
+type CustomerMe = MeResponse & { currentOrg: MeOrg; role: "CUSTOMER" };
 
 const getSession = cache(async () => {
   const headersList = await headers();
@@ -20,29 +24,6 @@ const getSession = cache(async () => {
     return null;
   }
 });
-
-type OrgRole = "OWNER" | "STAFF" | "CUSTOMER";
-
-type Org = {
-  id: string;
-  name: string;
-  role: OrgRole;
-  slug: string;
-};
-
-type MeResponse = {
-  currentOrg: Org | null;
-  orgs: ReadonlyArray<Org>;
-  role: OrgRole | null;
-  user: {
-    displayName: string | null;
-    email: string;
-    id: string;
-    name: string;
-  };
-};
-
-type CustomerMe = MeResponse & { currentOrg: Org; role: "CUSTOMER" };
 
 const requireSession = async () => {
   const session = await getSession();
@@ -77,8 +58,7 @@ const fetchMe = cache(async (): Promise<MeResponse> => {
     throw new Error(`/api/me responded ${res.status}`);
   }
 
-  // oxlint-disable-next-line no-unsafe-type-assertion -- trusted first-party auth-service response; the role check below rejects malformed payloads
-  return (await res.json()) as MeResponse;
+  return handleResponse<MeResponse>(res);
 });
 
 /**

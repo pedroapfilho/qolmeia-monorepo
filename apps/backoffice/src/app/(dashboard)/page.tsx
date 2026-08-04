@@ -3,6 +3,11 @@ import { EmptyState } from "@repo/ui/components/empty-state";
 import { PageHeader } from "@repo/ui/components/page-header";
 import { Skeleton } from "@repo/ui/components/skeleton";
 import { cn } from "@repo/ui/lib/utils";
+import type {
+  ActionsResponse,
+  ActivityResponse,
+  TicketsResponse,
+} from "@repo/worker-api/contracts";
 import { Activity, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,7 +15,6 @@ import { Suspense } from "react";
 
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
-import type { ActionsResponse, ActivityResponse, TicketsResponse } from "@/lib/api-types";
 import { formatDurationSeconds, formatRelative } from "@/lib/format";
 import type { CompanyOverview } from "@/lib/team-fetch";
 

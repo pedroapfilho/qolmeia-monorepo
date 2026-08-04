@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, createBrowserApi, handleResponse } from "./index";
+import { ApiError, createBrowserApi, createServerApi, handleResponse } from "./index";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -69,6 +69,64 @@ describe("createBrowserApi", () => {
 
     const init = fetchMock.mock.calls[0]?.[1];
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+  });
+});
+
+describe("createServerApi", () => {
+  it("prefixes baseUrl + basePath and forwards the request cookie", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve(Response.json({ items: [] })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiGetServer } = createServerApi({
+      basePath: "/api/backoffice",
+      baseUrl: "https://w.example",
+      readCookieHeader: () => Promise.resolve("session=abc"),
+      readOrgId: () => Promise.resolve("org_1"),
+    });
+    const out = await apiGetServer<{ items: ReadonlyArray<string> }>("/tickets");
+
+    expect(out).toEqual({ items: [] });
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("https://w.example/api/backoffice/tickets");
+    expect(new Headers(init?.headers).get("Cookie")).toBe("session=abc");
+    expect(init?.cache).toBe("no-store");
+  });
+
+  it("names the tenant with X-Org-Id on every server read", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve(Response.json({ ok: true })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiGetServer } = createServerApi({
+      baseUrl: "https://w.example",
+      readCookieHeader: () => Promise.resolve("session=abc"),
+      readOrgId: () => Promise.resolve("org_2"),
+    });
+    await apiGetServer("/me/company");
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(init?.headers).get("X-Org-Id")).toBe("org_2");
+  });
+
+  it("omits the Cookie header when the request carries none", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve(Response.json({ ok: true })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiGetServer } = createServerApi({
+      baseUrl: "",
+      readCookieHeader: () => Promise.resolve(""),
+      readOrgId: () => Promise.resolve("org_1"),
+    });
+    await apiGetServer("/me");
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/me");
+    expect(new Headers(init?.headers).has("Cookie")).toBe(false);
   });
 });
 

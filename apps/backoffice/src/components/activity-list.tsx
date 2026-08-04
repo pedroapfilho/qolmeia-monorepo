@@ -2,11 +2,11 @@
 
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/lib/toast";
+import type { ActivityEntry, ActivityResponse } from "@repo/worker-api/contracts";
 import { useState } from "react";
 
 import { ActivityRow } from "@/components/activity-row";
 import { apiGet, ApiError } from "@/lib/api-client";
-import type { ActivityEntry, ActivityResponse } from "@/lib/api-types";
 
 type ActivityListProps = {
   category?: string;

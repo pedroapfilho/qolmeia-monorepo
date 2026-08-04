@@ -3,11 +3,11 @@
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
+import type { CoverageResponse } from "@repo/worker-api/contracts";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { apiSend, ApiError } from "@/lib/api-client";
-import type { CoverageResponse } from "@/lib/api-types";
 
 type CoverageFormProps = {
   initial: CoverageResponse["assigned"];

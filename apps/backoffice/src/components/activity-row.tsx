@@ -1,6 +1,6 @@
 import { cn } from "@repo/ui/lib/utils";
+import type { ActivityEntry } from "@repo/worker-api/contracts";
 
-import type { ActivityEntry } from "@/lib/api-types";
 import { formatRelative } from "@/lib/format";
 
 type Category = "action" | "member" | "neutral" | "team" | "ticket" | "worker";

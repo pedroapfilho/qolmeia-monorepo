@@ -1,3 +1,5 @@
+import { handleResponse } from "@repo/worker-api";
+import type { MeOrg, MeResponse } from "@repo/worker-api/contracts";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -6,7 +8,7 @@ import { AGENTS_SERVER_URL } from "@/lib/agents-url";
 import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
-import type { MeResponse, Org, StaffMe } from "./api-types";
+type StaffMe = MeResponse & { currentOrg: MeOrg; role: "OWNER" | "STAFF" };
 
 const getSession = cache(async () => {
   const headersList = await headers();
@@ -31,7 +33,7 @@ const requireSession = async () => {
   return session;
 };
 
-const canUseBackoffice = (org: Org): boolean => org.role === "OWNER" || org.role === "STAFF";
+const canUseBackoffice = (org: MeOrg): boolean => org.role === "OWNER" || org.role === "STAFF";
 
 /**
  * Deliberately sent without X-Org-Id: this is the discovery read, and a caller
@@ -58,8 +60,7 @@ const fetchMe = cache(async (): Promise<MeResponse> => {
     throw new Error(`/api/me responded ${res.status}`);
   }
 
-  // oxlint-disable-next-line no-unsafe-type-assertion -- trusted first-party auth-service response; the role check below rejects malformed payloads
-  return (await res.json()) as MeResponse;
+  return handleResponse<MeResponse>(res);
 });
 
 /**
