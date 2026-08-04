@@ -7,6 +7,7 @@ import {
 } from "@repo/ui/components/card";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Entrando",
@@ -19,7 +20,7 @@ type VerifyPageProps = {
   searchParams: Promise<{ error?: string }>;
 };
 
-const VerifyPage = async ({ searchParams }: VerifyPageProps) => {
+const VerifyContent = async ({ searchParams }: VerifyPageProps) => {
   const { error } = await searchParams;
   if (error === undefined || error === "") {
     redirect("/");
@@ -41,5 +42,14 @@ const VerifyPage = async ({ searchParams }: VerifyPageProps) => {
     </Card>
   );
 };
+
+// Redirect-first route: the magic-link callback normally redirects home, so
+// the Suspense shell is empty. cacheComponents needs a boundary above the
+// search-param read, and without one the whole route drops to fully dynamic.
+const VerifyPage = (props: VerifyPageProps) => (
+  <Suspense fallback={null}>
+    <VerifyContent {...props} />
+  </Suspense>
+);
 
 export default VerifyPage;
