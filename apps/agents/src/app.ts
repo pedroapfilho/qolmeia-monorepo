@@ -12,7 +12,6 @@ import { assetsRoutes } from "#/routes/assets";
 import { backofficeRoutes } from "#/routes/backoffice";
 import { internalRoutes } from "#/routes/internal";
 import { meRoutes } from "#/routes/me";
-import { meAssetsRoutes } from "#/routes/me-assets";
 import { teamsRoutes } from "#/routes/teams";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -55,7 +54,6 @@ app.get("/healthz", (c) => c.json({ status: "ok" }));
 app.route("/api/backoffice", backofficeRoutes);
 app.route("/api/internal", internalRoutes);
 app.route("/api/me", meRoutes);
-app.route("/api/me", meAssetsRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);
 

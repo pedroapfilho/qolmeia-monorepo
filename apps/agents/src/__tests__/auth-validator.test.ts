@@ -80,10 +80,8 @@ describe("validateSession", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     globalThis.fetch = vi.fn(() => Promise.reject(new Error("ECONNREFUSED")));
     expect(await validateSession(buildRequest("tok"), env)).toBeNull();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("/api/me request failed"),
-      expect.objectContaining({ error: expect.any(Error) }),
-    );
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("me.fetch.failed"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("ECONNREFUSED"));
     consoleSpy.mockRestore();
   });
 

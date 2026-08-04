@@ -42,6 +42,25 @@ describe("GET /api/me/company", () => {
   });
 });
 
+describe("a bearer-token client", () => {
+  it("gets the same answer from /api/me and /api/me/company", async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    globalThis.fetch = fetchSpy;
+    const headers = { Authorization: "Bearer BEARER_TOK" };
+
+    const me = await exports.default.fetch("https://agents.test/api/me", { headers });
+    const company = await exports.default.fetch("https://agents.test/api/me/company", { headers });
+
+    expect(me.status).toBe(200);
+    expect(company.status).toBe(200);
+    const meBody = await me.json<{ currentOrg: { id: string } }>();
+    const companyBody = await company.json<CompanyBody>();
+    expect(meBody.currentOrg.id).toBe(COMPANY_ID);
+    expect(companyBody.company.status).toBe("onboarding");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("a multi-org client that named no org", () => {
   it("gets 400 with the org list, not a 401 that would send it back to login", async () => {
     globalThis.fetch = vi.fn(() =>
