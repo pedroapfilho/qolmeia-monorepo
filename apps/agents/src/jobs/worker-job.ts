@@ -35,7 +35,6 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
     let revision = 0;
     let priorSummary: string | null = null;
     let latestFeedback: string | null = null;
-    let generated: GenerateResult | null = null;
 
     /* oxlint-disable no-await-in-loop, react-doctor/async-await-in-loop */
     for (;;) {
@@ -43,14 +42,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       const priorForRound = priorSummary;
       const feedbackForRound = latestFeedback;
 
-      if (generated === null || round <= MAX_REVISIONS) {
-        generated = await step.do(
-          `generate-${round}`,
-          (): Promise<GenerateResult> =>
-            generateDeliverable(ctx, round, priorForRound, feedbackForRound),
-        );
-      }
-      const current = generated;
+      const current = await step.do(
+        `generate-${round}`,
+        (): Promise<GenerateResult> =>
+          generateDeliverable(ctx, round, priorForRound, feedbackForRound),
+      );
 
       const proposed = await step.do(
         `propose-${round}`,

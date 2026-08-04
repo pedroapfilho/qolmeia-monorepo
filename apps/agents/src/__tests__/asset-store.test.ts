@@ -1,9 +1,25 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
+import type { AssetVisibility } from "#/lib/asset-store";
+import { listCompanyAssets, persistAsset, readAssetText } from "#/lib/asset-store";
 
 const COMPANY_ID = "co_asset_store_test";
+
+const persistText = (input: {
+  name: string;
+  text: string;
+  visibility?: AssetVisibility;
+}): Promise<{ assetId: string }> =>
+  persistAsset(env, {
+    bytes: new TextEncoder().encode(input.text),
+    companyId: COMPANY_ID,
+    kind: "knowledge_doc",
+    metadata: { name: input.name },
+    mime: "text/markdown",
+    uploadMetadata: { generatedBy: "agent" },
+    visibility: input.visibility ?? "customer",
+  });
 
 beforeEach(async () => {
   await env.DB.prepare(
@@ -16,8 +32,7 @@ beforeEach(async () => {
 
 describe("asset-store", () => {
   it("persists a text deliverable, lists it, and reads it back", async () => {
-    const { assetId } = await persistTextAsset(env, {
-      companyId: COMPANY_ID,
+    const { assetId } = await persistText({
       name: "Plano semanal",
       text: "# Plano\n\nSegunda: post de lançamento.",
     });
@@ -34,13 +49,8 @@ describe("asset-store", () => {
   });
 
   it("dedups identical content on (company, sha256)", async () => {
-    const first = await persistTextAsset(env, {
-      companyId: COMPANY_ID,
-      name: "Nota",
-      text: "conteúdo idêntico para dedup",
-    });
-    const second = await persistTextAsset(env, {
-      companyId: COMPANY_ID,
+    const first = await persistText({ name: "Nota", text: "conteúdo idêntico para dedup" });
+    const second = await persistText({
       name: "Nota (de novo)",
       text: "conteúdo idêntico para dedup",
     });
@@ -48,8 +58,7 @@ describe("asset-store", () => {
   });
 
   it("is tenant-scoped: another company cannot read the asset", async () => {
-    const { assetId } = await persistTextAsset(env, {
-      companyId: COMPANY_ID,
+    const { assetId } = await persistText({
       name: "Privado",
       text: "segredo da empresa A que B não deve ler",
     });
@@ -57,14 +66,12 @@ describe("asset-store", () => {
     expect(read).toBeNull();
   });
 
-  it("defaults to the customer folder; honors the agent folder (ADR 0007)", async () => {
-    const customer = await persistTextAsset(env, {
-      companyId: COMPANY_ID,
+  it("separates the customer folder from the agent folder (ADR 0007)", async () => {
+    const customer = await persistText({
       name: "Entrega",
       text: "documento de entrega para o cliente",
     });
-    const agentScratch = await persistTextAsset(env, {
-      companyId: COMPANY_ID,
+    const agentScratch = await persistText({
       name: "Recorte",
       text: "rascunho interno do agente",
       visibility: "agent",

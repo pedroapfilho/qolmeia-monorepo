@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { getDb } from "#/db/client";
-import { listCompanyAssets, persistTextAsset, readAssetText } from "#/lib/asset-store";
+import { listCompanyAssets, persistAsset, readAssetText } from "#/lib/asset-store";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 const ASSET_KINDS = [
@@ -79,12 +79,14 @@ const saveAssetSkill: UnknownSkill = {
     "Salva um documento de texto na biblioteca da empresa. Use 'customer' para uma entrega final que o cliente deve ver, ou 'agent' para material de trabalho interno.",
   execute: (input: unknown, ctx: SkillContext): Promise<{ assetId: string }> => {
     const { content, folder, mime, name } = saveAssetInputSchema.parse(input);
-    return persistTextAsset(ctx.env, {
+    return persistAsset(ctx.env, {
+      bytes: new TextEncoder().encode(content),
       companyId: ctx.companyId,
-      mime,
-      name,
-      text: content,
-      visibility: folder,
+      kind: "knowledge_doc",
+      metadata: { name },
+      mime: mime ?? "text/markdown",
+      uploadMetadata: { generatedBy: "agent" },
+      visibility: folder ?? "customer",
     });
   },
   id: "saveAsset",

@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 import { getDb } from "#/db/client";
-import { buildSignedAssetUrl, uploadAsset } from "#/lib/r2";
+import { persistAsset } from "#/lib/asset-store";
+import { buildSignedAssetUrl } from "#/lib/r2";
 import type { SkillContext, UnknownSkill } from "#/skills/registry";
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -89,21 +90,6 @@ const parseDataUrl = (url: string): { bytes: Uint8Array; mime: string } | null =
   return { bytes: decodeBase64(b64), mime };
 };
 
-const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-};
-
-const extByMime = (mime: string): string => {
-  if (mime === "image/jpeg" || mime === "image/jpg") {
-    return "jpg";
-  }
-  if (mime === "image/webp") {
-    return "webp";
-  }
-  return "png";
-};
-
 type GenerateResult = { assetId: string; url: string } | { error: string };
 
 const generateBrandImageSkill: UnknownSkill = {
@@ -162,38 +148,27 @@ const generateBrandImageSkill: UnknownSkill = {
       return { error: `Image gen returned non-data URL we can't ingest: ${imageUrl.slice(0, 60)}` };
     }
     const { bytes, mime } = decoded;
-    const sha = await sha256Hex(bytes);
-    const key = `org_${ctx.companyId}/customer/${sha}.${extByMime(mime)}`;
-
-    await uploadAsset(
-      { ASSETS: ctx.env.ASSETS },
-      { bytes, key, metadata: { aspectRatio, prompt }, mime },
-    );
-
-    const asset = await getDb(ctx.env).asset.upsert({
-      create: {
-        bytes: bytes.length,
-        companyId: ctx.companyId,
-        id: crypto.randomUUID(),
-        kind: "generated_image",
-        metadata: { aspectRatio, prompt },
-        mime,
-        r2Key: key,
-        sha256: sha,
-      },
-      update: {},
-      where: { companyId_sha256: { companyId: ctx.companyId, sha256: sha } },
+    const { assetId } = await persistAsset(ctx.env, {
+      bytes,
+      companyId: ctx.companyId,
+      // The generator can hand back a mime the map doesn't cover; these are
+      // images, so name them .png rather than .bin.
+      fallbackExt: "png",
+      kind: "generated_image",
+      metadata: { aspectRatio, prompt },
+      mime,
+      uploadMetadata: { aspectRatio, prompt },
+      visibility: "customer",
     });
-    const finalAssetId = asset.id;
 
     const url = await buildSignedAssetUrl(
       { ASSETS_SIGNING_KEY: ctx.env.ASSETS_SIGNING_KEY },
       ctx.env.WORKER_PUBLIC_URL,
-      finalAssetId,
+      assetId,
       7 * 24 * 60 * 60 * 1000,
     );
 
-    return { assetId: finalAssetId, url };
+    return { assetId, url };
   },
   id: "generateBrandImage",
   inputSchema: generateBrandImageInputSchema,

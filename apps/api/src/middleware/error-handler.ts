@@ -1,39 +1,9 @@
-import type { Prisma } from "@repo/db";
+import { Prisma } from "@repo/db";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
 
 import { env } from "@/lib/env";
-
-export const isPrismaKnownError = (
-  err: unknown,
-): err is InstanceType<typeof Prisma.PrismaClientKnownRequestError> =>
-  err instanceof Error && "code" in err && "clientVersion" in err;
-
-export class AppError extends Error {
-  public readonly statusCode: number;
-  public readonly isOperational: boolean;
-  public readonly code?: string;
-
-  constructor(
-    message: string,
-    statusCode: number = 500,
-    isOperational: boolean = true,
-    code?: string,
-  ) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = isOperational;
-    this.code = code;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
-const APP_ERROR_STATUSES = [400, 401, 403, 404, 409, 422, 500] as const;
-type AppErrorStatus = (typeof APP_ERROR_STATUSES)[number];
-
-const toAppErrorStatus = (status: number): AppErrorStatus =>
-  APP_ERROR_STATUSES.find((known) => known === status) ?? 500;
 
 export const errorHandler = (err: Error, c: Context) => {
   const forwardedFor = c.req.header("x-forwarded-for");
@@ -73,19 +43,7 @@ export const errorHandler = (err: Error, c: Context) => {
     );
   }
 
-  if (err instanceof AppError) {
-    return c.json(
-      {
-        error: {
-          code: err.code !== undefined && err.code !== "" ? err.code : "APP_ERROR",
-          message: err.message,
-        },
-      },
-      toAppErrorStatus(err.statusCode),
-    );
-  }
-
-  if (isPrismaKnownError(err)) {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === "P2002") {
       return c.json(
         {

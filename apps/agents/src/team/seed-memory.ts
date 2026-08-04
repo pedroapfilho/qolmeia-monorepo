@@ -10,6 +10,7 @@ const seedCompanyMemory = async (
 ): Promise<void> => {
   const agentInstanceId = `corr-${companyId}`;
   const memory = getMemoryAdapter(env);
+  const db = getDb(env);
 
   const facts: Array<{ content: string; kind: string }> = [];
   if (input.brief.industry !== undefined && input.brief.industry !== "") {
@@ -37,7 +38,7 @@ const seedCompanyMemory = async (
   await Promise.all(
     facts.map(async (fact) => {
       const id = crypto.randomUUID();
-      await insertMemoryFact(getDb(env), {
+      await insertMemoryFact(db, {
         agentInstanceId,
         companyId,
         content: fact.content,

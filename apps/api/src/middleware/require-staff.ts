@@ -3,6 +3,7 @@ import { prisma as defaultPrisma } from "@repo/db";
 import type { Context, MiddlewareHandler, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
 
+import { forbidden, unauthorized } from "@/lib/api-response";
 import { auth as defaultAuth } from "@/lib/auth";
 
 type AuthSession = {
@@ -28,14 +29,6 @@ type StaffContextVars = {
   role: OrgRole;
   session: AuthSession;
 };
-
-type AnyMemberContextVars = StaffContextVars;
-
-const unauthorized = (c: Context) =>
-  c.json({ error: { code: "UNAUTHORIZED", message: "Authentication required" } }, 401);
-
-const forbidden = (c: Context, message: string) =>
-  c.json({ error: { code: "FORBIDDEN", message } }, 403);
 
 const buildRoleGuard = (
   acceptedRoles: ReadonlyArray<OrgRole>,
@@ -85,11 +78,8 @@ const buildRoleGuard = (
   };
 };
 
-const requireStaff = (deps: RoleGuardDeps = {}): MiddlewareHandler =>
-  buildRoleGuard(["OWNER", "STAFF"], deps);
-
 const requireAnyMember = (deps: RoleGuardDeps = {}): MiddlewareHandler =>
   buildRoleGuard(["OWNER", "STAFF", "CUSTOMER"], deps);
 
-export { buildRoleGuard, requireAnyMember, requireStaff };
-export type { AnyMemberContextVars, AuthLike, AuthSession, RoleGuardDeps, StaffContextVars };
+export { buildRoleGuard, requireAnyMember };
+export type { AuthLike, AuthSession, RoleGuardDeps, StaffContextVars };

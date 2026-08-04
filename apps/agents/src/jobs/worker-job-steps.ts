@@ -7,11 +7,9 @@ import type { DecisionOutcome } from "#/db/action";
 import { getDb } from "#/db/client";
 import { resolvePolicy } from "#/db/policy";
 import { getCompany } from "#/db/schema";
-import { getTemplate } from "#/db/template";
-import { loadAgentInstance, markTicketDone, setTicketStatus } from "#/db/ticket";
+import { loadInstanceWithTemplate, transitionTicket } from "#/db/ticket";
 import { logError, logInfo } from "#/lib/logger";
 import { toRecord } from "#/lib/records";
-import { emitTeamEvent } from "#/team/events";
 
 const MAX_REVISIONS = 3;
 
@@ -63,29 +61,19 @@ const proposeDeliverable = async (
 ): Promise<ProposeResult> => {
   const { agentInstanceId, companyId, env, ticketId } = ctx;
   const db = getDb(env);
-  const agentInstance = await loadAgentInstance(db, agentInstanceId);
-  if (
-    agentInstance === null ||
-    agentInstance.templateId === null ||
-    agentInstance.templateId === ""
-  ) {
-    throw new Error("agent_instance vanished mid-workflow");
-  }
-  const [template, company] = await Promise.all([
-    getTemplate(db, agentInstance.templateId),
+  const [{ template }, company] = await Promise.all([
+    loadInstanceWithTemplate(db, agentInstanceId),
     getCompany(db, companyId),
   ]);
-  if (!template || !company) {
-    throw new Error("template or company vanished mid-workflow");
+  if (!company) {
+    throw new Error("company vanished mid-workflow");
   }
   const actionType = template.defaultActionType;
   const policy = resolvePolicy(actionType, template);
 
   if (policy === "auto-execute" || policy === "notify-only") {
-    await Promise.all([
-      markTicketDone(db, ticketId, { summary: current.summary }),
-      emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(db, {
+    await transitionTicket(env, db, {
+      activity: {
         companyId,
         refId: ticketId,
         refType: "ticket",
@@ -94,8 +82,11 @@ const proposeDeliverable = async (
             ? "Ticket concluído (notify-only): disponível para conferência."
             : "Ticket concluído automaticamente (auto-execute).",
         type: "TICKET_DONE",
-      }),
-    ]);
+      },
+      result: { summary: current.summary },
+      status: "done",
+      ticketId,
+    });
     if (policy === "notify-only") {
       await logActivity(db, {
         companyId,
@@ -123,11 +114,8 @@ const proposeDeliverable = async (
     proposed: proposedPayload,
     ticketId,
   });
-  await Promise.all([
-    setTicketStatus(db, ticketId, "awaiting_approval"),
-    emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-    logActivity(
-      db,
+  await transitionTicket(env, db, {
+    activity:
       round > 0
         ? {
             companyId,
@@ -145,8 +133,9 @@ const proposeDeliverable = async (
             summary: "Ação proposta aguardando decisão.",
             type: "ACTION_PROPOSED",
           },
-    ),
-  ]);
+    status: "awaiting_approval",
+    ticketId,
+  });
 
   logInfo("workflow.propose.ok", { actionId, agentInstanceId, companyId, policy, ticketId });
   return { actionId, policy };
@@ -174,23 +163,24 @@ const applyDecision = async (
   if (decision === "approved") {
     await Promise.all([
       markExecuted(db, actionId),
-      markTicketDone(db, ticketId, { summary: current.summary }),
-      emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(db, {
-        actorId: decidedByUserId,
-        companyId,
-        refId: actionId,
-        refType: "action",
-        summary: "Ação aprovada e executada.",
-        type: "ACTION_EXECUTED",
+      transitionTicket(env, db, {
+        activity: {
+          actorId: decidedByUserId,
+          companyId,
+          refId: actionId,
+          refType: "action",
+          summary: "Ação aprovada e executada.",
+          type: "ACTION_EXECUTED",
+        },
+        result: { summary: current.summary },
+        status: "done",
+        ticketId,
       }),
     ]);
     await presentToCustomer(ctx, current.summary);
   } else if (decision === "rejected") {
-    await Promise.all([
-      setTicketStatus(db, ticketId, "rejected"),
-      emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(db, {
+    await transitionTicket(env, db, {
+      activity: {
         actorId: decidedByUserId,
         companyId,
         payload: { feedback: feedback ?? null },
@@ -198,13 +188,13 @@ const applyDecision = async (
         refType: "action",
         summary: "Ação rejeitada.",
         type: "ACTION_REJECTED",
-      }),
-    ]);
+      },
+      status: "rejected",
+      ticketId,
+    });
   } else {
-    await Promise.all([
-      setTicketStatus(db, ticketId, "in_progress"),
-      emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" }),
-      logActivity(db, {
+    await transitionTicket(env, db, {
+      activity: {
         actorId: decidedByUserId,
         companyId,
         payload: { feedback: feedback ?? null },
@@ -212,8 +202,10 @@ const applyDecision = async (
         refType: "action",
         summary: "Alterações solicitadas.",
         type: "ACTION_CHANGES_REQUESTED",
-      }),
-    ]);
+      },
+      status: "in_progress",
+      ticketId,
+    });
   }
   return decision;
 };

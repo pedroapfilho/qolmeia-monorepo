@@ -1,3 +1,4 @@
+import { Prisma } from "@repo/db";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
@@ -9,7 +10,7 @@ vi.mock("@/lib/env", () => ({
 
 import { env } from "@/lib/env";
 
-import { AppError, errorHandler, notFound } from "./error-handler";
+import { errorHandler, notFound } from "./error-handler";
 
 const mockLogger = { error: vi.fn(), info: vi.fn() };
 
@@ -25,31 +26,8 @@ const createMockContext = (headers: Record<string, string> = {}) => {
   } as unknown as Context & { json: ReturnType<typeof vi.fn> };
 };
 
-describe("AppError", () => {
-  it("should use default statusCode 500 and isOperational true", () => {
-    const error = new AppError("Something broke");
-    expect(error.message).toBe("Something broke");
-    expect(error.statusCode).toBe(500);
-    expect(error.isOperational).toBe(true);
-    expect(error.code).toBeUndefined();
-  });
-
-  it("should accept custom statusCode and isOperational", () => {
-    const error = new AppError("Not found", 404, false);
-    expect(error.statusCode).toBe(404);
-    expect(error.isOperational).toBe(false);
-  });
-
-  it("should accept optional error code", () => {
-    const error = new AppError("Bad", 400, true, "VALIDATION_FAILED");
-    expect(error.code).toBe("VALIDATION_FAILED");
-  });
-
-  it("should have a stack trace", () => {
-    const error = new AppError("Test");
-    expect(error.stack).toBeDefined();
-  });
-});
+const prismaKnownError = (code: string, message: string) =>
+  new Prisma.PrismaClientKnownRequestError(message, { clientVersion: "7.0.0", code });
 
 describe("errorHandler", () => {
   it("should handle HTTPException", () => {
@@ -91,36 +69,9 @@ describe("errorHandler", () => {
     );
   });
 
-  it("should handle AppError with custom code", () => {
-    const c = createMockContext();
-    const err = new AppError("User not found", 404, true, "USER_NOT_FOUND");
-
-    errorHandler(err, c);
-
-    expect(c.json).toHaveBeenCalledWith(
-      { error: { code: "USER_NOT_FOUND", message: "User not found" } },
-      404,
-    );
-  });
-
-  it("should handle AppError without code defaulting to APP_ERROR", () => {
-    const c = createMockContext();
-    const err = new AppError("Something wrong", 422);
-
-    errorHandler(err, c);
-
-    expect(c.json).toHaveBeenCalledWith(
-      { error: { code: "APP_ERROR", message: "Something wrong" } },
-      422,
-    );
-  });
-
   it("should handle P2002 as 409 DUPLICATE_ENTRY", () => {
     const c = createMockContext();
-    const err = Object.assign(new Error("Unique constraint failed"), {
-      clientVersion: "7.0.0",
-      code: "P2002",
-    });
+    const err = prismaKnownError("P2002", "Unique constraint failed");
 
     errorHandler(err, c);
 
@@ -132,10 +83,7 @@ describe("errorHandler", () => {
 
   it("should handle P2025 as 404 NOT_FOUND", () => {
     const c = createMockContext();
-    const err = Object.assign(new Error("Record not found"), {
-      clientVersion: "7.0.0",
-      code: "P2025",
-    });
+    const err = prismaKnownError("P2025", "Record not found");
 
     errorHandler(err, c);
 

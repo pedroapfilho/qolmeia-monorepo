@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildRoleGuard, requireAnyMember, requireStaff } from "./require-staff";
+import { buildRoleGuard, requireAnyMember } from "./require-staff";
 
 type Membership = {
   createdAt: Date;
@@ -28,7 +28,7 @@ const buildPrisma = (memberships: ReadonlyArray<Membership>) => ({
 });
 
 const buildApp = (
-  guard: ReturnType<typeof requireStaff>,
+  guard: ReturnType<typeof requireAnyMember>,
   handler: (c: Context) => Response | Promise<Response>,
 ) => {
   const app = new Hono();
@@ -46,11 +46,14 @@ const session = {
   user: { email: "u@example.com", id: "user_1", name: "U" },
 };
 
-describe("requireStaff", () => {
+const staffGuard = (deps: Parameters<typeof buildRoleGuard>[1]) =>
+  buildRoleGuard(["OWNER", "STAFF"], deps);
+
+describe("buildRoleGuard: OWNER + STAFF", () => {
   it("returns 401 when there is no session", async () => {
     const auth = buildAuth(null);
     const prisma = buildPrisma([]);
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(staffGuard({ auth, prisma: prisma as never }), (c) =>
       c.json({ ok: true }),
     );
 
@@ -73,7 +76,7 @@ describe("requireStaff", () => {
         userId: "user_1",
       },
     ]);
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(staffGuard({ auth, prisma: prisma as never }), (c) =>
       c.json({ ok: true }),
     );
 
@@ -96,7 +99,7 @@ describe("requireStaff", () => {
       },
     ]);
 
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) => {
+    const app = buildApp(staffGuard({ auth, prisma: prisma as never }), (c) => {
       return c.json({
         orgId: c.get("orgId"),
         role: c.get("role"),
@@ -119,7 +122,7 @@ describe("requireStaff", () => {
       api: { getSession: vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED")) },
     };
     const prisma = buildPrisma([]);
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(staffGuard({ auth, prisma: prisma as never }), (c) =>
       c.json({ ok: true }),
     );
 
@@ -147,7 +150,7 @@ describe("requireStaff", () => {
       },
     ]);
 
-    const app = buildApp(requireStaff({ auth, prisma: prisma as never }), (c) =>
+    const app = buildApp(staffGuard({ auth, prisma: prisma as never }), (c) =>
       c.json({
         orgId: c.get("orgId"),
         role: c.get("role"),

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { requireAnyMember, type AnyMemberContextVars } from "@/middleware/require-staff";
+import { requireAnyMember, type StaffContextVars } from "@/middleware/require-staff";
 
 import { buildMeRoutes } from "./me";
 import { buildOrgsRoutes } from "./orgs";
@@ -17,7 +17,7 @@ const buildApiRoutes = (deps: V1RouteDeps = {}): Hono => {
   const app = new Hono();
   const memberGuard = deps.memberGuard ?? requireAnyMember();
 
-  const meApp = new Hono<{ Variables: AnyMemberContextVars }>();
+  const meApp = new Hono<{ Variables: StaffContextVars }>();
   meApp.use("*", memberGuard);
   meApp.route("/", deps.routes?.me ?? buildMeRoutes());
   app.route("/me", meApp);

@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@repo/db/worker";
 
-import { logActivity } from "#/activity/log";
+import { logActivity, type LogActivityInput } from "#/activity/log";
 import { correspondentIdFor, teamIdFor } from "#/db/team";
 import { getTemplate, isTemplateEntitledForCompany } from "#/db/template";
 import { logError } from "#/lib/logger";
@@ -204,9 +204,13 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
   }
 
   const data: { displayName?: string; promptOverride?: string | null } = {};
-  let renameLog: { newName: string; oldName: string } | null = null;
-  let promptLog: "MEMBER_PROMPT_EDITED" | "MEMBER_PROMPT_RESET" | null = null;
-  let nextLength: number | null = null;
+  const activityBase = {
+    actorId: input.operatorId ?? undefined,
+    companyId: input.companyId,
+    refId: input.agentInstanceId,
+    refType: "agent_instance",
+  } as const;
+  const activities: Array<LogActivityInput> = [];
 
   if (input.displayName !== undefined) {
     const trimmed = input.displayName.trim();
@@ -215,7 +219,12 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
     }
     if (trimmed !== existing.displayName) {
       data.displayName = trimmed;
-      renameLog = { newName: trimmed, oldName: existing.displayName };
+      activities.push({
+        ...activityBase,
+        payload: { newName: trimmed, oldName: existing.displayName },
+        summary: `Renomeado de "${existing.displayName}" para "${trimmed}".`,
+        type: "MEMBER_RENAMED",
+      });
     }
   }
 
@@ -224,11 +233,20 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
       typeof input.promptOverride === "string" ? input.promptOverride.trim() : null;
     if (input.promptOverride === null || trimmedPrompt === "") {
       data.promptOverride = null;
-      promptLog = "MEMBER_PROMPT_RESET";
+      activities.push({
+        ...activityBase,
+        payload: { editedBy: input.editedBy },
+        summary: "Prompt restaurado ao padrão do template.",
+        type: "MEMBER_PROMPT_RESET",
+      });
     } else {
       data.promptOverride = input.promptOverride;
-      promptLog = "MEMBER_PROMPT_EDITED";
-      nextLength = input.promptOverride.length;
+      activities.push({
+        ...activityBase,
+        payload: { editedBy: input.editedBy, length: input.promptOverride.length },
+        summary: "Prompt personalizado atualizado.",
+        type: "MEMBER_PROMPT_EDITED",
+      });
     }
   }
 
@@ -239,37 +257,11 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
     });
   }
 
-  if (renameLog) {
-    await logActivity(db, {
-      actorId: input.operatorId ?? undefined,
-      companyId: input.companyId,
-      payload: renameLog,
-      refId: input.agentInstanceId,
-      refType: "agent_instance",
-      summary: `Renomeado de "${renameLog.oldName}" para "${renameLog.newName}".`,
-      type: "MEMBER_RENAMED",
-    });
-  }
-  if (promptLog === "MEMBER_PROMPT_EDITED") {
-    await logActivity(db, {
-      actorId: input.operatorId ?? undefined,
-      companyId: input.companyId,
-      payload: { editedBy: input.editedBy, length: nextLength },
-      refId: input.agentInstanceId,
-      refType: "agent_instance",
-      summary: "Prompt personalizado atualizado.",
-      type: "MEMBER_PROMPT_EDITED",
-    });
-  } else if (promptLog === "MEMBER_PROMPT_RESET") {
-    await logActivity(db, {
-      actorId: input.operatorId ?? undefined,
-      companyId: input.companyId,
-      payload: { editedBy: input.editedBy },
-      refId: input.agentInstanceId,
-      refType: "agent_instance",
-      summary: "Prompt restaurado ao padrão do template.",
-      type: "MEMBER_PROMPT_RESET",
-    });
+  for (const activity of activities) {
+    // Sequential on purpose: the activity feed is read in insertion order, so a
+    // rename has to land before the prompt edit that arrived in the same request.
+    // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop
+    await logActivity(db, activity);
   }
 
   const member = await getTeamMember(db, input.companyId, input.agentInstanceId);

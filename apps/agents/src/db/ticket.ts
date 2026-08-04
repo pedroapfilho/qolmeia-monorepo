@@ -1,7 +1,10 @@
 import type { Prisma } from "@repo/db/worker";
 
+import { logActivity, type LogActivityInput } from "#/activity/log";
 import type { Database } from "#/db/client";
 import { toEnum } from "#/db/mappers";
+import { getTemplate, type Template } from "#/db/template";
+import { emitTeamEvent } from "#/team/events";
 
 type TicketStatus =
   | "awaiting_approval"
@@ -86,6 +89,27 @@ const loadAgentInstance = (
     where: { id },
   });
 
+type InstanceWithTemplate = {
+  agentInstance: { id: string; promptOverride: string | null; templateId: string };
+  template: Template;
+};
+
+const loadInstanceWithTemplate = async (
+  db: Database,
+  agentInstanceId: string,
+): Promise<InstanceWithTemplate> => {
+  const agentInstance = await loadAgentInstance(db, agentInstanceId);
+  const templateId = agentInstance?.templateId;
+  if (!agentInstance || templateId === null || templateId === undefined || templateId === "") {
+    throw new Error(`agent_instance ${agentInstanceId} is not linked to a template`);
+  }
+  const template = await getTemplate(db, templateId);
+  if (!template) {
+    throw new Error(`template ${templateId} not found`);
+  }
+  return { agentInstance: { ...agentInstance, templateId }, template };
+};
+
 const setTicketWorkflowId = async (
   db: Database,
   ticketId: string,
@@ -112,12 +136,34 @@ const markTicketDone = async (
   });
 };
 
+type TicketTransition = {
+  activity: LogActivityInput;
+  ticketId: string;
+} & (
+  | { result: Record<string, unknown>; status: "done" }
+  | { status: Exclude<TicketStatus, "done"> }
+);
+
+const transitionTicket = async (env: Env, db: Database, input: TicketTransition): Promise<void> => {
+  await Promise.all([
+    input.status === "done"
+      ? markTicketDone(db, input.ticketId, input.result)
+      : setTicketStatus(db, input.ticketId, input.status),
+    emitTeamEvent(env, {
+      companyId: input.activity.companyId,
+      reason: "ticket_changed",
+      type: "team:status",
+    }),
+    logActivity(db, input.activity),
+  ]);
+};
+
 export {
   listTickets,
   loadAgentInstance,
+  loadInstanceWithTemplate,
   loadTicket,
-  markTicketDone,
-  setTicketStatus,
   setTicketWorkflowId,
+  transitionTicket,
 };
-export type { Ticket, TicketListItem, TicketStatus };
+export type { InstanceWithTemplate, Ticket, TicketListItem, TicketStatus };
