@@ -14,7 +14,7 @@ import {
   updateTemplate,
 } from "#/db/template";
 import { listTickets, loadTicket } from "#/db/ticket";
-import { validateSession } from "#/lib/auth";
+import { requireStaffSession, type ValidatedSession } from "#/lib/auth";
 import { parsePositiveInt, parseTimestamp } from "#/lib/pagination";
 import { isKnownSkill, listSkillCatalog } from "#/skills/registry";
 import { emitTeamEvent } from "#/team/events";
@@ -27,25 +27,11 @@ import {
 } from "#/team/mutations";
 import { getMemberDetail, getTeamRoster, listTeamRosters } from "#/team/queries";
 
-type Vars = {
-  role: string;
-  userId: string;
-};
+type Vars = { session: ValidatedSession };
 
 const backofficeRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-backofficeRoutes.use("*", async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
-  }
-  if (session.role !== "OWNER" && session.role !== "STAFF") {
-    return c.text("Forbidden", 403);
-  }
-  c.set("role", session.role);
-  c.set("userId", session.userId);
-  return next();
-});
+backofficeRoutes.use("*", requireStaffSession);
 
 backofficeRoutes.get("/tickets", async (c) => {
   const companyId = c.req.query("companyId");
@@ -66,7 +52,7 @@ backofficeRoutes.get("/actions", async (c) => {
       companyId !== undefined && companyId !== ""
         ? await listPendingActions(db, { companyId })
         : await (async () => {
-            const coverage = await listCoverage(db, c.get("userId"));
+            const coverage = await listCoverage(db, c.get("session").userId);
             return listPendingActions(db, {
               companyIds: coverage.companies,
               disciplines: coverage.disciplines,
@@ -133,7 +119,7 @@ backofficeRoutes.post("/actions/:id/decide", async (c) => {
   const instance = await c.env.WORKER_JOB.get(ticket.workflowId);
   await instance.sendEvent({
     payload: {
-      decidedByUserId: c.get("userId"),
+      decidedByUserId: c.get("session").userId,
       decision: parsed.data.decision,
       feedback: parsed.data.feedback,
     },
@@ -203,7 +189,7 @@ backofficeRoutes.get("/companies", async (c) => {
 backofficeRoutes.get("/assignments/me", async (c) => {
   const db = getDb(c.env);
   const [coverage, disciplines, companies] = await Promise.all([
-    listCoverage(db, c.get("userId")),
+    listCoverage(db, c.get("session").userId),
     listDisciplines(db),
     listCompaniesOverview(db),
   ]);
@@ -226,7 +212,7 @@ backofficeRoutes.put("/assignments/me", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  await setCoverage(getDb(c.env), c.get("userId"), parsed.data);
+  await setCoverage(getDb(c.env), c.get("session").userId, parsed.data);
   return c.json({ assigned: parsed.data });
 });
 
@@ -255,8 +241,8 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     if (parsed.data.status !== undefined) {
       const paused = parsed.data.status === "paused";
       const member = paused
-        ? await pauseMember(getDb(c.env), companyId, id, c.get("userId"))
-        : await resumeMember(getDb(c.env), companyId, id, c.get("userId"));
+        ? await pauseMember(getDb(c.env), companyId, id, c.get("session").userId)
+        : await resumeMember(getDb(c.env), companyId, id, c.get("session").userId);
       await emitTeamEvent(c.env, {
         companyId,
         reason: paused ? "paused" : "resumed",
@@ -269,7 +255,7 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
       companyId,
       displayName: parsed.data.displayName,
       editedBy: "operator",
-      operatorId: c.get("userId"),
+      operatorId: c.get("session").userId,
       promptOverride: parsed.data.promptOverride,
     });
     await emitTeamEvent(c.env, {

@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { safeJson } from "#/db/mappers";
+import { logError } from "#/lib/logger";
 import { parseMeResponse, type OrgSummary, type Role } from "#/lib/membership";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
 
@@ -11,8 +12,8 @@ type ValidatedSession = {
   userId: string;
 };
 
-const SESSION_CACHE_TTL_SECONDS = 60;
-const SESSION_CACHE_NAMESPACE = "session";
+const ME_CACHE_TTL_SECONDS = 60;
+const ME_CACHE_NAMESPACE = "me";
 const ORG_ID_HEADER = "X-Org-Id";
 const ORG_ID_QUERY_PARAM = "org_id";
 
@@ -39,7 +40,20 @@ const orgSelectionRequired = (orgs: ReadonlyArray<OrgSummary>): HTTPException =>
     ),
   });
 
-const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
+type MeFetch =
+  | { body: string; cached: boolean; kind: "upstream"; status: number }
+  | { kind: "no-credentials" }
+  | { kind: "unreachable" };
+
+/**
+ * The single door to the auth service's /api/me. Both readers used to own a
+ * copy: `validateSession` accepted `Authorization: Bearer` while the relay
+ * handler read only the `cf_session` query param, so a bearer-token client got
+ * 401 from GET /api/me and 200 from GET /api/me/company. They also kept two KV
+ * entries with two TTLs for one upstream answer. One entry holds the raw
+ * upstream body so every reader sees the same bytes.
+ */
+const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
   const authHeader = request.headers.get("Authorization");
   const bearerToken =
@@ -49,13 +63,13 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   const token = bearerToken ?? tokenParam;
   const orgId = readOrgId(request);
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { Accept: "application/json" };
   if (token !== null && token !== "") {
     headers.Authorization = `Bearer ${token}`;
   } else if (cookieHeader !== null && cookieHeader !== "") {
     headers.Cookie = cookieHeader;
   } else {
-    return null;
+    return { kind: "no-credentials" };
   }
   if (orgId !== null) {
     headers[ORG_ID_HEADER] = orgId;
@@ -63,36 +77,39 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
 
   const cacheKey = await buildCacheKey({
     cookie: cookieHeader,
-    namespace: SESSION_CACHE_NAMESPACE,
+    namespace: ME_CACHE_NAMESPACE,
     orgId,
     token,
   });
-  const cachedRaw = await readCachedString(env, cacheKey);
-  if (cachedRaw !== null && cachedRaw !== "") {
-    const parsed = safeJson<ValidatedSession | null>(cachedRaw, null);
-    if (
-      parsed !== null &&
-      parsed.companyId !== "" &&
-      typeof parsed.role === "string" &&
-      parsed.userId !== ""
-    ) {
-      return parsed;
-    }
+  const cached = await readCachedString(env, cacheKey);
+  if (cached !== null && cached !== "") {
+    return { body: cached, cached: true, kind: "upstream", status: 200 };
   }
 
   let response: Response;
   try {
     response = await fetch(`${env.AUTH_SERVICE_URL}/api/me`, { headers });
   } catch (error) {
-    // oxlint-disable-next-line no-console
-    console.error("[auth] /api/me request failed", { error });
-    return null;
+    logError("me.fetch.failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { kind: "unreachable" };
   }
-  if (!response.ok) {
+
+  const body = await response.text();
+  if (response.ok) {
+    await writeCachedString(env, cacheKey, body, ME_CACHE_TTL_SECONDS);
+  }
+  return { body, cached: false, kind: "upstream", status: response.status };
+};
+
+const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
+  const result = await fetchMe(request, env);
+  if (result.kind !== "upstream" || result.status !== 200) {
     return null;
   }
 
-  const me = parseMeResponse(await response.json());
+  const me = parseMeResponse(safeJson<unknown>(result.body, null));
   if (me === null) {
     return null;
   }
@@ -105,13 +122,34 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     }
     return null;
   }
-  const validated: ValidatedSession = {
+  return {
     companyId: me.currentOrg.id,
     role: me.currentOrg.role,
     userId: me.userId,
   };
-  await writeCachedString(env, cacheKey, JSON.stringify(validated), SESSION_CACHE_TTL_SECONDS);
-  return validated;
+};
+
+type SessionEnv = { Bindings: Env; Variables: { session: ValidatedSession } };
+
+const requireSession: MiddlewareHandler<SessionEnv> = async (c, next) => {
+  const session = await validateSession(c.req.raw, c.env);
+  if (!session) {
+    return c.text("Unauthorized", 401);
+  }
+  c.set("session", session);
+  return next();
+};
+
+const requireStaffSession: MiddlewareHandler<SessionEnv> = async (c, next) => {
+  const session = await validateSession(c.req.raw, c.env);
+  if (!session) {
+    return c.text("Unauthorized", 401);
+  }
+  if (session.role !== "OWNER" && session.role !== "STAFF") {
+    return c.text("Forbidden", 403);
+  }
+  c.set("session", session);
+  return next();
 };
 
 const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -124,10 +162,7 @@ const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
  * POST /api/teams/:companyId/confirm) were each a missing copy of a line that
  * every sibling handler had.
  */
-const requireCustomerForWrites: MiddlewareHandler<{
-  Bindings: Env;
-  Variables: { session: ValidatedSession };
-}> = (c, next) => {
+const requireCustomerForWrites: MiddlewareHandler<SessionEnv> = (c, next) => {
   if (READ_ONLY_METHODS.has(c.req.method) || c.get("session").role === "CUSTOMER") {
     return next();
   }
@@ -135,5 +170,5 @@ const requireCustomerForWrites: MiddlewareHandler<{
   return Promise.resolve(c.json({ error: "forbidden" }, 403));
 };
 
-export { ORG_ID_HEADER, readOrgId, requireCustomerForWrites, validateSession };
+export { fetchMe, requireCustomerForWrites, requireSession, requireStaffSession, validateSession };
 export type { ValidatedSession };

@@ -5,24 +5,14 @@ import { z } from "zod";
 import { getDb } from "#/db/client";
 import { assetName, persistAsset } from "#/lib/asset-store";
 import type { ValidatedSession } from "#/lib/auth";
-import { requireCustomerForWrites, validateSession } from "#/lib/auth";
 import { parsePositiveInt } from "#/lib/pagination";
 import { buildSignedAssetUrl } from "#/lib/r2";
 
 type Vars = { session: ValidatedSession };
 
+// Mounted inside meRoutes, which owns the session guard and the customer write
+// gate for the whole /api/me prefix.
 const meAssetsRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
-
-meAssetsRoutes.use("*", async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
-  }
-  c.set("session", session);
-  return next();
-});
-
-meAssetsRoutes.use("*", requireCustomerForWrites);
 
 meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");

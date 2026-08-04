@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 import { materializeTeam } from "#/db/team";
-import { requireCustomerForWrites, validateSession, type ValidatedSession } from "#/lib/auth";
+import { requireCustomerForWrites, requireSession, type ValidatedSession } from "#/lib/auth";
 import { parseBrief } from "#/lib/company-brief";
 import { seedCompanyMemory } from "#/team/seed-memory";
 
@@ -12,15 +12,7 @@ type Vars = { session: ValidatedSession };
 
 const teamsRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-teamsRoutes.use("*", async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
-  }
-  c.set("session", session);
-  return next();
-});
-
+teamsRoutes.use("*", requireSession);
 teamsRoutes.use("*", requireCustomerForWrites);
 
 const confirmBodySchema = z.object({

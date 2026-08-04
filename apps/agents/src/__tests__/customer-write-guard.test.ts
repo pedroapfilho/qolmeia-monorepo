@@ -55,3 +55,17 @@ describe("customer write guard", () => {
     expect(res.status).not.toBe(403);
   });
 });
+
+// The asset routes gave up their own session guard when they moved inside
+// meRoutes, so their reads are guarded only if that single mount holds.
+describe("session guard on the merged /api/me mount", () => {
+  it("returns 401 for a credential-less read of /api/me/assets", async () => {
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy;
+
+    const res = await exports.default.fetch("https://agents.test/api/me/assets");
+
+    expect(res.status).toBe(401);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});

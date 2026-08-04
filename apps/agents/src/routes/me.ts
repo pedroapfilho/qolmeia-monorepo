@@ -5,16 +5,15 @@ import { listActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
 import {
-  ORG_ID_HEADER,
-  readOrgId,
+  fetchMe,
   requireCustomerForWrites,
-  validateSession,
+  requireSession,
   type ValidatedSession,
 } from "#/lib/auth";
 import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
-import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
+import { meAssetsRoutes } from "#/routes/me-assets";
 import { emitTeamEvent, subscribeTeamEvents } from "#/team/events";
 import {
   CorrespondentMissingError,
@@ -28,9 +27,6 @@ import {
   updateMember,
 } from "#/team/mutations";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
-
-const RELAY_CACHE_TTL_SECONDS = 60;
-const RELAY_CACHE_NAMESPACE = "me-relay";
 
 type Vars = { session: ValidatedSession };
 
@@ -54,69 +50,28 @@ const teamMutationErrorResponse = (error: unknown): TeamMutationErrorResult | nu
 
 const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
+// Registered above requireSession on purpose: this route is how a client
+// discovers which orgs it belongs to, so it cannot require a resolved org
+// itself. fetchMe still rejects a request that carries no credentials.
 meRoutes.get("/", async (c) => {
-  const tokenParam = new URL(c.req.url).searchParams.get("cf_session");
-  const cookieHeader = c.req.header("Cookie") ?? null;
-  const hasToken = tokenParam !== null && tokenParam !== "";
-  const hasCookie = cookieHeader !== null && cookieHeader !== "";
-  if (!hasToken && !hasCookie) {
+  const result = await fetchMe(c.req.raw, c.env);
+  if (result.kind === "no-credentials") {
     return c.text("Unauthorized", 401);
   }
-
-  const orgId = readOrgId(c.req.raw);
-  const cacheKey = await buildCacheKey({
-    cookie: cookieHeader,
-    namespace: RELAY_CACHE_NAMESPACE,
-    orgId,
-    token: tokenParam,
-  });
-  const cached = await readCachedString(c.env, cacheKey);
-  if (cached !== null && cached !== "") {
-    return new Response(cached, {
-      headers: { "Content-Type": "application/json", "X-Cache": "hit" },
-      status: 200,
-    });
-  }
-
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (hasToken) {
-    headers.Authorization = `Bearer ${tokenParam}`;
-  } else if (hasCookie) {
-    headers.Cookie = cookieHeader;
-  }
-  if (orgId !== null) {
-    headers[ORG_ID_HEADER] = orgId;
-  }
-  let response: Response;
-  try {
-    response = await fetch(`${c.env.AUTH_SERVICE_URL}/api/me`, { headers });
-  } catch (error) {
-    logError("me.relay.err", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+  if (result.kind === "unreachable") {
     return c.text("Auth service unreachable", 502);
   }
 
-  const body = await response.text();
-  if (response.ok) {
-    await writeCachedString(c.env, cacheKey, body, RELAY_CACHE_TTL_SECONDS);
-  }
-
-  return new Response(body, {
-    headers: { "Content-Type": "application/json", "X-Cache": "miss" },
-    status: response.status,
+  return new Response(result.body, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Cache": result.cached ? "hit" : "miss",
+    },
+    status: result.status,
   });
 });
 
-meRoutes.use("*", async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
-  }
-  c.set("session", session);
-  return next();
-});
-
+meRoutes.use("*", requireSession);
 meRoutes.use("*", requireCustomerForWrites);
 
 meRoutes.get("/company", async (c) => {
@@ -342,5 +297,10 @@ meRoutes.get("/activity", async (c) => {
     nextCursor: null,
   });
 });
+
+// Mounted here rather than a second time at /api/me in app.ts: two mounts on
+// one prefix ran both use("*") chains, so every asset request validated its
+// session twice.
+meRoutes.route("/", meAssetsRoutes);
 
 export { meRoutes };
