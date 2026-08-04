@@ -27,11 +27,13 @@ type TemplatesResponse = {
   }>;
 };
 
-const fetchJson = async <T,>(url: string, token: string): Promise<T | null> => {
+// orgId is sent explicitly so these reads land on the same org the page just
+// rendered, instead of whichever one the Worker would resolve on its own.
+const fetchJson = async <T,>(url: string, token: string, orgId: string): Promise<T | null> => {
   try {
     const res = await fetch(url, {
       cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "X-Org-Id": orgId },
     });
     if (!res.ok) {
       return null;
@@ -51,13 +53,18 @@ const ChatContent = async () => {
   }
 
   const token = session.session.token;
-  const companyRes = await fetchJson<CompanyResponse>(`${AGENTS_SERVER_URL}/api/me/company`, token);
+  const companyRes = await fetchJson<CompanyResponse>(
+    `${AGENTS_SERVER_URL}/api/me/company`,
+    token,
+    companyId,
+  );
   const status = companyRes?.company.status ?? "onboarding";
 
   if (status === "onboarding") {
     const templatesRes = await fetchJson<TemplatesResponse>(
       `${AGENTS_SERVER_URL}/api/me/templates`,
       token,
+      companyId,
     );
     return (
       <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col bg-background">

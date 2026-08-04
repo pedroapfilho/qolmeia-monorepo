@@ -17,8 +17,16 @@ const meStaff = {
 const buildRequest = (token: string) =>
   new Request(`http://agents.test/agents/correspondent/co_1?cf_session=${token}`);
 
+const buildOrgScopedRequest = (orgId: string) =>
+  new Request("http://agents.test/api/me/company?cf_session=shared-tok", {
+    headers: { "X-Org-Id": orgId },
+  });
+
+const outboundHeaders = (init: RequestInit | undefined): Record<string, string> =>
+  (init?.headers as Record<string, string> | undefined) ?? {};
+
 const outboundAuthHeader = (init: RequestInit | undefined): string | undefined =>
-  (init?.headers as Record<string, string> | undefined)?.Authorization;
+  outboundHeaders(init).Authorization;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -84,5 +92,27 @@ describe("validateSession", () => {
     const req = new Request("http://agents.test/agents/correspondent/co_1");
     expect(await validateSession(req, env)).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("forwards X-Org-Id upstream and keeps one token's orgs in separate cache entries", async () => {
+    const fetchSpy = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        Response.json({
+          currentOrg: { id: outboundHeaders(init)["X-Org-Id"], role: "CUSTOMER" },
+          user: { id: "u_1" },
+        }),
+      ),
+    );
+    globalThis.fetch = fetchSpy;
+
+    const first = await validateSession(buildOrgScopedRequest("co_a"), env);
+    const second = await validateSession(buildOrgScopedRequest("co_b"), env);
+    const firstAgain = await validateSession(buildOrgScopedRequest("co_a"), env);
+
+    expect(first?.companyId).toBe("co_a");
+    expect(second?.companyId).toBe("co_b");
+    expect(firstAgain?.companyId).toBe("co_a");
+    expect(outboundHeaders(fetchSpy.mock.calls[0]?.[1])["X-Org-Id"]).toBe("co_a");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

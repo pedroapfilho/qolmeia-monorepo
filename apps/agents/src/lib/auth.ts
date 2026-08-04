@@ -12,6 +12,12 @@ type ValidatedSession = {
 
 const SESSION_CACHE_TTL_SECONDS = 60;
 const SESSION_CACHE_NAMESPACE = "session";
+const ORG_ID_HEADER = "X-Org-Id";
+
+const readOrgId = (request: Request): string | null => {
+  const value = request.headers.get(ORG_ID_HEADER)?.trim() ?? "";
+  return value === "" ? null : value;
+};
 
 const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
@@ -21,6 +27,7 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   const cookieHeader = request.headers.get("Cookie");
 
   const token = bearerToken ?? tokenParam;
+  const orgId = readOrgId(request);
 
   const headers: Record<string, string> = {};
   if (token !== null && token !== "") {
@@ -30,10 +37,14 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
   } else {
     return null;
   }
+  if (orgId !== null) {
+    headers[ORG_ID_HEADER] = orgId;
+  }
 
   const cacheKey = await buildCacheKey({
     cookie: cookieHeader,
     namespace: SESSION_CACHE_NAMESPACE,
+    orgId,
     token,
   });
   const cachedRaw = await readCachedString(env, cacheKey);
@@ -95,5 +106,5 @@ const requireCustomerForWrites: MiddlewareHandler<{
   return Promise.resolve(c.json({ error: "forbidden" }, 403));
 };
 
-export { requireCustomerForWrites, validateSession };
+export { ORG_ID_HEADER, readOrgId, requireCustomerForWrites, validateSession };
 export type { ValidatedSession };

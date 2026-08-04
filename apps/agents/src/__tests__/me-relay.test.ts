@@ -10,6 +10,11 @@ const fullMe = {
   user: { displayName: null, email: "u@x.com", emailVerified: true, id: "u_1", name: "U" },
 };
 
+const relayForOrg = (orgId: string) =>
+  exports.default.fetch("https://agents.test/api/me?cf_session=ORG_TOK", {
+    headers: { "X-Org-Id": orgId },
+  });
+
 afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH;
 });
@@ -65,6 +70,37 @@ describe("GET /api/me (P7.0 relay)", () => {
     expect(body.user.email).toBe("u@x.com");
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards X-Org-Id and keeps one token's orgs in separate cache entries", async () => {
+    const fetchSpy = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        Response.json({
+          ...fullMe,
+          currentOrg: {
+            ...fullMe.currentOrg,
+            id: (init?.headers as Record<string, string> | undefined)?.["X-Org-Id"] ?? "unset",
+          },
+        }),
+      ),
+    );
+    globalThis.fetch = fetchSpy;
+
+    const a = await relayForOrg("co_a");
+    const b = await relayForOrg("co_b");
+    const bodyA = await a.json<typeof fullMe>();
+    const bodyB = await b.json<typeof fullMe>();
+
+    expect(bodyA.currentOrg.id).toBe("co_a");
+    expect(bodyB.currentOrg.id).toBe("co_b");
+    expect(b.headers.get("X-Cache")).toBe("miss");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    const aAgain = await relayForOrg("co_a");
+    const bodyAAgain = await aAgain.json<typeof fullMe>();
+    expect(aAgain.headers.get("X-Cache")).toBe("hit");
+    expect(bodyAAgain.currentOrg.id).toBe("co_a");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it("does NOT cache non-OK responses (401 from auth service, second call refetches)", async () => {
