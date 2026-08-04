@@ -4,7 +4,13 @@ import { z } from "zod";
 import { listActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
-import { requireCustomerForWrites, validateSession, type ValidatedSession } from "#/lib/auth";
+import {
+  ORG_ID_HEADER,
+  readOrgId,
+  requireCustomerForWrites,
+  validateSession,
+  type ValidatedSession,
+} from "#/lib/auth";
 import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
@@ -57,9 +63,11 @@ meRoutes.get("/", async (c) => {
     return c.text("Unauthorized", 401);
   }
 
+  const orgId = readOrgId(c.req.raw);
   const cacheKey = await buildCacheKey({
     cookie: cookieHeader,
     namespace: RELAY_CACHE_NAMESPACE,
+    orgId,
     token: tokenParam,
   });
   const cached = await readCachedString(c.env, cacheKey);
@@ -75,6 +83,9 @@ meRoutes.get("/", async (c) => {
     headers.Authorization = `Bearer ${tokenParam}`;
   } else if (hasCookie) {
     headers.Cookie = cookieHeader;
+  }
+  if (orgId !== null) {
+    headers[ORG_ID_HEADER] = orgId;
   }
   let response: Response;
   try {

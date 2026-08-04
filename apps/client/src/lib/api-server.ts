@@ -1,17 +1,18 @@
 import { handleResponse } from "@repo/worker-api";
 import { headers } from "next/headers";
 
-const AGENTS_SERVER_URL =
-  process.env.AGENTS_INTERNAL_URL ?? process.env.NEXT_PUBLIC_AGENTS_URL ?? "http://127.0.0.1:8787";
+import { AGENTS_SERVER_URL } from "@/lib/agents-url";
+import { getActiveOrgId } from "@/lib/auth-helpers";
 
 const apiGetServer = async <T>(path: string): Promise<T> => {
-  const headersList = await headers();
+  const [headersList, orgId] = await Promise.all([headers(), getActiveOrgId()]);
   const cookie = headersList.get("cookie") ?? "";
 
   const res = await fetch(`${AGENTS_SERVER_URL}${path}`, {
     cache: "no-store",
     headers: {
       Accept: "application/json",
+      "X-Org-Id": orgId,
       ...(cookie ? { Cookie: cookie } : {}),
     },
   });
@@ -19,4 +20,4 @@ const apiGetServer = async <T>(path: string): Promise<T> => {
   return handleResponse<T>(res);
 };
 
-export { AGENTS_SERVER_URL, apiGetServer };
+export { apiGetServer };

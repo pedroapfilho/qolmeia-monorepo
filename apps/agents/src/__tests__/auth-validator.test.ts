@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { HTTPException } from "hono/http-exception";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { validateSession } from "#/lib/auth";
@@ -17,8 +18,16 @@ const meStaff = {
 const buildRequest = (token: string) =>
   new Request(`http://agents.test/agents/correspondent/co_1?cf_session=${token}`);
 
+const buildOrgScopedRequest = (orgId: string) =>
+  new Request("http://agents.test/api/me/company?cf_session=shared-tok", {
+    headers: { "X-Org-Id": orgId },
+  });
+
+const outboundHeaders = (init: RequestInit | undefined): Record<string, string> =>
+  (init?.headers as Record<string, string> | undefined) ?? {};
+
 const outboundAuthHeader = (init: RequestInit | undefined): string | undefined =>
-  (init?.headers as Record<string, string> | undefined)?.Authorization;
+  outboundHeaders(init).Authorization;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -84,5 +93,81 @@ describe("validateSession", () => {
     const req = new Request("http://agents.test/agents/correspondent/co_1");
     expect(await validateSession(req, env)).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("forwards X-Org-Id upstream and keeps one token's orgs in separate cache entries", async () => {
+    const fetchSpy = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        Response.json({
+          currentOrg: { id: outboundHeaders(init)["X-Org-Id"], role: "CUSTOMER" },
+          user: { id: "u_1" },
+        }),
+      ),
+    );
+    globalThis.fetch = fetchSpy;
+
+    const first = await validateSession(buildOrgScopedRequest("co_a"), env);
+    const second = await validateSession(buildOrgScopedRequest("co_b"), env);
+    const firstAgain = await validateSession(buildOrgScopedRequest("co_a"), env);
+
+    expect(first?.companyId).toBe("co_a");
+    expect(second?.companyId).toBe("co_b");
+    expect(firstAgain?.companyId).toBe("co_a");
+    expect(outboundHeaders(fetchSpy.mock.calls[0]?.[1])["X-Org-Id"]).toBe("co_a");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the org from the org_id query param, which is all EventSource can send", async () => {
+    globalThis.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        Response.json({
+          currentOrg: { id: outboundHeaders(init)["X-Org-Id"], role: "CUSTOMER" },
+          user: { id: "u_1" },
+        }),
+      ),
+    );
+
+    const session = await validateSession(
+      new Request("http://agents.test/api/me/team/events?cf_session=sse-tok&org_id=co_sse"),
+      env,
+    );
+
+    expect(session?.companyId).toBe("co_sse");
+  });
+
+  it("raises a 400 rather than a 401 when the account belongs to more than one org", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          currentOrg: null,
+          orgs: [
+            { id: "co_a", name: "A", role: "CUSTOMER" },
+            { id: "co_b", name: "B", role: "CUSTOMER" },
+          ],
+          user: { id: "u_1" },
+        }),
+      ),
+    );
+
+    const failure: unknown = await validateSession(buildRequest("ambiguous-tok"), env).catch(
+      (error: unknown) => error,
+    );
+
+    if (!(failure instanceof HTTPException)) {
+      throw new Error(`expected an HTTPException, got ${String(failure)}`);
+    }
+    const res = failure.getResponse();
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: string; orgs: ReadonlyArray<{ id: string }> }>();
+    expect(body.error).toBe("org_required");
+    expect(body.orgs.map((org) => org.id)).toEqual(["co_a", "co_b"]);
+  });
+
+  it("still returns null when the account belongs to no org at all", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(Response.json({ currentOrg: null, orgs: [], user: { id: "u_1" } })),
+    );
+
+    expect(await validateSession(buildRequest("no-org-tok"), env)).toBeNull();
   });
 });

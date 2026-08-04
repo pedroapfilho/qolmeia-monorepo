@@ -16,15 +16,24 @@ const sha256Hex = async (input: string): Promise<string> => {
 type CacheKeyInput = {
   cookie: string | null;
   namespace: string;
+  orgId: string | null;
   token: string | null;
 };
 
+// orgId belongs in the key so one user's two orgs cannot share an entry, but it
+// is client-supplied, so it goes through the digest instead of the key literal:
+// keys stay fixed-length and nobody can pad a KV key from the outside. The
+// length prefix keeps the concatenation unambiguous, so ("a", "b:c") and
+// ("a:b", "c") cannot digest to the same entry.
+const scopedDigest = (credential: string, orgId: string): Promise<string> =>
+  sha256Hex(`${orgId.length}:${orgId}${credential}`);
+
 const buildCacheKey = async (input: CacheKeyInput): Promise<string | null> => {
   if (input.token !== null && input.token !== "") {
-    return `${input.namespace}:tok:${await sha256Hex(input.token)}`;
+    return `${input.namespace}:tok:${await scopedDigest(input.token, input.orgId ?? "")}`;
   }
   if (input.cookie !== null && input.cookie !== "") {
-    return `${input.namespace}:cookie:${await sha256Hex(input.cookie)}`;
+    return `${input.namespace}:cookie:${await scopedDigest(input.cookie, input.orgId ?? "")}`;
   }
   return null;
 };

@@ -3,7 +3,7 @@ import { prisma as defaultPrisma } from "@repo/db";
 import { Hono } from "hono";
 
 import { notFound } from "@/lib/api-response";
-import type { StaffContextVars } from "@/middleware/require-staff";
+import type { DiscoveryContextVars } from "@/middleware/require-staff";
 
 type MePrisma = Pick<PrismaClient, "orgMembership" | "user">;
 
@@ -11,9 +11,9 @@ type MeRouteDeps = {
   prisma?: MePrisma;
 };
 
-const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: StaffContextVars }> => {
+const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: DiscoveryContextVars }> => {
   const prisma = deps.prisma ?? defaultPrisma;
-  const app = new Hono<{ Variables: StaffContextVars }>();
+  const app = new Hono<{ Variables: DiscoveryContextVars }>();
 
   app.get("/", async (c) => {
     const session = c.get("session");

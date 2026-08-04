@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildRoleGuard, requireAnyMember } from "./require-staff";
+import { buildRoleGuard, requireAnyMember, requireMemberForDiscovery } from "./require-staff";
 
 type Membership = {
   createdAt: Date;
@@ -15,15 +15,32 @@ const buildAuth = (session: unknown) => ({
   api: { getSession: vi.fn().mockResolvedValue(session) },
 });
 
+type MembershipWhere = {
+  orgId?: string;
+  role: { in: ReadonlyArray<string> };
+  userId: string;
+};
+
+const matching = (
+  memberships: ReadonlyArray<Membership>,
+  where: MembershipWhere,
+): ReadonlyArray<Membership> =>
+  memberships
+    .filter((m) => {
+      const acceptedRole = new Set(where.role.in).has(m.role);
+      const sameOrg = where.orgId === undefined || m.orgId === where.orgId;
+      return m.userId === where.userId && acceptedRole && sameOrg;
+    })
+    .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
 const buildPrisma = (memberships: ReadonlyArray<Membership>) => ({
   orgMembership: {
-    findFirst: vi.fn((args: { where: { role: { in: ReadonlyArray<string> }; userId: string } }) => {
-      const accepted = new Set(args.where.role.in);
-      const match = memberships
-        .filter((m) => m.userId === args.where.userId && accepted.has(m.role))
-        .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
-      return Promise.resolve(match ?? null);
-    }),
+    findFirst: vi.fn((args: { where: MembershipWhere }) =>
+      Promise.resolve(matching(memberships, args.where)[0] ?? null),
+    ),
+    findMany: vi.fn((args: { take?: number; where: MembershipWhere }) =>
+      Promise.resolve(matching(memberships, args.where).slice(0, args.take)),
+    ),
   },
 });
 
@@ -132,33 +149,122 @@ describe("buildRoleGuard: OWNER + STAFF", () => {
     expect(await res.text()).toContain("Authentication service unavailable");
     expect(prisma.orgMembership.findFirst).not.toHaveBeenCalled();
   });
+});
 
-  it("prefers the oldest matching membership when multiple exist", async () => {
-    const auth = buildAuth(session);
-    const prisma = buildPrisma([
-      {
-        createdAt: new Date("2026-02-01"),
-        orgId: "org_newer",
-        role: "STAFF",
-        userId: "user_1",
-      },
-      {
-        createdAt: new Date("2026-01-01"),
-        orgId: "org_older",
-        role: "OWNER",
-        userId: "user_1",
-      },
-    ]);
+const MULTI_ORG_MEMBERSHIPS: ReadonlyArray<Membership> = [
+  { createdAt: new Date("2026-02-01"), orgId: "org_newer", role: "STAFF", userId: "user_1" },
+  { createdAt: new Date("2026-01-01"), orgId: "org_older", role: "OWNER", userId: "user_1" },
+];
 
-    const app = buildApp(staffGuard({ auth, prisma: prisma as never }), (c) =>
-      c.json({
-        orgId: c.get("orgId"),
-        role: c.get("role"),
+const SINGLE_ORG_MEMBERSHIPS: ReadonlyArray<Membership> = [
+  { createdAt: new Date("2026-01-01"), orgId: "org_only", role: "OWNER", userId: "user_1" },
+];
+
+const buildTenantApp = (memberships: ReadonlyArray<Membership>) =>
+  buildApp(
+    staffGuard({ auth: buildAuth(session), prisma: buildPrisma(memberships) as never }),
+    (c) => c.json({ orgId: c.get("orgId"), role: c.get("role") }),
+  );
+
+const getAs = (app: ReturnType<typeof buildTenantApp>, orgId?: string) =>
+  app.fetch(
+    new Request("http://localhost/x", {
+      headers: orgId === undefined ? {} : { "X-Org-Id": orgId },
+    }),
+  );
+
+describe("tenant resolution", () => {
+  it("returns 400 for a multi-org user that sent no X-Org-Id", async () => {
+    const app = buildTenantApp(MULTI_ORG_MEMBERSHIPS);
+
+    const res = await getAs(app);
+
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "ORG_ID_REQUIRED" },
+    });
+  });
+
+  it("resolves the requested org for a multi-org user", async () => {
+    const app = buildTenantApp(MULTI_ORG_MEMBERSHIPS);
+
+    const res = await getAs(app, "org_newer");
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_newer", role: "STAFF" });
+  });
+
+  it("returns 403 for an org the caller is not a member of", async () => {
+    const app = buildTenantApp(MULTI_ORG_MEMBERSHIPS);
+
+    const res = await getAs(app, "org_someone_else");
+
+    expect(res.status).toBe(403);
+    expect((await res.json()) as { error: { code: string; message: string } }).toMatchObject({
+      error: { code: "FORBIDDEN", message: expect.stringContaining("requested organization") },
+    });
+  });
+
+  it("still resolves a single-org user that sent no X-Org-Id", async () => {
+    const app = buildTenantApp(SINGLE_ORG_MEMBERSHIPS);
+
+    const res = await getAs(app);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_only", role: "OWNER" });
+  });
+
+  it("ignores a blank X-Org-Id rather than treating it as an org", async () => {
+    const app = buildTenantApp(SINGLE_ORG_MEMBERSHIPS);
+
+    const res = await getAs(app, "   ");
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_only", role: "OWNER" });
+  });
+});
+
+describe("requireMemberForDiscovery", () => {
+  const buildDiscoveryApp = (memberships: ReadonlyArray<Membership>) =>
+    buildApp(
+      requireMemberForDiscovery({
+        auth: buildAuth(session),
+        prisma: buildPrisma(memberships) as never,
       }),
+      (c) => c.json({ orgId: c.get("orgId"), role: c.get("role") }),
     );
 
-    const res = await app.fetch(new Request("http://localhost/x"));
-    expect(await res.json()).toEqual({ orgId: "org_older", role: "OWNER" });
+  it("lets a multi-org user through with no X-Org-Id so it can read its org list", async () => {
+    const res = await getAs(buildDiscoveryApp(MULTI_ORG_MEMBERSHIPS));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: null, role: null });
+  });
+
+  it("still resolves the named org for a multi-org user", async () => {
+    const res = await getAs(buildDiscoveryApp(MULTI_ORG_MEMBERSHIPS), "org_newer");
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_newer", role: "STAFF" });
+  });
+
+  it("still resolves the only org for a single-org user", async () => {
+    const res = await getAs(buildDiscoveryApp(SINGLE_ORG_MEMBERSHIPS));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: "org_only", role: "OWNER" });
+  });
+
+  it("still returns 403 when the caller belongs to no org at all", async () => {
+    const res = await getAs(buildDiscoveryApp([]));
+
+    expect(res.status).toBe(403);
+  });
+
+  it("still returns 403 for an org the caller is not a member of", async () => {
+    const res = await getAs(buildDiscoveryApp(MULTI_ORG_MEMBERSHIPS), "org_someone_else");
+
+    expect(res.status).toBe(403);
   });
 });
 
