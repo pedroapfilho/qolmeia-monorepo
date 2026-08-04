@@ -22,6 +22,18 @@ const nextConfig: NextConfig = {
     "*.vercel.app",
   ],
   cacheComponents: true,
+
+  headers: () =>
+    Promise.resolve([
+      {
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+        source: "/:path*",
+      },
+    ]),
+
   reactCompiler: true,
   reactStrictMode: true,
 

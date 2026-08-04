@@ -19,6 +19,18 @@ const agentsUrl = process.env.AGENTS_INTERNAL_URL ?? "http://127.0.0.1:8787";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["qolmeia.client.localhost", "*.qolmeia.client.localhost", "*.vercel.app"],
   cacheComponents: true,
+
+  headers: () =>
+    Promise.resolve([
+      {
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+        source: "/:path*",
+      },
+    ]),
+
   reactCompiler: true,
   reactStrictMode: true,
 

@@ -74,8 +74,6 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
       <head>
         <meta content="telephone=no" name="format-detection" />
         <meta content="#000000" name="msapplication-TileColor" />
-        <meta content="nosniff" httpEquiv="X-Content-Type-Options" />
-        <meta content="DENY" httpEquiv="X-Frame-Options" />
       </head>
       <body className={hanken.className} suppressHydrationWarning>
         <a
