@@ -42,15 +42,12 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       const priorForRound = priorSummary;
       const feedbackForRound = latestFeedback;
 
-      const current = await step.do(
-        `generate-${round}`,
-        (): Promise<GenerateResult> =>
-          generateDeliverable(ctx, round, priorForRound, feedbackForRound),
+      const current = await step.do(`generate-${round}`, (): Promise<GenerateResult> =>
+        generateDeliverable(ctx, round, priorForRound, feedbackForRound),
       );
 
-      const proposed = await step.do(
-        `propose-${round}`,
-        (): Promise<ProposeResult> => proposeDeliverable(ctx, round, feedbackForRound, current),
+      const proposed = await step.do(`propose-${round}`, (): Promise<ProposeResult> =>
+        proposeDeliverable(ctx, round, feedbackForRound, current),
       );
 
       if (proposed.actionId === null || proposed.actionId === "") {
@@ -78,9 +75,8 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
         type: `decision:${actionId}`,
       });
 
-      const decision = await step.do(
-        `decide-${round}`,
-        (): Promise<DecisionOutcome> => applyDecision(ctx, actionId, current, evt.payload),
+      const decision = await step.do(`decide-${round}`, (): Promise<DecisionOutcome> =>
+        applyDecision(ctx, actionId, current, evt.payload),
       );
 
       if (decision === "approved" || decision === "rejected") {
