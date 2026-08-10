@@ -12,6 +12,10 @@ nodeLinker: hoisted
 overrides:
   react: 19.2.8
   react-dom: 19.2.8
+  # 1.5.2 dropped the "types" conditions from its exports map, so the type
+  # declarations resolve to a broken sibling .d.mts and every OpenAPI route
+  # helper degrades to the error type (~40 type-aware lint errors in apps/api).
+  "@hono/zod-openapi": "1.5.1"
 
 # pnpm 11 home for the former package.json `pnpm.onlyBuiltDependencies` list.
 # @mongodb-js/zstd + node-liblzma are optional native compression accelerators
@@ -38,8 +42,6 @@ allowBuilds:
   workerd: true
 
 minimumReleaseAgeExclude:
-  - cnfast@0.0.8
-  - "@shadcn/react@0.2.0"
   - "@oxlint-tsgolint/darwin-arm64@7.0.2001"
   - "@oxlint-tsgolint/darwin-x64@7.0.2001"
   - "@oxlint-tsgolint/linux-arm64@7.0.2001"
