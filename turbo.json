@@ -23,14 +23,14 @@
         "WEB_APP_URL"
       ]
     },
-    "lint": { "dependsOn": ["^build"], "outputs": [] },
-    "typecheck": { "dependsOn": ["^build"] },
+    "lint": { "dependsOn": ["^build", "db:generate"], "outputs": [] },
+    "typecheck": { "dependsOn": ["^build", "db:generate"] },
     "format:check": { "cache": false },
     "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true },
     "deploy": { "dependsOn": ["^build"], "cache": false },
     "start": { "dependsOn": ["^build"], "cache": false },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "db:generate"],
       "outputs": ["coverage/**"],
       "cache": false,
       "env": ["DATABASE_URL"]
@@ -42,7 +42,7 @@
       "env": ["DATABASE_URL"]
     },
     "test:coverage": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "db:generate"],
       "outputs": ["coverage/**"],
       "cache": false,
       "env": ["DATABASE_URL"]
