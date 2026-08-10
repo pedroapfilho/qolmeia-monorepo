@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.28",
-    "@flue/runtime": "2.0.0",
+    "@flue/runtime": "2.0.3",
     "@repo/db": "workspace:*",
     "@repo/worker-api": "workspace:*",
     "agents": "^0.20.1",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.51.1",
     "@cloudflare/vitest-pool-workers": "^0.18.3",
-    "@flue/vite": "2.0.0",
+    "@flue/vite": "2.0.3",
     "@repo/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
     "vite": "^8.1.4",

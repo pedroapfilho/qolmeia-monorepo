@@ -15,8 +15,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@flue/react": "2.0.0",
-    "@flue/sdk": "2.0.0",
+    "@flue/react": "2.0.3",
+    "@flue/sdk": "2.0.3",
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/observability": "workspace:*",
