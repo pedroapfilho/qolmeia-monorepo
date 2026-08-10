@@ -10,8 +10,8 @@ nodeLinker: hoisted
 # a null hook dispatcher ("Cannot read properties of null (reading 'useRef')")
 # in component tests. Keep these in step with the apps' react version on bump.
 overrides:
-  react: 19.2.7
-  react-dom: 19.2.7
+  react: 19.2.8
+  react-dom: 19.2.8
 
 # pnpm 11 home for the former package.json `pnpm.onlyBuiltDependencies` list.
 # @mongodb-js/zstd + node-liblzma are optional native compression accelerators
