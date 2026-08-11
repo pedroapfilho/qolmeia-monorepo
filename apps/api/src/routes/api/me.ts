@@ -49,8 +49,6 @@ const buildMeRoutes = (deps: MeRouteDeps = {}): Hono<{ Variables: DiscoveryConte
 
     const currentOrgRow = memberships.find((m) => m.orgId === currentOrgId);
 
-    // Typed against the contract the Worker and both Next apps consume, so a
-    // renamed field fails here instead of at runtime in a browser.
     const body: MeResponse = {
       currentOrg: currentOrgRow
         ? {

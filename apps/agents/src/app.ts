@@ -37,8 +37,6 @@ app.use("*", async (c, next) => {
 });
 
 app.onError((error, c) => {
-  // A guard reports an actionable refusal (an unchosen org, say) as an
-  // HTTPException; flattening it to 500 would hide the fix from the caller.
   if (error instanceof HTTPException) {
     return error.getResponse();
   }
@@ -57,10 +55,6 @@ app.route("/api/me", meRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);
 
-// Flue 2 mounts agents explicitly and dropped the agent-module `route` export,
-// so the CUSTOMER guard is ordinary middleware. The `/agents/<name>/<companyId>`
-// shape is preserved because requireCustomerAgent compares the third path
-// segment against the session's company, and the client rewrites this prefix.
 app.use("/agents/correspondent/*", requireCustomerAgent);
 app.use("/agents/planner/*", requireCustomerAgent);
 app.route("/agents/correspondent", createAgentRouter(CorrespondentV2));

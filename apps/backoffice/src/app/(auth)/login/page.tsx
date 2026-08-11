@@ -70,8 +70,6 @@ const LoginForm = ({ searchParams }: Props) => {
         toast.error("Não foi possível conectar ao servidor. Tente novamente.");
         return;
       }
-      // proxy.ts sends logged-out visitors here with ?from=<pathname>; gate it
-      // to an in-app path before it becomes a navigation target.
       const { from } = await searchParams;
       push(safeRedirectPath(from));
       refresh();

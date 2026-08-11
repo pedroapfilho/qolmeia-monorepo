@@ -28,8 +28,6 @@ const hasText = (value: string | undefined): value is string => value !== undefi
 
 const draftSchema = z.record(z.string(), z.unknown());
 
-// Fields are read one by one instead of being required by the schema: the agent writes this
-// draft, so a field it got wrong should drop out of the card rather than blank the proposal.
 const readDraft = (proposed: Action["proposed"]): Draft | null => {
   const parsed = draftSchema.safeParse(proposed.draft);
   if (!parsed.success) {

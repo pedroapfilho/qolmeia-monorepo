@@ -1,9 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-// Backoffice login (email/password). UI is Portuguese: labels "E-mail",
-// "Senha", submit button "Entrar"/"Entrando...". Root errors render via
-// Sonner toast (`toast.error` from @repo/ui/lib/toast).
 export class BackofficeLoginPage {
   private readonly emailInput: Locator;
   private readonly passwordInput: Locator;

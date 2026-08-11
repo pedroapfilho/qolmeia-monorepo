@@ -50,9 +50,6 @@ const teamMutationErrorResponse = (error: unknown): TeamMutationErrorResult | nu
 
 const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-// Registered above requireSession on purpose: this route is how a client
-// discovers which orgs it belongs to, so it cannot require a resolved org
-// itself. fetchMe still rejects a request that carries no credentials.
 meRoutes.get("/", async (c) => {
   const result = await fetchMe(c.req.raw, c.env);
   if (result.kind === "no-credentials") {
@@ -298,9 +295,6 @@ meRoutes.get("/activity", async (c) => {
   });
 });
 
-// Mounted here rather than a second time at /api/me in app.ts: two mounts on
-// one prefix ran both use("*") chains, so every asset request validated its
-// session twice.
 meRoutes.route("/", meAssetsRoutes);
 
 export { meRoutes };

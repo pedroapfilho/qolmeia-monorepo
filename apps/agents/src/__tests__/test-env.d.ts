@@ -12,10 +12,6 @@ declare global {
     interface Env {
       DB: TestDatabase;
     }
-    // `wrangler types` derives this from `main`, but wrangler.jsonc no longer
-    // has one: the flue() Vite plugin generates the production entry. Declaring
-    // it here is what types `exports.default.fetch(...)` across the suite, and
-    // it names the module vitest.config.ts actually loads.
     interface GlobalProps {
       durableNamespaces: "TeamEvents";
       mainModule: typeof WorkerEntry;

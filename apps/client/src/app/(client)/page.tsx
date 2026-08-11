@@ -116,8 +116,6 @@ const ChatSkeleton = () => (
   </div>
 );
 
-// Instant navigation: the static shell streams immediately as the fallback
-// while the per-user, session-bound chat renders on the server.
 const ChatPage = () => (
   <Suspense fallback={<ChatSkeleton />}>
     <ChatContent />

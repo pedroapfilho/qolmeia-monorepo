@@ -9,11 +9,6 @@ type GlobalErrorProps = {
   reset: () => void;
 };
 
-// global-error replaces the root layout, so globals.css never loads here and Tailwind
-// classes would resolve to nothing. Every rule below has to be inline. The palette is
-// pinned light because the app has no dark theme: its dark tokens live only under a
-// `.dark` selector that nothing ever applies, so `light-dark()` would hand a dark error
-// page to a dark-OS visitor of an always-light app.
 const styles = {
   body: {
     alignItems: "center",
@@ -69,8 +64,6 @@ const GlobalError = ({ error, reset }: GlobalErrorProps) => {
 
   useEffect(() => {
     log.error({ digest: error.digest, error: error.message, message: "Global error boundary" });
-    // The boundary unmounts whatever held focus, dropping it on <body>. Focusing the heading
-    // both announces the failure and puts the keyboard caret inside the replacement content.
     headingRef.current?.focus();
   }, [error]);
 

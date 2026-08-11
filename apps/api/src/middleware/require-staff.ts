@@ -79,10 +79,6 @@ const resolveMembership = async (
       : { kind: "resolved", orgId: membership.orgId, role: membership.role };
   }
 
-  // Two rows is enough to know the caller has to name an org. Which orgs those
-  // are is answered by GET /api/me, the one route mounted on the
-  // "allow-unscoped" policy precisely so a caller can read the list before it
-  // is able to name one.
   const memberships = await prisma.orgMembership.findMany({
     orderBy: { createdAt: "asc" },
     take: 2,

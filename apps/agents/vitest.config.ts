@@ -53,9 +53,6 @@ export default defineConfig({
     fileParallelism: false,
     globalSetup: ["./src/__tests__/setup-postgres.ts"],
     setupFiles: ["./src/__tests__/apply-migrations.ts"],
-    // The first exports.default.fetch() in a file instantiates the whole worker
-    // (Prisma adapter included) and that cost lands on whichever test issues it:
-    // ~3s on a warm laptop, more on a CI runner, against a 5s default.
     testTimeout: 20_000,
   },
 });

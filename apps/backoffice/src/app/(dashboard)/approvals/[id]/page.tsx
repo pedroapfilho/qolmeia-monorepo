@@ -196,8 +196,6 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
   );
 };
 
-// Static shell for the prerender: the detail is bound to `params` and the
-// per-request session, so cacheComponents needs a Suspense boundary above it.
 const ApprovalDetailSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-5">
     <Skeleton className="h-4 w-28" />

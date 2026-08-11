@@ -26,7 +26,6 @@ const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
   "image/gif": "gif",
   "image/jpeg": "jpg",
-  // Not a registered mime, but image generators emit it.
   "image/jpg": "jpg",
   "image/png": "png",
   "image/svg+xml": "svg",

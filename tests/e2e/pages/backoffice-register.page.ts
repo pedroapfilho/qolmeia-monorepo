@@ -1,9 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-// Backoffice register: fields Nome, E-mail, Senha, Confirmar senha;
-// submit "Criar conta"/"Criando conta...". Validation errors surface via
-// FieldError inside TanStack Form; root errors via Sonner.
 export class BackofficeRegisterPage {
   private readonly nameInput: Locator;
   private readonly emailInput: Locator;

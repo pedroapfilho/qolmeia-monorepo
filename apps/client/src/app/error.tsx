@@ -15,8 +15,6 @@ const ClientError = ({ error, reset }: ClientErrorProps) => {
 
   useEffect(() => {
     log.error({ digest: error.digest, error: error.message, message: "Route error boundary" });
-    // The boundary unmounts whatever held focus, dropping it on <body>. Focusing the heading
-    // both announces the failure and puts the keyboard caret inside the replacement content.
     headingRef.current?.focus();
   }, [error]);
 

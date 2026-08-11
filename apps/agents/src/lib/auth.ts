@@ -18,8 +18,6 @@ const ME_CACHE_NAMESPACE = "me";
 const ORG_ID_HEADER = "X-Org-Id";
 const ORG_ID_QUERY_PARAM = "org_id";
 
-// EventSource cannot set request headers, so the SSE subscription names its org
-// in the query string the same way it already passes cf_session.
 const readOrgId = (request: Request): string | null => {
   const header = request.headers.get(ORG_ID_HEADER)?.trim() ?? "";
   if (header !== "") {
@@ -115,9 +113,6 @@ const validateSession = async (request: Request, env: Env): Promise<ValidatedSes
     return null;
   }
   if (me.currentOrg === null) {
-    // The auth service answers /api/me for a multi-org caller with a null
-    // currentOrg and the full list. Collapsing that into 401 sent the user back
-    // to a login screen that could not fix it, so it surfaces as its own 400.
     if (me.orgs.length > 1) {
       throw orgSelectionRequired(me.orgs);
     }
@@ -167,7 +162,6 @@ const requireCustomerForWrites: MiddlewareHandler<SessionEnv> = (c, next) => {
   if (READ_ONLY_METHODS.has(c.req.method) || c.get("session").role === "CUSTOMER") {
     return next();
   }
-  // Hono middleware must hand back a promise; the 403 is built synchronously.
   return Promise.resolve(c.json({ error: "forbidden" }, 403));
 };
 

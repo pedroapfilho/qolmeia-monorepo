@@ -67,8 +67,6 @@ describe("team events DO fan-out", () => {
     await deadReader.read();
     await liveReader.read();
 
-    // Cancel without aborting the signal: the DO never learns the stream
-    // is gone, so the next enqueue on it throws.
     await deadReader.cancel().catch(() => undefined);
 
     await emitTeamEvent(env, { companyId, reason: "hired", type: "team:roster" });

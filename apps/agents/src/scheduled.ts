@@ -31,7 +31,6 @@ const runProactiveSweep = async (
       if (!gate.ok) {
         return "skipped";
       }
-      // Signal, not a user turn: see presentToCustomer in worker-job-steps.
       await dispatch(CorrespondentV2, {
         id: company.id,
         message: { body: PROACTIVE_PROMPT, kind: "signal", type: "proactive.nudge" },

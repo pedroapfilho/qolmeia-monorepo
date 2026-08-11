@@ -16,9 +16,6 @@ const getPortlessUrl = (name: string) => {
   }
 };
 
-// In CI the apps bind to 0.0.0.0 / Node 18+ resolves `localhost` to `::1`
-// via getaddrinfo, and undici doesn't fall back to IPv4; pin the explicit
-// loopback address. Locally portless gives us the real dev URL.
 const authUrl =
   process.env.E2E_AUTH_URL ?? getPortlessUrl("qolmeia.api") ?? "http://127.0.0.1:4000";
 const backofficeUrl =
@@ -32,9 +29,6 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/teardown/cleanup.ts",
 
   projects: [
-    // Backoffice specs use storage state captured by a setup project so the
-    // /protected-routes tests start authenticated. Magic-link specs declare
-    // their own clean context with `test.use({ storageState: ... })`.
     { name: "setup", testMatch: /.*\.setup\.ts/u, use: { baseURL: backofficeUrl } },
     {
       dependencies: ["setup"],
@@ -45,10 +39,6 @@ export default defineConfig({
         storageState: "tests/e2e/.auth/user.json",
       },
     },
-    // auth-email specs seed their own users via the auth API and assert
-    // Resend delivery. They intentionally start with a clean cookie jar
-    // (no setup dep, no storageState) and target authUrl, not backoffice.
-    // This is the dev-friendly path: API-driven, no UI hydration race.
     {
       name: "auth-email",
       testMatch: /.*\/auth-email\/.*/u,
@@ -83,24 +73,15 @@ export default defineConfig({
   testDir: "./tests/e2e",
 
   use: {
-    // Default baseURL is the backoffice; most auth surface lives there.
-    // Magic-link client specs override with `page.goto(clientUrl + ...)`.
     baseURL: backofficeUrl,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "retain-on-failure",
   },
 
-  // CI spawns the three servers in parallel. We start them directly from
-  // `node_modules/.bin/next` rather than via `pnpm --filter` so the workspace
-  // state lock doesn't serialize them; otherwise the first wins, the rest hang silently
-  // for the full timeout. tsdown's output for apps/api is `dist/index.mjs`.
   webServer: process.env.CI
     ? [
         {
-          // Stub for the agents Worker's /api/me (see tests/e2e/support/agents-stub.mjs).
-          // The real Worker isn't started in CI; this grants staff access only to
-          // requests carrying the e2e-role=OWNER marker cookie.
           command: "node tests/e2e/support/agents-stub.mjs",
           stderr: "pipe",
           stdout: "pipe",
@@ -123,8 +104,6 @@ export default defineConfig({
           stderr: "pipe",
           stdout: "pipe",
           timeout: 120_000,
-          // /login returns 200 without a session; / would 302 to login (which
-          // also 200s, but probing the redirect target is less flaky).
           url: `${backofficeUrl}/login`,
         },
         {

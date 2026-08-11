@@ -151,8 +151,6 @@ const generateBrandImageSkill: UnknownSkill = {
     const { assetId } = await persistAsset(ctx.env, {
       bytes,
       companyId: ctx.companyId,
-      // The generator can hand back a mime the map doesn't cover; these are
-      // images, so name them .png rather than .bin.
       fallbackExt: "png",
       kind: "generated_image",
       metadata: { aspectRatio, prompt },

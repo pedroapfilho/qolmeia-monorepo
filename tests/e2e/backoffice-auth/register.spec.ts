@@ -15,7 +15,6 @@ test.describe("Backoffice register", () => {
       "SecurePassword1!",
     );
 
-    // Backoffice signup auto-signs the user in and pushes to "/".
     await page.waitForURL(new RegExp(`${backofficeUrl.replaceAll(".", String.raw`\.`)}/$`, "v"));
     expect(page.url()).not.toContain("/register");
   });
@@ -31,18 +30,11 @@ test.describe("Backoffice register", () => {
       "DifferentPassword!",
     );
 
-    // The form's onSubmit toasts "As senhas não conferem." before even
-    // hitting the auth API. Match by toast role rather than wording so a
-    // copy change doesn't break the test.
     await backofficeRegisterPage.expectErrorVisible();
     expect(page.url()).toContain("/register");
   });
 
   test("redirects away from /register when already authenticated", async ({ page }) => {
-    // Setup signs in a CUSTOMER-role user; proxy bounces off /register,
-    // dashboard layout then bounces off `/`. Either landing is fine; the
-    // assertion just pins that /register itself is unreachable for a
-    // signed-in session.
     await page.goto("/register");
     await page.waitForURL((url) => !url.pathname.startsWith("/register"));
     expect(page.url()).not.toContain("/register");

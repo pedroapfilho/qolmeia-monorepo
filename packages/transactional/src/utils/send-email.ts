@@ -31,7 +31,6 @@ const emailConfigSchema = z.object({
   to: emailOrListSchema,
 });
 
-// z.input keeps from optional; z.infer would force every caller to pass it.
 type EmailConfig = z.input<typeof emailConfigSchema>;
 
 type SendEmailOptions = EmailConfig & {

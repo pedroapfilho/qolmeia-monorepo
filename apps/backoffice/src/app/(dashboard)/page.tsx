@@ -264,8 +264,6 @@ const HomeSkeleton = () => (
   </div>
 );
 
-// Instant navigation: the static shell streams immediately as the fallback
-// while the per-request operational dashboard renders on the server.
 const Home = () => (
   <Suspense fallback={<HomeSkeleton />}>
     <HomeContent />

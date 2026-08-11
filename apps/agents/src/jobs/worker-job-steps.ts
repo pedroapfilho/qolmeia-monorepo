@@ -36,9 +36,6 @@ type DecisionEvent = {
 const presentToCustomer = async (ctx: JobContext, result: string): Promise<void> => {
   const { companyId, ticketId } = ctx;
   try {
-    // A signal, not a user turn: Flue classifies signals as purpose "dispatch"
-    // with display "diagnostic", which keeps this internal prompt out of the
-    // customer's transcript. A bare string would render as if they typed it.
     await dispatch(CorrespondentV2, {
       id: companyId,
       message: {
