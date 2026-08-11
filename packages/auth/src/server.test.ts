@@ -1,20 +1,30 @@
 import { prisma } from "@repo/db";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { createAuth, safeCallbackPath } from "./server";
 import type { AuthConfig } from "./server";
 
 type Plugin = NonNullable<AuthConfig["extraPlugins"]>[number];
 
+const baseConfig = {
+  allowedHosts: ["**.localhost", "localhost:*", "127.0.0.1:*"],
+  prisma,
+  secret: "test-secret-minimum-32-characters-long",
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:4000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:4000",
+  ],
+} satisfies AuthConfig;
+
 describe("Auth Server Configuration", () => {
   let auth: ReturnType<typeof createAuth>;
 
   beforeAll(() => {
-    auth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
+    auth = createAuth(baseConfig);
   });
 
   it("should have email and password authentication enabled", () => {
@@ -41,31 +51,23 @@ describe("Auth Server Configuration", () => {
     expect(auth.options.advanced?.cookiePrefix).toBe("qolmeia");
   });
 
-  it("should gate useSecureCookies on WEB_APP_URL being HTTPS", () => {
+  it("should default useSecureCookies to false", () => {
     expect(auth.options.advanced?.useSecureCookies).toBe(false);
     expect(auth.options.advanced?.defaultCookieAttributes?.httpOnly).toBe(true);
     expect(auth.options.advanced?.defaultCookieAttributes?.sameSite).toBe("lax");
   });
 
-  it("should set useSecureCookies when WEB_APP_URL is HTTPS", () => {
-    vi.stubEnv("WEB_APP_URL", "https://qolmeia.web.localhost");
-    const httpsAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+  it("should set useSecureCookies when the caller asks for it", () => {
+    const httpsAuth = createAuth({ ...baseConfig, useSecureCookies: true });
     expect(httpsAuth.options.advanced?.useSecureCookies).toBe(true);
   });
 
-  it("should NOT set useSecureCookies when WEB_APP_URL is HTTP", () => {
-    vi.stubEnv("WEB_APP_URL", "http://localhost:3000");
-    const httpAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
-    expect(httpAuth.options.advanced?.useSecureCookies).toBe(false);
-  });
-
-  it("should NOT set crossSubDomainCookies without COOKIE_DOMAIN (dev stays same-origin)", () => {
+  it("should NOT set crossSubDomainCookies without a cookieDomain (dev stays same-origin)", () => {
     expect(auth.options.advanced?.crossSubDomainCookies).toBeUndefined();
   });
 
-  it("should enable crossSubDomainCookies on the parent when COOKIE_DOMAIN is set", () => {
-    vi.stubEnv("COOKIE_DOMAIN", ".qolmeia.com");
-    const prodAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+  it("should enable crossSubDomainCookies on the parent when cookieDomain is set", () => {
+    const prodAuth = createAuth({ ...baseConfig, cookieDomain: ".qolmeia.com" });
     expect(prodAuth.options.advanced?.crossSubDomainCookies).toEqual({
       domain: ".qolmeia.com",
       enabled: true,
@@ -84,10 +86,11 @@ describe("Auth Server Configuration", () => {
     expect(baseURL.fallback).toBe("http://localhost:4000");
   });
 
-  it("should extend baseURL.allowedHosts from AUTH_ALLOWED_HOSTS env", () => {
-    vi.stubEnv("AUTH_ALLOWED_HOSTS", "qolmeia.ai,*.qolmeia.ai,*.vercel.app");
-
-    const envAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+  it("should pass caller-provided allowedHosts through to baseURL", () => {
+    const envAuth = createAuth({
+      ...baseConfig,
+      allowedHosts: [...baseConfig.allowedHosts, "qolmeia.ai", "*.qolmeia.ai", "*.vercel.app"],
+    });
     const baseURL = envAuth.options.baseURL;
     if (typeof baseURL !== "object" || baseURL === null) {
       throw new Error("expected dynamic baseURL object");
@@ -98,16 +101,12 @@ describe("Auth Server Configuration", () => {
   });
 
   it("should require email verification when Resend is configured", () => {
-    const verifyingAuth = createAuth({
-      prisma,
-      resendApiKey: "re_test_key",
-      secret: "test-secret-minimum-32-characters-long",
-    });
+    const verifyingAuth = createAuth({ ...baseConfig, resendApiKey: "re_test_key" });
     expect(verifyingAuth.options.emailAndPassword?.requireEmailVerification).toBe(true);
   });
 
   it("should NOT require email verification when Resend is absent", () => {
-    const noResendAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+    const noResendAuth = createAuth(baseConfig);
     expect(noResendAuth.options.emailAndPassword?.requireEmailVerification).toBe(false);
   });
 
@@ -146,17 +145,21 @@ describe("Auth Server Configuration", () => {
     expect(auth.options.rateLimit?.max).toBe(100);
   });
 
-  it("should enable rate limiting in production", () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("CI", "");
-    const prodAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+  it("should default rate limiting to off and enable it when the caller asks", () => {
+    expect(auth.options.rateLimit?.enabled).toBe(false);
+    const prodAuth = createAuth({ ...baseConfig, rateLimitEnabled: true });
     expect(prodAuth.options.rateLimit?.enabled).toBe(true);
   });
 
-  it("should concat TRUSTED_ORIGINS env values with loopback defaults", () => {
-    vi.stubEnv("TRUSTED_ORIGINS", "https://app.qolmeia.ai,https://api.qolmeia.ai");
-
-    const envAuth = createAuth({ prisma, secret: "test-secret-minimum-32-characters-long" });
+  it("should pass caller-provided trustedOrigins through", () => {
+    const envAuth = createAuth({
+      ...baseConfig,
+      trustedOrigins: [
+        ...baseConfig.trustedOrigins,
+        "https://app.qolmeia.ai",
+        "https://api.qolmeia.ai",
+      ],
+    });
     const trusted = envAuth.options.trustedOrigins;
     expect(trusted).toContain("https://app.qolmeia.ai");
     expect(trusted).toContain("https://api.qolmeia.ai");
@@ -169,11 +172,7 @@ describe("Auth Server Configuration", () => {
   });
 
   it("should configure reset password email when resendApiKey is provided", () => {
-    const emailAuth = createAuth({
-      prisma,
-      resendApiKey: "re_test_key",
-      secret: "test-secret-minimum-32-characters-long",
-    });
+    const emailAuth = createAuth({ ...baseConfig, resendApiKey: "re_test_key" });
     expect(emailAuth.options.emailAndPassword?.sendResetPassword).toBeDefined();
   });
 
@@ -187,11 +186,7 @@ describe("Auth Server Configuration", () => {
 
   it("should include extra plugins in the resolved plugin list", () => {
     const mockPlugin = { id: "test-plugin", init: () => ({}) } as unknown as Plugin;
-    const extendedAuth = createAuth({
-      extraPlugins: [mockPlugin],
-      prisma,
-      secret: "test-secret-minimum-32-characters-long",
-    });
+    const extendedAuth = createAuth({ ...baseConfig, extraPlugins: [mockPlugin] });
     const plugins = extendedAuth.options.plugins ?? [];
     expect(plugins.some((p) => p.id === "test-plugin")).toBe(true);
   });
@@ -201,11 +196,7 @@ describe("Auth Server Configuration", () => {
   });
 
   it("should configure verification email when resendApiKey is provided", () => {
-    const emailAuth = createAuth({
-      prisma,
-      resendApiKey: "re_test_key",
-      secret: "test-secret-minimum-32-characters-long",
-    });
+    const emailAuth = createAuth({ ...baseConfig, resendApiKey: "re_test_key" });
     expect(emailAuth.options.emailVerification?.sendVerificationEmail).toBeDefined();
   });
 

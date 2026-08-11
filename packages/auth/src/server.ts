@@ -9,20 +9,6 @@ import { magicLink } from "better-auth/plugins/magic-link";
 import { username } from "better-auth/plugins/username";
 import type { BetterAuthPlugin } from "better-auth/types";
 
-const parseEnvList = (value: string | undefined): Array<string> => {
-  if (value === undefined || value === "") {
-    return [];
-  }
-  const result: Array<string> = [];
-  for (const entry of value.split(",")) {
-    const trimmed = entry.trim();
-    if (trimmed.length > 0) {
-      result.push(trimmed);
-    }
-  }
-  return result;
-};
-
 const CALLBACK_FALLBACK_PATH = "/";
 
 const CALLBACK_ANCHOR_ORIGIN = "https://qolmeia.invalid";
@@ -42,23 +28,31 @@ export const safeCallbackPath = (value: string | null): string => {
 };
 
 type AuthConfig = {
+  allowedHosts: Array<string>;
+  cookieDomain?: string;
   extraPlugins?: Array<BetterAuthPlugin>;
   fromEmail?: string;
   prisma: PrismaClient;
+  rateLimitEnabled?: boolean;
   resendApiKey?: string;
   secret: string;
+  trustedOrigins?: Array<string>;
+  useSecureCookies?: boolean;
 };
 
 export const createAuth = (config: AuthConfig) => {
   const {
+    allowedHosts,
+    cookieDomain,
     extraPlugins = [],
     fromEmail = "noreply@qolmeia.ai",
     prisma,
+    rateLimitEnabled = false,
     resendApiKey,
     secret,
+    trustedOrigins = [],
+    useSecureCookies = false,
   } = config;
-
-  const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
 
   const mailer: MailerConfig | null =
     resendApiKey !== undefined && resendApiKey !== ""
@@ -83,18 +77,13 @@ export const createAuth = (config: AuthConfig) => {
         httpOnly: true,
         sameSite: "lax" as const,
       },
-      useSecureCookies: process.env.WEB_APP_URL?.startsWith("https://") === true,
+      useSecureCookies,
     },
 
     basePath: "/api/auth",
 
     baseURL: {
-      allowedHosts: [
-        "**.localhost",
-        "localhost:*",
-        "127.0.0.1:*",
-        ...parseEnvList(process.env.AUTH_ALLOWED_HOSTS),
-      ],
+      allowedHosts,
       fallback: "http://localhost:4000",
       protocol: "auto",
     },
@@ -223,9 +212,7 @@ export const createAuth = (config: AuthConfig) => {
     ],
 
     rateLimit: {
-      enabled:
-        process.env.NODE_ENV === "production" &&
-        (process.env.CI === undefined || process.env.CI === ""),
+      enabled: rateLimitEnabled,
       max: 100,
       storage: "database",
       window: 60,
@@ -242,15 +229,7 @@ export const createAuth = (config: AuthConfig) => {
       storeSessionInDatabase: true,
       updateAge: 60 * 60 * 24, // Update session if older than 1 day
     },
-    trustedOrigins: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:4000",
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:3001",
-      "http://127.0.0.1:4000",
-      ...parseEnvList(process.env.TRUSTED_ORIGINS),
-    ],
+    trustedOrigins,
     user: {
       additionalFields: {
         displayName: {

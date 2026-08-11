@@ -1,3 +1,4 @@
+import { envAuthConfig } from "@repo/auth/env-config";
 import { createAuth } from "@repo/auth/server";
 import { prisma } from "@repo/db";
 import { nextCookies } from "better-auth/next-js";
@@ -14,6 +15,7 @@ export const getAuth = (): Auth => {
       );
     }
     cachedAuth = createAuth({
+      ...envAuthConfig(),
       extraPlugins: [nextCookies()],
       prisma,
       resendApiKey: process.env.RESEND_API_KEY,
