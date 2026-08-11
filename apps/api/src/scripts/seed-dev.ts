@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { envAuthConfig } from "@repo/auth/env-config";
 import { createAuth } from "@repo/auth/server";
 import { prisma, seedProductDefaults } from "@repo/db";
 
@@ -18,6 +19,7 @@ const CUSTOMER_NAME = "Cliente Demo";
 const CUSTOMER_PASSWORD = "Qolmeia-Dev-CustomerPass!";
 
 const auth = createAuth({
+  ...envAuthConfig(),
   prisma,
   resendApiKey: env.RESEND_API_KEY,
   secret: env.BETTER_AUTH_SECRET,
