@@ -10,8 +10,12 @@ nodeLinker: hoisted
 # a null hook dispatcher ("Cannot read properties of null (reading 'useRef')")
 # in component tests. Keep these in step with the apps' react version on bump.
 overrides:
-  react: 19.2.7
-  react-dom: 19.2.7
+  react: 19.2.8
+  react-dom: 19.2.8
+  # 1.5.2 dropped the "types" conditions from its exports map, so the type
+  # declarations resolve to a broken sibling .d.mts and every OpenAPI route
+  # helper degrades to the error type (~40 type-aware lint errors in apps/api).
+  "@hono/zod-openapi": "1.5.1"
 
 # pnpm 11 home for the former package.json `pnpm.onlyBuiltDependencies` list.
 # @mongodb-js/zstd + node-liblzma are optional native compression accelerators
@@ -38,8 +42,6 @@ allowBuilds:
   workerd: true
 
 minimumReleaseAgeExclude:
-  - cnfast@0.0.8
-  - "@shadcn/react@0.2.0"
   - "@oxlint-tsgolint/darwin-arm64@7.0.2001"
   - "@oxlint-tsgolint/darwin-x64@7.0.2001"
   - "@oxlint-tsgolint/linux-arm64@7.0.2001"
@@ -59,3 +61,4 @@ minimumReleaseAgeExclude:
   - "@next/swc-win32-x64-msvc@16.3.0"
   - next@16.3.0
   - oxlint-plugin-react-doctor@0.9.6
+  - "@testing-library/jest-dom@7.0.1"
