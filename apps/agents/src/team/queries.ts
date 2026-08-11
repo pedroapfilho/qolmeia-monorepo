@@ -39,9 +39,6 @@ const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberVie
   return [...correspondent, ...others];
 };
 
-// Every read path (roster list, single read-back, detail) narrows the same row
-// into the same discriminated union, so they share one projection. Detail rows
-// select extra template/company columns; the excess is ignored here.
 type ProjectableRow = {
   // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
   _count: { tickets: number };

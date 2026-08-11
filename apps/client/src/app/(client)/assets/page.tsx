@@ -40,8 +40,6 @@ const AssetsContent = async () => {
   );
 };
 
-// Static shell for the prerender: the gallery is bound to the per-request
-// session cookie, so cacheComponents needs a Suspense boundary above it.
 const AssetsSkeleton = () => (
   <PageContainer aria-hidden>
     <PageHeader

@@ -94,8 +94,6 @@ const closeSharedSource = (): void => {
   }
 };
 
-// EventSource cannot carry X-Org-Id, so the org rides in the query string next
-// to the session the Worker already reads from there.
 const openSharedSource = async (): Promise<void> => {
   if (typeof EventSource === "undefined" || sharedTeamEvents.source || sharedTeamEvents.opening) {
     return;

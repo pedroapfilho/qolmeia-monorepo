@@ -94,8 +94,6 @@ const ActivityContent = async () => {
   );
 };
 
-// Static shell for the prerender: the list is bound to the per-request session
-// cookie, so cacheComponents needs a Suspense boundary above it.
 const ActivitySkeleton = () => (
   <PageContainer aria-hidden>
     <PageHeader

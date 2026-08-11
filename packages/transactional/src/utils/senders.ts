@@ -48,7 +48,6 @@ type ChangeEmailPayload = {
   username?: string;
 };
 
-// Magic links go to addresses that may not have an account yet, so userId is optional.
 type MagicLinkPayload = {
   url: string;
   userEmail: string;
@@ -76,7 +75,6 @@ const TEMPLATES = {
   }: ChangeEmailPayload) => ({
     subject: "Confirm change of your Qolmeia account email",
     template: React.createElement(ChangeEmail, { changeUrl, currentEmail, newEmail, username }),
-    // Consent to current email; sendVerificationEmail handles new-email verification.
     to: currentEmail,
   }),
   "magic-link": ({ url, userEmail, username }: MagicLinkPayload) => ({

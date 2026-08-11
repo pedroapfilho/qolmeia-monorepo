@@ -15,8 +15,6 @@ const NewTemplateContent = async () => {
   return <TemplateForm />;
 };
 
-// Static shell for the prerender: the staff gate reads the per-request
-// session, so cacheComponents needs a Suspense boundary above it.
 const NewTemplateSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <Skeleton className="h-8 w-48" />

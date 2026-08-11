@@ -122,8 +122,6 @@ describe("buildSkillTools — Prisma overlay join", () => {
 describe("buildFlueTools — agents share the overlay + kill-switch core", () => {
   const ctx = { agentInstanceId: AGENT_INSTANCE_ID, companyId: COMPANY_ID, env };
 
-  // Mirrors what the agents do: loadSkillOverlays at the intake seam, then a
-  // synchronous render off the snapshot.
   const buildWithOverlays = async (skillIds: ReadonlyArray<string>) =>
     buildFlueTools(ctx, skillIds, await loadSkillOverlays(env, skillIds));
 

@@ -10,8 +10,6 @@ import { buildSignedAssetUrl } from "#/lib/r2";
 
 type Vars = { session: ValidatedSession };
 
-// Mounted inside meRoutes, which owns the session guard and the customer write
-// gate for the whole /api/me prefix.
 const meAssetsRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
 meAssetsRoutes.get("/assets", async (c) => {

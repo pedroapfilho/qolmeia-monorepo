@@ -58,7 +58,6 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
   const [attachments, setAttachments] = useState<ReadonlyArray<Attachment>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // Tracks live blob: preview URLs so none leak on success swap, removal, submit, or unmount.
   const objectUrlsRef = useRef<Set<string> | null>(null);
 
   const isUploading = attachments.some((attachment) => attachment.state === "uploading");

@@ -56,8 +56,6 @@ const RegisterForm = ({ searchParams }: Props) => {
         toast.error("As senhas não conferem.");
         return;
       }
-      // proxy.ts sends logged-out visitors here with ?from=<pathname>; gate it
-      // to an in-app path before it becomes a navigation target.
       const { from } = await searchParams;
       const redirectTo = safeRedirectPath(from);
       try {

@@ -79,9 +79,6 @@ const runSkill = async (
   };
   logInfo("agent.tool.start", baseFields);
   try {
-    // Agent renders are synchronous and use a persisted overlay snapshot. Read
-    // the current row again at the execution boundary so a newly-disabled
-    // skill cannot run during the one-render refresh window.
     const [liveOverlay] = await listSkillOverlays(getDb(ctx.env), [id]);
     if (liveOverlay !== undefined && !liveOverlay.enabled) {
       throw new Error(`Skill "${id}" is disabled`);
@@ -100,12 +97,6 @@ const runSkill = async (
   }
 };
 
-// Flue 2 agent functions must be synchronous, so the overlay read (one
-// Postgres query) is split off from tool assembly: agents await it in
-// useAgentStart on every delivery and hand the latest persisted snapshot to a
-// synchronous resolveSkills. runSkill independently enforces the live switch.
-// Narrow projection, because it round-trips through usePersistentState and
-// must stay JSON.
 type SkillOverlaySnapshot = { description: string; enabled: boolean };
 type SkillOverlayMap = Record<string, SkillOverlaySnapshot>;
 

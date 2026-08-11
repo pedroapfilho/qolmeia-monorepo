@@ -95,8 +95,6 @@ const ActivityContent = async ({ searchParams }: { searchParams: ActivitySearchP
   );
 };
 
-// Static shell for the prerender: the feed is bound to the per-request
-// session cookie, so cacheComponents needs a Suspense boundary above it.
 const ActivitySkeleton = () => (
   <div aria-hidden className="flex flex-col gap-5">
     <PageHeader description="Registro completo do operador" title="Atividade" />

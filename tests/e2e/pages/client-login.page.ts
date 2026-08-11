@@ -3,10 +3,6 @@ import type { Locator, Page } from "@playwright/test";
 
 import { clientUrl } from "../../../playwright.config";
 
-// Client app login: magic-link only (no password field). Submitting flips
-// the form into a "check your email" state in the same Card. The next step
-// is clicking the URL out of the verification email; this page object just
-// owns the "request a link" surface.
 export class ClientLoginPage {
   private readonly emailInput: Locator;
   private readonly submitButton: Locator;

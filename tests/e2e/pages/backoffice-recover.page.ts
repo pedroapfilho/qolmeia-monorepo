@@ -1,9 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-// Recover page: submits to Better Auth's `/request-password-reset`. UI
-// shows a Sonner success toast ("Enviamos um link para seu e-mail.") on
-// success and an error toast on failure.
 export class BackofficeRecoverPage {
   private readonly emailInput: Locator;
   private readonly submitButton: Locator;

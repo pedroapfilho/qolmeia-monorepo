@@ -25,12 +25,7 @@ O cliente confirma fora do chat (botão na UI). Quando isso acontecer, o Corresp
 
 const DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5";
 
-// Flue 2 cannot read the beta runtime's persisted schema, so this fresh export
-// intentionally derives FluePlannerV2Agent. Keep this identity stable after
-// the v3 reset migration in wrangler.jsonc is deployed.
 export function PlannerV2({ id }: AgentProps): string {
-  // See Correspondent: overlays are read at the intake seam because renders
-  // are synchronous.
   const [overlays, setOverlays] = usePersistentState<SkillOverlayMap | null>("skillOverlays", null);
   useAgentStart(async () => {
     setOverlays(await loadSkillOverlays(env, PLANNER_SKILLS));

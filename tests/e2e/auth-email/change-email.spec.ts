@@ -19,8 +19,6 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     const username = makeTestUsername(currentEmail);
     const password = "ChangeEmailPwd1!";
 
-    // Seed + verify a user, then sign in to get a session. Welcome email
-    // isn't under test here; reuse the JWT-reconstruction path.
     const signUp = await request.post(`${authUrl}/api/auth/sign-up/email`, {
       data: { email: currentEmail, name: "Change Me", password, username },
     });
@@ -33,13 +31,6 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     });
     expect(signIn.status()).toBe(200);
 
-    // Parse Set-Cookie from the sign-in response and forward as Cookie on the
-    // change-email call. Playwright's APIRequestContext storage state doesn't
-    // include cookies set via API responses, and Better Auth issues two
-    // cookies (`qolmeia.session_token` + `qolmeia.session_data`).
-    // `headers()["set-cookie"]` flattens duplicates into a single
-    // comma-joined string and the dot in the cookie name makes re-splitting
-    // fragile; use `headersArray()` which preserves multiples.
     const setCookieHeaders = signIn
       .headersArray()
       .filter((h) => h.name.toLowerCase() === "set-cookie")
@@ -61,8 +52,6 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     });
     expect(change.status()).toBe(200);
 
-    // Stage 1: current-mailbox owner consents. Assert the confirmation
-    // email landed in Resend's outbox before following it.
     const stage1Mail = await waitForEmail({
       sinceMs: since,
       subject: /confirm|change/i,
@@ -71,15 +60,12 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     expect(stage1Mail.last_event).not.toBe("bounced");
     const stage1Url = extractLink(stage1Mail, /\/api\/auth\/verify-email\?token=/u);
 
-    // Stage-1 click: Better Auth's verify-email handler issues stage-2
-    // internally (sent to newEmail) and redirects to its callbackURL.
     const stage1Response = await request.get(stage1Url, {
       failOnStatusCode: false,
       maxRedirects: 0,
     });
     expect([200, 302]).toContain(stage1Response.status());
 
-    // Stage 2: assert the verification mail to the NEW address actually sent.
     const stage2Mail = await waitForEmail({
       sinceMs: since,
       to: newEmail,
@@ -87,21 +73,17 @@ test.describe("Change email (two-stage confirmation + verification)", () => {
     expect(stage2Mail.last_event).not.toBe("bounced");
     const stage2Url = extractLink(stage2Mail, /\/api\/auth\/verify-email\?token=/u);
 
-    // Stage-2 click: proves new-mailbox access and triggers the actual
-    // user-record update.
     const stage2Response = await request.get(stage2Url, {
       failOnStatusCode: false,
       maxRedirects: 0,
     });
     expect([200, 302]).toContain(stage2Response.status());
 
-    // DB now reflects the new email. The user row count is unchanged.
     const updated = await prisma.user.findUnique({ where: { email: newEmail } });
     expect(updated).not.toBeNull();
     const stale = await prisma.user.findUnique({ where: { email: currentEmail } });
     expect(stale).toBeNull();
 
-    // Old email no longer authenticates; new email does.
     const oldLogin = await request.post(`${authUrl}/api/auth/sign-in/email`, {
       data: { email: currentEmail, password },
       failOnStatusCode: false,

@@ -37,8 +37,6 @@ const EditTemplateContent = async ({ params }: EditTemplatePageProps) => {
   return <TemplateForm initial={detail.template} />;
 };
 
-// Static shell for the prerender: the form is bound to `params` and the
-// per-request session, so cacheComponents needs a Suspense boundary above it.
 const EditTemplateSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <Skeleton className="h-8 w-48" />

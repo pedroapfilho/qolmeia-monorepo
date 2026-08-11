@@ -135,8 +135,6 @@ const ApprovalsContent = async () => {
   );
 };
 
-// Static shell for the prerender: the queue is bound to the per-request
-// session cookie, so cacheComponents needs a Suspense boundary above it.
 const ApprovalsSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <PageHeader

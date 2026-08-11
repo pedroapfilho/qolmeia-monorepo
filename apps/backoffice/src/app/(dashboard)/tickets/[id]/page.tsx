@@ -199,8 +199,6 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
   );
 };
 
-// Static shell for the prerender: the detail is bound to `params` and the
-// per-request session, so cacheComponents needs a Suspense boundary above it.
 const TicketDetailSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <Skeleton className="h-4 w-24" />

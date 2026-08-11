@@ -17,9 +17,6 @@ const matchesRoute = (pathname: string, route: string): boolean => {
 
 const getSessionOrNull = async (request: NextRequest) => {
   try {
-    // try/catch instead of a promise-chain .catch(): getAuth() throws
-    // synchronously when BETTER_AUTH_SECRET is absent (e.g. preview deploys),
-    // which a .catch() attached after the call can never intercept.
     return await getAuth().api.getSession({ headers: request.headers });
   } catch (error) {
     log.error({

@@ -87,7 +87,6 @@ const useFlueChat = ({
   onError,
   sessionToken,
 }: UseFlueChatOptions): UseFlueChatResult => {
-  // Flue 2 clients are conversation-scoped: one client per agent mount + id.
   const client = useMemo(
     () =>
       createFlueClient({

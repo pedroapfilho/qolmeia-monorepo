@@ -29,8 +29,6 @@ const respondWith = (responses: Record<string, Response>): void => {
   });
 };
 
-// Each test reimports the module so the per-tab org-discovery memo in request.ts
-// starts empty and this test's mock sees the /api/me call.
 beforeEach(async () => {
   vi.resetModules();
   fetchMock = vi.fn<FetchLike>();

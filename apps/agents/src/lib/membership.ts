@@ -14,8 +14,6 @@ const meResponseSchema = z.object({
   user: z.object({ id: z.string() }),
 });
 
-// The fields the Worker needs off the shared /api/me contract, keyed off it so
-// a rename upstream breaks here instead of at runtime.
 type OrgSummary = Pick<MeOrg, "id" | "name" | "role">;
 
 type MeSessionClaims = {

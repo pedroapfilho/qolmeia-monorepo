@@ -19,9 +19,6 @@ type MeUser = {
   username: string | null;
 };
 
-// currentOrg and role are null when the account belongs to more than one org
-// and the request named none; orgs is answered either way, so an ambiguous
-// caller can learn its options before it is able to choose.
 type MeResponse = {
   currentOrg: MeOrg | null;
   orgs: ReadonlyArray<MeOrg>;

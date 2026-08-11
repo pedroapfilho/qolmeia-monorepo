@@ -91,8 +91,6 @@ const TicketsContent = async () => {
   );
 };
 
-// Static shell for the prerender: the table is bound to the per-request
-// session cookie, so cacheComponents needs a Suspense boundary above it.
 const TicketsSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
     <PageHeader description="Unidades de trabalho delegado · todas as empresas." title="Tickets" />

@@ -28,8 +28,6 @@ const getPrismaClient = (): PrismaClient => {
   return globalForPrisma.prisma;
 };
 
-// Lazy so the module stays importable without DATABASE_URL (tests skip via
-// describe.skipIf); the missing-env error surfaces on first query instead.
 export const prisma = new Proxy(
   // oxlint-disable-next-line no-unsafe-type-assertion -- Proxy target is never read; every access is routed through the get trap
   {} as PrismaClient,

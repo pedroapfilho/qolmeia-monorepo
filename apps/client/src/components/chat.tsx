@@ -31,8 +31,6 @@ type ChatProps = {
   sessionToken: string;
 };
 
-// Kept only to hide the synthetic user message already stored in conversations
-// created before the deterministic greeting replaced model-generated kickoff.
 const PLANNER_KICKOFF =
   "O cliente acabou de abrir o chat de onboarding. Cumprimente-o de forma calorosa e breve, diga em uma frase que você vai fazer algumas perguntas para entender o negócio dele, e já faça a primeira pergunta da entrevista.";
 const PLANNER_GREETING =
@@ -58,10 +56,6 @@ const isKickoffMessage = (message: ChatMessage): boolean =>
   message.role === "user" &&
   message.parts.some((part) => part.type === "text" && part.text === PLANNER_KICKOFF);
 
-// Flue labels every message it does not consider chat: server-side dispatches
-// (workflow deliveries, proactive nudges) and runtime advisories (tool-set
-// changes, abort markers) both arrive as "diagnostic". Only optimistic echoes
-// carry no display yet, and those are always the customer's own.
 const isChatMessage = (message: ChatMessage): boolean =>
   message.display === undefined || message.display === "visible";
 

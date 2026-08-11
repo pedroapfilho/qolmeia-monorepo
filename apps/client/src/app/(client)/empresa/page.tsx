@@ -19,8 +19,6 @@ const EmpresaContent = async () => {
   return <EmpresaClient companyId={me.currentOrg.id} sessionToken={session.session.token} />;
 };
 
-// Static shell for the prerender: the page is bound to the per-request
-// session, so cacheComponents needs a Suspense boundary above it.
 const EmpresaSkeleton = () => (
   <PageContainer aria-hidden>
     <div className="flex flex-col gap-4">
