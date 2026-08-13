@@ -1,6 +1,7 @@
 "use client";
 
 import { createBetterAuthClient } from "@repo/auth/client";
+import { magicLinkClient, usernameClient } from "better-auth/client/plugins";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,9 +11,10 @@ import { toast } from "../lib/toast";
 import { Button } from "./button";
 
 const authUrl = process.env.NEXT_PUBLIC_AUTH_URL;
-const authClient = createBetterAuthClient(
-  authUrl !== undefined && authUrl !== "" ? `${authUrl}/api/auth` : "",
-);
+const authClient = createBetterAuthClient({
+  baseURL: authUrl !== undefined && authUrl !== "" ? `${authUrl}/api/auth` : "",
+  plugins: [usernameClient(), magicLinkClient()],
+});
 
 type SignOutButtonProps = {
   className?: string;
