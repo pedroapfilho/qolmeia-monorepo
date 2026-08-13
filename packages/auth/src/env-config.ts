@@ -38,13 +38,20 @@ type EnvAuthConfig = {
  */
 const envAuthConfig = (): EnvAuthConfig => {
   const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
+  const corsTrustedOrigins = parseEnvList(process.env.CORS_ORIGINS).filter(
+    (origin) => origin !== "*",
+  );
   return {
     allowedHosts: [...LOCALHOST_ALLOWED_HOSTS, ...parseEnvList(process.env.AUTH_ALLOWED_HOSTS)],
     ...(cookieDomain !== undefined && cookieDomain !== "" ? { cookieDomain } : {}),
     rateLimitEnabled:
       process.env.NODE_ENV === "production" &&
       (process.env.CI === undefined || process.env.CI === ""),
-    trustedOrigins: [...LOOPBACK_TRUSTED_ORIGINS, ...parseEnvList(process.env.TRUSTED_ORIGINS)],
+    trustedOrigins: [
+      ...LOOPBACK_TRUSTED_ORIGINS,
+      ...corsTrustedOrigins,
+      ...parseEnvList(process.env.TRUSTED_ORIGINS),
+    ],
     useSecureCookies: process.env.WEB_APP_URL?.startsWith("https://") === true,
   };
 };
