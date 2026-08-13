@@ -1,5 +1,4 @@
-import { Hono } from "hono";
-import { z } from "zod";
+import { type Context, Hono } from "hono";
 
 import { listActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
@@ -14,41 +13,42 @@ import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#
 import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
 import { meAssetsRoutes } from "#/routes/me-assets";
-import { emitTeamEvent, subscribeTeamEvents } from "#/team/events";
 import {
-  CorrespondentMissingError,
-  hireMember,
-  pauseMember,
-  resumeMember,
-  TeamMemberNotFoundError,
-  TeamMemberNotPausableError,
-  TemplateNotFoundError,
-  TemplateRetiredError,
-  updateMember,
-} from "#/team/mutations";
+  hireTeamMember,
+  hireTeamMemberSchema,
+  setTeamMemberStatus,
+  TeamCommandError,
+  teamMemberPatchSchema,
+  updateTeamMember,
+} from "#/team/commands";
+import { subscribeTeamEvents } from "#/team/events";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
+import type { TeamMemberView } from "#/team/types";
 
-type Vars = { session: ValidatedSession };
+type MeEnv = { Bindings: Env; Variables: { session: ValidatedSession } };
 
-type TeamMutationErrorResult = { error: string; status: 400 | 404 | 500 };
-
-const teamMutationErrorResponse = (error: unknown): TeamMutationErrorResult | null => {
-  if (error instanceof TeamMemberNotPausableError) {
-    return { error: error.message, status: 400 };
+const teamCommandErrorStatus = (error: TeamCommandError): 400 | 404 | 500 => {
+  if (error.code === "member_not_pausable") {
+    return 400;
   }
-  if (error instanceof TeamMemberNotFoundError) {
-    return { error: "not found", status: 404 };
+  if (error.code === "correspondent_missing") {
+    return 500;
   }
-  if (error instanceof TemplateNotFoundError || error instanceof TemplateRetiredError) {
-    return { error: error.message, status: 404 };
-  }
-  if (error instanceof CorrespondentMissingError) {
-    return { error: error.message, status: 500 };
-  }
-  return null;
+  return 404;
 };
 
-const meRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
+const respondToTeamCommand = async (c: Context<MeEnv>, command: Promise<TeamMemberView>) => {
+  try {
+    return c.json({ member: await command });
+  } catch (error) {
+    if (error instanceof TeamCommandError) {
+      return c.json({ error: error.message }, teamCommandErrorStatus(error));
+    }
+    throw error;
+  }
+};
+
+const meRoutes = new Hono<MeEnv>();
 
 meRoutes.get("/", async (c) => {
   const result = await fetchMe(c.req.raw, c.env);
@@ -154,73 +154,41 @@ meRoutes.get("/catalogue", async (c) => {
   return c.json({ templates });
 });
 
-const hireSchema = z.object({
-  displayName: z.string().trim().min(1).max(80).optional(),
-  templateId: z.string().min(1),
-});
-
 meRoutes.post("/team/hire", async (c) => {
   const session = c.get("session");
-  const parsed = hireSchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = hireTeamMemberSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  try {
-    const member = await hireMember(getDb(c.env), {
+  return respondToTeamCommand(
+    c,
+    hireTeamMember(c.env, getDb(c.env), {
       actorId: session.userId,
       companyId: session.companyId,
       displayName: parsed.data.displayName,
       templateId: parsed.data.templateId,
-    });
-    await emitTeamEvent(c.env, {
-      companyId: session.companyId,
-      reason: "hired",
-      type: "team:roster",
-    });
-    return c.json({ member });
-  } catch (error) {
-    const mapped = teamMutationErrorResponse(error);
-    if (mapped) {
-      return c.json({ error: mapped.error }, mapped.status);
-    }
-    throw error;
-  }
-});
-
-const patchSchema = z.object({
-  displayName: z.string().trim().min(1).max(80).optional(),
-  promptOverride: z.union([z.string().trim().min(1).max(20_000), z.null()]).optional(),
+    }),
+  );
 });
 
 meRoutes.patch("/team/members/:id", async (c) => {
   const session = c.get("session");
   const id = c.req.param("id");
-  const parsed = patchSchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = teamMemberPatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  try {
-    const member = await updateMember(getDb(c.env), {
+  return respondToTeamCommand(
+    c,
+    updateTeamMember(c.env, getDb(c.env), {
       agentInstanceId: id,
       companyId: session.companyId,
       displayName: parsed.data.displayName,
       editedBy: "customer",
       operatorId: null,
       promptOverride: parsed.data.promptOverride,
-    });
-    await emitTeamEvent(c.env, {
-      companyId: session.companyId,
-      reason: parsed.data.promptOverride === undefined ? "renamed" : "prompt_changed",
-      type: "team:roster",
-    });
-    return c.json({ member });
-  } catch (error) {
-    const mapped = teamMutationErrorResponse(error);
-    if (mapped) {
-      return c.json({ error: mapped.error }, mapped.status);
-    }
-    throw error;
-  }
+    }),
+  );
 });
 
 meRoutes.get("/team/members/:id", async (c) => {
@@ -232,52 +200,30 @@ meRoutes.get("/team/members/:id", async (c) => {
   return c.json({ member });
 });
 
-meRoutes.post("/team/members/:id/pause", async (c) => {
+meRoutes.post("/team/members/:id/pause", (c) => {
   const session = c.get("session");
-  try {
-    const member = await pauseMember(
-      getDb(c.env),
-      session.companyId,
-      c.req.param("id"),
-      session.userId,
-    );
-    await emitTeamEvent(c.env, {
+  return respondToTeamCommand(
+    c,
+    setTeamMemberStatus(c.env, getDb(c.env), {
+      actorId: session.userId,
+      agentInstanceId: c.req.param("id"),
       companyId: session.companyId,
-      reason: "paused",
-      type: "team:roster",
-    });
-    return c.json({ member });
-  } catch (error) {
-    const mapped = teamMutationErrorResponse(error);
-    if (mapped) {
-      return c.json({ error: mapped.error }, mapped.status);
-    }
-    throw error;
-  }
+      status: "paused",
+    }),
+  );
 });
 
-meRoutes.post("/team/members/:id/resume", async (c) => {
+meRoutes.post("/team/members/:id/resume", (c) => {
   const session = c.get("session");
-  try {
-    const member = await resumeMember(
-      getDb(c.env),
-      session.companyId,
-      c.req.param("id"),
-      session.userId,
-    );
-    await emitTeamEvent(c.env, {
+  return respondToTeamCommand(
+    c,
+    setTeamMemberStatus(c.env, getDb(c.env), {
+      actorId: session.userId,
+      agentInstanceId: c.req.param("id"),
       companyId: session.companyId,
-      reason: "resumed",
-      type: "team:roster",
-    });
-    return c.json({ member });
-  } catch (error) {
-    const mapped = teamMutationErrorResponse(error);
-    if (mapped) {
-      return c.json({ error: mapped.error }, mapped.status);
-    }
-    throw error;
-  }
+      status: "active",
+    }),
+  );
 });
 
 meRoutes.get("/activity", async (c) => {

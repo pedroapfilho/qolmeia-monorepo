@@ -27,6 +27,10 @@ beforeEach(async () => {
       `INSERT OR REPLACE INTO agent_instance (id, company_id, role, template_id, template_version, display_name, model_override, status, prompt_override, created_at, updated_at)
        VALUES ('ai_bot_d', ?, 'worker', 'tpl-designer', 1, 'Designer', NULL, 'active', NULL, 0, 0)`,
     ).bind(COMPANY_ID),
+    env.DB.prepare(
+      `INSERT OR REPLACE INTO agent_instance (id, company_id, role, template_id, template_version, display_name, model_override, status, prompt_override, created_at, updated_at)
+       VALUES ('corr_bot', ?, 'correspondent', NULL, NULL, 'Correspondente', NULL, 'active', NULL, 0, 0)`,
+    ).bind(COMPANY_ID),
   ]);
 });
 
@@ -85,7 +89,7 @@ describe("/api/backoffice/teams/:companyId/members", () => {
   });
 });
 
-describe("backoffice team routes — cross-tenant", () => {
+describe("backoffice team routes: cross-tenant", () => {
   it("STAFF queries another company's members list (empty when it has none)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await exports.default.fetch(
@@ -180,5 +184,19 @@ describe("backoffice member detail extras + pause/resume", () => {
     expect(resume.status).toBe(200);
     const resumeBody = await resume.json<{ member: { status: string } }>();
     expect(resumeBody.member.status).toBe("available");
+  });
+
+  it("returns 409 when pausing the correspondent", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+    const res = await exports.default.fetch(
+      `https://agents.test/api/backoffice/teams/${COMPANY_ID}/members/corr_bot?cf_session=tok`,
+      {
+        body: JSON.stringify({ status: "paused" }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      },
+    );
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ error: "not pausable" });
   });
 });
