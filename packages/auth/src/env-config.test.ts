@@ -50,6 +50,18 @@ describe("envAuthConfig", () => {
     expect(trustedOrigins).toContain("http://localhost:3000");
   });
 
+  it("trusts the origins allowed to send credentialed Hono requests", () => {
+    vi.stubEnv("CORS_ORIGINS", "https://client.qolmeia.ai, https://backoffice.qolmeia.ai");
+    expect(envAuthConfig().trustedOrigins).toEqual(
+      expect.arrayContaining(["https://client.qolmeia.ai", "https://backoffice.qolmeia.ai"]),
+    );
+  });
+
+  it("does not trust the non-credentialed CORS wildcard", () => {
+    vi.stubEnv("CORS_ORIGINS", "*");
+    expect(envAuthConfig().trustedOrigins).not.toContain("*");
+  });
+
   it("omits cookieDomain unless COOKIE_DOMAIN is set", () => {
     expect(envAuthConfig().cookieDomain).toBeUndefined();
     vi.stubEnv("COOKIE_DOMAIN", " .qolmeia.com ");
