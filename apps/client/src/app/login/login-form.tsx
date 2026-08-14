@@ -51,7 +51,7 @@ const LoginForm = () => {
 
   if (sent) {
     return (
-      <Card className="w-full">
+      <Card className="w-full border-border/80 bg-card/95 shadow-xl">
         <CardHeader>
           <CardTitle className="font-display text-2xl tracking-tight">
             Verifique seu e-mail
@@ -77,7 +77,7 @@ const LoginForm = () => {
   }
 
   return (
-    <Card className="w-full">
+    <Card className="w-full border-border/80 bg-card/95 shadow-xl">
       <CardHeader>
         <CardTitle className="font-display text-2xl tracking-tight">Entrar</CardTitle>
         <CardDescription>
