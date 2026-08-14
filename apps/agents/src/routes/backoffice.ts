@@ -29,14 +29,12 @@ import { listTickets, loadTicket } from "#/db/ticket";
 import { requireStaffSession, type ValidatedSession } from "#/lib/auth";
 import { parsePositiveInt, parseTimestamp } from "#/lib/pagination";
 import { isKnownSkill, listSkillCatalog } from "#/skills/registry";
-import { emitTeamEvent } from "#/team/events";
 import {
-  pauseMember,
-  resumeMember,
-  TeamMemberNotFoundError,
-  TeamMemberNotPausableError,
-  updateMember,
-} from "#/team/mutations";
+  backofficeTeamMemberPatchSchema,
+  setTeamMemberStatus,
+  TeamCommandError,
+  updateTeamMember,
+} from "#/team/commands";
 import { getMemberDetail, getTeamRoster, listTeamRosters } from "#/team/queries";
 
 type Vars = { session: ValidatedSession };
@@ -181,12 +179,6 @@ backofficeRoutes.get("/actions/:id", async (c) => {
   return c.json(body);
 });
 
-const backofficePatchSchema = z.object({
-  displayName: z.string().trim().min(1).max(80).optional(),
-  promptOverride: z.union([z.string().trim().min(1).max(20_000), z.null()]).optional(),
-  status: z.enum(["active", "paused"]).optional(),
-});
-
 backofficeRoutes.get("/companies", async (c) => {
   const db = getDb(c.env);
   const companies = await listCompaniesOverview(db);
@@ -252,24 +244,21 @@ backofficeRoutes.get("/teams/:companyId/members/:id", async (c) => {
 backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
   const companyId = c.req.param("companyId");
   const id = c.req.param("id");
-  const parsed = backofficePatchSchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = backofficeTeamMemberPatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
   try {
     if (parsed.data.status !== undefined) {
-      const paused = parsed.data.status === "paused";
-      const member = paused
-        ? await pauseMember(getDb(c.env), companyId, id, c.get("session").userId)
-        : await resumeMember(getDb(c.env), companyId, id, c.get("session").userId);
-      await emitTeamEvent(c.env, {
+      const member = await setTeamMemberStatus(c.env, getDb(c.env), {
+        actorId: c.get("session").userId,
+        agentInstanceId: id,
         companyId,
-        reason: paused ? "paused" : "resumed",
-        type: "team:roster",
+        status: parsed.data.status,
       });
       return c.json({ member });
     }
-    const member = await updateMember(getDb(c.env), {
+    const member = await updateTeamMember(c.env, getDb(c.env), {
       agentInstanceId: id,
       companyId,
       displayName: parsed.data.displayName,
@@ -277,17 +266,12 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
       operatorId: c.get("session").userId,
       promptOverride: parsed.data.promptOverride,
     });
-    await emitTeamEvent(c.env, {
-      companyId,
-      reason: parsed.data.promptOverride === undefined ? "renamed" : "prompt_changed",
-      type: "team:roster",
-    });
     return c.json({ member });
   } catch (error) {
-    if (error instanceof TeamMemberNotFoundError) {
+    if (error instanceof TeamCommandError && error.code === "member_not_found") {
       return c.json({ error: "not found" }, 404);
     }
-    if (error instanceof TeamMemberNotPausableError) {
+    if (error instanceof TeamCommandError && error.code === "member_not_pausable") {
       return c.json({ error: "not pausable" }, 409);
     }
     throw error;

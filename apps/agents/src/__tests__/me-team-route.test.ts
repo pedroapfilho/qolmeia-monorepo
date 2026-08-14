@@ -117,7 +117,7 @@ describe("POST /api/me/team/hire", () => {
   });
 });
 
-describe("/api/me/team mutations — CUSTOMER role gate", () => {
+describe("/api/me/team mutations: CUSTOMER role gate", () => {
   it("403 when STAFF tries to hire", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const res = await exports.default.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
@@ -138,7 +138,7 @@ describe("/api/me/team mutations — CUSTOMER role gate", () => {
   });
 });
 
-describe("POST /api/me/team/hire — error mapping", () => {
+describe("POST /api/me/team/hire: error mapping", () => {
   it("404 when template doesn't exist", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
     const res = await exports.default.fetch("https://agents.test/api/me/team/hire?cf_session=tok", {
@@ -246,5 +246,14 @@ describe("POST /api/me/team/members/:id/pause + /resume", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when pausing a member outside the company", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const res = await exports.default.fetch(
+      "https://agents.test/api/me/team/members/ai_does_not_exist/pause?cf_session=tok",
+      { method: "POST" },
+    );
+    expect(res.status).toBe(404);
   });
 });
