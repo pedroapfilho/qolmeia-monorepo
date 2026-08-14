@@ -8,7 +8,8 @@ const metadata: Metadata = {
   title: "Entrar",
 };
 
-const instant = true;
+/** @public Next.js App Router consumes this route config through the module loader. */
+export const instant = true;
 
 const CAPABILITIES = [
   { icon: Sparkles, label: "Criação com contexto" },
@@ -61,6 +62,6 @@ const LoginPage = () => (
   </main>
 );
 
-export { instant, metadata };
+export { metadata };
 
 export default LoginPage;
