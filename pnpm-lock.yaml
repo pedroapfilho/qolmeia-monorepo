@@ -168,12 +168,6 @@ importers:
       '@repo/app-shell':
         specifier: workspace:*
         version: link:../../packages/app-shell
-      '@repo/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@repo/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -256,12 +250,6 @@ importers:
       '@repo/app-shell':
         specifier: workspace:*
         version: link:../../packages/app-shell
-      '@repo/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@repo/observability':
         specifier: workspace:*
         version: link:../../packages/observability

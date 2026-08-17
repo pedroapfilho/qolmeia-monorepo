@@ -16,8 +16,6 @@
   },
   "dependencies": {
     "@repo/app-shell": "workspace:*",
-    "@repo/auth": "workspace:*",
-    "@repo/db": "workspace:*",
     "@repo/observability": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/worker-api": "workspace:*",
