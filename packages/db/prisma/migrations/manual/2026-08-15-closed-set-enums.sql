@@ -7,9 +7,8 @@
 --
 --   psql "$DATABASE_URL" -f 2026-08-15-closed-set-enums.sql
 --
--- action.policy values are rewritten from hyphens to underscores because a
--- Postgres enum label cannot contain a hyphen; the application now uses the
--- underscore form end to end.
+-- action.policy values are rewritten from hyphens to underscores to match the
+-- Prisma enum identifiers and generated TypeScript values used end to end.
 
 BEGIN;
 
