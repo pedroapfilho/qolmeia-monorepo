@@ -1,38 +1,23 @@
 @import "@repo/ui/globals.css";
 
-.qolmeia-entry {
-  background-image:
-    radial-gradient(
-      circle at 15% 18%,
-      color-mix(in oklch, var(--primary) 13%, transparent),
-      transparent 24rem
-    ),
-    linear-gradient(color-mix(in oklch, var(--border) 42%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklch, var(--border) 42%, transparent) 1px, transparent 1px);
-  background-size:
-    auto,
-    3rem 3rem,
-    3rem 3rem;
-}
-
-.honeycomb-cluster {
-  position: absolute;
-  right: -4rem;
-  bottom: -3rem;
+/* Hex tiles echoing the logo mark. Cells paint `currentColor`, so the intensity
+   is set with a text-color utility at the call site. */
+@utility honeycomb {
   display: grid;
-  grid-template-columns: repeat(3, 6rem);
-  gap: 0.4rem;
+  grid-template-columns: repeat(3, 7rem);
+  gap: --spacing(2.5);
   rotate: -8deg;
-  opacity: 0.55;
-}
+  mask-image: linear-gradient(to top left, #000, transparent 70%);
 
-.honeycomb-cell {
-  aspect-ratio: 1;
-  background: color-mix(in oklch, var(--primary) 18%, transparent);
-  clip-path: polygon(25% 7%, 75% 7%, 100% 50%, 75% 93%, 25% 93%, 0 50%);
-}
+  & > * {
+    aspect-ratio: 1 / 0.9;
+    background-color: currentColor;
+    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+  }
 
-.honeycomb-cell:nth-child(2n) {
-  translate: 0 3rem;
-  background: color-mix(in oklch, var(--primary) 30%, transparent);
+  /* Drop the outer columns by half a row so the tiles interlock. */
+  & > :nth-child(3n + 1),
+  & > :nth-child(3n) {
+    translate: 0 --spacing(13.5);
+  }
 }

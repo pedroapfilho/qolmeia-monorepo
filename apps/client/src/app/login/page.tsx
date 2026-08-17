@@ -12,52 +12,68 @@ const metadata: Metadata = {
 export const instant = true;
 
 const CAPABILITIES = [
-  { icon: Sparkles, label: "Criação com contexto" },
-  { icon: Workflow, label: "Campanhas em fluxo" },
-  { icon: MessageSquareText, label: "Tudo na conversa" },
+  {
+    description: "Peças de marca criadas a partir do seu briefing.",
+    icon: Sparkles,
+    label: "Criação com contexto",
+  },
+  {
+    description: "Do planejamento à entrega, sem trocar de ferramenta.",
+    icon: Workflow,
+    label: "Campanhas em fluxo",
+  },
+  {
+    description: "Aprovações, entregas e histórico no mesmo lugar.",
+    icon: MessageSquareText,
+    label: "Tudo na conversa",
+  },
 ] as const;
 
 const LoginPage = () => (
-  <main className="qolmeia-entry grid min-h-svh lg:grid-cols-[1.05fr_0.95fr]" id="main-content">
-    <section className="relative flex flex-col justify-between overflow-hidden border-b border-border px-6 py-10 lg:border-r lg:border-b-0 lg:px-12 lg:py-12 xl:px-20">
-      <Logo className="relative z-10 h-8 w-auto self-start" />
-      <div className="relative z-10 my-16 max-w-xl lg:my-24">
-        <p className="font-mono text-xs font-medium tracking-[0.14em] text-primary uppercase">
+  <main className="flex min-h-svh flex-col lg:grid lg:grid-cols-[3fr_2fr]" id="main-content">
+    <section className="relative isolate flex flex-col justify-between gap-12 overflow-hidden border-b border-border px-6 pt-10 pb-9 sm:px-8 lg:border-r lg:border-b-0 lg:px-12 lg:py-14 xl:px-20">
+      <Logo className="h-8 w-auto self-start" />
+
+      <div>
+        <p className="font-mono text-sm font-medium tracking-wide text-primary uppercase">
           Chat com seu Time de IA
         </p>
-        <h1 className="mt-5 max-w-[13ch] font-display text-5xl leading-[1.03] font-semibold tracking-[-0.045em] text-balance sm:text-6xl">
+        <h1 className="mt-4 max-w-[30ch] font-display text-3xl font-semibold tracking-tight text-balance lg:text-5xl">
           Um time inteiro, na mesma conversa.
         </h1>
-        <p className="mt-6 max-w-[46ch] text-lg text-pretty text-muted-foreground">
+        <p className="mt-5 max-w-[48ch] text-lg text-pretty text-muted-foreground max-lg:hidden">
           Crie materiais de marca, organize campanhas e acompanhe o trabalho com os agentes da
           Qolmeia.
         </p>
-        <dl className="mt-10 grid gap-3 sm:grid-cols-3">
-          {CAPABILITIES.map(({ icon: Icon, label }) => (
-            <div className="border-l-2 border-primary pl-3" key={label}>
-              <dt className="flex items-center gap-2 text-sm font-medium">
-                <Icon aria-hidden="true" className="size-4 text-primary" />
-                {label}
-              </dt>
+        <dl className="mt-10 grid gap-6 text-sm max-lg:hidden">
+          {CAPABILITIES.map(({ description, icon: Icon, label }) => (
+            <div className="flex items-start gap-3" key={label}>
+              <Icon aria-hidden="true" className="size-4 h-lh shrink-0 text-primary" />
+              <div>
+                <dt className="font-medium">{label}</dt>
+                <dd className="mt-1 max-w-[56ch] text-muted-foreground">{description}</dd>
+              </div>
             </div>
           ))}
         </dl>
       </div>
-      <p className="relative z-10 text-xs text-muted-foreground">
+
+      <p className="text-sm text-muted-foreground max-lg:hidden">
         Acesso exclusivo para clientes convidados.
       </p>
-      <div aria-hidden="true" className="honeycomb-cluster">
-        {Array.from({ length: 7 }, (_, index) => (
-          <span className="honeycomb-cell" key={index} />
+
+      <div
+        aria-hidden="true"
+        className="honeycomb absolute -right-32 -bottom-28 -z-10 text-primary/10 max-lg:hidden"
+      >
+        {Array.from({ length: 9 }, (_, index) => (
+          <span key={index} />
         ))}
       </div>
     </section>
 
-    <section className="flex items-center justify-center bg-card/45 px-4 py-12 sm:px-8 lg:px-12">
-      <div className="w-full max-w-md">
-        <p className="mb-5 font-mono text-xs text-muted-foreground">ACESSO SEGURO · LINK MÁGICO</p>
-        <LoginForm />
-      </div>
+    <section className="flex flex-1 items-center bg-card px-6 py-12 sm:px-8 lg:justify-center lg:px-12">
+      <LoginForm />
     </section>
   </main>
 );
