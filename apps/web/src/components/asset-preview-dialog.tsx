@@ -12,7 +12,7 @@ import { buttonVariants } from "@repo/ui/lib/button-variants";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2 } from "lucide-react";
 
-import { MessageResponse } from "@/components/markdown-response";
+import { MarkdownResponse } from "@/components/markdown-response";
 import type { WebChatAsset } from "@/lib/api-types";
 
 type AssetPreviewDialogProps = {
@@ -62,7 +62,7 @@ const AssetPreviewDialog = ({ asset, onClose }: AssetPreviewDialogProps) => {
     if (asset?.mimeType === "text/markdown") {
       return (
         <div className="text-sm leading-relaxed text-foreground">
-          <MessageResponse>{data ?? ""}</MessageResponse>
+          <MarkdownResponse>{data ?? ""}</MarkdownResponse>
         </div>
       );
     }
