@@ -25,7 +25,7 @@ beforeEach(async () => {
   await env.DB.prepare(
     `INSERT OR IGNORE INTO company_template_entitlement
        (company_id, template_id, enabled, created_at, updated_at)
-     SELECT ?, id, 1, 0, 0 FROM template WHERE status = 'active'`,
+     SELECT ?, id, TRUE, 0, 0 FROM template WHERE status = 'active'`,
   )
     .bind(COMPANY_ID)
     .run();

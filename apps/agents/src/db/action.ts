@@ -1,29 +1,8 @@
 import type { Prisma } from "@repo/db/worker";
+import type { Action, DecisionOutcome } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
-import { toEnum } from "#/db/mappers";
 import type { Policy } from "#/db/policy";
-
-type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | "rejected";
-type DecisionOutcome = "approved" | "changes_requested" | "rejected";
-type AgentRole = "correspondent" | "planner" | "worker";
-
-type ActionAgent = { name: string; role: AgentRole; workerKind: string | null };
-type Action = {
-  actionType: string;
-  agent: ActionAgent;
-  companyId: string;
-  companyName: string;
-  createdAt: number;
-  decidedAt: number | null;
-  decidedByUserId: string | null;
-  feedback: string | null;
-  id: string;
-  policy: Policy;
-  proposed: Record<string, unknown>;
-  status: ActionStatus;
-  ticketId: string;
-};
 
 const actionInclude = {
   company: { select: { name: true } },
@@ -41,21 +20,12 @@ const actionInclude = {
 } as const satisfies Prisma.ActionInclude;
 
 type ActionRecord = Prisma.ActionGetPayload<{ include: typeof actionInclude }>;
-const toAgentRole = toEnum<AgentRole>(["correspondent", "planner", "worker"], "worker");
-const toStatus = toEnum<ActionStatus>(
-  ["approved", "changes_requested", "executed", "pending", "rejected"],
-  "pending",
-);
-const toPolicy = toEnum<Policy>(
-  ["auto-execute", "notify-only", "require-approval"],
-  "require-approval",
-);
 
 const mapAction = (row: ActionRecord): Action => ({
   actionType: row.actionType,
   agent: {
     name: row.ticket.agentInstance.displayName,
-    role: toAgentRole(row.ticket.agentInstance.role),
+    role: row.ticket.agentInstance.role,
     workerKind: row.ticket.agentInstance.template?.workerKind ?? null,
   },
   companyId: row.companyId,
@@ -65,10 +35,10 @@ const mapAction = (row: ActionRecord): Action => ({
   decidedByUserId: row.decidedByUserId,
   feedback: row.feedback,
   id: row.id,
-  policy: toPolicy(row.policy),
+  policy: row.policy,
   // oxlint-disable-next-line no-unsafe-type-assertion -- proposed is a JSON column written by proposeAction in this module
   proposed: row.proposed as Record<string, unknown>,
-  status: toStatus(row.status),
+  status: row.status,
   ticketId: row.ticketId,
 });
 
@@ -199,11 +169,4 @@ export {
   markExecuted,
   proposeAction,
 };
-export type {
-  Action,
-  ActionAgent,
-  ActionStatus,
-  DecideActionInput,
-  DecisionOutcome,
-  ProposeActionInput,
-};
+export type { DecideActionInput, ProposeActionInput };

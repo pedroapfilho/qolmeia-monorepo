@@ -9,6 +9,7 @@ import type {
   TemplatesResponse,
   TicketDetailResponse,
   TicketsResponse,
+  TicketStatus,
 } from "@repo/worker-api/contracts";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -32,9 +33,9 @@ import { isKnownSkill, listSkillCatalog } from "#/skills/registry";
 import {
   backofficeTeamMemberPatchSchema,
   setTeamMemberStatus,
-  TeamCommandError,
   updateTeamMember,
 } from "#/team/commands";
+import { TEAM_ERROR_STATUS, TeamDomainError } from "#/team/errors";
 import { getMemberDetail, getTeamRoster, listTeamRosters } from "#/team/queries";
 
 type Vars = { session: ValidatedSession };
@@ -43,9 +44,25 @@ const backofficeRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
 backofficeRoutes.use("*", requireStaffSession);
 
+const TICKET_STATUSES: ReadonlyArray<TicketStatus> = [
+  "awaiting_approval",
+  "blocked",
+  "cancelled",
+  "done",
+  "in_progress",
+  "open",
+  "rejected",
+];
+
+const isTicketStatus = (value: string): value is TicketStatus =>
+  TICKET_STATUSES.some((status) => status === value);
+
 backofficeRoutes.get("/tickets", async (c) => {
   const companyId = c.req.query("companyId");
   const status = c.req.query("status");
+  if (status !== undefined && !isTicketStatus(status)) {
+    return c.json({ error: "invalid status" }, 400);
+  }
   const limit = parsePositiveInt(c.req.query("limit"), 50, 200);
   const items = await listTickets(getDb(c.env), { companyId, limit, status });
   const body: TicketsResponse = { items };
@@ -268,11 +285,8 @@ backofficeRoutes.patch("/teams/:companyId/members/:id", async (c) => {
     });
     return c.json({ member });
   } catch (error) {
-    if (error instanceof TeamCommandError && error.code === "member_not_found") {
-      return c.json({ error: "not found" }, 404);
-    }
-    if (error instanceof TeamCommandError && error.code === "member_not_pausable") {
-      return c.json({ error: "not pausable" }, 409);
+    if (error instanceof TeamDomainError) {
+      return c.json({ error: error.publicMessage }, TEAM_ERROR_STATUS[error.code]);
     }
     throw error;
   }

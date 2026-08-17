@@ -132,6 +132,4 @@ type ActivityEvent =
   | MemberPromptResetEvent
   | WorkerProactiveSuggestionEvent;
 
-type ActivityType = ActivityEvent["type"];
-
-export type { ActivityEvent, ActivityType };
+export type { ActivityEvent };

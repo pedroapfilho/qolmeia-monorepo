@@ -17,8 +17,7 @@
   "dependencies": {
     "@flue/react": "2.0.3",
     "@flue/sdk": "2.0.3",
-    "@repo/auth": "workspace:*",
-    "@repo/db": "workspace:*",
+    "@repo/app-shell": "workspace:*",
     "@repo/observability": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/worker-api": "workspace:*",

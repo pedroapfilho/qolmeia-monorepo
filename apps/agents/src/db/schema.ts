@@ -1,10 +1,11 @@
-import type { Database } from "#/db/client";
-import { toEnum } from "#/db/mappers";
-import { briefCompleteness, parseBrief } from "#/lib/company-brief";
+import type { CompanyStatus } from "@repo/db/worker";
 
-type CompanyStatus = "active" | "onboarding" | "paused";
+import type { Database } from "#/db/client";
+import { briefCompleteness, parseBrief } from "#/lib/company-brief";
+import type { CompanyBrief } from "#/lib/company-brief";
+
 type Company = {
-  brief: string | null;
+  brief: Partial<CompanyBrief>;
   createdAt: number;
   id: string;
   locale: string;
@@ -15,7 +16,6 @@ type Company = {
   updatedAt: number;
 };
 
-const toCompanyStatus = toEnum<CompanyStatus>(["onboarding", "active", "paused"], "onboarding");
 const mapCompany = (row: {
   brief: unknown;
   createdAt: Date;
@@ -23,17 +23,17 @@ const mapCompany = (row: {
   locale: string;
   name: string;
   slug: string;
-  status: string;
+  status: CompanyStatus;
   timezone: string;
   updatedAt: Date;
 }): Company => ({
-  brief: row.brief === null ? null : JSON.stringify(row.brief),
+  brief: parseBrief(row.brief),
   createdAt: row.createdAt.getTime(),
   id: row.id,
   locale: row.locale,
   name: row.name,
   slug: row.slug,
-  status: toCompanyStatus(row.status),
+  status: row.status,
   timezone: row.timezone,
   updatedAt: row.updatedAt.getTime(),
 });
@@ -50,7 +50,7 @@ const listCompaniesOverview = async (db: Database): Promise<Array<CompanyOvervie
     briefPercent: briefCompleteness(parseBrief(row.brief)).percent,
     id: row.id,
     name: row.name,
-    status: toCompanyStatus(row.status),
+    status: row.status,
   }));
 };
 

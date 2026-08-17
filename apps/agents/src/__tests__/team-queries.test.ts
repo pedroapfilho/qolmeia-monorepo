@@ -14,7 +14,7 @@ const entitle = (companyId: string, templateId: string) =>
   env.DB.prepare(
     `INSERT OR IGNORE INTO company_template_entitlement
        (company_id, template_id, enabled, created_at, updated_at)
-     VALUES (?, ?, 1, 0, 0)`,
+     VALUES (?, ?, TRUE, 0, 0)`,
   )
     .bind(companyId, templateId)
     .run();
@@ -182,7 +182,7 @@ describe("getCatalogue", () => {
     await env.DB.prepare(
       `INSERT OR REPLACE INTO company_template_entitlement
          (company_id, template_id, enabled, created_at, updated_at)
-       VALUES (?, 'tpl-entitled-only', 1, ?, ?)`,
+       VALUES (?, 'tpl-entitled-only', TRUE, ?, ?)`,
     )
       .bind(COMPANY_ID, now, now)
       .run();

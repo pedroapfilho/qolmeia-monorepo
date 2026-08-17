@@ -1,6 +1,6 @@
+import type { DecisionOutcome } from "@repo/worker-api/contracts";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
-import type { DecisionOutcome } from "#/db/action";
 import { generateDeliverable } from "#/jobs/worker-job-generate";
 import {
   applyDecision,

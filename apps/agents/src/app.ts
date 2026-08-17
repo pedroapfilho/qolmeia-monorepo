@@ -7,6 +7,7 @@ import { HTTPException } from "hono/http-exception";
 import { CorrespondentV2 } from "#/agents/correspondent";
 import { PlannerV2 } from "#/agents/planner";
 import { requireCustomerAgent } from "#/lib/agent-route-auth";
+import type { SessionEnv } from "#/lib/auth";
 import { logError } from "#/lib/logger";
 import { assetsRoutes } from "#/routes/assets";
 import { backofficeRoutes } from "#/routes/backoffice";
@@ -14,7 +15,7 @@ import { internalRoutes } from "#/routes/internal";
 import { meRoutes } from "#/routes/me";
 import { teamsRoutes } from "#/routes/teams";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<SessionEnv>();
 
 app.use(
   "*",

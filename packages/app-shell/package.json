@@ -1,11 +1,13 @@
 {
-  "name": "@repo/worker-api",
+  "name": "@repo/app-shell",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./contracts": "./src/contracts/index.ts"
+    "./agents-url": "./src/agents-url.ts",
+    "./auth-client": "./src/auth-client.ts",
+    "./auth-server": "./src/auth-server.ts",
+    "./session": "./src/session.ts"
   },
   "scripts": {
     "lint": "oxlint src",
@@ -13,11 +15,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@repo/db": "workspace:*"
+    "@repo/auth": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/worker-api": "workspace:*",
+    "better-auth": "^1.6.27"
   },
   "devDependencies": {
     "@repo/config-vitest": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "next": "^16.3.0",
+    "react": "^19.2.8",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }

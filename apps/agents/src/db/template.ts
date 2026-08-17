@@ -1,24 +1,8 @@
 import type { AgentTemplate, Skill as PrismaSkill } from "@repo/db/worker";
+import type { Template, TemplateInput, TemplateStatus } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
-import { toEnum } from "#/db/mappers";
 
-type TemplateStatus = "active" | "retired";
-type Template = {
-  createdAt: number;
-  defaultActionType: string;
-  defaultPolicies: Record<string, string>;
-  description: string;
-  displayName: string;
-  id: string;
-  model: string;
-  skillIds: ReadonlyArray<string>;
-  status: TemplateStatus;
-  systemPrompt: string;
-  updatedAt: number;
-  version: number;
-  workerKind: string;
-};
 type SkillOverlay = {
   defaultConfig: Record<string, unknown> | null;
   description: string;
@@ -29,7 +13,6 @@ type SkillOverlay = {
   updatedAt: number;
 };
 
-const toTemplateStatus = toEnum<TemplateStatus>(["active", "retired"], "active");
 const mapTemplate = (row: AgentTemplate): Template => ({
   createdAt: row.createdAt.getTime(),
   defaultActionType: row.defaultActionType,
@@ -41,7 +24,7 @@ const mapTemplate = (row: AgentTemplate): Template => ({
   model: row.model,
   // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
   skillIds: row.skillIds as Array<string>,
-  status: toTemplateStatus(row.status),
+  status: row.status,
   systemPrompt: row.systemPrompt,
   updatedAt: row.updatedAt.getTime(),
   version: row.version,
@@ -52,7 +35,7 @@ const mapSkillOverlay = (row: PrismaSkill): SkillOverlay => ({
   defaultConfig: row.defaultConfig as Record<string, unknown> | null,
   description: row.description,
   displayName: row.displayName,
-  enabled: row.enabled === 1,
+  enabled: row.enabled,
   id: row.id,
   // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
   paramHints: row.paramHints as Record<string, string> | null,
@@ -71,7 +54,7 @@ const isTemplateEntitledForCompany = async (
   Boolean(
     await db.companyTemplateEntitlement.findFirst({
       select: { companyId: true },
-      where: { companyId, enabled: 1, templateId },
+      where: { companyId, enabled: true, templateId },
     }),
   );
 
@@ -86,7 +69,7 @@ const assertTemplatesEntitledForCompany = async (
   }
   const rows = await db.companyTemplateEntitlement.findMany({
     select: { templateId: true },
-    where: { companyId, enabled: 1, templateId: { in: uniqueIds } },
+    where: { companyId, enabled: true, templateId: { in: uniqueIds } },
   });
   const entitled = new Set(rows.map((row) => row.templateId));
   const missing = uniqueIds.find((id) => !entitled.has(id));
@@ -115,7 +98,7 @@ const listEntitledActiveTemplates = async (
 ): Promise<ReadonlyArray<Template>> => {
   const rows = await db.agentTemplate.findMany({
     orderBy: { displayName: "asc" },
-    where: { entitlements: { some: { companyId, enabled: 1 } }, status: "active" },
+    where: { entitlements: { some: { companyId, enabled: true } }, status: "active" },
   });
   return rows.map(mapTemplate);
 };
@@ -124,16 +107,6 @@ const listAllTemplates = async (db: Database): Promise<ReadonlyArray<Template>> 
   return rows.map(mapTemplate);
 };
 
-type TemplateInput = {
-  defaultActionType: string;
-  defaultPolicies: Record<string, string>;
-  description: string;
-  displayName: string;
-  model: string;
-  skillIds: ReadonlyArray<string>;
-  systemPrompt: string;
-  workerKind: string;
-};
 const createTemplate = async (db: Database, input: TemplateInput): Promise<Template> =>
   mapTemplate(
     await db.agentTemplate.create({
@@ -183,4 +156,5 @@ export {
   setTemplateStatus,
   updateTemplate,
 };
-export type { SkillOverlay, Template, TemplateInput, TemplateStatus };
+export type { SkillOverlay };
+export type { Template, TemplateInput, TemplateStatus } from "@repo/worker-api/contracts";

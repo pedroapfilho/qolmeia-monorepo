@@ -197,6 +197,6 @@ describe("backoffice member detail extras + pause/resume", () => {
       },
     );
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toEqual({ error: "not pausable" });
+    await expect(res.json()).resolves.toEqual({ error: "cannot pause/resume a correspondent" });
   });
 });

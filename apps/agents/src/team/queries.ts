@@ -1,4 +1,4 @@
-import type { Prisma } from "@repo/db/worker";
+import type { AgentInstanceStatus, AgentRole, Prisma, TicketStatus } from "@repo/db/worker";
 
 import type { Database } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
@@ -11,7 +11,7 @@ import type {
   TeamMemberView,
 } from "#/team/types";
 
-const OPEN_TICKET_STATUSES = ["in_progress", "awaiting_approval"];
+const OPEN_TICKET_STATUSES: ReadonlyArray<TicketStatus> = ["in_progress", "awaiting_approval"];
 
 const rosterInclude = {
   // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate API.
@@ -19,14 +19,12 @@ const rosterInclude = {
   template: { select: { workerKind: true } },
   tickets: {
     select: { id: true, status: true, title: true },
-    where: { status: { in: OPEN_TICKET_STATUSES } },
+    where: { status: { in: [...OPEN_TICKET_STATUSES] } },
   },
 } as const satisfies Prisma.AgentInstanceInclude;
 
-const toOpenStatus = (status: string): OpenTicketSlim["status"] | null =>
-  status === "in_progress" || status === "awaiting_approval" ? status : null;
-const toRole = (role: string): "correspondent" | "planner" | "worker" =>
-  role === "correspondent" || role === "planner" || role === "worker" ? role : "worker";
+const isOpenStatus = (status: TicketStatus): status is OpenTicketSlim["status"] =>
+  status === "in_progress" || status === "awaiting_approval";
 const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberView> => {
   const correspondent = members.filter(({ role }) => role === "correspondent");
   const others = members
@@ -45,18 +43,19 @@ type ProjectableRow = {
   displayName: string;
   id: string;
   promptOverride: string | null;
-  role: string;
-  status: string;
+  role: AgentRole;
+  status: AgentInstanceStatus;
   template: { workerKind: string | null } | null;
   templateId: string | null;
-  tickets: ReadonlyArray<{ id: string; status: string; title: string }>;
+  tickets: ReadonlyArray<{ id: string; status: TicketStatus; title: string }>;
 };
 
 const projectMember = (row: ProjectableRow): TeamMemberView => {
-  const currentWork = row.tickets.flatMap((ticket) => {
-    const status = toOpenStatus(ticket.status);
-    return status ? [{ status, summary: ticket.title, ticketId: ticket.id }] : [];
-  });
+  const currentWork = row.tickets.flatMap((ticket) =>
+    isOpenStatus(ticket.status)
+      ? [{ status: ticket.status, summary: ticket.title, ticketId: ticket.id }]
+      : [],
+  );
   const base: TeamMemberBase = {
     currentWork,
     displayName: row.displayName,
@@ -64,12 +63,9 @@ const projectMember = (row: ProjectableRow): TeamMemberView => {
     id: row.id,
     // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
     lifetimeDone: row._count.tickets,
-    status: resolveAgentStatus(
-      { status: row.status === "paused" ? "paused" : "active" },
-      currentWork,
-    ),
+    status: resolveAgentStatus({ status: row.status }, currentWork),
   };
-  const role = toRole(row.role);
+  const role = row.role;
   if (role === "worker") {
     if (
       row.templateId === null ||
@@ -163,7 +159,7 @@ const getMemberDetail = async (
       template: { select: { description: true, systemPrompt: true, workerKind: true } },
       tickets: {
         select: { id: true, status: true, title: true },
-        where: { status: { in: OPEN_TICKET_STATUSES } },
+        where: { status: { in: [...OPEN_TICKET_STATUSES] } },
       },
     },
     where: { companyId, id: agentInstanceId },

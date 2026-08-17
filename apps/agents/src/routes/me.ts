@@ -17,32 +17,22 @@ import {
   hireTeamMember,
   hireTeamMemberSchema,
   setTeamMemberStatus,
-  TeamCommandError,
   teamMemberPatchSchema,
   updateTeamMember,
 } from "#/team/commands";
+import { TEAM_ERROR_STATUS, TeamDomainError } from "#/team/errors";
 import { subscribeTeamEvents } from "#/team/events";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
 import type { TeamMemberView } from "#/team/types";
 
 type MeEnv = { Bindings: Env; Variables: { session: ValidatedSession } };
 
-const teamCommandErrorStatus = (error: TeamCommandError): 400 | 404 | 500 => {
-  if (error.code === "member_not_pausable") {
-    return 400;
-  }
-  if (error.code === "correspondent_missing") {
-    return 500;
-  }
-  return 404;
-};
-
 const respondToTeamCommand = async (c: Context<MeEnv>, command: Promise<TeamMemberView>) => {
   try {
     return c.json({ member: await command });
   } catch (error) {
-    if (error instanceof TeamCommandError) {
-      return c.json({ error: error.message }, teamCommandErrorStatus(error));
+    if (error instanceof TeamDomainError) {
+      return c.json({ error: error.publicMessage }, TEAM_ERROR_STATUS[error.code]);
     }
     throw error;
   }

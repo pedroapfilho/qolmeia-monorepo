@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { hireMember, pauseMember, resumeMember, updateMember } from "#/team/mutations";
+import { hireMember, setMemberStatus, updateMember } from "#/team/mutations";
 
 const COMPANY_ID = "co_hire_test";
 const TEAM_ID = `team-${COMPANY_ID}`;
@@ -47,7 +47,7 @@ beforeEach(async () => {
     env.DB.prepare(
       `INSERT OR IGNORE INTO company_template_entitlement
          (company_id, template_id, enabled, created_at, updated_at)
-       VALUES (?, 'tpl-designer', 1, 0, 0)`,
+       VALUES (?, 'tpl-designer', TRUE, 0, 0)`,
     ).bind(COMPANY_ID),
   ]);
 });
@@ -128,7 +128,7 @@ describe("hireMember", () => {
   });
 });
 
-describe("pauseMember / resumeMember", () => {
+describe("setMemberStatus", () => {
   it("pauses a worker and writes activity", async () => {
     const member = await hireMember(env.DB, {
       actorId: null,
@@ -136,7 +136,11 @@ describe("pauseMember / resumeMember", () => {
       displayName: undefined,
       templateId: "tpl-designer",
     });
-    const paused = await pauseMember(env.DB, COMPANY_ID, member.id);
+    const paused = await setMemberStatus(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      status: "paused",
+    });
     expect(paused.status).toBe("paused");
     const row = await env.DB.prepare("SELECT status FROM agent_instance WHERE id = ?")
       .bind(member.id)
@@ -157,13 +161,33 @@ describe("pauseMember / resumeMember", () => {
       displayName: undefined,
       templateId: "tpl-designer",
     });
-    await pauseMember(env.DB, COMPANY_ID, member.id);
-    const resumed = await resumeMember(env.DB, COMPANY_ID, member.id);
+    await setMemberStatus(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      status: "paused",
+    });
+    const resumed = await setMemberStatus(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      status: "active",
+    });
     expect(resumed.status).toBe("available");
+    const log = await env.DB.prepare(
+      "SELECT type, summary FROM activity_log WHERE ref_id = ? AND type = 'MEMBER_RESUMED'",
+    )
+      .bind(member.id)
+      .first<{ summary: string; type: string }>();
+    expect(log).toEqual({ summary: "Agente retomado.", type: "MEMBER_RESUMED" });
   });
 
   it("rejects pausing the correspondent", async () => {
-    await expect(pauseMember(env.DB, COMPANY_ID, CORR_ID)).rejects.toThrow(/correspondent/v);
+    await expect(
+      setMemberStatus(env.DB, {
+        agentInstanceId: CORR_ID,
+        companyId: COMPANY_ID,
+        status: "paused",
+      }),
+    ).rejects.toThrow(/correspondent/v);
   });
 
   it("is idempotent (pausing twice returns paused without error)", async () => {
@@ -173,8 +197,16 @@ describe("pauseMember / resumeMember", () => {
       displayName: undefined,
       templateId: "tpl-designer",
     });
-    await pauseMember(env.DB, COMPANY_ID, member.id);
-    const again = await pauseMember(env.DB, COMPANY_ID, member.id);
+    await setMemberStatus(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      status: "paused",
+    });
+    const again = await setMemberStatus(env.DB, {
+      agentInstanceId: member.id,
+      companyId: COMPANY_ID,
+      status: "paused",
+    });
     expect(again.status).toBe("paused");
   });
 });

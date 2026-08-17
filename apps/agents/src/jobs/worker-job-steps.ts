@@ -1,9 +1,9 @@
 import { dispatch } from "@flue/runtime";
+import type { DecisionOutcome } from "@repo/worker-api/contracts";
 
 import { logActivity } from "#/activity/log";
 import { CorrespondentV2 } from "#/agents/correspondent";
 import { decideAction, markExecuted, proposeAction } from "#/db/action";
-import type { DecisionOutcome } from "#/db/action";
 import { getDb } from "#/db/client";
 import { resolvePolicy } from "#/db/policy";
 import { getCompany } from "#/db/schema";
@@ -68,14 +68,14 @@ const proposeDeliverable = async (
   const actionType = template.defaultActionType;
   const policy = resolvePolicy(actionType, template);
 
-  if (policy === "auto-execute" || policy === "notify-only") {
+  if (policy === "auto_execute" || policy === "notify_only") {
     await transitionTicket(env, db, {
       activity: {
         companyId,
         refId: ticketId,
         refType: "ticket",
         summary:
-          policy === "notify-only"
+          policy === "notify_only"
             ? "Ticket concluído (notify-only): disponível para conferência."
             : "Ticket concluído automaticamente (auto-execute).",
         type: "TICKET_DONE",
@@ -84,7 +84,7 @@ const proposeDeliverable = async (
       status: "done",
       ticketId,
     });
-    if (policy === "notify-only") {
+    if (policy === "notify_only") {
       await logActivity(db, {
         companyId,
         payload: { summary: current.summary },

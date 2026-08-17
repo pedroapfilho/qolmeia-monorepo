@@ -1,11 +1,16 @@
-type TicketStatus =
-  | "awaiting_approval"
-  | "blocked"
-  | "cancelled"
-  | "done"
-  | "in_progress"
-  | "open"
-  | "rejected";
+import type {
+  ActionPolicy,
+  ActionStatus,
+  AgentRole,
+  TemplateStatus,
+  TicketStatus,
+} from "@repo/db/enums";
+
+/**
+ * The Worker and both Next apps share these wire shapes. Closed-set fields use
+ * Prisma enums so schema changes fail typechecking instead of silently drifting
+ * between producers and consumers.
+ */
 
 type Ticket = {
   agentInstanceId: string;
@@ -25,13 +30,9 @@ type TicketListRow = Ticket & {
   updatedAt: number;
 };
 
-type ActionStatus = "approved" | "changes_requested" | "executed" | "pending" | "rejected";
-
-type ActionPolicy = "auto-execute" | "notify-only" | "require-approval";
-
 type ActionAgent = {
   name: string;
-  role: "correspondent" | "planner" | "worker";
+  role: AgentRole;
   workerKind: string | null;
 };
 
@@ -89,8 +90,6 @@ type CoverageResponse = {
   };
 };
 
-type TemplateStatus = "active" | "retired";
-
 type Template = {
   createdAt: number;
   defaultActionType: string;
@@ -133,9 +132,7 @@ export type {
   ActionAgent,
   ActionDetailResponse,
   ActionListRow,
-  ActionPolicy,
   ActionsResponse,
-  ActionStatus,
   ActivityEntry,
   ActivityResponse,
   CoverageResponse,
@@ -147,10 +144,18 @@ export type {
   TemplateInput,
   TemplateResponse,
   TemplatesResponse,
-  TemplateStatus,
   Ticket,
   TicketDetailResponse,
   TicketListRow,
   TicketsResponse,
-  TicketStatus,
 };
+export type {
+  ActionPolicy,
+  ActionStatus,
+  AgentRole,
+  AssetKind,
+  AssetVisibility,
+  CompanyStatus,
+  TemplateStatus,
+  TicketStatus,
+} from "@repo/db/enums";
