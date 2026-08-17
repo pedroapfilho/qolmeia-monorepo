@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 import { useSyncExternalStore } from "react";
 
 import { ChatComposer } from "@/components/chat-composer";
-import { MessageResponse } from "@/components/markdown-response";
+import { MarkdownResponse } from "@/components/markdown-response";
 import type { ChatMessage } from "@/lib/use-flue-chat";
 import { useFlueChat } from "@/lib/use-flue-chat";
 
@@ -94,7 +94,7 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
       {message.parts.map((part, index) => {
         const partKey = `${message.id}-${index}`;
         if (part.type === "text") {
-          return <MessageResponse key={partKey}>{part.text}</MessageResponse>;
+          return <MarkdownResponse key={partKey}>{part.text}</MarkdownResponse>;
         }
         if (part.type === "dynamic-tool") {
           if (part.state !== "input-available") {
@@ -199,7 +199,7 @@ const PlannerGreeting = ({ scrollAnchor }: { scrollAnchor: boolean }) => (
       </MessageAvatar>
       <MessageContent>
         <div className="w-fit max-w-full min-w-0 rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-2 text-sm text-foreground">
-          <MessageResponse>{PLANNER_GREETING}</MessageResponse>
+          <MarkdownResponse>{PLANNER_GREETING}</MarkdownResponse>
         </div>
       </MessageContent>
     </Message>

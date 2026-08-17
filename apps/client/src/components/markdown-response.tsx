@@ -33,7 +33,7 @@ const STREAMDOWN_COMPONENTS: StreamdownComponents = { a: PlainLink, img: PlainIm
 
 type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-const MessageResponse = memo(
+const MarkdownResponse = memo(
   ({ className, components, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
@@ -44,6 +44,6 @@ const MessageResponse = memo(
   (prevProps, nextProps) => prevProps.children === nextProps.children,
 );
 
-MessageResponse.displayName = "MessageResponse";
+MarkdownResponse.displayName = "MarkdownResponse";
 
-export { MessageResponse };
+export { MarkdownResponse };
