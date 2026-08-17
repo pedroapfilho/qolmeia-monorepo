@@ -18,6 +18,28 @@
   }
 }
 
+/* Hex tiles echoing the logo mark. Cells paint `currentColor`, so the intensity
+   is set with a text-color utility at the call site. */
+@utility honeycomb {
+  display: grid;
+  grid-template-columns: repeat(3, 7rem);
+  gap: --spacing(2.5);
+  rotate: -8deg;
+  mask-image: linear-gradient(to top left, #000, transparent 70%);
+
+  & > * {
+    aspect-ratio: 1 / 0.9;
+    background-color: currentColor;
+    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+  }
+
+  /* Drop the outer columns by half a row so the tiles interlock. */
+  & > :nth-child(3n + 1),
+  & > :nth-child(3n) {
+    translate: 0 --spacing(13.5);
+  }
+}
+
 @layer base {
   button:not(:disabled),
   [role="button"]:not(:disabled) {

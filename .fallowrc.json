@@ -23,11 +23,15 @@
       "exports": ["isPrismaKnownError"]
     },
     {
-      "file": "apps/client/src/app/not-found.tsx",
+      "file": "apps/web/src/app/not-found.tsx",
       "exports": ["metadata"]
     },
     {
       "file": "apps/backoffice/src/app/not-found.tsx",
+      "exports": ["metadata"]
+    },
+    {
+      "file": "apps/landing/src/app/not-found.tsx",
       "exports": ["metadata"]
     }
   ],

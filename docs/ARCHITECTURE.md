@@ -12,7 +12,7 @@ User-facing locale is **pt-BR** across every agent and UI.
 
 ```
                  ┌─────────────────────────┐        ┌──────────────────────────┐
-  CUSTOMER ─────▶│ apps/client  (Next 16)  │        │ apps/backoffice (Next 16)│◀──── OWNER / STAFF
+  CUSTOMER ─────▶│ apps/web  (Next 16)  │        │ apps/backoffice (Next 16)│◀──── OWNER / STAFF
                  │ :3001  chat surface     │        │ :3000  operator panel    │
                  └───────────┬─────────────┘        └────────────┬─────────────┘
                   rewrites    │ same-origin (first-party cookie)  │ rewrites
@@ -34,7 +34,7 @@ User-facing locale is **pt-BR** across every agent and UI.
                  └─────────────────────────┘
 ```
 
-Four deployables, one Turborepo. The **agents Worker is the live product runtime**; `apps/api` exists for authentication and future non-agent management features. The browser never talks to `:8787` directly; each Next app rewrites the Worker's surface onto itself so the Better Auth cookie stays first-party (`.localhost` is a public suffix, so no cookie can span `qolmeia.client.localhost` and `localhost:8787`).
+Four deployables, one Turborepo. The **agents Worker is the live product runtime**; `apps/api` exists for authentication and future non-agent management features. The browser never talks to `:8787` directly; each Next app rewrites the Worker's surface onto itself so the Better Auth cookie stays first-party (`.localhost` is a public suffix, so no cookie can span `qolmeia.web.localhost` and `localhost:8787`).
 
 ## §3. Repo layout
 
@@ -46,7 +46,7 @@ Monorepo: pnpm 11 workspaces + Turborepo, Node 24.
 | ----------------- | ------------- | ----------------- | ---------------------------------------- | ----------------------- |
 | `apps/api`        | `api`         | Hono on Node 24   | `:4000` · `qolmeia.api.localhost`        | Auth + `/api/v1/me`     |
 | `apps/agents`     | `worker-bees` | Cloudflare Worker | `127.0.0.1:8787` (`vite dev`)            | The product runtime     |
-| `apps/client`     | `client`      | Next.js 16        | `:3001` · `qolmeia.client.localhost`     | Customers (CUSTOMER)    |
+| `apps/web`        | `web`         | Next.js 16        | `:3001` · `qolmeia.web.localhost`        | Customers (CUSTOMER)    |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `:3000` · `qolmeia.backoffice.localhost` | Operators (OWNER/STAFF) |
 
 ### Packages

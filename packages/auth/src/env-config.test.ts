@@ -36,24 +36,24 @@ describe("envAuthConfig", () => {
   });
 
   it("extends allowedHosts from AUTH_ALLOWED_HOSTS", () => {
-    vi.stubEnv("AUTH_ALLOWED_HOSTS", "qolmeia.ai,*.qolmeia.ai,*.vercel.app");
+    vi.stubEnv("AUTH_ALLOWED_HOSTS", "qolmeia.com,*.qolmeia.com,*.vercel.app");
     expect(envAuthConfig().allowedHosts).toEqual(
-      expect.arrayContaining(["qolmeia.ai", "*.qolmeia.ai", "*.vercel.app"]),
+      expect.arrayContaining(["qolmeia.com", "*.qolmeia.com", "*.vercel.app"]),
     );
   });
 
   it("extends trustedOrigins from TRUSTED_ORIGINS", () => {
-    vi.stubEnv("TRUSTED_ORIGINS", "https://app.qolmeia.ai,https://api.qolmeia.ai");
+    vi.stubEnv("TRUSTED_ORIGINS", "https://app.qolmeia.com,https://api.qolmeia.com");
     const { trustedOrigins } = envAuthConfig();
-    expect(trustedOrigins).toContain("https://app.qolmeia.ai");
-    expect(trustedOrigins).toContain("https://api.qolmeia.ai");
+    expect(trustedOrigins).toContain("https://app.qolmeia.com");
+    expect(trustedOrigins).toContain("https://api.qolmeia.com");
     expect(trustedOrigins).toContain("http://localhost:3000");
   });
 
   it("trusts the origins allowed to send credentialed Hono requests", () => {
-    vi.stubEnv("CORS_ORIGINS", "https://client.qolmeia.ai, https://backoffice.qolmeia.ai");
+    vi.stubEnv("CORS_ORIGINS", "https://client.qolmeia.com, https://backoffice.qolmeia.com");
     expect(envAuthConfig().trustedOrigins).toEqual(
-      expect.arrayContaining(["https://client.qolmeia.ai", "https://backoffice.qolmeia.ai"]),
+      expect.arrayContaining(["https://client.qolmeia.com", "https://backoffice.qolmeia.com"]),
     );
   });
 

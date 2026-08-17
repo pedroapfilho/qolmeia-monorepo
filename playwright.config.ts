@@ -20,8 +20,9 @@ const authUrl =
   process.env.E2E_AUTH_URL ?? getPortlessUrl("qolmeia.api") ?? "http://127.0.0.1:4000";
 const backofficeUrl =
   process.env.E2E_BACKOFFICE_URL ?? getPortlessUrl("qolmeia.backoffice") ?? "http://127.0.0.1:3000";
-const clientUrl =
-  process.env.E2E_CLIENT_URL ?? getPortlessUrl("qolmeia.client") ?? "http://127.0.0.1:3001";
+const webUrl = process.env.E2E_WEB_URL ?? getPortlessUrl("qolmeia.web") ?? "http://127.0.0.1:3001";
+const landingUrl =
+  process.env.E2E_LANDING_URL ?? getPortlessUrl("qolmeia.landing") ?? "http://127.0.0.1:3002";
 
 export default defineConfig({
   forbidOnly: !!process.env.CI,
@@ -107,11 +108,18 @@ export default defineConfig({
           url: `${backofficeUrl}/login`,
         },
         {
-          command: "node_modules/.bin/next start apps/client --port 3001 --hostname 127.0.0.1",
+          command: "node_modules/.bin/next start apps/web --port 3001 --hostname 127.0.0.1",
           stderr: "pipe",
           stdout: "pipe",
           timeout: 120_000,
-          url: `${clientUrl}/login`,
+          url: `${webUrl}/login`,
+        },
+        {
+          command: "node_modules/.bin/next start apps/landing --port 3002 --hostname 127.0.0.1",
+          stderr: "pipe",
+          stdout: "pipe",
+          timeout: 120_000,
+          url: landingUrl,
         },
       ]
     : [],
@@ -119,4 +127,4 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
 });
 
-export { authUrl, backofficeUrl, clientUrl };
+export { authUrl, backofficeUrl, landingUrl, webUrl };

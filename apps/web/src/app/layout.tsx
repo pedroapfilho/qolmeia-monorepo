@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   description:
     "Converse com os agentes de IA da Qolmeia para criar materiais de marca, agendar campanhas e acompanhar o trabalho em tempo real.",
   keywords: ["qolmeia", "chat", "ai", "clientes"],
-  metadataBase: new URL(process.env.CLIENT_APP_URL ?? "https://chat.qolmeia.ai"),
+  metadataBase: new URL(process.env.WEB_APP_URL ?? "https://app.qolmeia.com"),
   openGraph: {
     description: "Chat com os agentes de IA da Qolmeia.",
     locale: "pt_BR",

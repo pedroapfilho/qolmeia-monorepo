@@ -24,7 +24,7 @@ The §14 "next move" list in the existing doc has been completed. Rewrite the do
 
 `requireStaff` / `requireCustomer` now throw on transient `/api/me` failures instead of redirecting (see redirect-loop fix above). Without an `error.tsx` at the route segment, the user sees Next's stock "Application error" page.
 
-Action: add `apps/backoffice/src/app/(dashboard)/error.tsx` and `apps/client/src/app/(client)/error.tsx` with a friendly retry UI ("Connection to the auth service hiccuped; refresh in a moment") plus a `reset()` button.
+Action: add `apps/backoffice/src/app/(dashboard)/error.tsx` and `apps/web/src/app/(client)/error.tsx` with a friendly retry UI ("Connection to the auth service hiccuped; refresh in a moment") plus a `reset()` button.
 
 ## 3. Customer-side `decideAction` E2E
 

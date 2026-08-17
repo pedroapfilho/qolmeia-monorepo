@@ -24,7 +24,7 @@ const emailTagSchema = z.object({
 const emailConfigSchema = z.object({
   bcc: emailOrListSchema.optional(),
   cc: emailOrListSchema.optional(),
-  from: senderAddressSchema.default("Qolmeia <noreply@qolmeia.ai>"),
+  from: senderAddressSchema.default("Qolmeia <noreply@qolmeia.com>"),
   replyTo: senderAddressSchema.optional(),
   subject: z.string(),
   tags: z.array(emailTagSchema).optional(),
