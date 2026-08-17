@@ -1,14 +1,9 @@
-import type { Prisma } from "@repo/db/worker";
+import type { AssetKind, AssetVisibility, Prisma } from "@repo/db/worker";
 
 import type { Database } from "#/db/client";
 import { getDb } from "#/db/client";
-import { toEnum } from "#/db/mappers";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
 import { toRecord } from "#/lib/records";
-
-type AssetKind = "audio" | "brand_asset" | "generated_image" | "knowledge_doc" | "user_upload";
-
-type AssetVisibility = "agent" | "customer";
 
 type AssetSummary = {
   bytes: number;
@@ -19,8 +14,6 @@ type AssetSummary = {
   name: string;
   visibility: AssetVisibility;
 };
-
-const toVisibility = toEnum<AssetVisibility>(["agent", "customer"], "customer");
 
 const EXT_BY_MIME: Record<string, string> = {
   "application/json": "json",
@@ -36,11 +29,6 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 
 const TEXT_MIME_PREFIXES = ["text/", "application/json"];
-
-const toAssetKind = toEnum<AssetKind>(
-  ["audio", "brand_asset", "generated_image", "knowledge_doc", "user_upload"],
-  "knowledge_doc",
-);
 
 const assetName = (metadata: unknown, id: string, kind: string): string => {
   const meta = toRecord(metadata);
@@ -112,10 +100,10 @@ const listCompanyAssets = async (
     bytes: row.bytes,
     createdAt: row.createdAt.getTime(),
     id: row.id,
-    kind: toAssetKind(row.kind),
+    kind: row.kind,
     mime: row.mime,
     name: assetName(row.metadata, row.id, row.kind),
-    visibility: toVisibility(row.visibility),
+    visibility: row.visibility,
   }));
 };
 
@@ -140,4 +128,5 @@ const readAssetText = async (
 };
 
 export { assetName, listCompanyAssets, persistAsset, readAssetText };
-export type { AssetKind, AssetSummary, AssetVisibility };
+export type { AssetSummary };
+export type { AssetKind, AssetVisibility } from "@repo/db/worker";

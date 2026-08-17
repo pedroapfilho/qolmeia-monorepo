@@ -55,14 +55,14 @@ beforeEach(async () => {
   await proposeAction(env.DB, {
     actionType: "publish_post",
     companyId: COMPANY_A,
-    policy: "require-approval",
+    policy: "require_approval",
     proposed: { summary: "A" },
     ticketId: "tkt-cov-a",
   });
   await proposeAction(env.DB, {
     actionType: "publish_post",
     companyId: COMPANY_B,
-    policy: "require-approval",
+    policy: "require_approval",
     proposed: { summary: "B" },
     ticketId: "tkt-cov-b",
   });

@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@repo/app-shell/auth-client", () => ({
   authClient: {
     signOut: vi.fn(() => Promise.resolve({ data: { success: true }, error: null })),
   },

@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@repo/app-shell/auth-client", () => ({
   authClient: {
     signIn: { magicLink: vi.fn(() => Promise.resolve({ data: null, error: null })) },
   },

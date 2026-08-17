@@ -3,7 +3,7 @@ import type { PrismaClient } from "./generated/prisma/client";
 const DEFAULT_TEMPLATES = [
   {
     defaultActionType: "worker_deliverable",
-    defaultPolicies: { publish_asset: "require-approval" },
+    defaultPolicies: { publish_asset: "require_approval" },
     description: "Cria imagens, posts e direções visuais alinhados à marca do cliente.",
     displayName: "Designer",
     id: "tpl-designer",
@@ -24,7 +24,7 @@ const DEFAULT_TEMPLATES = [
   },
   {
     defaultActionType: "publish_post",
-    defaultPolicies: { publish_post: "require-approval" },
+    defaultPolicies: { publish_post: "require_approval" },
     description:
       "Planeja e rascunha conteúdo de marketing para redes sociais. Especialista em copy, tom de marca, e CTAs claros.",
     displayName: "Marketing Strategist",
@@ -149,7 +149,7 @@ const seedProductDefaults = async (db: PrismaClient): Promise<void> => {
   await Promise.all(
     DEFAULT_SKILLS.map((skill) =>
       db.skill.upsert({
-        create: { ...skill, enabled: 1 },
+        create: { ...skill, enabled: true },
         update: {},
         where: { id: skill.id },
       }),

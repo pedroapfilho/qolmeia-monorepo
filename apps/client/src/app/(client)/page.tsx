@@ -1,3 +1,4 @@
+import { AGENTS_SERVER_URL } from "@repo/app-shell/agents-url";
 import { Skeleton } from "@repo/ui/components/skeleton";
 import type { Metadata } from "next";
 import { Suspense } from "react";
@@ -5,7 +6,6 @@ import { Suspense } from "react";
 import { Chat } from "@/components/chat";
 import { OnboardingActions } from "@/components/onboarding-actions";
 import { TeamSidebar } from "@/components/team-sidebar";
-import { AGENTS_SERVER_URL } from "@/lib/agents-url";
 import { requireCustomer, requireSession } from "@/lib/auth-helpers";
 
 export const metadata: Metadata = {

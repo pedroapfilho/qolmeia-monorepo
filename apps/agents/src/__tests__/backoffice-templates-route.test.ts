@@ -10,7 +10,7 @@ const meStaff = {
 
 const validBody = {
   defaultActionType: "worker_deliverable",
-  defaultPolicies: { worker_deliverable: "require-approval" },
+  defaultPolicies: { worker_deliverable: "require_approval" },
   description: "Especialista em SEO técnico.",
   displayName: "Auditor SEO",
   model: "openai/gpt-4o-mini",

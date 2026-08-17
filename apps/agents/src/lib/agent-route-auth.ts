@@ -1,20 +1,13 @@
-import type { MiddlewareHandler } from "hono";
+import { sessionGuard } from "#/lib/auth";
 
-import { validateSession } from "#/lib/auth";
-
-const requireCustomerAgent: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
-  }
-  if (session.role !== "CUSTOMER") {
-    return c.text("Forbidden", 403);
-  }
-  const pathCompanyId = new URL(c.req.url).pathname.split("/")[3];
-  if (pathCompanyId !== session.companyId) {
-    return c.text("Forbidden", 403);
-  }
-  return next();
-};
+/**
+ * Agent paths are mounted as /agents/<name>/<companyId>, so segment 3 is the
+ * tenant the caller is asking for. A short path yields undefined, which never
+ * equals a session's companyId, so it denies.
+ */
+const requireCustomerAgent = sessionGuard({
+  allow: new Set(["CUSTOMER"]),
+  scope: (c, session) => new URL(c.req.url).pathname.split("/")[3] === session.companyId,
+});
 
 export { requireCustomerAgent };

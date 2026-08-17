@@ -132,7 +132,7 @@ describe("backoffice listing endpoints", () => {
     await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { summary: "x" },
       ticketId: "tkt-bo-test",
     });
@@ -152,7 +152,7 @@ describe("backoffice listing endpoints", () => {
     await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { summary: "y" },
       ticketId: "tkt-bo-test",
     });
@@ -205,14 +205,14 @@ describe("backoffice list routes span tenants and honor the ?companyId= filter",
     await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { summary: "mine" },
       ticketId: "tkt-bo-test",
     });
     await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: OTHER_COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { summary: "theirs" },
       ticketId: "tkt-bo-other",
     });
@@ -267,6 +267,17 @@ describe("backoffice list routes span tenants and honor the ?companyId= filter",
 });
 
 describe("backoffice list query-param hardening", () => {
+  it("GET /tickets rejects an unknown status", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
+
+    const res = await exports.default.fetch(
+      "https://agents.test/api/backoffice/tickets?status=unknown&cf_session=tok",
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "invalid status" });
+  });
+
   it("GET /tickets ignores a non-numeric limit and clamps an oversized one", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
 

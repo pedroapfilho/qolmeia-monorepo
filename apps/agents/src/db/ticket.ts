@@ -1,47 +1,18 @@
 import type { Prisma } from "@repo/db/worker";
+import type { Ticket, TicketListRow, TicketStatus } from "@repo/worker-api/contracts";
 
 import { logActivity, type LogActivityInput } from "#/activity/log";
 import type { Database } from "#/db/client";
-import { toEnum } from "#/db/mappers";
 import { getTemplate, type Template } from "#/db/template";
 import { emitTeamEvent } from "#/team/events";
 
-type TicketStatus =
-  | "awaiting_approval"
-  | "blocked"
-  | "cancelled"
-  | "done"
-  | "in_progress"
-  | "open"
-  | "rejected";
-type Ticket = {
-  agentInstanceId: string;
-  brief: string;
-  companyId: string;
-  id: string;
-  result: Record<string, unknown> | null;
-  status: TicketStatus;
-  workflowId: string | null;
-};
-type TicketListItem = Ticket & {
-  companyName: string;
-  createdAt: number;
-  origin: string;
-  title: string;
-  updatedAt: number;
-};
-
-const toStatus = toEnum<TicketStatus>(
-  ["awaiting_approval", "blocked", "cancelled", "done", "in_progress", "open", "rejected"],
-  "open",
-);
 const mapTicket = (row: {
   agentInstanceId: string;
   brief: string;
   companyId: string;
   id: string;
   result: unknown;
-  status: string;
+  status: TicketStatus;
   workflowId: string | null;
 }): Ticket => ({
   agentInstanceId: row.agentInstanceId,
@@ -50,7 +21,7 @@ const mapTicket = (row: {
   id: row.id,
   // oxlint-disable-next-line no-unsafe-type-assertion -- result is a JSON column written by markTicketDone in this module
   result: row.result as Record<string, unknown> | null,
-  status: toStatus(row.status),
+  status: row.status,
   workflowId: row.workflowId,
 });
 
@@ -61,8 +32,8 @@ const loadTicket = async (db: Database, id: string): Promise<Ticket | null> => {
 
 const listTickets = async (
   db: Database,
-  options: { companyId?: string; limit?: number; status?: string } = {},
-): Promise<ReadonlyArray<TicketListItem>> => {
+  options: { companyId?: string; limit?: number; status?: TicketStatus } = {},
+): Promise<ReadonlyArray<TicketListRow>> => {
   const rows = await db.ticket.findMany({
     include: { company: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
@@ -166,4 +137,4 @@ export {
   setTicketWorkflowId,
   transitionTicket,
 };
-export type { InstanceWithTemplate, Ticket, TicketListItem, TicketStatus };
+export type { InstanceWithTemplate };

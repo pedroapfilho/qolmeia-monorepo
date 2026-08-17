@@ -1,7 +1,7 @@
+import { getAuth } from "@repo/app-shell/auth-server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { getAuth } from "@/lib/auth";
 import { log } from "@/lib/observability";
 
 const protectedRoutes = [

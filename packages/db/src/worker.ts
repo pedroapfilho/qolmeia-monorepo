@@ -28,7 +28,7 @@ const seedProductDefaults = async (db: PrismaClient): Promise<void> => {
   await Promise.all(
     DEFAULT_SKILLS.map((skill) =>
       db.skill.upsert({
-        create: { ...skill, enabled: 1 },
+        create: { ...skill, enabled: true },
         update: {},
         where: { id: skill.id },
       }),

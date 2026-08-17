@@ -1,7 +1,7 @@
+import { AGENTS_SERVER_URL } from "@repo/app-shell/agents-url";
 import { createServerApi } from "@repo/worker-api";
 import { headers } from "next/headers";
 
-import { AGENTS_SERVER_URL } from "@/lib/agents-url";
 import { getActiveOrgId } from "@/lib/auth-helpers";
 
 const { apiGetServer } = createServerApi({
