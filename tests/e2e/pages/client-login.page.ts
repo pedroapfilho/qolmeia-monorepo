@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-import { clientUrl } from "../../../playwright.config";
+import { webUrl } from "../../../playwright.config";
 
 export class ClientLoginPage {
   private readonly emailInput: Locator;
@@ -17,7 +17,7 @@ export class ClientLoginPage {
   }
 
   goto = async () => {
-    await this.page.goto(`${clientUrl}/login`);
+    await this.page.goto(`${webUrl}/login`);
   };
 
   requestLink = async (email: string) => {

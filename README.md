@@ -13,7 +13,7 @@ and product flows in [`docs/PRODUCT_MAP.md`](docs/PRODUCT_MAP.md). Architecture 
 | ----------------- | ------------- | ----------------- | -------------------------------------- | ----------------------------------------------------- |
 | `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost`        | Better Auth and `/api/v1/me` membership relay         |
 | `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://127.0.0.1:8787`                | Flue agents, Prisma/R2-backed product APIs, Workflows |
-| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost`     | Customer onboarding and chat                          |
+| `apps/web`        | `web`         | Next.js 16        | `https://qolmeia.web.localhost`        | Customer onboarding and chat                          |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` | Operator approvals and team management                |
 
 ## Packages
@@ -52,12 +52,12 @@ Each app has its own environment file. Copy from the committed examples:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
-cp apps/client/.env.example apps/client/.env
+cp apps/web/.env.example apps/web/.env
 cp apps/backoffice/.env.example apps/backoffice/.env
 cp apps/agents/.dev.vars.example apps/agents/.dev.vars
 ```
 
-`BETTER_AUTH_SECRET` must match across `apps/api`, `apps/client`, and `apps/backoffice`. `apps/agents/.dev.vars` holds `DATABASE_URL` and Worker-only secrets such as `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`.
+`BETTER_AUTH_SECRET` must match across `apps/api`, `apps/web`, and `apps/backoffice`. `apps/agents/.dev.vars` holds `DATABASE_URL` and Worker-only secrets such as `OPENROUTER_API_KEY` and `ASSETS_SIGNING_KEY`.
 
 ## Useful Commands
 
@@ -65,7 +65,7 @@ cp apps/agents/.dev.vars.example apps/agents/.dev.vars
 pnpm dev                  # run all apps through Turbo
 pnpm dev --filter=api
 pnpm dev --filter=worker-bees
-pnpm dev --filter=client
+pnpm dev --filter=web
 pnpm dev --filter=backoffice
 
 pnpm typecheck

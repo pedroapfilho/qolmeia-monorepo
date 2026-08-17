@@ -21,7 +21,7 @@ describe("sendEmail from validation", () => {
   it('accepts "Display Name <email>" form in from', async () => {
     const result = await sendEmail({
       apiKey: "re_test",
-      from: "Qolmeia <noreply@qolmeia.ai>",
+      from: "Qolmeia <noreply@qolmeia.com>",
       subject: "x",
       template,
       to: "delivered+test@resend.dev",
@@ -30,14 +30,14 @@ describe("sendEmail from validation", () => {
     expect(result.success).toBe(true);
     expect(sendMock).toHaveBeenCalledOnce();
     expect(sendMock.mock.calls[0][0]).toMatchObject({
-      from: "Qolmeia <noreply@qolmeia.ai>",
+      from: "Qolmeia <noreply@qolmeia.com>",
     });
   });
 
   it("accepts bare email in from", async () => {
     const result = await sendEmail({
       apiKey: "re_test",
-      from: "noreply@qolmeia.ai",
+      from: "noreply@qolmeia.com",
       subject: "x",
       template,
       to: "delivered+test@resend.dev",
@@ -56,7 +56,7 @@ describe("sendEmail from validation", () => {
 
     expect(result.success).toBe(true);
     expect(sendMock.mock.calls[0][0]).toMatchObject({
-      from: "Qolmeia <noreply@qolmeia.ai>",
+      from: "Qolmeia <noreply@qolmeia.com>",
     });
   });
 

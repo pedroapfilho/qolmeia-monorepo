@@ -4,11 +4,11 @@ The repo only codifies the Worker deploy; auth and the Next apps had no target, 
 
 **Decision — hosting:**
 
-| Piece                            | Host           | Notes                                                     |
-| -------------------------------- | -------------- | --------------------------------------------------------- |
-| `apps/agents` (worker-bees)      | **Cloudflare** | `wrangler deploy`; D1, R2, KV, Vectorize, Workflows       |
-| `apps/api` + **Postgres**        | **Railway**    | Hono/Node service + managed Postgres (Better Auth tables) |
-| `apps/client`, `apps/backoffice` | **Vercel**     | two Next 16 projects                                      |
+| Piece                         | Host           | Notes                                                     |
+| ----------------------------- | -------------- | --------------------------------------------------------- |
+| `apps/agents` (worker-bees)   | **Cloudflare** | `wrangler deploy`; D1, R2, KV, Vectorize, Workflows       |
+| `apps/api` + **Postgres**     | **Railway**    | Hono/Node service + managed Postgres (Better Auth tables) |
+| `apps/web`, `apps/backoffice` | **Vercel**     | two Next 16 projects                                      |
 
 **Decision — domains + auth cookie:** everything under **`qolmeia.com`** (e.g. `app.` = client, `admin.` = backoffice, `api.` = api service, `agents.` = Worker; exact names TBD). The session is a **cross-subdomain cookie on `.qolmeia.com`**:
 

@@ -15,7 +15,7 @@ for semantic memory. Better Auth and product data share Postgres through Prisma.
 
 ---
 
-## 1. Customer surface (`apps/client`)
+## 1. Customer surface (`apps/web`)
 
 ### 1.1 Login (magic link)
 

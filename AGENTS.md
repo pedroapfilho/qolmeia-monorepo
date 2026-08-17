@@ -9,7 +9,7 @@ This file provides guidance to AI coding agents when working with code in this r
 pnpm dev                                 # turbo runs all four apps in parallel
 pnpm dev --filter=api                   # api service (Hono, https://qolmeia.api.localhost via portless)
 pnpm dev --filter=worker-bees            # Cloudflare Worker (vite dev, 127.0.0.1:8787)
-pnpm dev --filter=client                 # customer app (Next.js, https://qolmeia.client.localhost)
+pnpm dev --filter=web                 # customer app (Next.js, https://qolmeia.web.localhost)
 pnpm dev --filter=backoffice             # operator panel (Next.js, https://qolmeia.backoffice.localhost)
 
 # Build / Lint / Typecheck
@@ -38,10 +38,10 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 | ----------------- | ------------- | ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/api`        | `api`         | Hono on Node 24   | `https://qolmeia.api.localhost` (portless)        | General API service: auth (`/api/auth/*` Better Auth) + `/api/v1/me` (relay target); home for future non-agent management features. |
 | `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://127.0.0.1:8787` (vite dev)                | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                |
-| `apps/client`     | `client`      | Next.js 16        | `https://qolmeia.client.localhost` (portless)     | End-customer chat surface (CUSTOMER role).                                                                                          |
+| `apps/web`        | `web`         | Next.js 16        | `https://qolmeia.web.localhost` (portless)        | End-customer chat surface (CUSTOMER role).                                                                                          |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel (OWNER/STAFF roles).                                                                                                 |
 
-The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat HTTP+SSE on client) so the Better Auth cookie stays first-party: `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.client.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
+The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat HTTP+SSE on client) so the Better Auth cookie stays first-party: `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.web.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
 
 ### Key runtime moves (P1–P7)
 
@@ -56,14 +56,14 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 
 ### Packages
 
-| Package                   | Purpose                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `@repo/auth`              | `createAuth` factory wrapping Better Auth (magic-link + email/password). Consumed by `api`, `backoffice`, `client`. |
-| `@repo/db`                | Prisma schema plus Node and Cloudflare Worker client entry points.                                                  |
-| `@repo/transactional`     | React Email templates + Resend sender.                                                                              |
-| `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps.                                       |
-| `@repo/config-vitest`     | Shared Vitest config.                                                                                               |
-| `@repo/typescript-config` | Shared tsconfig bases.                                                                                              |
+| Package                   | Purpose                                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `@repo/auth`              | `createAuth` factory wrapping Better Auth (magic-link + email/password). Consumed by `api`, `backoffice`, `web`. |
+| `@repo/db`                | Prisma schema plus Node and Cloudflare Worker client entry points.                                               |
+| `@repo/transactional`     | React Email templates + Resend sender.                                                                           |
+| `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps.                                    |
+| `@repo/config-vitest`     | Shared Vitest config.                                                                                            |
+| `@repo/typescript-config` | Shared tsconfig bases.                                                                                           |
 
 ### The canonical E2E flow
 
@@ -92,7 +92,7 @@ Each app has its own `.env.example`:
 
 - **apps/api**: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGINS` (must be explicit; Better Auth refuses `*` for cross-origin cookies), optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`.
 - **apps/agents**: `.dev.vars` (not `.env`). Holds `DATABASE_URL`, `OPENROUTER_API_KEY`, and `ASSETS_SIGNING_KEY`. `wrangler.jsonc` defines the rest in its `vars` block (`CORRESPONDENT_MODEL`, `IMAGE_GEN_MODEL`, `AUTH_SERVICE_URL`, `WORKER_PUBLIC_URL`, `CLIENT_ORIGINS`).
-- **apps/client**: `BETTER_AUTH_SECRET` (matches `apps/api`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
+- **apps/web**: `BETTER_AUTH_SECRET` (matches `apps/api`), `DATABASE_URL` (Next `proxy.ts` validates sessions via Prisma). Auth and the agents Worker are same-origin: `next.config.ts` rewrites `/api/auth/*` to `AUTH_SERVICE_INTERNAL_URL` (default `http://127.0.0.1:4000`) and `/api/me/*` + `/api/teams/*` + `/agents/*` to `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_AGENTS_URL` only override for cross-origin prod deployments.
 - **apps/backoffice**: same as client (its Worker rewrite covers `/api/backoffice/*`).
 
 `.env` files are git-ignored; `.env.example` is committed.
@@ -121,7 +121,7 @@ pnpm dev
 | Surface                                            | Role     | Email                  | Password                    |
 | -------------------------------------------------- | -------- | ---------------------- | --------------------------- |
 | Backoffice: `https://qolmeia.backoffice.localhost` | OWNER    | `operator@qolmeia.dev` | `Qolmeia-Dev-OperatorPass!` |
-| Client: `https://qolmeia.client.localhost`         | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
+| Client: `https://qolmeia.web.localhost`            | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 
 The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`). The client login is magic-link only; the password above only works on the backoffice. Watch `apps/api` logs for the magic link in dev.
 

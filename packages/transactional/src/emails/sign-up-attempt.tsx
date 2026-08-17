@@ -65,7 +65,7 @@ const SignUpAttemptEmail = ({
           <li className="py-1">Confirm your email account is secure</li>
           <li className="py-1">Enable two-factor authentication on Qolmeia</li>
           <li className="py-1">
-            <Link className="text-foreground underline" href="mailto:security@qolmeia.ai">
+            <Link className="text-foreground underline" href="mailto:security@qolmeia.com">
               Let our security team know
             </Link>
           </li>

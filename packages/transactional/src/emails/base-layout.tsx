@@ -32,7 +32,7 @@ const BaseLayout = ({
         <Body className="m-0 bg-muted p-4 font-sans">
           <Container className="mx-auto w-full max-w-[600px] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <Section className="bg-primary px-6 py-8 text-center">
-              <Link className="inline-block no-underline" href="https://qolmeia.ai">
+              <Link className="inline-block no-underline" href="https://qolmeia.com">
                 <QolmeiaLogo height={28} width={104} />
               </Link>
             </Section>
@@ -47,7 +47,7 @@ const BaseLayout = ({
               <Text className="mb-4 text-sm text-muted-foreground">
                 <Link
                   className="text-sm font-semibold text-foreground no-underline"
-                  href="https://qolmeia.ai"
+                  href="https://qolmeia.com"
                 >
                   Visit Qolmeia
                 </Link>

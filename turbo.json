@@ -10,14 +10,18 @@
       "env": [
         "AGENTS_INTERNAL_URL",
         "AUTH_ALLOWED_HOSTS",
+        "AUTH_SERVICE_INTERNAL_URL",
         "AUTH_FROM_EMAIL",
         "BETTER_AUTH_SECRET",
+        "COOKIE_DOMAIN",
         "CORS_ORIGINS",
         "DATABASE_URL",
         "INTERNAL_SHARED_SECRET",
         "NEXT_PUBLIC_AGENTS_URL",
         "NEXT_PUBLIC_AUTH_URL",
         "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_LANDING_URL",
+        "NEXT_PUBLIC_WEB_APP_URL",
         "RESEND_API_KEY",
         "TRUSTED_ORIGINS",
         "WEB_APP_URL"

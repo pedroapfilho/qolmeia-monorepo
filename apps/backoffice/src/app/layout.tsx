@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
   },
   keywords: ["qolmeia", "backoffice", "ai agency", "agentes"],
-  metadataBase: new URL(process.env.WEB_APP_URL ?? "https://app.qolmeia.ai"),
+  metadataBase: new URL(process.env.WEB_APP_URL ?? "https://app.qolmeia.com"),
   openGraph: {
     description: "Painel operacional da Qolmeia.",
     images: [
