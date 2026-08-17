@@ -11,8 +11,9 @@ uses real subdomains of one parent and a cross-subdomain session cookie
 | ----------------- | ------------- | ------------------------------------------------------------ | ------------------------ | -------------------- |
 | `apps/api`        | `api`         | Hono on Node 24 (tsdown → `node dist/index.mjs`)             | **Railway** (+ Postgres) | `api.qolmeia.com`    |
 | `apps/agents`     | `worker-bees` | Cloudflare Worker (DO, Workflows, Prisma, R2, KV, Vectorize) | **Cloudflare**           | `agents.qolmeia.com` |
-| `apps/client`     | `client`      | Next.js 16                                                   | **Vercel**               | `app.qolmeia.com`    |
+| `apps/web`        | `web`         | Next.js 16                                                   | **Vercel**               | `app.qolmeia.com`    |
 | `apps/backoffice` | `backoffice`  | Next.js 16                                                   | **Vercel**               | `admin.qolmeia.com`  |
+| `apps/landing`    | `landing`     | Next.js 16 (static marketing site)                           | **Vercel**               | `www.qolmeia.com`    |
 
 Postgres holds Better Auth and product data (company, ticket, action, asset,
 team, memory_fact, …), accessed through Prisma from both the API and Worker.
@@ -25,20 +26,21 @@ memory in **Vectorize**.
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | **Cloudflare**                              | the agents runtime: Workers, Durable Objects, Workflows, R2, KV, Workers AI, Vectorize, AI Gateway | —                                          |
 | **Railway** (or any Node host + managed PG) | `apps/api` service + Postgres                                                                      | `DATABASE_URL`                             |
-| **Vercel**                                  | the two Next apps                                                                                  | —                                          |
+| **Vercel**                                  | the three Next apps (web, backoffice, landing)                                                     | —                                          |
 | **OpenRouter**                              | every LLM + image-gen call, routed through the CF AI Gateway                                       | `OPENROUTER_API_KEY`                       |
 | **Resend**                                  | transactional email (magic link, verification, password reset)                                     | `RESEND_API_KEY`                           |
 | **Exa** (optional)                          | `webSearch` agent skill                                                                            | `EXA_API_KEY`                              |
 | **Firecrawl** (optional)                    | `fetchUrl` agent skill (or self-host keyless)                                                      | `FIRECRAWL_API_KEY` / `FIRECRAWL_BASE_URL` |
-| **Domain / DNS**                            | `qolmeia.com` + the four subdomains                                                                | —                                          |
+| **Domain / DNS**                            | `qolmeia.com` + the five subdomains                                                                | —                                          |
 
 See [`docs/agent-tools.md`](./agent-tools.md) for the full agent-integration
 catalog (current tools and which agent uses each).
 
 ## 3. Domains + the cross-subdomain cookie (ADR 0008)
 
-Everything lives under **`qolmeia.com`**: `app.` (client), `admin.`
-(backoffice), `auth.` (auth), `api.` (Worker). The session is one cookie on the
+Everything lives under **`qolmeia.com`**: `www.` (landing), `app.` (web),
+`admin.` (backoffice), `api.` (the Railway api service, which is where Better
+Auth runs), `agents.` (the Cloudflare Worker). The session is one cookie on the
 `.qolmeia.com` parent so every subdomain sends it:
 
 - `apps/api` sets `COOKIE_DOMAIN=.qolmeia.com` → Better Auth writes the cookie
@@ -127,34 +129,78 @@ pnpm --filter=@repo/db db:seed   # idempotent product catalog defaults
 
 Environment:
 
-| Var                      | Value                                                  |
-| ------------------------ | ------------------------------------------------------ |
-| `DATABASE_URL`           | Railway Postgres connection string                     |
-| `BETTER_AUTH_SECRET`     | `openssl rand -base64 48` (shared with the Next apps)  |
-| `CORS_ORIGINS`           | `https://app.qolmeia.com,https://admin.qolmeia.com`    |
-| `COOKIE_DOMAIN`          | `.qolmeia.com`                                         |
-| `AUTH_ALLOWED_HOSTS`     | `qolmeia.com,*.qolmeia.com`                            |
-| `TRUSTED_ORIGINS`        | `https://app.qolmeia.com,https://admin.qolmeia.com`    |
-| `AGENTS_INTERNAL_URL`    | `https://agents.qolmeia.com` (org-create relay target) |
-| `INTERNAL_SHARED_SECRET` | MUST match the Worker secret                           |
-| `RESEND_API_KEY`         | from Resend                                            |
-| `AUTH_FROM_EMAIL`        | e.g. `noreply@qolmeia.com`                             |
+| Var                      | Value                                                   |
+| ------------------------ | ------------------------------------------------------- |
+| `DATABASE_URL`           | Railway Postgres connection string                      |
+| `BETTER_AUTH_SECRET`     | `openssl rand -base64 48` (shared with the Next apps)   |
+| `CORS_ORIGINS`           | `https://app.qolmeia.com,https://admin.qolmeia.com`     |
+| `COOKIE_DOMAIN`          | `.qolmeia.com`                                          |
+| `AUTH_ALLOWED_HOSTS`     | `qolmeia.com,*.qolmeia.com`                             |
+| `TRUSTED_ORIGINS`        | `https://app.qolmeia.com,https://admin.qolmeia.com`     |
+| `AGENTS_INTERNAL_URL`    | `https://agents.qolmeia.com` (org-create relay target)  |
+| `INTERNAL_SHARED_SECRET` | MUST match the Worker secret                            |
+| `RESEND_API_KEY`         | from Resend                                             |
+| `AUTH_FROM_EMAIL`        | e.g. `noreply@qolmeia.com`                              |
+| `WEB_APP_URL`            | `https://app.qolmeia.com` (drives `useSecureCookies`)   |
+| `NODE_ENV`               | `production` (Better Auth rate limiting is gated on it) |
 
-## 6. Vercel: `apps/client` + `apps/backoffice`
+## 6. Vercel: `apps/web`, `apps/backoffice`, `apps/landing`
 
-Two projects, each with **Root Directory** set to the app folder and the
-monorepo install/build wired through pnpm + Turborepo (`pnpm build --filter=…`).
-Both need:
+Three projects, each with **Root Directory** set to the app folder. Leave the
+build and install commands empty: Vercel's monorepo detection installs from the
+repo root (pnpm workspaces) and runs `next build` in the root directory. Node
+24.x, framework preset Next.js.
 
-| Var                      | Value                                                                       |
-| ------------------------ | --------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`     | same secret as `apps/api`                                                   |
-| `DATABASE_URL`           | the Railway Postgres URL; the Next middleware validates sessions via Prisma |
-| `NEXT_PUBLIC_AUTH_URL`   | `https://api.qolmeia.com`                                                   |
-| `NEXT_PUBLIC_AGENTS_URL` | `https://agents.qolmeia.com`                                                |
+Existing projects live in the **`unlockers`** Vercel team as `qolmeia-web`,
+`qolmeia-backoffice` and `qolmeia-landing`, mirroring the sibling monorepos
+(`frow-web` / `frow-landing`).
 
-Point `app.qolmeia.com` at the client project and `admin.qolmeia.com` at the
-backoffice project in Vercel's domain settings.
+`apps/landing` is a static marketing site: no auth, no Prisma, no session. It
+needs only two vars:
+
+| Var                       | Value                     |
+| ------------------------- | ------------------------- |
+| `NEXT_PUBLIC_WEB_APP_URL` | `https://app.qolmeia.com` |
+| `NEXT_PUBLIC_LANDING_URL` | `https://www.qolmeia.com` |
+
+`apps/web` and `apps/backoffice` both construct their own Better Auth instance
+in `proxy.ts`, so they need the full cookie configuration, not just the first
+four rows:
+
+| Var                      | Value                                                                  |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`     | same secret as `apps/api`; a mismatch invalidates every session cookie |
+| `DATABASE_URL`           | Railway Postgres, `sslmode=require` (see the TLS note below)           |
+| `NEXT_PUBLIC_AUTH_URL`   | `https://api.qolmeia.com`                                              |
+| `NEXT_PUBLIC_AGENTS_URL` | `https://agents.qolmeia.com`                                           |
+| `WEB_APP_URL`            | `https://app.qolmeia.com`                                              |
+| `COOKIE_DOMAIN`          | `.qolmeia.com`                                                         |
+| `AUTH_ALLOWED_HOSTS`     | `qolmeia.com,*.qolmeia.com`                                            |
+| `TRUSTED_ORIGINS`        | `https://app.qolmeia.com,https://admin.qolmeia.com`                    |
+
+The last four are load-bearing and easy to miss:
+
+- **`WEB_APP_URL` is the only input to `useSecureCookies`**
+  (`packages/auth/src/env-config.ts`). Unset, or not starting with `https://`,
+  and Better Auth issues the cross-subdomain `.qolmeia.com` session cookie
+  **without the `Secure` flag**.
+- **`COOKIE_DOMAIN` belongs on the Vercel projects too**, not only on Railway.
+  `nextCookies()` can write a cookie from a Next server action; without the
+  domain that write lands a host-only cookie on `app.qolmeia.com` which shadows
+  the parent-domain one.
+
+**Database TLS.** Railway exposes two public endpoints. The **Postgres** one
+answers the Postgres `SSLRequest` with `S` (TLS available); the **PgBouncer**
+one answers `N` (no TLS). Vercel sits outside Railway's private network, so it
+must use the Postgres public URL with `?sslmode=require`. PgBouncer is the right
+target only for services running _inside_ Railway, where traffic never leaves
+the private network.
+
+Point `www.qolmeia.com` (and the `qolmeia.com` apex) at the landing project,
+`app.qolmeia.com` at the web project, and `admin.qolmeia.com` at the backoffice
+project in Vercel's domain settings. DNS for `qolmeia.com` is on Cloudflare;
+each host needs a CNAME to the value Vercel shows under the project's Domains
+tab, or an A record to `216.150.1.1` / `216.150.16.1`.
 
 ## 7. Order of operations
 

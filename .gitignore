@@ -18,8 +18,8 @@ next-env.d.ts
 # repo's own agent docs live at the root; these copies are Next's, not ours.
 apps/backoffice/AGENTS.md
 apps/backoffice/CLAUDE.md
-apps/client/AGENTS.md
-apps/client/CLAUDE.md
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
 
 # build
 dist/

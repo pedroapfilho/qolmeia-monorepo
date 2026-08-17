@@ -89,14 +89,14 @@ describe("Auth Server Configuration", () => {
   it("should pass caller-provided allowedHosts through to baseURL", () => {
     const envAuth = createAuth({
       ...baseConfig,
-      allowedHosts: [...baseConfig.allowedHosts, "qolmeia.ai", "*.qolmeia.ai", "*.vercel.app"],
+      allowedHosts: [...baseConfig.allowedHosts, "qolmeia.com", "*.qolmeia.com", "*.vercel.app"],
     });
     const baseURL = envAuth.options.baseURL;
     if (typeof baseURL !== "object" || baseURL === null) {
       throw new Error("expected dynamic baseURL object");
     }
     expect(baseURL.allowedHosts).toEqual(
-      expect.arrayContaining(["qolmeia.ai", "*.qolmeia.ai", "*.vercel.app"]),
+      expect.arrayContaining(["qolmeia.com", "*.qolmeia.com", "*.vercel.app"]),
     );
   });
 
@@ -156,13 +156,13 @@ describe("Auth Server Configuration", () => {
       ...baseConfig,
       trustedOrigins: [
         ...baseConfig.trustedOrigins,
-        "https://app.qolmeia.ai",
-        "https://api.qolmeia.ai",
+        "https://app.qolmeia.com",
+        "https://api.qolmeia.com",
       ],
     });
     const trusted = envAuth.options.trustedOrigins;
-    expect(trusted).toContain("https://app.qolmeia.ai");
-    expect(trusted).toContain("https://api.qolmeia.ai");
+    expect(trusted).toContain("https://app.qolmeia.com");
+    expect(trusted).toContain("https://api.qolmeia.com");
     expect(trusted).toContain("http://localhost:3000");
     expect(trusted).toContain("http://127.0.0.1:3000");
   });

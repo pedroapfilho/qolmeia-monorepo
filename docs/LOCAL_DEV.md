@@ -25,19 +25,19 @@ Copy the committed examples:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
-cp apps/client/.env.example apps/client/.env
+cp apps/web/.env.example apps/web/.env
 cp apps/backoffice/.env.example apps/backoffice/.env
 cp apps/agents/.dev.vars.example apps/agents/.dev.vars
 ```
 
-`BETTER_AUTH_SECRET` must be identical in `apps/api/.env`, `apps/client/.env`, and `apps/backoffice/.env`.
+`BETTER_AUTH_SECRET` must be identical in `apps/api/.env`, `apps/web/.env`, and `apps/backoffice/.env`.
 
 Important local variables:
 
 | File                    | Variables                                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------------------------- |
 | `apps/api/.env`         | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `RESEND_API_KEY`, `AUTH_FROM_EMAIL`                |
-| `apps/client/.env`      | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
+| `apps/web/.env`         | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
 | `apps/backoffice/.env`  | `DATABASE_URL`, `BETTER_AUTH_SECRET`, optional `AUTH_SERVICE_INTERNAL_URL`, `AGENTS_INTERNAL_URL` |
 | `apps/agents/.dev.vars` | `DATABASE_URL`, `OPENROUTER_API_KEY`, `ASSETS_SIGNING_KEY`                                        |
 
@@ -71,7 +71,7 @@ Or run one app per terminal:
 ```bash
 pnpm dev --filter=api
 pnpm dev --filter=worker-bees
-pnpm dev --filter=client
+pnpm dev --filter=web
 pnpm dev --filter=backoffice
 ```
 
@@ -81,7 +81,7 @@ pnpm dev --filter=backoffice
 | ---------- | -------------------------------------- |
 | API        | `https://qolmeia.api.localhost`        |
 | Worker     | `http://127.0.0.1:8787`                |
-| Client     | `https://qolmeia.client.localhost`     |
+| Client     | `https://qolmeia.web.localhost`        |
 | Backoffice | `https://qolmeia.backoffice.localhost` |
 
 Seeded accounts:
@@ -106,9 +106,9 @@ curl http://127.0.0.1:8787/healthz
 Useful targeted checks:
 
 ```bash
-pnpm --filter=client typecheck
+pnpm --filter=web typecheck
 pnpm --filter=worker-bees typecheck
-pnpm --filter=client test -- --run src/components/chat.test.tsx
+pnpm --filter=web test -- --run src/components/chat.test.tsx
 pnpm --filter=worker-bees test -- --run apps/agents/src/__tests__/skill-tool-schema.test.ts
 ```
 

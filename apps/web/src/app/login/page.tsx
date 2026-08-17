@@ -64,7 +64,7 @@ const LoginPage = () => (
 
       <div
         aria-hidden="true"
-        className="honeycomb absolute -right-32 -bottom-28 -z-10 text-primary/10 max-lg:hidden"
+        className="absolute -right-32 -bottom-28 -z-10 honeycomb text-primary/10 max-lg:hidden"
       >
         {Array.from({ length: 9 }, (_, index) => (
           <span key={index} />

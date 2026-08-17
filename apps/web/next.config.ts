@@ -5,7 +5,7 @@ const authServiceUrl = process.env.AUTH_SERVICE_INTERNAL_URL ?? "http://127.0.0.
 const agentsUrl = process.env.AGENTS_INTERNAL_URL ?? "http://127.0.0.1:8787";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["qolmeia.client.localhost", "*.qolmeia.client.localhost", "*.vercel.app"],
+  allowedDevOrigins: ["qolmeia.web.localhost", "*.qolmeia.web.localhost", "*.vercel.app"],
   cacheComponents: true,
 
   experimental: { turbopackRustReactCompiler: true },

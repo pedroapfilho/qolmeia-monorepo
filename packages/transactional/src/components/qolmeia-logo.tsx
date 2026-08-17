@@ -10,7 +10,7 @@ const QolmeiaLogo = ({ height = 32, width = 120 }: QolmeiaLogoProps) => {
     <Img
       alt="Qolmeia"
       height={height}
-      src="https://www.qolmeia.ai/logo-wordmark.svg"
+      src="https://www.qolmeia.com/logo-wordmark.svg"
       width={width}
     />
   );
