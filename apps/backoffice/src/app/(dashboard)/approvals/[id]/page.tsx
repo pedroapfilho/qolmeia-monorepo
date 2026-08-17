@@ -30,9 +30,9 @@ type ApprovalDetailPageProps = {
 };
 
 const POLICY_COPY: Record<string, string> = {
-  "auto-execute": "Execução automática",
-  "notify-only": "Apenas notificar",
-  "require-approval": "Sob aprovação",
+  auto_execute: "Execução automática",
+  notify_only: "Apenas notificar",
+  require_approval: "Sob aprovação",
 };
 
 const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {

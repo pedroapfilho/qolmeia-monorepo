@@ -1,8 +1,14 @@
 import { env } from "cloudflare:workers";
-import { HTTPException } from "hono/http-exception";
+import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { validateSession } from "#/lib/auth";
+import {
+  requireStaffSession,
+  validateSession,
+  type SessionEnv,
+  type SessionResult,
+  type ValidatedSession,
+} from "#/lib/auth";
 
 const originalFetch = globalThis.fetch;
 
@@ -29,6 +35,23 @@ const outboundHeaders = (init: RequestInit | undefined): Record<string, string> 
 const outboundAuthHeader = (init: RequestInit | undefined): string | undefined =>
   outboundHeaders(init).Authorization;
 
+const expectOk = (result: SessionResult): ValidatedSession => {
+  if (result.kind !== "ok") {
+    throw new Error(`expected an resolved session, got ${result.kind}`);
+  }
+  return result.session;
+};
+
+const buildStaffApp = () => {
+  const app = new Hono<SessionEnv>();
+  app.use("*", requireStaffSession);
+  app.get("/probe", (c) => c.json({ role: c.get("session").role }));
+  return app;
+};
+
+const probe = (token: string) =>
+  buildStaffApp().fetch(new Request(`http://agents.test/probe?cf_session=${token}`), env);
+
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
@@ -37,13 +60,13 @@ describe("validateSession", () => {
   it("resolves a CUSTOMER session from /api/me", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
     const result = await validateSession(buildRequest("tok"), env);
-    expect(result).toEqual({ companyId: "co_1", role: "CUSTOMER", userId: "u_1" });
+    expect(expectOk(result)).toEqual({ companyId: "co_1", role: "CUSTOMER", userId: "u_1" });
   });
 
   it("returns role STAFF when the membership says so (guard is the caller's job)", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meStaff)));
     const result = await validateSession(buildRequest("tok"), env);
-    expect(result?.role).toBe("STAFF");
+    expect(expectOk(result).role).toBe("STAFF");
   });
 
   it("resolves a session from an inbound Authorization: Bearer header (no cf_session/Cookie)", async () => {
@@ -55,7 +78,7 @@ describe("validateSession", () => {
       headers: { Authorization: "Bearer header-tok" },
     });
     const result = await validateSession(req, env);
-    expect(result).toEqual({ companyId: "co_1", role: "CUSTOMER", userId: "u_1" });
+    expect(expectOk(result)).toEqual({ companyId: "co_1", role: "CUSTOMER", userId: "u_1" });
     expect(outboundAuthHeader(fetchSpy.mock.calls[0]?.[1])).toBe("Bearer header-tok");
   });
 
@@ -71,26 +94,35 @@ describe("validateSession", () => {
     expect(outboundAuthHeader(fetchSpy.mock.calls[0]?.[1])).toBe("Bearer header-tok");
   });
 
-  it("returns null when /api/me responds 401", async () => {
+  it("reports unauthenticated when /api/me responds 401", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(new Response("Unauthorized", { status: 401 })));
-    expect(await validateSession(buildRequest("tok"), env)).toBeNull();
+    const result = await validateSession(buildRequest("tok"), env);
+    expect(result.kind).toBe("unauthenticated");
   });
 
-  it("returns null and logs when the auth service is unreachable", async () => {
+  it("distinguishes an unreachable auth service from bad credentials, and logs", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     globalThis.fetch = vi.fn(() => Promise.reject(new Error("ECONNREFUSED")));
-    expect(await validateSession(buildRequest("tok"), env)).toBeNull();
+    const result = await validateSession(buildRequest("tok"), env);
+    expect(result.kind).toBe("upstream-unavailable");
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("me.fetch.failed"));
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("ECONNREFUSED"));
     consoleSpy.mockRestore();
   });
 
-  it("returns null when no cf_session token and no cookie are present", async () => {
+  it("reports unauthenticated when no cf_session token and no cookie are present", async () => {
     const fetchSpy = vi.fn();
     globalThis.fetch = fetchSpy;
     const req = new Request("http://agents.test/agents/correspondent/co_1");
-    expect(await validateSession(req, env)).toBeNull();
+    const result = await validateSession(req, env);
+    expect(result.kind).toBe("unauthenticated");
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports unauthenticated when the upstream body cannot be parsed", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response("not json", { status: 200 })));
+    const result = await validateSession(buildRequest("tok"), env);
+    expect(result.kind).toBe("unauthenticated");
   });
 
   it("forwards X-Org-Id upstream and keeps one token's orgs in separate cache entries", async () => {
@@ -108,9 +140,9 @@ describe("validateSession", () => {
     const second = await validateSession(buildOrgScopedRequest("co_b"), env);
     const firstAgain = await validateSession(buildOrgScopedRequest("co_a"), env);
 
-    expect(first?.companyId).toBe("co_a");
-    expect(second?.companyId).toBe("co_b");
-    expect(firstAgain?.companyId).toBe("co_a");
+    expect(expectOk(first).companyId).toBe("co_a");
+    expect(expectOk(second).companyId).toBe("co_b");
+    expect(expectOk(firstAgain).companyId).toBe("co_a");
     expect(outboundHeaders(fetchSpy.mock.calls[0]?.[1])["X-Org-Id"]).toBe("co_a");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -130,10 +162,10 @@ describe("validateSession", () => {
       env,
     );
 
-    expect(session?.companyId).toBe("co_sse");
+    expect(expectOk(session).companyId).toBe("co_sse");
   });
 
-  it("raises a 400 rather than a 401 when the account belongs to more than one org", async () => {
+  it("reports org-required rather than unauthenticated when the account has many orgs", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve(
         Response.json({
@@ -147,25 +179,69 @@ describe("validateSession", () => {
       ),
     );
 
-    const failure: unknown = await validateSession(buildRequest("ambiguous-tok"), env).catch(
-      (error: unknown) => error,
-    );
-
-    if (!(failure instanceof HTTPException)) {
-      throw new Error(`expected an HTTPException, got ${String(failure)}`);
+    const result = await validateSession(buildRequest("ambiguous-tok"), env);
+    if (result.kind !== "org-required") {
+      throw new Error(`expected org-required, got ${result.kind}`);
     }
-    const res = failure.getResponse();
-    expect(res.status).toBe(400);
-    const body = await res.json<{ error: string; orgs: ReadonlyArray<{ id: string }> }>();
-    expect(body.error).toBe("org_required");
-    expect(body.orgs.map((org) => org.id)).toEqual(["co_a", "co_b"]);
+    expect(result.orgs.map((org) => org.id)).toEqual(["co_a", "co_b"]);
   });
 
-  it("still returns null when the account belongs to no org at all", async () => {
+  it("still reports unauthenticated when the account belongs to no org at all", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve(Response.json({ currentOrg: null, orgs: [], user: { id: "u_1" } })),
     );
 
-    expect(await validateSession(buildRequest("no-org-tok"), env)).toBeNull();
+    const result = await validateSession(buildRequest("no-org-tok"), env);
+    expect(result.kind).toBe("unauthenticated");
+  });
+});
+
+describe("requireStaffSession", () => {
+  it("admits OWNER and STAFF and populates the session variable", async () => {
+    for (const role of ["OWNER", "STAFF"]) {
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve(Response.json({ currentOrg: { id: "co_1", role }, user: { id: "u_1" } })),
+      );
+      // oxlint-disable-next-line no-await-in-loop -- each iteration rebinds the fetch stub
+      const res = await probe(`tok-${role}`);
+      expect(res.status).toBe(200);
+      // oxlint-disable-next-line no-await-in-loop -- see above
+      expect(await res.json()).toEqual({ role });
+    }
+  });
+
+  it("rejects CUSTOMER with 403", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
+    const response = await probe("customer-tok");
+    expect(response.status).toBe(403);
+  });
+
+  it("answers 502, not 401, when the auth service is unreachable", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error("ECONNREFUSED")));
+    const response = await probe("down-tok");
+    expect(response.status).toBe(502);
+    consoleSpy.mockRestore();
+  });
+
+  it("answers 400 org_required with the org list when the account has many orgs", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          currentOrg: null,
+          orgs: [
+            { id: "co_a", name: "A", role: "STAFF" },
+            { id: "co_b", name: "B", role: "STAFF" },
+          ],
+          user: { id: "u_1" },
+        }),
+      ),
+    );
+
+    const res = await probe("ambiguous-tok");
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: string; orgs: ReadonlyArray<{ id: string }> }>();
+    expect(body.error).toBe("org_required");
+    expect(body.orgs.map((org) => org.id)).toEqual(["co_a", "co_b"]);
   });
 });

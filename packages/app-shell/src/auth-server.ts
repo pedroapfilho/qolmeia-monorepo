@@ -4,9 +4,10 @@ import { prisma } from "@repo/db";
 import { nextCookies } from "better-auth/next-js";
 
 type Auth = ReturnType<typeof createAuth>;
+
 let cachedAuth: Auth | undefined;
 
-export const getAuth = (): Auth => {
+const getAuth = (): Auth => {
   if (!cachedAuth) {
     const secret = process.env.BETTER_AUTH_SECRET;
     if (secret === undefined || secret.length < 32) {
@@ -24,3 +25,6 @@ export const getAuth = (): Auth => {
   }
   return cachedAuth;
 };
+
+export { getAuth };
+export type { Auth };

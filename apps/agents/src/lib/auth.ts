@@ -1,8 +1,6 @@
-import type { OrgRole } from "@repo/worker-api/contracts";
-import type { MiddlewareHandler } from "hono";
-import { HTTPException } from "hono/http-exception";
+import { ORG_ROLES, type OrgRole } from "@repo/worker-api/contracts";
+import type { Context, MiddlewareHandler } from "hono";
 
-import { safeJson } from "#/db/mappers";
 import { logError } from "#/lib/logger";
 import { parseMeResponse, type OrgSummary } from "#/lib/membership";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
@@ -27,17 +25,15 @@ const readOrgId = (request: Request): string | null => {
   return query === "" ? null : query;
 };
 
-const orgSelectionRequired = (orgs: ReadonlyArray<OrgSummary>): HTTPException =>
-  new HTTPException(400, {
-    res: Response.json(
-      {
-        error: "org_required",
-        message: `This account belongs to more than one organization; send the ${ORG_ID_HEADER} header to choose one`,
-        orgs,
-      },
-      { status: 400 },
-    ),
-  });
+const orgSelectionRequired = (orgs: ReadonlyArray<OrgSummary>): Response =>
+  Response.json(
+    {
+      error: "org_required",
+      message: `This account belongs to more than one organization; send the ${ORG_ID_HEADER} header to choose one`,
+      orgs,
+    },
+    { status: 400 },
+  );
 
 type MeFetch =
   | { body: string; cached: boolean; kind: "upstream"; status: number }
@@ -102,51 +98,97 @@ const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
   return { body, cached: false, kind: "upstream", status: response.status };
 };
 
-const validateSession = async (request: Request, env: Env): Promise<ValidatedSession | null> => {
-  const result = await fetchMe(request, env);
-  if (result.kind !== "upstream" || result.status !== 200) {
+const parseJson = (body: string): unknown => {
+  try {
+    return JSON.parse(body);
+  } catch {
     return null;
+  }
+};
+
+/**
+ * Every way a session can fail to resolve. `unauthenticated` deliberately merges
+ * four upstream outcomes (no credentials, non-200, unparseable body, zero orgs)
+ * because a client can act on none of them differently; `upstream-unavailable`
+ * stays separate so a dependency outage is not reported as bad credentials.
+ */
+type SessionResult =
+  | { kind: "ok"; session: ValidatedSession }
+  | { kind: "org-required"; orgs: ReadonlyArray<OrgSummary> }
+  | { kind: "unauthenticated" }
+  | { kind: "upstream-unavailable" };
+
+const validateSession = async (request: Request, env: Env): Promise<SessionResult> => {
+  const result = await fetchMe(request, env);
+  if (result.kind === "unreachable") {
+    return { kind: "upstream-unavailable" };
+  }
+  if (result.kind !== "upstream" || result.status !== 200) {
+    return { kind: "unauthenticated" };
   }
 
-  const me = parseMeResponse(safeJson<unknown>(result.body, null));
+  const me = parseMeResponse(parseJson(result.body));
   if (me === null) {
-    return null;
+    return { kind: "unauthenticated" };
   }
   if (me.currentOrg === null) {
-    if (me.orgs.length > 1) {
-      throw orgSelectionRequired(me.orgs);
-    }
-    return null;
+    return me.orgs.length > 1
+      ? { kind: "org-required", orgs: me.orgs }
+      : { kind: "unauthenticated" };
   }
   return {
-    companyId: me.currentOrg.id,
-    role: me.currentOrg.role,
-    userId: me.userId,
+    kind: "ok",
+    session: {
+      companyId: me.currentOrg.id,
+      role: me.currentOrg.role,
+      userId: me.userId,
+    },
   };
 };
 
 type SessionEnv = { Bindings: Env; Variables: { session: ValidatedSession } };
 
-const requireSession: MiddlewareHandler<SessionEnv> = async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
+const sessionFailureResponse = (result: Exclude<SessionResult, { kind: "ok" }>): Response => {
+  if (result.kind === "org-required") {
+    return orgSelectionRequired(result.orgs);
   }
-  c.set("session", session);
-  return next();
+  if (result.kind === "upstream-unavailable") {
+    return new Response("Auth service unreachable", { status: 502 });
+  }
+  return new Response("Unauthorized", { status: 401 });
 };
 
-const requireStaffSession: MiddlewareHandler<SessionEnv> = async (c, next) => {
-  const session = await validateSession(c.req.raw, c.env);
-  if (!session) {
-    return c.text("Unauthorized", 401);
-  }
-  if (session.role !== "OWNER" && session.role !== "STAFF") {
-    return c.text("Forbidden", 403);
-  }
-  c.set("session", session);
-  return next();
+type SessionGuardOptions = {
+  allow: ReadonlySet<OrgRole>;
+  scope?: (c: Context<SessionEnv>, session: ValidatedSession) => boolean;
 };
+
+/**
+ * The only writer of the `session` context variable, which is why SessionEnv can
+ * declare it non-optional: every admitting path here sets it.
+ */
+const sessionGuard =
+  ({ allow, scope }: SessionGuardOptions): MiddlewareHandler<SessionEnv> =>
+  async (c, next) => {
+    const result = await validateSession(c.req.raw, c.env);
+    if (result.kind !== "ok") {
+      return sessionFailureResponse(result);
+    }
+    if (!allow.has(result.session.role)) {
+      return c.text("Forbidden", 403);
+    }
+    if (scope !== undefined && !scope(c, result.session)) {
+      return c.text("Forbidden", 403);
+    }
+    c.set("session", result.session);
+    return next();
+  };
+
+const ANY_ROLE: ReadonlySet<OrgRole> = new Set(ORG_ROLES);
+const STAFF_ROLES: ReadonlySet<OrgRole> = new Set<OrgRole>(["OWNER", "STAFF"]);
+
+const requireSession = sessionGuard({ allow: ANY_ROLE });
+const requireStaffSession = sessionGuard({ allow: STAFF_ROLES });
 
 const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -165,5 +207,12 @@ const requireCustomerForWrites: MiddlewareHandler<SessionEnv> = (c, next) => {
   return Promise.resolve(c.json({ error: "forbidden" }, 403));
 };
 
-export { fetchMe, requireCustomerForWrites, requireSession, requireStaffSession, validateSession };
-export type { ValidatedSession };
+export {
+  fetchMe,
+  requireCustomerForWrites,
+  requireSession,
+  requireStaffSession,
+  sessionGuard,
+  validateSession,
+};
+export type { SessionEnv, SessionResult, ValidatedSession };

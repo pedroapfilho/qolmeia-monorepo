@@ -1,3 +1,5 @@
+import type { OperatorAssignmentKind } from "@repo/db/worker";
+
 import type { Database } from "#/db/client";
 
 type OperatorCoverage = {
@@ -18,9 +20,9 @@ const setCoverage = async (
   operatorUserId: string,
   coverage: OperatorCoverage,
 ): Promise<void> => {
-  const rows = [
-    ...coverage.companies.map((value) => ({ kind: "company", value })),
-    ...coverage.disciplines.map((value) => ({ kind: "discipline", value })),
+  const rows: ReadonlyArray<{ kind: OperatorAssignmentKind; value: string }> = [
+    ...coverage.companies.map((value) => ({ kind: "company" as const, value })),
+    ...coverage.disciplines.map((value) => ({ kind: "discipline" as const, value })),
   ];
   await db.$transaction(async (tx) => {
     await tx.operatorAssignment.deleteMany({ where: { operatorUserId } });

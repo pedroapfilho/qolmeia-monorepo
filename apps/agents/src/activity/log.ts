@@ -1,4 +1,6 @@
-import type { ActivityEvent, ActivityType } from "#/activity/types";
+import type { ActivityEntry } from "@repo/worker-api/contracts";
+
+import type { ActivityEvent } from "#/activity/types";
 import type { Database } from "#/db/client";
 
 type LogActivityInput = ActivityEvent & {
@@ -29,18 +31,6 @@ const logActivity = async (db: Database, input: LogActivityInput): Promise<void>
   }
 };
 
-type ActivityEntry = {
-  actorId: string | null;
-  companyId: string;
-  companyName: string;
-  createdAt: number;
-  id: string;
-  payload: Record<string, unknown> | null;
-  refId: string | null;
-  refType: string | null;
-  summary: string;
-  type: ActivityType | (string & Record<never, never>);
-};
 const ACTIVITY_CATEGORIES = ["ACTION", "TICKET", "WORKER", "TEAM", "MEMBER"] as const;
 type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
 type ListActivityOptions = {
@@ -84,4 +74,4 @@ const listActivity = async (
 };
 
 export { ACTIVITY_CATEGORIES, listActivity, logActivity };
-export type { ActivityEntry, LogActivityInput };
+export type { LogActivityInput };

@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient } from "@repo/app-shell/auth-client";
 import { Button } from "@repo/ui/components/button";
 import {
   Card,
@@ -15,7 +16,6 @@ import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 
-import { authClient } from "@/lib/auth-client";
 import { recoverSchema } from "@/lib/form-schemas";
 
 const RecoverPage = () => {

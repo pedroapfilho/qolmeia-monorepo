@@ -47,7 +47,7 @@ beforeEach(async () => {
     env.DB.prepare(
       `INSERT OR IGNORE INTO company_template_entitlement
          (company_id, template_id, enabled, created_at, updated_at)
-       VALUES (?, 'tpl-designer', 1, 0, 0)`,
+       VALUES (?, 'tpl-designer', TRUE, 0, 0)`,
     ).bind(COMPANY_ID),
   ]);
 });
@@ -239,13 +239,14 @@ describe("POST /api/me/team/members/:id/pause + /resume", () => {
     expect(resumedBody.member.status).toBe("available");
   });
 
-  it("rejects pausing the correspondent with 400", async () => {
+  it("rejects pausing the correspondent with the same 409 the operator surface returns", async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve(Response.json(meCustomer)));
     const res = await exports.default.fetch(
       `https://agents.test/api/me/team/members/corr-${COMPANY_ID}/pause?cf_session=tok`,
       { method: "POST" },
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ error: "cannot pause/resume a correspondent" });
   });
 
   it("returns 404 when pausing a member outside the company", async () => {

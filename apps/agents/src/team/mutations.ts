@@ -124,66 +124,53 @@ const assertMemberPausable = async (
   }
 };
 
+type MemberStatus = "active" | "paused";
+
 type SetMemberStatusInput = {
-  activityType: "MEMBER_PAUSED" | "MEMBER_RESUMED";
-  actorId: string | null;
-  status: "active" | "paused";
+  actorId?: string | null;
+  agentInstanceId: string;
+  companyId: string;
+  status: MemberStatus;
 };
+
+/**
+ * Keyed by target status so the activity type and its summary cannot disagree
+ * with the row that was written.
+ */
+const STATUS_TRANSITION = {
+  active: { activityType: "MEMBER_RESUMED", summary: "Agente retomado." },
+  paused: { activityType: "MEMBER_PAUSED", summary: "Agente pausado." },
+} as const satisfies Record<MemberStatus, { activityType: string; summary: string }>;
 
 const setMemberStatus = async (
   db: PrismaClient,
-  companyId: string,
-  agentInstanceId: string,
   input: SetMemberStatusInput,
 ): Promise<TeamMemberView> => {
+  const transition = STATUS_TRANSITION[input.status];
   // oxlint-disable-next-line react-doctor/async-parallel -- ordered: assert, then update, then log and read back the committed row
-  await assertMemberPausable(db, companyId, agentInstanceId);
+  await assertMemberPausable(db, input.companyId, input.agentInstanceId);
   await db.agentInstance.updateMany({
     data: { status: input.status },
-    where: { companyId, id: agentInstanceId },
+    where: { companyId: input.companyId, id: input.agentInstanceId },
   });
   await logActivity(db, {
     actorId: input.actorId ?? undefined,
-    companyId,
-    refId: agentInstanceId,
+    companyId: input.companyId,
+    refId: input.agentInstanceId,
     refType: "agent_instance",
-    summary: input.status === "paused" ? "Agente pausado." : "Agente retomado.",
-    type: input.activityType,
+    summary: transition.summary,
+    type: transition.activityType,
   });
-  const member = await getTeamMember(db, companyId, agentInstanceId);
+  const member = await getTeamMember(db, input.companyId, input.agentInstanceId);
   if (!member) {
     logError("team.setMemberStatus.readBack.missing", {
-      agentInstanceId,
-      companyId,
+      agentInstanceId: input.agentInstanceId,
+      companyId: input.companyId,
     });
     throw new Error("setMemberStatus: read-back failed");
   }
   return member;
 };
-
-const pauseMember = (
-  db: PrismaClient,
-  companyId: string,
-  agentInstanceId: string,
-  actorId: string | null = null,
-) =>
-  setMemberStatus(db, companyId, agentInstanceId, {
-    activityType: "MEMBER_PAUSED",
-    actorId,
-    status: "paused",
-  });
-
-const resumeMember = (
-  db: PrismaClient,
-  companyId: string,
-  agentInstanceId: string,
-  actorId: string | null = null,
-) =>
-  setMemberStatus(db, companyId, agentInstanceId, {
-    activityType: "MEMBER_RESUMED",
-    actorId,
-    status: "active",
-  });
 
 type UpdateInput = {
   agentInstanceId: string;
@@ -275,12 +262,5 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
   return member;
 };
 
-export { hireMember, pauseMember, resumeMember, updateMember };
-export {
-  CorrespondentMissingError,
-  TeamMemberNotFoundError,
-  TeamMemberNotPausableError,
-  TemplateNotFoundError,
-  TemplateRetiredError,
-} from "#/team/errors";
-export type { UpdateInput };
+export { hireMember, setMemberStatus, updateMember };
+export type { MemberStatus, SetMemberStatusInput, UpdateInput };

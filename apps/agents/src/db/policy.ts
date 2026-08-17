@@ -1,14 +1,18 @@
-type Policy = "auto-execute" | "notify-only" | "require-approval";
-
-const POLICIES: ReadonlyArray<Policy> = ["auto-execute", "notify-only", "require-approval"];
+import type { ActionPolicy } from "@repo/db/worker";
 
 type TemplateWithPolicies = { defaultPolicies: Record<string, string> };
 
-const resolvePolicy = (actionType: string, template: TemplateWithPolicies): Policy => {
+const POLICIES: ReadonlyArray<ActionPolicy> = ["auto_execute", "notify_only", "require_approval"];
+
+/**
+ * `defaultPolicies` is an operator-edited JSON blob, so its values are the one
+ * place a policy string still arrives untyped. Anything unrecognised falls back
+ * to the safest policy rather than the most permissive one.
+ */
+const resolvePolicy = (actionType: string, template: TemplateWithPolicies): ActionPolicy => {
   const raw = template.defaultPolicies[actionType];
-  const match = POLICIES.find((p) => p === raw);
-  return match ?? "require-approval";
+  return POLICIES.find((policy) => policy === raw) ?? "require_approval";
 };
 
 export { resolvePolicy };
-export type { Policy };
+export type { ActionPolicy as Policy } from "@repo/db/worker";

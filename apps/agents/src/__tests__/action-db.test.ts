@@ -43,14 +43,14 @@ describe("proposeAction + getAction", () => {
     const { id } = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { summary: "let's ship X" },
       ticketId: "tkt-action-test",
     });
     const action = await getAction(env.DB, id);
     expect(action).not.toBeNull();
     expect(action?.status).toBe("pending");
-    expect(action?.policy).toBe("require-approval");
+    expect(action?.policy).toBe("require_approval");
     const proposed = action?.proposed as { summary?: string } | undefined;
     expect(proposed?.summary).toBe("let's ship X");
   });
@@ -61,7 +61,7 @@ describe("decideAction", () => {
     const { id } = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: {},
       ticketId: "tkt-action-test",
     });
@@ -80,7 +80,7 @@ describe("decideAction", () => {
     const { id } = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: {},
       ticketId: "tkt-action-test",
     });
@@ -106,7 +106,7 @@ describe("markExecuted + listPendingActions", () => {
     const { id } = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: {},
       ticketId: "tkt-action-test",
     });
@@ -135,7 +135,7 @@ describe("markExecuted + listPendingActions", () => {
     const first = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { n: 1 },
       ticketId: "tkt-action-test",
     });
@@ -145,7 +145,7 @@ describe("markExecuted + listPendingActions", () => {
     const second = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { n: 2 },
       ticketId: "tkt-action-test-2",
     });
@@ -159,14 +159,14 @@ describe("markExecuted + listPendingActions", () => {
     const first = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { attempt: 1 },
       ticketId: "tkt-action-test",
     });
     const second = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { attempt: 2 },
       ticketId: "tkt-action-test",
     });
@@ -181,7 +181,7 @@ describe("markExecuted + listPendingActions", () => {
     const first = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { attempt: 1 },
       ticketId: "tkt-action-test",
     });
@@ -193,7 +193,7 @@ describe("markExecuted + listPendingActions", () => {
     const second = await proposeAction(env.DB, {
       actionType: "worker_deliverable",
       companyId: COMPANY_ID,
-      policy: "require-approval",
+      policy: "require_approval",
       proposed: { attempt: 2 },
       ticketId: "tkt-action-test",
     });
