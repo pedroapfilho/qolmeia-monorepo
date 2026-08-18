@@ -109,4 +109,4 @@ const createNav = ({ SignOutControl, useCurrentPathname }: NavDependencies) => {
 const Nav = createNav({ SignOutControl: SignOutButton, useCurrentPathname: usePathname });
 
 export { createNav, Nav };
-export type { NavDependencies, NavProps };
+export type { NavDependencies };

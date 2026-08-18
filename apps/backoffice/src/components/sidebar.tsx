@@ -198,4 +198,4 @@ const createSidebar = ({ SignOutControl, useCurrentPathname }: SidebarDependenci
 const Sidebar = createSidebar({ SignOutControl: SignOutButton, useCurrentPathname: usePathname });
 
 export { createSidebar, Sidebar };
-export type { SidebarDependencies, SidebarProps };
+export type { SidebarDependencies };

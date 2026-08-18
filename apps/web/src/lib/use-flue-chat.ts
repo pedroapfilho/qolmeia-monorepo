@@ -162,6 +162,5 @@ export type {
   FlueChatStatus,
   SendInput,
   UseConversation,
-  UseFlueChatOptions,
   UseFlueChatResult,
 };
