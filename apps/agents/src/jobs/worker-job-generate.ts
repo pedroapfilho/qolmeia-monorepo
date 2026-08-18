@@ -39,7 +39,7 @@ const embedGeneratedImages = (summary: string, skillResults: Record<string, unkn
   for (const skillId of IMAGE_SKILLS) {
     const result = skillResults[skillId];
     const url =
-      typeof result === "object" && result !== null ? (result as { url?: unknown }).url : undefined;
+      typeof result === "object" && result !== null && "url" in result ? result.url : undefined;
     if (typeof url !== "string" || url.length === 0) {
       continue;
     }

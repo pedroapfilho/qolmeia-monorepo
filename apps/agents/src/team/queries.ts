@@ -91,7 +91,7 @@ const listTeamRosters = async (
   companyIds: ReadonlyArray<string>,
 ): Promise<Map<string, Array<TeamMemberView>>> => {
   const ids = [...new Set(companyIds)].filter(Boolean);
-  const result = new Map(ids.map((id) => [id, [] as Array<TeamMemberView>]));
+  const result = new Map<string, Array<TeamMemberView>>(ids.map((id) => [id, []]));
   if (!ids.length) {
     return result;
   }

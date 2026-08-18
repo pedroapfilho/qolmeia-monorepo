@@ -22,9 +22,11 @@ type SkillContext = {
   env: Env;
 };
 
+type SkillResult = boolean | null | number | object | string;
+
 type UnknownSkill = {
   description: string;
-  execute: (input: unknown, ctx: SkillContext) => Promise<unknown>;
+  execute: (input: unknown, ctx: SkillContext) => Promise<SkillResult>;
   id: string;
   inputSchema: ZodType;
 };
@@ -47,11 +49,11 @@ const ALL_SKILLS: ReadonlyArray<UnknownSkill> = [
 
 const codeRegistry = new Map<string, UnknownSkill>(ALL_SKILLS.map((s) => [s.id, s]));
 
-const previewResult = (result: unknown): unknown => {
+const previewResult = <Result extends SkillResult>(result: Result): Result | string => {
   if (typeof result === "string") {
     return result.slice(0, 200);
   }
-  if (typeof result === "number" || typeof result === "boolean" || typeof result === "bigint") {
+  if (typeof result === "number" || typeof result === "boolean") {
     return String(result).slice(0, 200);
   }
   return result;
@@ -59,7 +61,7 @@ const previewResult = (result: unknown): unknown => {
 
 type ResolvedSkill = {
   description: string;
-  execute: (input: unknown) => Promise<unknown>;
+  execute: (input: unknown) => Promise<SkillResult>;
   id: string;
   inputSchema: ZodType;
 };
@@ -69,7 +71,7 @@ const runSkill = async (
   id: string,
   code: UnknownSkill,
   input: unknown,
-): Promise<unknown> => {
+): Promise<SkillResult> => {
   const start = Date.now();
   const baseFields = {
     agentInstanceId: ctx.agentInstanceId,
@@ -191,4 +193,11 @@ export {
   registerSkill,
   resolveSkills,
 };
-export type { ResolvedSkill, SkillCatalogEntry, SkillContext, SkillOverlayMap, UnknownSkill };
+export type {
+  ResolvedSkill,
+  SkillCatalogEntry,
+  SkillContext,
+  SkillOverlayMap,
+  SkillResult,
+  UnknownSkill,
+};

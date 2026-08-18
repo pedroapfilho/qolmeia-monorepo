@@ -59,13 +59,10 @@ const mergeBrief = (
   existing: Partial<CompanyBrief>,
   updates: Partial<CompanyBrief>,
 ): CompanyBrief => {
-  const merged: Partial<CompanyBrief> = { ...existing };
-  for (const [key, value] of Object.entries(updates)) {
-    if (value !== undefined) {
-      (merged as Record<string, unknown>)[key] = value;
-    }
-  }
-  const parsed = companyBriefSchema.partial().parse(merged);
+  const definedUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([, value]) => value !== undefined),
+  );
+  const parsed = companyBriefSchema.partial().parse({ ...existing, ...definedUpdates });
   return {
     ...parsed,
     locale: parsed.locale ?? "pt-BR",
@@ -75,12 +72,14 @@ const mergeBrief = (
 
 const hasText = (value: string | undefined): boolean => value !== undefined && value !== "";
 
+const jsonValueSchema = z.json();
+
 const parseBrief = (raw: unknown): Partial<CompanyBrief> => {
   if (raw === null || raw === undefined || raw === "") {
     return {};
   }
   try {
-    const parsed = typeof raw === "string" ? (JSON.parse(raw) as unknown) : raw;
+    const parsed = typeof raw === "string" ? jsonValueSchema.parse(JSON.parse(raw)) : raw;
     const result = companyBriefSchema.partial().safeParse(parsed);
     return result.success ? result.data : {};
   } catch {

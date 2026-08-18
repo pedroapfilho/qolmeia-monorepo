@@ -21,39 +21,60 @@ type SignOutButtonProps = {
   label?: string;
 };
 
-const SignOutButton = ({ className, label = "Sair" }: SignOutButtonProps) => {
-  const { push, refresh } = useRouter();
-  const [pending, setPending] = useState(false);
-
-  const signOut = async () => {
-    if (pending) {
-      return;
-    }
-    setPending(true);
-    try {
-      await authClient.signOut();
-      push("/login");
-      refresh();
-    } catch {
-      toast.error("Não foi possível sair. Tente novamente.");
-      setPending(false);
-    }
-  };
-
-  return (
-    <Button
-      className={className}
-      disabled={pending}
-      onClick={() => {
-        void signOut();
-      }}
-      type="button"
-      variant="ghost"
-    >
-      <LogOut aria-hidden />
-      {label}
-    </Button>
-  );
+type SignOutButtonDependencies = {
+  showError: (message: string) => void;
+  signOut: () => Promise<void>;
+  useAppRouter: () => Pick<ReturnType<typeof useRouter>, "push" | "refresh">;
 };
 
-export { SignOutButton };
+const createSignOutButton = ({ showError, signOut, useAppRouter }: SignOutButtonDependencies) => {
+  const SignOutButtonWithDependencies = ({ className, label = "Sair" }: SignOutButtonProps) => {
+    const { push, refresh } = useAppRouter();
+    const [pending, setPending] = useState(false);
+
+    const handleSignOut = async () => {
+      if (pending) {
+        return;
+      }
+      setPending(true);
+      try {
+        await signOut();
+        push("/login");
+        refresh();
+      } catch {
+        showError("Não foi possível sair. Tente novamente.");
+        setPending(false);
+      }
+    };
+
+    return (
+      <Button
+        className={className}
+        disabled={pending}
+        onClick={() => {
+          void handleSignOut();
+        }}
+        type="button"
+        variant="ghost"
+      >
+        <LogOut aria-hidden />
+        {label}
+      </Button>
+    );
+  };
+
+  return SignOutButtonWithDependencies;
+};
+
+const SignOutButton = createSignOutButton({
+  showError: (message) => {
+    toast.error(message);
+  },
+  signOut: async () => {
+    await authClient.signOut();
+  },
+  useAppRouter: useRouter,
+});
+
+export { createSignOutButton, SignOutButton };
+export type { SignOutButtonDependencies, SignOutButtonProps };

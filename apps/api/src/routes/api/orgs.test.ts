@@ -16,7 +16,9 @@ const buildAuth = (session: AuthSession | null) => ({
 
 const buildPrisma = () => {
   const prisma = {
-    $transaction: vi.fn((callback: (tx: typeof prisma) => Promise<unknown>) => callback(prisma)),
+    $transaction: vi.fn(<Result>(callback: (tx: typeof prisma) => Promise<Result>) =>
+      callback(prisma),
+    ),
     organization: {
       create: vi
         .fn()

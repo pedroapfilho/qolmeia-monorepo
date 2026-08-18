@@ -1,32 +1,27 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ButtonHTMLAttributes } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const signOutMock = vi.fn(() => Promise.resolve({ data: { success: true }, error: null }));
+import { createSignOutButton } from "./sign-out-button";
+
+const signOutMock = vi.fn(() => Promise.resolve());
 const pushMock = vi.fn();
 const refreshMock = vi.fn();
 const toastErrorMock = vi.fn();
 
-vi.mock("@repo/auth/client", () => ({
-  createBetterAuthClient: () => ({ signOut: signOutMock }),
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
-}));
-
-vi.mock("../lib/toast", () => ({
-  toast: { error: toastErrorMock, success: vi.fn() },
-}));
-
-vi.mock("./button", () => ({
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    // eslint-disable-next-line react/button-has-type -- pass-through stub for testing
-    <button type="button" {...props} />
-  ),
-}));
-
-const { SignOutButton } = await import("./sign-out-button");
+const SignOutButton = createSignOutButton({
+  showError: (message) => {
+    toastErrorMock(message);
+  },
+  signOut: signOutMock,
+  useAppRouter: () => ({
+    push: (path) => {
+      pushMock(path);
+    },
+    refresh: () => {
+      refreshMock();
+    },
+  }),
+});
 
 describe("SignOutButton", () => {
   beforeEach(() => {
@@ -34,10 +29,6 @@ describe("SignOutButton", () => {
     pushMock.mockClear();
     refreshMock.mockClear();
     toastErrorMock.mockClear();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   it("renders the default label", () => {

@@ -87,12 +87,14 @@ const buildInputSchema = (
   schema: ZodType,
   skillId: string,
 ): v.GenericSchema<Record<string, unknown>, unknown> => {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- zod emits its own JSON Schema; JsonSchemaNode is an all-optional view of it and convert() re-validates every field it reads
+  // SAFETY: JsonSchemaNode is an all-optional view and convert validates every field it reads.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   const node = z.toJSONSchema(schema) as JsonSchemaNode;
   if (node.type !== "object") {
     throw new Error(`Skill "${skillId}" input schema must be a top-level object`);
   }
-  // oxlint-disable-next-line no-unsafe-type-assertion -- node.type === "object" is checked above, so convert() built a v.object schema whose output is a record
+  // SAFETY: The checked object node makes convert return a record-producing schema.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   return convert(node, skillId) as v.GenericSchema<Record<string, unknown>, unknown>;
 };
 
@@ -106,7 +108,8 @@ const buildFlueTools = (
       description: skill.description,
       input: buildInputSchema(skill.inputSchema, skill.id),
       name: skill.id,
-      // oxlint-disable-next-line no-unsafe-type-assertion -- skill outputs are JSON-serializable by the skill contract; flue requires JsonValue
+      // SAFETY: The skill contract restricts every output to JSON-compatible values.
+      // oxlint-disable-next-line no-unsafe-type-assertion
       run: async ({ data }) => ({ output: (await skill.execute(data)) as JsonValue }),
     }),
   );

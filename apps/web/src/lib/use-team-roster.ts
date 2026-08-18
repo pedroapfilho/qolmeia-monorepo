@@ -18,6 +18,11 @@ type UseTeamRosterResult = {
   status: RosterStatus;
 };
 
+type TeamRosterDependencies = {
+  fetchRoster: typeof fetchTeam;
+  subscribeToTeamEvents: typeof subscribeTeamEvents;
+};
+
 const rosterStatus = (query: { isError: boolean; isPending: boolean }): RosterStatus => {
   if (query.isPending) {
     return "loading";
@@ -28,44 +33,56 @@ const rosterStatus = (query: { isError: boolean; isPending: boolean }): RosterSt
   return "ready";
 };
 
-const useTeamRoster = (companyId: string, _sessionToken: string): UseTeamRosterResult => {
-  const queryClient = useQueryClient();
-  const queryKey = useMemo(() => teamQueryKey(companyId), [companyId]);
-  const {
-    data,
-    error,
-    isError,
-    isPending,
-    refetch: queryRefetch,
-  } = useQuery({
-    meta: { errorToast: "Falha ao sincronizar time" },
-    queryFn: fetchTeam,
-    queryKey,
-    refetchInterval: POLL_INTERVAL_MS,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
-  });
-
-  useEffect(() => {
-    const unsubscribe = subscribeTeamEvents(() => {
-      void queryClient.invalidateQueries({ queryKey });
+const createUseTeamRoster = ({ fetchRoster, subscribeToTeamEvents }: TeamRosterDependencies) => {
+  const useTeamRosterWithDependencies = (
+    companyId: string,
+    _sessionToken: string,
+  ): UseTeamRosterResult => {
+    const queryClient = useQueryClient();
+    const queryKey = useMemo(() => teamQueryKey(companyId), [companyId]);
+    const {
+      data,
+      error,
+      isError,
+      isPending,
+      refetch: queryRefetch,
+    } = useQuery({
+      meta: { errorToast: "Falha ao sincronizar time" },
+      queryFn: fetchRoster,
+      queryKey,
+      refetchInterval: POLL_INTERVAL_MS,
+      refetchOnWindowFocus: true,
+      staleTime: 0,
     });
-    return () => {
-      unsubscribe?.();
+
+    useEffect(() => {
+      const unsubscribe = subscribeToTeamEvents(() => {
+        void queryClient.invalidateQueries({ queryKey });
+      });
+      return () => {
+        unsubscribe?.();
+      };
+    }, [queryClient, queryKey]);
+
+    const refetch = async (): Promise<void> => {
+      await queryRefetch();
     };
-  }, [queryClient, queryKey]);
 
-  const refetch = async (): Promise<void> => {
-    await queryRefetch();
+    return {
+      error,
+      members: data ?? [],
+      refetch,
+      status: rosterStatus({ isError, isPending }),
+    };
   };
 
-  return {
-    error,
-    members: data ?? [],
-    refetch,
-    status: rosterStatus({ isError, isPending }),
-  };
+  return useTeamRosterWithDependencies;
 };
 
-export { useTeamRoster };
-export type { UseTeamRosterResult };
+const useTeamRoster = createUseTeamRoster({
+  fetchRoster: fetchTeam,
+  subscribeToTeamEvents: subscribeTeamEvents,
+});
+
+export { createUseTeamRoster, useTeamRoster };
+export type { TeamRosterDependencies, UseTeamRosterResult };

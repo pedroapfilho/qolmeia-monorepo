@@ -16,13 +16,15 @@ type SkillOverlay = {
 const mapTemplate = (row: AgentTemplate): Template => ({
   createdAt: row.createdAt.getTime(),
   defaultActionType: row.defaultActionType,
-  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
+  // SAFETY: The product seed owns this JSON column and writes string policy values.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   defaultPolicies: row.defaultPolicies as Record<string, string>,
   description: row.description,
   displayName: row.displayName,
   id: row.id,
   model: row.model,
-  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
+  // SAFETY: The product seed owns this JSON column and writes string skill IDs.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   skillIds: row.skillIds as Array<string>,
   status: row.status,
   systemPrompt: row.systemPrompt,
@@ -31,13 +33,15 @@ const mapTemplate = (row: AgentTemplate): Template => ({
   workerKind: row.workerKind,
 });
 const mapSkillOverlay = (row: PrismaSkill): SkillOverlay => ({
-  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
+  // SAFETY: The product seed owns this JSON column and writes object configuration.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   defaultConfig: row.defaultConfig as Record<string, unknown> | null,
   description: row.description,
   displayName: row.displayName,
   enabled: row.enabled,
   id: row.id,
-  // oxlint-disable-next-line no-unsafe-type-assertion -- JSON column seeded by @repo/db product-seed; shape is owned by this repo
+  // SAFETY: The product seed owns this JSON column and writes string hints.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   paramHints: row.paramHints as Record<string, string> | null,
   updatedAt: row.updatedAt.getTime(),
 });

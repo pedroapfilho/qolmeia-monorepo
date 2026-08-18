@@ -8,6 +8,8 @@ import { WelcomeEmail } from "../emails/welcome";
 
 import { sendEmail } from "./send-email";
 
+type SendEmail = typeof sendEmail;
+
 type MailerConfig = {
   apiKey: string;
   defaultReplyTo?: string;
@@ -127,25 +129,29 @@ const TEMPLATES = {
   welcome: TemplateBuilder<WelcomePayload>;
 };
 
-const sendTransactionalEmail = (email: TransactionalEmail, config: MailerConfig) => {
-  // oxlint-disable-next-line no-unsafe-type-assertion -- discriminated-union dispatch: the satisfies block above proves each key maps to its payload's builder
-  const builder = TEMPLATES[email.type] as TemplateBuilder<typeof email>;
-  const { subject, template, to } = builder(email);
-  return sendEmail({
-    apiKey: config.apiKey,
-    defaultReplyTo: config.defaultReplyTo,
-    from: config.from !== undefined && config.from !== "" ? config.from : DEFAULT_FROM,
-    subject,
-    tags: [
-      { name: "type", value: email.type },
-      ...(email.userId !== undefined && email.userId !== ""
-        ? [{ name: "userId", value: email.userId }]
-        : []),
-    ],
-    template,
-    to,
-  });
-};
+const createTransactionalEmailSender =
+  (send: SendEmail) => (email: TransactionalEmail, config: MailerConfig) => {
+    // SAFETY: TEMPLATES satisfies a builder contract for every discriminant.
+    // oxlint-disable-next-line no-unsafe-type-assertion
+    const builder = TEMPLATES[email.type] as TemplateBuilder<typeof email>;
+    const { subject, template, to } = builder(email);
+    return send({
+      apiKey: config.apiKey,
+      defaultReplyTo: config.defaultReplyTo,
+      from: config.from !== undefined && config.from !== "" ? config.from : DEFAULT_FROM,
+      subject,
+      tags: [
+        { name: "type", value: email.type },
+        ...(email.userId !== undefined && email.userId !== ""
+          ? [{ name: "userId", value: email.userId }]
+          : []),
+      ],
+      template,
+      to,
+    });
+  };
+
+const sendTransactionalEmail = createTransactionalEmailSender(sendEmail);
 
 export type { MailerConfig, TransactionalEmail };
-export { sendTransactionalEmail };
+export { createTransactionalEmailSender, sendTransactionalEmail };

@@ -7,15 +7,17 @@ import { PasswordResetEmail } from "../emails/password-reset";
 import { SignUpAttemptEmail } from "../emails/sign-up-attempt";
 import { WelcomeEmail } from "../emails/welcome";
 
-const sendMock = vi.fn();
-vi.mock("resend", () => ({
-  Resend: class {
-    emails = { send: sendMock };
-  },
-}));
+import { previewEmail, sendEmail, type EmailClientFactory } from "./send-email";
+import { createTransactionalEmailSender } from "./senders";
 
-const { previewEmail } = await import("./send-email");
-const { sendTransactionalEmail } = await import("./senders");
+const sendMock = vi.fn();
+const createClient: EmailClientFactory = () => ({
+  batch: { send: vi.fn() },
+  emails: { send: sendMock },
+});
+const sendTransactionalEmail = createTransactionalEmailSender((options) =>
+  sendEmail(options, createClient),
+);
 
 describe("WelcomeEmail render", () => {
   it("includes the verification URL and Qolmeia branding", async () => {

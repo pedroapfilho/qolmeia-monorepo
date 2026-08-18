@@ -36,7 +36,8 @@ const mapAction = (row: ActionRecord): Action => ({
   feedback: row.feedback,
   id: row.id,
   policy: row.policy,
-  // oxlint-disable-next-line no-unsafe-type-assertion -- proposed is a JSON column written by proposeAction in this module
+  // SAFETY: proposeAction is the only writer and accepts Record<string, unknown>.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   proposed: row.proposed as Record<string, unknown>,
   status: row.status,
   ticketId: row.ticketId,
@@ -64,7 +65,8 @@ const proposeAction = async (db: Database, input: ProposeActionInput): Promise<{
       companyId: input.companyId,
       id: crypto.randomUUID(),
       policy: input.policy,
-      // oxlint-disable-next-line no-unsafe-type-assertion -- callers pass JSON-serializable proposals; Prisma's write type is narrower than Record<string, unknown>
+      // SAFETY: ProposeActionInput restricts proposals to JSON-serializable records.
+      // oxlint-disable-next-line no-unsafe-type-assertion
       proposed: input.proposed as Prisma.InputJsonValue,
       status: "pending",
       ticketId: input.ticketId,

@@ -1,5 +1,6 @@
 import { ORG_ROLES, type OrgRole } from "@repo/worker-api/contracts";
 import type { Context, MiddlewareHandler } from "hono";
+import { z } from "zod";
 
 import { logError } from "#/lib/logger";
 import { parseMeResponse, type OrgSummary } from "#/lib/membership";
@@ -98,9 +99,13 @@ const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
   return { body, cached: false, kind: "upstream", status: response.status };
 };
 
-const parseJson = (body: string): unknown => {
+const jsonValueSchema = z.json();
+
+type JsonValue = z.infer<typeof jsonValueSchema>;
+
+const parseJson = (body: string): JsonValue | null => {
   try {
-    return JSON.parse(body);
+    return jsonValueSchema.parse(JSON.parse(body));
   } catch {
     return null;
   }

@@ -1,14 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { handlerMock } = vi.hoisted(() => ({
-  handlerMock: vi.fn<(request: Request) => Promise<Response>>(),
-}));
+import { buildAuthRoutes } from "./auth";
 
-vi.mock("../lib/auth", () => ({
-  auth: { handler: handlerMock },
-}));
-
-const { authRoutes } = await import("./auth");
+const handlerMock = vi.fn<(request: Request) => Promise<Response>>();
+const authRoutes = buildAuthRoutes(handlerMock);
 
 describe("authRoutes adapter", () => {
   it("forwards /api/auth/* requests to auth.handler unchanged", async () => {

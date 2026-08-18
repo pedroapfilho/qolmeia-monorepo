@@ -19,7 +19,8 @@ const mapTicket = (row: {
   brief: row.brief,
   companyId: row.companyId,
   id: row.id,
-  // oxlint-disable-next-line no-unsafe-type-assertion -- result is a JSON column written by markTicketDone in this module
+  // SAFETY: markTicketDone is the only writer and accepts a JSON-compatible record.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   result: row.result as Record<string, unknown> | null,
   status: row.status,
   workflowId: row.workflowId,
@@ -101,7 +102,8 @@ const markTicketDone = async (
   result: Record<string, unknown>,
 ): Promise<void> => {
   await db.ticket.update({
-    // oxlint-disable-next-line no-unsafe-type-assertion -- callers pass JSON-serializable skill output; Prisma's write type is narrower than Record<string, unknown>
+    // SAFETY: Ticket transitions receive JSON-compatible skill output.
+    // oxlint-disable-next-line no-unsafe-type-assertion
     data: { result: result as Prisma.InputJsonValue, status: "done" },
     where: { id: ticketId },
   });

@@ -91,6 +91,10 @@ const readUploadedImage = (
 };
 
 const BRAND_CATEGORIES = new Set(["logo", "post", "reference", "other"]);
+const brandAssetMetadataSchema = z.object({
+  category: z.string().optional(),
+  originalName: z.string().optional(),
+});
 
 meAssetsRoutes.post("/uploads", async (c) => {
   const { companyId } = c.get("session");
@@ -133,14 +137,13 @@ meAssetsRoutes.get("/brand-assets", async (c) => {
 
   const items = await Promise.all(
     results.map(async (row) => {
-      // oxlint-disable-next-line no-unsafe-type-assertion -- metadata is a JSON column written by the brand-asset upload route in this app
-      const metadata = (row.metadata ?? {}) as { category?: string; originalName?: string };
+      const metadata = brandAssetMetadataSchema.safeParse(row.metadata);
       return {
-        category: metadata?.category ?? "other",
+        category: metadata.success ? (metadata.data.category ?? "other") : "other",
         createdAt: row.createdAt.toISOString(),
         id: row.id,
         mimeType: row.mime,
-        name: metadata?.originalName ?? null,
+        name: metadata.success ? (metadata.data.originalName ?? null) : null,
         size: row.bytes,
         url: await buildSignedAssetUrl(
           { ASSETS_SIGNING_KEY: c.env.ASSETS_SIGNING_KEY },
