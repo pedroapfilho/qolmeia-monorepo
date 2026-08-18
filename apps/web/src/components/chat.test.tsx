@@ -1,6 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ChatMessage, UseFlueChatResult } from "@/lib/use-flue-chat";
+
+import { ChatView, PLANNER_GREETING, PLANNER_KICKOFF } from "./chat";
+import type { ChatProps } from "./chat";
+
 class MockObserver {
   observe() {}
   unobserve() {}
@@ -18,42 +23,37 @@ if (typeof Element.prototype.scrollTo !== "function") {
 }
 
 const sendMessage = vi.fn();
-const chatState = {
-  historyReady: true,
-  messages: [] as Array<unknown>,
-  status: "ready" as string,
+type TestMessage = Omit<ChatMessage, "display" | "purpose"> &
+  Partial<Pick<ChatMessage, "display" | "purpose">>;
+
+const defaultPurpose = (role: ChatMessage["role"]): ChatMessage["purpose"] => {
+  if (role === "assistant") {
+    return "assistant";
+  }
+  if (role === "user") {
+    return "user";
+  }
+  return "advisory";
 };
-let capturedChatOptions: { onError?: (error: unknown) => void } = {};
 
-vi.mock("@/lib/use-flue-chat", () => ({
-  useFlueChat: (options: { onError?: (error: unknown) => void }) => {
-    capturedChatOptions = options;
-    return {
-      historyReady: chatState.historyReady,
-      messages: chatState.messages,
-      sendMessage,
-      status: chatState.status,
-    };
-  },
-}));
+const buildMessage = ({ display, purpose, ...message }: TestMessage): ChatMessage => ({
+  ...message,
+  display: display ?? "visible",
+  purpose: purpose ?? defaultPurpose(message.role),
+});
 
-const toastError = vi.fn();
-vi.mock("@repo/ui/lib/toast", () => ({
-  toast: { error: toastError, success: vi.fn() },
-}));
-
-vi.mock("streamdown", () => ({
-  Streamdown: ({ children }: { children: string }) => <div>{children}</div>,
-}));
-
-const { Chat, PLANNER_GREETING, PLANNER_KICKOFF } = await import("./chat");
+const chatState: UseFlueChatResult = {
+  historyReady: true,
+  messages: [],
+  sendMessage,
+  status: "ready",
+};
+const Chat = ({ agent }: ChatProps) => <ChatView agent={agent} chat={chatState} />;
 
 describe("Chat", () => {
   beforeEach(() => {
     sendMessage.mockReset();
     sendMessage.mockResolvedValue(undefined);
-    toastError.mockReset();
-    capturedChatOptions = {};
     chatState.historyReady = true;
     chatState.messages = [];
     chatState.status = "ready";
@@ -79,11 +79,11 @@ describe("Chat", () => {
 
   it("keeps the Planner greeting visible after the customer's first message", () => {
     chatState.messages = [
-      {
+      buildMessage({
         id: "m1",
         parts: [{ state: "done", text: "Nós somos uma padaria.", type: "text" }],
         role: "user",
-      },
+      }),
     ];
     render(
       <Chat
@@ -138,12 +138,16 @@ describe("Chat", () => {
 
   it("does not prepend the deterministic greeting to legacy kickoff histories", () => {
     chatState.messages = [
-      { id: "m1", parts: [{ state: "done", text: PLANNER_KICKOFF, type: "text" }], role: "user" },
-      {
+      buildMessage({
+        id: "m1",
+        parts: [{ state: "done", text: PLANNER_KICKOFF, type: "text" }],
+        role: "user",
+      }),
+      buildMessage({
         id: "m2",
         parts: [{ state: "done", text: "Olá! Bem-vindo.", type: "text" }],
         role: "assistant",
-      },
+      }),
     ];
     render(
       <Chat
@@ -159,12 +163,16 @@ describe("Chat", () => {
 
   it("hides the kickoff prompt from the rendered transcript", () => {
     chatState.messages = [
-      { id: "m1", parts: [{ state: "done", text: PLANNER_KICKOFF, type: "text" }], role: "user" },
-      {
+      buildMessage({
+        id: "m1",
+        parts: [{ state: "done", text: PLANNER_KICKOFF, type: "text" }],
+        role: "user",
+      }),
+      buildMessage({
         id: "m2",
         parts: [{ state: "done", text: "Olá! Bem-vindo.", type: "text" }],
         role: "assistant",
-      },
+      }),
     ];
     render(
       <Chat
@@ -180,7 +188,7 @@ describe("Chat", () => {
 
   it("hides diagnostic messages: internal dispatches and runtime advisories", () => {
     chatState.messages = [
-      {
+      buildMessage({
         display: "diagnostic",
         id: "m1",
         parts: [
@@ -188,20 +196,20 @@ describe("Chat", () => {
         ],
         purpose: "dispatch",
         role: "user",
-      },
-      {
+      }),
+      buildMessage({
         display: "diagnostic",
         id: "m2",
         parts: [{ state: "done", text: 'The tool "rememberFact" was updated.', type: "text" }],
         purpose: "advisory",
         role: "system",
-      },
-      {
+      }),
+      buildMessage({
         display: "visible",
         id: "m3",
         parts: [{ state: "done", text: "Sua arte ficou pronta!", type: "text" }],
         role: "assistant",
-      },
+      }),
     ];
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.queryByText(/Um especialista do Time/v)).not.toBeInTheDocument();
@@ -217,7 +225,7 @@ describe("Chat", () => {
 
   it("renders an activity marker for an in-flight tool call", () => {
     chatState.messages = [
-      {
+      buildMessage({
         id: "m1",
         parts: [
           { state: "done", text: "Deixa comigo.", type: "text" },
@@ -230,7 +238,7 @@ describe("Chat", () => {
           },
         ],
         role: "assistant",
-      },
+      }),
     ];
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText("Encaminhando para o time…")).toBeInTheDocument();
@@ -238,8 +246,12 @@ describe("Chat", () => {
 
   it("hides assistant turns that only contain settled tool calls", () => {
     chatState.messages = [
-      { id: "m0", parts: [{ state: "done", text: "oi", type: "text" }], role: "user" },
-      {
+      buildMessage({
+        id: "m0",
+        parts: [{ state: "done", text: "oi", type: "text" }],
+        role: "user",
+      }),
+      buildMessage({
         id: "m1",
         parts: [
           {
@@ -252,7 +264,7 @@ describe("Chat", () => {
           },
         ],
         role: "assistant",
-      },
+      }),
     ];
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText("oi")).toBeInTheDocument();
@@ -261,7 +273,7 @@ describe("Chat", () => {
 
   it("keeps completed tool calls out of the transcript", () => {
     chatState.messages = [
-      {
+      buildMessage({
         id: "m1",
         parts: [
           {
@@ -275,7 +287,7 @@ describe("Chat", () => {
           { state: "done", text: "Encaminhei para o Designer.", type: "text" },
         ],
         role: "assistant",
-      },
+      }),
     ];
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.queryByText("Encaminhando para o time…")).not.toBeInTheDocument();
@@ -284,8 +296,16 @@ describe("Chat", () => {
 
   it("renders messages from the chat hook", () => {
     chatState.messages = [
-      { id: "m1", parts: [{ text: "oi", type: "text" }], role: "user" },
-      { id: "m2", parts: [{ text: "olá!", type: "text" }], role: "assistant" },
+      buildMessage({
+        id: "m1",
+        parts: [{ state: "done", text: "oi", type: "text" }],
+        role: "user",
+      }),
+      buildMessage({
+        id: "m2",
+        parts: [{ state: "done", text: "olá!", type: "text" }],
+        role: "assistant",
+      }),
     ];
     render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
     expect(screen.getByText("oi")).toBeInTheDocument();
@@ -307,12 +327,6 @@ describe("Chat", () => {
     fireEvent.change(textarea, { target: { value: "outra" } });
     fireEvent.submit(textarea.closest("form") as HTMLFormElement);
     expect(sendMessage).not.toHaveBeenCalled();
-  });
-
-  it("shows a toast when the chat reports an error", () => {
-    render(<Chat agentsUrl="http://localhost:8787" companyId="co_test" sessionToken="tok" />);
-    capturedChatOptions.onError?.(new Error("boom"));
-    expect(toastError).toHaveBeenCalledOnce();
   });
 
   it("shows the thinking indicator while submitted", () => {

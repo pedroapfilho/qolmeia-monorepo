@@ -2,8 +2,15 @@ import { Hono } from "hono";
 
 import { auth } from "../lib/auth";
 
-const authRoutes = new Hono();
+type AuthHandler = (request: Request) => Promise<Response> | Response;
 
-authRoutes.all("/auth/*", (c) => auth.handler(c.req.raw));
+const buildAuthRoutes = (handleAuth: AuthHandler): Hono => {
+  const routes = new Hono();
+  routes.all("/auth/*", (c) => handleAuth(c.req.raw));
+  return routes;
+};
 
-export { authRoutes };
+const authRoutes = buildAuthRoutes((request) => auth.handler(request));
+
+export { authRoutes, buildAuthRoutes };
+export type { AuthHandler };

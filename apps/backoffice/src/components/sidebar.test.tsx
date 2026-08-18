@@ -1,29 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/approvals",
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-}));
+import { createSidebar } from "./sidebar";
 
-vi.mock("@repo/app-shell/auth-client", () => ({
-  authClient: {
-    signOut: vi.fn(() => Promise.resolve({ data: { success: true }, error: null })),
-  },
-}));
-
-vi.mock("@repo/ui/lib/toast", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}));
-
-vi.mock("@repo/ui/components/button", () => ({
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    // eslint-disable-next-line react/button-has-type -- pass-through stub for testing
-    <button type="button" {...props} />
+const Sidebar = createSidebar({
+  SignOutControl: ({ className }) => (
+    <button className={className} type="button">
+      Sair
+    </button>
   ),
-}));
-
-const { Sidebar } = await import("./sidebar");
+  useCurrentPathname: () => "/approvals",
+});
 
 describe("Sidebar", () => {
   it("renders every nav link in pt-BR", () => {

@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 
 import { env } from "@/lib/env";
 
-export const errorHandler = (err: Error, c: Context) => {
+const createErrorHandler = (nodeEnv: typeof env.NODE_ENV) => (err: Error, c: Context) => {
   const forwardedFor = c.req.header("x-forwarded-for");
   c.get("log").error(err, {
     ip:
@@ -69,19 +69,21 @@ export const errorHandler = (err: Error, c: Context) => {
     }
   }
 
-  const message = env.NODE_ENV === "production" ? "An unexpected error occurred" : err.message;
+  const message = nodeEnv === "production" ? "An unexpected error occurred" : err.message;
 
   return c.json(
     {
       error: {
         code: "INTERNAL_SERVER_ERROR",
         message,
-        ...(env.NODE_ENV !== "production" && { stack: err.stack }),
+        ...(nodeEnv !== "production" && { stack: err.stack }),
       },
     },
     500 as const,
   );
 };
+
+const errorHandler = createErrorHandler(env.NODE_ENV);
 
 export const notFound = (c: Context) => {
   return c.json(
@@ -94,3 +96,5 @@ export const notFound = (c: Context) => {
     404 as const,
   );
 };
+
+export { createErrorHandler, errorHandler };

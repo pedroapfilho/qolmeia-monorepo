@@ -33,6 +33,18 @@ type UseFlueChatResult = {
   status: FlueChatStatus;
 };
 
+type Conversation = Pick<
+  ReturnType<typeof useFlueAgent>,
+  "error" | "historyReady" | "messages" | "sendMessage" | "status"
+>;
+
+type ConversationHookOptions = {
+  sessionToken?: string;
+  url: string;
+};
+
+type UseConversation = (options: ConversationHookOptions) => Conversation;
+
 const STATUS_MAP = {
   connecting: "ready",
   error: "error",
@@ -80,54 +92,75 @@ const toPromptImages = async (files: Array<FileUIPart>): Promise<Array<Delivered
   return images;
 };
 
-const useFlueChat = ({
-  agent,
-  baseUrl,
-  companyId,
-  onError,
-  sessionToken,
-}: UseFlueChatOptions): UseFlueChatResult => {
+const useConversation: UseConversation = ({ sessionToken, url }) => {
   const client = useMemo(
     () =>
       createFlueClient({
         fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
-        url: `${(baseUrl || "").replace(/\/+$/v, "")}/agents/${agent}/${companyId}`,
+        url,
         ...(sessionToken !== undefined && sessionToken !== "" ? { token: sessionToken } : {}),
       }),
-    [agent, baseUrl, companyId, sessionToken],
+    [sessionToken, url],
   );
 
-  const conversation = useFlueAgent({ client, live: "sse" });
-
-  const lastErrorRef = useRef<Error | undefined>(undefined);
-  useEffect(() => {
-    if (conversation.error && conversation.error !== lastErrorRef.current) {
-      lastErrorRef.current = conversation.error;
-      // oxlint-disable-next-line react-doctor/no-pass-data-to-parent -- @flue/react only exposes stream errors as state; this bridges them to the onError callback API
-      onError?.(conversation.error);
-    }
-  }, [conversation.error, onError]);
-
-  const sendMessage = async (input: SendInput) => {
-    const text = input.text.trim();
-    if (!text && input.files.length === 0) {
-      return;
-    }
-    try {
-      await conversation.sendMessage(text, { images: await toPromptImages(input.files) });
-    } catch (error) {
-      onError?.(error);
-      throw error;
-    }
-  };
-
-  return {
-    historyReady: conversation.historyReady,
-    messages: conversation.messages,
-    sendMessage,
-    status: STATUS_MAP[conversation.status],
-  };
+  return useFlueAgent({ client, live: "sse" });
 };
 
-export { useFlueChat };
-export type { ChatMessage, FlueChatStatus, SendInput, UseFlueChatResult };
+const createUseFlueChat = (useAgentConversation: UseConversation) => {
+  const useFlueChatWithDependencies = ({
+    agent,
+    baseUrl,
+    companyId,
+    onError,
+    sessionToken,
+  }: UseFlueChatOptions): UseFlueChatResult => {
+    const conversation = useAgentConversation({
+      sessionToken,
+      url: `${(baseUrl || "").replace(/\/+$/v, "")}/agents/${agent}/${companyId}`,
+    });
+
+    const lastErrorRef = useRef<Error | undefined>(undefined);
+    useEffect(() => {
+      if (conversation.error && conversation.error !== lastErrorRef.current) {
+        lastErrorRef.current = conversation.error;
+        // oxlint-disable-next-line react-doctor/no-pass-data-to-parent -- @flue/react only exposes stream errors as state; this bridges them to the onError callback API
+        onError?.(conversation.error);
+      }
+    }, [conversation.error, onError]);
+
+    const sendMessage = async (input: SendInput) => {
+      const text = input.text.trim();
+      if (!text && input.files.length === 0) {
+        return;
+      }
+      try {
+        await conversation.sendMessage(text, { images: await toPromptImages(input.files) });
+      } catch (error) {
+        onError?.(error);
+        throw error;
+      }
+    };
+
+    return {
+      historyReady: conversation.historyReady,
+      messages: conversation.messages,
+      sendMessage,
+      status: STATUS_MAP[conversation.status],
+    };
+  };
+
+  return useFlueChatWithDependencies;
+};
+
+const useFlueChat = createUseFlueChat(useConversation);
+
+export { createUseFlueChat, useFlueChat };
+export type {
+  ChatMessage,
+  Conversation,
+  ConversationHookOptions,
+  FlueChatStatus,
+  SendInput,
+  UseConversation,
+  UseFlueChatResult,
+};

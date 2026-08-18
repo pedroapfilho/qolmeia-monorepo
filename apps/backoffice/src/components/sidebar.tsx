@@ -5,7 +5,7 @@ import { SignOutButton } from "@repo/ui/components/sign-out-button";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 type NavItem = {
   href: string;
@@ -115,75 +115,87 @@ type SidebarProps = {
   user?: SidebarUser;
 };
 
-const Sidebar = ({ pendingCount = 0, user }: SidebarProps) => {
-  const pathname = usePathname();
-
-  return (
-    <aside
-      aria-label="Navegação principal"
-      className="hidden h-screen w-[238px] shrink-0 flex-col border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
-    >
-      <div className="px-1.5">
-        <Link className="inline-flex transition-opacity hover:opacity-80" href="/">
-          <Logo className="h-6 w-auto" />
-        </Link>
-      </div>
-
-      <p className="px-2 pt-4 pb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        Painel operador
-      </p>
-
-      <nav className="flex flex-col gap-0.5">
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(pathname, item.href);
-          const showBadge = item.href === "/approvals" && pendingCount > 0;
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex h-[38px] items-center gap-[11px] rounded-lg px-2.5 text-sm transition-colors",
-                "[&_svg]:size-[18px]",
-                active
-                  ? "bg-highlight-surface font-semibold text-primary"
-                  : "font-medium text-muted-foreground hover:bg-highlight-surface/50 hover:text-foreground",
-              )}
-              href={item.href}
-              key={item.href}
-            >
-              {item.icon}
-              {item.label}
-              {showBadge ? (
-                <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 font-mono text-[11px] font-semibold text-white">
-                  {pendingCount}
-                </span>
-              ) : null}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="mt-auto border-t border-border pt-3.5">
-        {user ? (
-          <div className="flex items-center gap-2.5 px-1.5">
-            <span
-              aria-hidden
-              className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] bg-foreground text-[13px] font-bold text-background"
-            >
-              {initialsFrom(user.name)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold text-foreground">{user.name}</p>
-              <p className="truncate font-mono text-[10px] text-muted-foreground">{user.email}</p>
-            </div>
-            <span className="rounded-md bg-highlight-surface px-1.5 py-1 font-mono text-[9.5px] font-semibold text-highlight-surface-foreground">
-              {user.role}
-            </span>
-          </div>
-        ) : null}
-        <SignOutButton className="mt-2 w-full justify-start" />
-      </div>
-    </aside>
-  );
+type SidebarDependencies = {
+  SignOutControl: ComponentType<{ className?: string }>;
+  useCurrentPathname: () => string;
 };
 
-export { Sidebar };
+const createSidebar = ({ SignOutControl, useCurrentPathname }: SidebarDependencies) => {
+  const SidebarWithDependencies = ({ pendingCount = 0, user }: SidebarProps) => {
+    const pathname = useCurrentPathname();
+
+    return (
+      <aside
+        aria-label="Navegação principal"
+        className="hidden h-screen w-[238px] shrink-0 flex-col border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
+      >
+        <div className="px-1.5">
+          <Link className="inline-flex transition-opacity hover:opacity-80" href="/">
+            <Logo className="h-6 w-auto" />
+          </Link>
+        </div>
+
+        <p className="px-2 pt-4 pb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+          Painel operador
+        </p>
+
+        <nav className="flex flex-col gap-0.5">
+          {NAV_ITEMS.map((item) => {
+            const active = isActive(pathname, item.href);
+            const showBadge = item.href === "/approvals" && pendingCount > 0;
+            return (
+              <Link
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-[38px] items-center gap-[11px] rounded-lg px-2.5 text-sm transition-colors",
+                  "[&_svg]:size-[18px]",
+                  active
+                    ? "bg-highlight-surface font-semibold text-primary"
+                    : "font-medium text-muted-foreground hover:bg-highlight-surface/50 hover:text-foreground",
+                )}
+                href={item.href}
+                key={item.href}
+              >
+                {item.icon}
+                {item.label}
+                {showBadge ? (
+                  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 font-mono text-[11px] font-semibold text-white">
+                    {pendingCount}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto border-t border-border pt-3.5">
+          {user ? (
+            <div className="flex items-center gap-2.5 px-1.5">
+              <span
+                aria-hidden
+                className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] bg-foreground text-[13px] font-bold text-background"
+              >
+                {initialsFrom(user.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-bold text-foreground">{user.name}</p>
+                <p className="truncate font-mono text-[10px] text-muted-foreground">{user.email}</p>
+              </div>
+              <span className="rounded-md bg-highlight-surface px-1.5 py-1 font-mono text-[9.5px] font-semibold text-highlight-surface-foreground">
+                {user.role}
+              </span>
+            </div>
+          ) : null}
+          <SignOutControl className="mt-2 w-full justify-start" />
+        </div>
+      </aside>
+    );
+  };
+
+  return SidebarWithDependencies;
+};
+
+const Sidebar = createSidebar({ SignOutControl: SignOutButton, useCurrentPathname: usePathname });
+
+export { createSidebar, Sidebar };
+export type { SidebarDependencies };

@@ -51,14 +51,24 @@ type PreparedEmailPayload = {
   to: EmailConfig["to"];
 };
 
-const sendEmail = async ({ apiKey, defaultReplyTo, template, ...config }: SendEmailOptions) => {
+type ResendClient = ReturnType<typeof createResendClient>;
+type EmailClient = {
+  batch: Pick<ResendClient["batch"], "send">;
+  emails: Pick<ResendClient["emails"], "send">;
+};
+type EmailClientFactory = (apiKey: string) => EmailClient;
+
+const sendEmail = async (
+  { apiKey, defaultReplyTo, template, ...config }: SendEmailOptions,
+  createClient: EmailClientFactory = createResendClient,
+) => {
   if (!apiKey) {
     throw new Error("API key is required for sending emails");
   }
 
   try {
     const validatedConfig = emailConfigSchema.parse(config);
-    const resend = createResendClient(apiKey);
+    const resend = createClient(apiKey);
 
     const [html, text] = await Promise.all([
       render(template),
@@ -104,6 +114,7 @@ const sendBatchEmails = async (
   emails: Array<SendEmailOptions>,
   apiKey: string,
   defaultReplyTo?: string,
+  createClient: EmailClientFactory = createResendClient,
 ) => {
   if (!apiKey) {
     throw new Error("API key is required for sending emails");
@@ -114,7 +125,7 @@ const sendBatchEmails = async (
   }
 
   try {
-    const resend = createResendClient(apiKey);
+    const resend = createClient(apiKey);
 
     const settledBatchData = await Promise.allSettled(
       emails.map(async ({ template, ...config }) => {
@@ -196,3 +207,4 @@ const previewEmail = async (template: ReactElement) => {
 };
 
 export { sendEmail, sendBatchEmails, previewEmail };
+export type { EmailClient, EmailClientFactory };

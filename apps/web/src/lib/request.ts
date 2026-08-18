@@ -22,7 +22,8 @@ const fetchActiveOrgId = async (): Promise<string | null> => {
   if (!res.ok) {
     throw new Error(`GET ${ME_PATH} failed (${res.status})`);
   }
-  // oxlint-disable-next-line no-unsafe-type-assertion -- first-party discovery response; a missing org falls through to null
+  // SAFETY: The first-party /api/me route owns the MeBody response contract.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   const body = (await res.json()) as MeBody;
   return body.currentOrg?.id ?? body.orgs.find((org) => org.role === "CUSTOMER")?.id ?? null;
 };
@@ -59,7 +60,8 @@ const request = async <T>(path: string, label: string, init?: RequestInit): Prom
   if (!res.ok) {
     throw new Error(`${label} failed (${res.status})`);
   }
-  // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
+  // SAFETY: Callers bind T to the contract of the first-party route they request.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   return (await res.json()) as T;
 };
 

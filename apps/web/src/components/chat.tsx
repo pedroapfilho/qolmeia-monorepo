@@ -21,7 +21,7 @@ import { useSyncExternalStore } from "react";
 
 import { ChatComposer } from "@/components/chat-composer";
 import { MarkdownResponse } from "@/components/markdown-response";
-import type { ChatMessage } from "@/lib/use-flue-chat";
+import type { ChatMessage, UseFlueChatResult } from "@/lib/use-flue-chat";
 import { useFlueChat } from "@/lib/use-flue-chat";
 
 type ChatProps = {
@@ -206,22 +206,14 @@ const PlannerGreeting = ({ scrollAnchor }: { scrollAnchor: boolean }) => (
   </MessageScrollerItem>
 );
 
-const ChatInner = ({
-  agent: agentName = "correspondent",
-  agentsUrl,
-  companyId,
-  sessionToken,
-}: ChatProps) => {
-  const { historyReady, messages, sendMessage, status } = useFlueChat({
-    agent: agentName,
-    baseUrl: agentsUrl,
-    companyId,
-    onError: () => {
-      toast.error("Não foi possível enviar. Tente novamente.");
-    },
-    sessionToken,
-  });
+type ChatViewProps = Pick<ChatProps, "agent"> & {
+  chat: UseFlueChatResult;
+};
 
+const ChatView = ({
+  agent: agentName = "correspondent",
+  chat: { historyReady, messages, sendMessage, status },
+}: ChatViewProps) => {
   const visibleMessages = messages.filter(
     (message) => !isKickoffMessage(message) && isChatMessage(message) && hasVisibleContent(message),
   );
@@ -336,6 +328,21 @@ const ChatInner = ({
 };
 
 const subscribeNoop = () => () => {};
+
+const ChatClient = ({ agent = "correspondent", agentsUrl, companyId, sessionToken }: ChatProps) => {
+  const chat = useFlueChat({
+    agent,
+    baseUrl: agentsUrl,
+    companyId,
+    onError: () => {
+      toast.error("Não foi possível enviar. Tente novamente.");
+    },
+    sessionToken,
+  });
+
+  return <ChatView agent={agent} chat={chat} />;
+};
+
 const Chat = (props: ChatProps) => {
   const isClient = useSyncExternalStore(
     subscribeNoop,
@@ -347,7 +354,8 @@ const Chat = (props: ChatProps) => {
     return <ChatSkeleton />;
   }
 
-  return <ChatInner {...props} />;
+  return <ChatClient {...props} />;
 };
 
-export { Chat, PLANNER_GREETING, PLANNER_KICKOFF };
+export { Chat, ChatView, PLANNER_GREETING, PLANNER_KICKOFF };
+export type { ChatProps, ChatViewProps };

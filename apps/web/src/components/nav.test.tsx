@@ -1,19 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
-}));
+import { createNav } from "./nav";
 
-vi.mock("@repo/ui/components/sign-out-button", () => ({
-  SignOutButton: () => <button type="button">Sair</button>,
-}));
-
-vi.mock("@repo/ui/lib/utils", () => ({
-  cn: (...args: ReadonlyArray<unknown>) => args.filter(Boolean).join(" "),
-}));
-
-const { Nav } = await import("./nav");
+const Nav = createNav({
+  SignOutControl: () => <button type="button">Sair</button>,
+  useCurrentPathname: () => "/",
+});
 
 describe("Nav", () => {
   it("renders the three top-level customer links", () => {

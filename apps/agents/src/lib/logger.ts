@@ -4,7 +4,7 @@ type LogPayload = Record<string, unknown>;
 
 const MAX_STRING_LEN = 500;
 
-const truncate = (value: unknown): unknown => {
+const truncate = <Value>(value: Value): Value | string => {
   if (typeof value === "string" && value.length > MAX_STRING_LEN) {
     return `${value.slice(0, MAX_STRING_LEN)}…[+${value.length - MAX_STRING_LEN}]`;
   }

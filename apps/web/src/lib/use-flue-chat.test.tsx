@@ -1,30 +1,20 @@
-import type * as FlueSdk from "@flue/sdk";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-const rawSend = vi.fn();
+import { createUseFlueChat, type ConversationHookOptions } from "./use-flue-chat";
+
 const hookSendMessage = vi.fn();
-const createFlueClient = vi.fn((options: { url: string }) => ({
-  send: rawSend,
-  url: options.url,
-}));
-
-vi.mock("@flue/sdk", async (importOriginal) => {
-  const actual = await importOriginal<typeof FlueSdk>();
-  return { ...actual, createFlueClient };
-});
-
-vi.mock("@flue/react", () => ({
-  useFlueAgent: vi.fn(() => ({
+let capturedOptions: ConversationHookOptions | undefined;
+const useFlueChat = createUseFlueChat((options) => {
+  capturedOptions = options;
+  return {
     error: undefined,
     historyReady: true,
     messages: [],
     sendMessage: hookSendMessage,
     status: "idle",
-  })),
-}));
-
-const { useFlueChat } = await import("./use-flue-chat");
+  };
+});
 
 describe("useFlueChat", () => {
   it("sends customer messages through the React conversation hook", async () => {
@@ -43,7 +33,6 @@ describe("useFlueChat", () => {
     });
 
     expect(hookSendMessage).toHaveBeenCalledWith("Olá", { images: [] });
-    expect(rawSend).not.toHaveBeenCalled();
   });
 
   it("addresses the conversation by agent mount plus company id", () => {
@@ -55,8 +44,6 @@ describe("useFlueChat", () => {
       }),
     );
 
-    expect(createFlueClient).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "https://agents.test/agents/correspondent/co_test" }),
-    );
+    expect(capturedOptions?.url).toBe("https://agents.test/agents/correspondent/co_test");
   });
 });

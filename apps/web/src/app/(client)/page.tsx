@@ -54,7 +54,8 @@ const fetchJson = async <T,>(
   if (!res.ok) {
     throw new Error(`${url} responded ${res.status}`);
   }
-  // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
+  // SAFETY: Callers bind T to the contract of the first-party route they request.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   return { data: (await res.json()) as T, kind: "ok" };
 };
 

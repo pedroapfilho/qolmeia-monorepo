@@ -3,21 +3,13 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TeamMemberView } from "@/lib/team";
-import { useTeamRoster } from "@/lib/use-team-roster";
+import { createUseTeamRoster } from "@/lib/use-team-roster";
 
 const mockFetchTeam = vi.fn();
 const mockSubscribeTeamEvents = vi.fn();
-
-vi.mock("@/lib/team", async () => {
-  const actual = await vi.importActual<{
-    fetchTeam: () => Promise<Array<TeamMemberView>>;
-  }>("@/lib/team");
-  return {
-    ...actual,
-    fetchTeam: () => mockFetchTeam(),
-    subscribeTeamEvents: (onEvent: () => void) => mockSubscribeTeamEvents(onEvent),
-  };
+const useTeamRoster = createUseTeamRoster({
+  fetchRoster: mockFetchTeam,
+  subscribeToTeamEvents: mockSubscribeTeamEvents,
 });
 
 const createWrapper = () => {
@@ -37,7 +29,7 @@ beforeEach(() => {
   mockFetchTeam.mockReset();
   mockFetchTeam.mockResolvedValue([]);
   mockSubscribeTeamEvents.mockReset();
-  mockSubscribeTeamEvents.mockReturnValue(undefined);
+  mockSubscribeTeamEvents.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -97,7 +89,7 @@ describe("useTeamRoster", () => {
     let notify: (() => void) | undefined;
     mockSubscribeTeamEvents.mockImplementation((onEvent: () => void) => {
       notify = onEvent;
-      return undefined;
+      return null;
     });
 
     const { result } = renderRoster();

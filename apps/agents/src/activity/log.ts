@@ -64,7 +64,8 @@ const listActivity = async (
     companyName: row.company.name,
     createdAt: row.createdAt.getTime(),
     id: row.id,
-    // oxlint-disable-next-line no-unsafe-type-assertion -- payload is a JSON column written by logActivity in this module
+    // SAFETY: logActivity is the only writer and accepts the ActivityEvent payload contract.
+    // oxlint-disable-next-line no-unsafe-type-assertion
     payload: row.payload as Record<string, unknown> | null,
     refId: row.refId,
     refType: row.refType,

@@ -2,7 +2,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "./generated/prisma/client";
 
-// oxlint-disable-next-line no-unsafe-type-assertion, anti-slop/no-chained-type-assertions -- canonical Prisma singleton: globalThis carries no typed slot for the cached client
+// SAFETY: globalThis has no typed slot for Prisma's process-wide singleton.
+// oxlint-disable-next-line no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
@@ -28,13 +29,20 @@ const getPrismaClient = (): PrismaClient => {
   return globalForPrisma.prisma;
 };
 
+const isPrismaClientKey = (client: PrismaClient, key: PropertyKey): key is keyof PrismaClient =>
+  key in client;
+
 export const prisma = new Proxy(
-  // oxlint-disable-next-line no-unsafe-type-assertion -- Proxy target is never read; every access is routed through the get trap
+  // SAFETY: The proxy target is never read because every access runs through get.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   {} as PrismaClient,
   {
     get(_target, prop) {
       const client = getPrismaClient();
-      const value: unknown = Reflect.get(client, prop, client);
+      if (!isPrismaClientKey(client, prop)) {
+        return undefined;
+      }
+      const value: unknown = client[prop];
       // oxlint-disable-next-line no-unsafe-return -- Function.prototype.bind is typed `any`; the trap forwards whatever the client exposes
       return typeof value === "function" ? value.bind(client) : value;
     },

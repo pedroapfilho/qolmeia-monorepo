@@ -4,13 +4,9 @@ import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 
-vi.mock("@/lib/env", () => ({
-  env: { NODE_ENV: "development" },
-}));
+import { createErrorHandler, notFound } from "./error-handler";
 
-import { env } from "@/lib/env";
-
-import { errorHandler, notFound } from "./error-handler";
+const errorHandler = createErrorHandler("development");
 
 const mockLogger = { error: vi.fn(), info: vi.fn() };
 
@@ -106,19 +102,14 @@ describe("errorHandler", () => {
   });
 
   it("should hide error message in production", () => {
-    const mutableEnv = env as { NODE_ENV: string };
-    mutableEnv.NODE_ENV = "production";
-
     const c = createMockContext();
     const err = new Error("secret detail");
 
-    errorHandler(err, c);
+    createErrorHandler("production")(err, c);
 
     const call = c.json.mock.calls[0];
     expect(call?.[0]?.error?.message).toBe("An unexpected error occurred");
     expect(call?.[0]?.error?.stack).toBeUndefined();
-
-    mutableEnv.NODE_ENV = "development";
   });
 });
 

@@ -26,8 +26,9 @@ const buildRejectGuard = (): MiddlewareHandler => (c: Context, _next: Next) =>
 
 const buildMockPrisma = () => {
   const prisma = {
-    $transaction: vi.fn((callback: (tx: typeof prisma) => Promise<unknown>): Promise<unknown> =>
-      callback(prisma),
+    $transaction: vi.fn(
+      <Result>(callback: (tx: typeof prisma) => Promise<Result>): Promise<Result> =>
+        callback(prisma),
     ),
     organization: {
       create: vi.fn().mockResolvedValue({ id: "new_org", name: "New", slug: "new-org" }),

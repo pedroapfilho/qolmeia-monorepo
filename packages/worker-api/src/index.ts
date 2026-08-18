@@ -27,10 +27,12 @@ const handleResponse = async <T>(res: Response): Promise<T> => {
     throw new ApiError(res.status, body);
   }
   if (res.status === 204) {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- 204 has no body; callers request T = null for delete endpoints
+    // SAFETY: Delete endpoints bind T to null and HTTP 204 has no response body.
+    // oxlint-disable-next-line no-unsafe-type-assertion
     return null as T;
   }
-  // oxlint-disable-next-line no-unsafe-type-assertion -- typed-fetch helper for first-party API routes; callers own T
+  // SAFETY: Callers bind T to the contract of the first-party route they request.
+  // oxlint-disable-next-line no-unsafe-type-assertion
   return res.json() as Promise<T>;
 };
 
