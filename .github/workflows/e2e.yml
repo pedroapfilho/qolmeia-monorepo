@@ -16,6 +16,7 @@ jobs:
       CI: true
       DATABASE_URL: postgresql://test:test@localhost:5432/test
       BETTER_AUTH_SECRET: test-secret-minimum-32-characters-long-for-e2e
+      EXPOSE_TESTING_API: 1
       CORS_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
       # Auth is SAME-ORIGIN in the Next apps: next.config.ts rewrites
       # /api/auth/* to AUTH_SERVICE_INTERNAL_URL. The destination is baked

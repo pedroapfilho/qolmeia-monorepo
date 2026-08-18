@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { TeamMemberView } from "@/lib/team";
 import { createUseTeamRoster } from "@/lib/use-team-roster";
 
 const mockFetchTeam = vi.fn();
@@ -22,8 +23,19 @@ const createWrapper = () => {
   return Wrapper;
 };
 
-const renderRoster = () =>
-  renderHook(() => useTeamRoster("co1", "tok"), { wrapper: createWrapper() });
+const renderRoster = () => renderHook(() => useTeamRoster("co1"), { wrapper: createWrapper() });
+
+const initialMember: TeamMemberView = {
+  currentWork: [],
+  displayName: "Planejador",
+  hasPromptOverride: false,
+  id: "planner-co1",
+  lifetimeDone: 0,
+  role: "planner",
+  status: "available",
+  templateId: null,
+  workerKind: null,
+};
 
 beforeEach(() => {
   mockFetchTeam.mockReset();
@@ -46,6 +58,16 @@ describe("useTeamRoster", () => {
 
     expect(mockFetchTeam).toHaveBeenCalledOnce();
     expect(result.current.members).toEqual([]);
+  });
+
+  it("uses server initial data without refetching on mount", () => {
+    const { result } = renderHook(() => useTeamRoster("co1", [initialMember]), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.members).toEqual([initialMember]);
+    expect(result.current.status).toBe("ready");
+    expect(mockFetchTeam).not.toHaveBeenCalled();
   });
 
   it("refetches on visibility change to visible", async () => {

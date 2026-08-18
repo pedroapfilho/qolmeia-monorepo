@@ -36,7 +36,7 @@ const rosterStatus = (query: { isError: boolean; isPending: boolean }): RosterSt
 const createUseTeamRoster = ({ fetchRoster, subscribeToTeamEvents }: TeamRosterDependencies) => {
   const useTeamRosterWithDependencies = (
     companyId: string,
-    _sessionToken: string,
+    initialData?: Array<TeamMemberView>,
   ): UseTeamRosterResult => {
     const queryClient = useQueryClient();
     const queryKey = useMemo(() => teamQueryKey(companyId), [companyId]);
@@ -47,10 +47,12 @@ const createUseTeamRoster = ({ fetchRoster, subscribeToTeamEvents }: TeamRosterD
       isPending,
       refetch: queryRefetch,
     } = useQuery({
+      initialData,
       meta: { errorToast: "Falha ao sincronizar time" },
       queryFn: fetchRoster,
       queryKey,
       refetchInterval: POLL_INTERVAL_MS,
+      refetchOnMount: initialData === undefined,
       refetchOnWindowFocus: true,
       staleTime: 0,
     });
@@ -84,5 +86,5 @@ const useTeamRoster = createUseTeamRoster({
   subscribeToTeamEvents: subscribeTeamEvents,
 });
 
-export { createUseTeamRoster, useTeamRoster };
-export type { TeamRosterDependencies };
+export { createUseTeamRoster, teamQueryKey, useTeamRoster };
+export type { TeamRosterDependencies, UseTeamRosterResult };

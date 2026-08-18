@@ -96,7 +96,7 @@ const ChatContent = async () => {
         />
       </div>
       <div className="hidden lg:flex">
-        <TeamSidebar companyId={companyId} sessionToken={token} />
+        <TeamSidebar companyId={companyId} />
       </div>
     </div>
   );

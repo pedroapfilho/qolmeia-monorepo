@@ -13,7 +13,7 @@ const NavData = async () => {
 const NavSkeleton = () => (
   <div
     aria-hidden
-    className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-5"
+    className="sticky top-0 z-10 flex h-24 shrink-0 items-start justify-between gap-3 border-b border-border bg-card px-4 pt-4 md:h-14 md:items-center md:px-5 md:pt-0"
   >
     <Skeleton className="h-6 w-32" />
     <Skeleton className="size-[30px]" />
@@ -21,9 +21,7 @@ const NavSkeleton = () => (
 );
 
 const ClientLayout = ({ children }: { children: ReactNode }) => (
-  <div className="flex min-h-screen flex-col bg-background">
-    {/* Instant navigation: the static nav shell streams immediately while the
-        session-bound org name resolves on the server. */}
+  <div className="flex min-h-svh flex-col bg-background">
     <Suspense fallback={<NavSkeleton />}>
       <NavData />
     </Suspense>

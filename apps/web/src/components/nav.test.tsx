@@ -9,9 +9,10 @@ const Nav = createNav({
 });
 
 describe("Nav", () => {
-  it("renders the three top-level customer links", () => {
+  it("renders the four top-level customer links", () => {
     render(<Nav orgName="Salão" />);
     expect(screen.getByRole("link", { name: /Chat/v })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /Empresa/v })).toHaveAttribute("href", "/empresa");
     expect(screen.getByRole("link", { name: /Assets/v })).toHaveAttribute("href", "/assets");
     expect(screen.getByRole("link", { name: /Atividade/v })).toHaveAttribute("href", "/activity");
   });

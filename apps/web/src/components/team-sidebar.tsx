@@ -7,11 +7,10 @@ import { useTeamRoster } from "@/lib/use-team-roster";
 
 type TeamSidebarProps = {
   companyId: string;
-  sessionToken: string;
 };
 
-const TeamSidebar = ({ companyId, sessionToken }: TeamSidebarProps) => {
-  const { error, members, status } = useTeamRoster(companyId, sessionToken);
+const TeamSidebar = ({ companyId }: TeamSidebarProps) => {
+  const { error, members, status } = useTeamRoster(companyId);
   return (
     <aside
       aria-label="Seu time"

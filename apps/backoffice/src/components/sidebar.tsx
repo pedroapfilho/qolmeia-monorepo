@@ -120,75 +120,108 @@ type SidebarDependencies = {
   useCurrentPathname: () => string;
 };
 
+type SidebarNavProps = {
+  mobile?: boolean;
+  pathname: string;
+  pendingCount: number;
+};
+
+const SidebarNav = ({ mobile = false, pathname, pendingCount }: SidebarNavProps) => (
+  <nav className={cn("flex gap-0.5", mobile ? "overflow-x-auto px-3 pb-2" : "flex-col")}>
+    {NAV_ITEMS.map((item) => {
+      const active = isActive(pathname, item.href);
+      const showBadge = item.href === "/approvals" && pendingCount > 0;
+      return (
+        <Link
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "flex shrink-0 items-center gap-[11px] rounded-lg px-2.5 text-sm transition-colors",
+            mobile ? "min-h-11" : "h-[38px]",
+            "[&_svg]:size-[18px]",
+            active
+              ? "bg-highlight-surface font-semibold text-primary"
+              : "font-medium text-muted-foreground hover:bg-highlight-surface/50 hover:text-foreground",
+          )}
+          href={item.href}
+          key={item.href}
+        >
+          {item.icon}
+          {item.label}
+          {showBadge ? (
+            <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 font-mono text-[11px] font-semibold text-white">
+              {pendingCount}
+            </span>
+          ) : null}
+        </Link>
+      );
+    })}
+  </nav>
+);
+
 const createSidebar = ({ SignOutControl, useCurrentPathname }: SidebarDependencies) => {
   const SidebarWithDependencies = ({ pendingCount = 0, user }: SidebarProps) => {
     const pathname = useCurrentPathname();
 
     return (
-      <aside
-        aria-label="Navegação principal"
-        className="hidden h-screen w-[238px] shrink-0 flex-col border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
-      >
-        <div className="px-1.5">
-          <Link className="inline-flex transition-opacity hover:opacity-80" href="/">
-            <Logo className="h-6 w-auto" />
-          </Link>
-        </div>
-
-        <p className="px-2 pt-4 pb-2 font-mono text-xs tracking-wide text-muted-foreground uppercase">
-          Painel operador
-        </p>
-
-        <nav className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(pathname, item.href);
-            const showBadge = item.href === "/approvals" && pendingCount > 0;
-            return (
-              <Link
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex h-[38px] items-center gap-[11px] rounded-lg px-2.5 text-sm transition-colors",
-                  "[&_svg]:size-[18px]",
-                  active
-                    ? "bg-highlight-surface font-semibold text-primary"
-                    : "font-medium text-muted-foreground hover:bg-highlight-surface/50 hover:text-foreground",
-                )}
-                href={item.href}
-                key={item.href}
-              >
-                {item.icon}
-                {item.label}
-                {showBadge ? (
-                  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 font-mono text-xs font-semibold text-white">
-                    {pendingCount}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto border-t border-border pt-3.5">
-          {user ? (
-            <div className="flex items-center gap-2.5 px-1.5">
-              <span
-                aria-hidden
-                className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] bg-foreground text-[0.8125rem] font-bold text-background"
-              >
-                {initialsFrom(user.name)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[0.8125rem] font-bold text-foreground">{user.name}</p>
-                <p className="truncate font-mono text-xs text-muted-foreground">{user.email}</p>
-              </div>
-              <span className="rounded-md bg-highlight-surface px-1.5 py-1 font-mono text-xs font-semibold text-highlight-surface-foreground">
-                {user.role}
-              </span>
+      <>
+        <header
+          aria-label="Navegação principal"
+          className="sticky top-0 z-10 flex flex-col border-b border-border bg-card md:hidden"
+        >
+          <div className="flex h-14 items-center justify-between gap-3 px-4">
+            <Link
+              aria-label="Qolmeia backoffice"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center"
+              href="/"
+            >
+              <Logo className="h-6 w-auto" />
+            </Link>
+            <div className="flex min-w-0 items-center gap-2">
+              {user ? (
+                <span className="truncate text-sm font-semibold text-foreground">{user.name}</span>
+              ) : null}
+              <SignOutControl className="min-h-11" />
             </div>
-          ) : null}
-          <SignOutControl className="mt-2 w-full justify-start" />
-        </div>
-      </aside>
+          </div>
+          <SidebarNav mobile pathname={pathname} pendingCount={pendingCount} />
+        </header>
+        <aside
+          aria-label="Navegação principal"
+          className="hidden h-screen w-[238px] shrink-0 flex-col border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
+        >
+          <div className="px-1.5">
+            <Link className="inline-flex transition-opacity hover:opacity-80" href="/">
+              <Logo className="h-6 w-auto" />
+            </Link>
+          </div>
+          <p className="px-2 pt-4 pb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            Painel operador
+          </p>
+          <SidebarNav pathname={pathname} pendingCount={pendingCount} />
+          <div className="mt-auto border-t border-border pt-3.5">
+            {user ? (
+              <div className="flex items-center gap-2.5 px-1.5">
+                <span
+                  aria-hidden
+                  className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] bg-foreground text-[13px] font-bold text-background"
+                >
+                  {initialsFrom(user.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold text-foreground">{user.name}</p>
+                  <p className="truncate font-mono text-[10px] text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+                <span className="rounded-md bg-highlight-surface px-1.5 py-1 font-mono text-[9.5px] font-semibold text-highlight-surface-foreground">
+                  {user.role}
+                </span>
+              </div>
+            ) : null}
+            <SignOutControl className="mt-2 w-full justify-start" />
+          </div>
+        </aside>
+      </>
     );
   };
 

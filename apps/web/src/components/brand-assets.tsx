@@ -18,6 +18,7 @@ import { useRef, useState } from "react";
 import {
   BRAND_CATEGORIES,
   BRAND_CATEGORY_LABEL,
+  type BrandAsset,
   type BrandCategory,
   deleteBrandAsset,
   fetchBrandAssets,
@@ -27,39 +28,103 @@ import {
 const isBrandCategory = (value: string): value is BrandCategory =>
   BRAND_CATEGORIES.some((category) => category.value === value);
 
-const BRAND_QUERY_KEY = ["brand-assets"] as const;
+const brandQueryKey = (companyId: string) => ["brand-assets", companyId] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = ["image/gif", "image/jpeg", "image/png", "image/svg+xml", "image/webp"];
 
-const BrandAssets = () => {
+type BrandAssetsProps = {
+  companyId: string;
+  initialData?: Array<BrandAsset>;
+};
+
+type UploadContext = {
+  optimisticId: string;
+  previous: Array<BrandAsset> | undefined;
+};
+
+type DeleteContext = {
+  previous: Array<BrandAsset> | undefined;
+};
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Falha ao preparar a imagem."));
+      }
+    });
+    reader.addEventListener("error", () => {
+      reject(reader.error ?? new Error("Falha ao preparar a imagem."));
+    });
+    reader.readAsDataURL(file);
+  });
+
+const BrandAssets = ({ companyId, initialData }: BrandAssetsProps) => {
   const queryClient = useQueryClient();
+  const queryKey = brandQueryKey(companyId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<BrandCategory>("logo");
 
   const { data: assets = [], isPending } = useQuery({
+    initialData,
     meta: { errorToast: "Falha ao carregar a marca" },
     queryFn: fetchBrandAssets,
-    queryKey: BRAND_QUERY_KEY,
+    queryKey,
   });
 
-  const uploadMutation = useMutation({
+  const uploadMutation = useMutation<BrandAsset, Error, File, UploadContext>({
     mutationFn: (file: File) => uploadBrandAsset(file, category),
-    onError: () => {
+    onError: (_error, _file, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
       toast.error("Falha no upload. Tente de novo.");
     },
-    onSuccess: () => {
+    onMutate: async (file) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Array<BrandAsset>>(queryKey);
+      const previewUrl = await fileToDataUrl(file);
+      const optimisticId = `optimistic-${crypto.randomUUID()}`;
+      const optimisticAsset: BrandAsset = {
+        category,
+        createdAt: new Date().toISOString(),
+        id: optimisticId,
+        mimeType: file.type,
+        name: file.name || null,
+        url: previewUrl,
+      };
+      queryClient.setQueryData<Array<BrandAsset>>(queryKey, (current = []) => [
+        optimisticAsset,
+        ...current,
+      ]);
+      return { optimisticId, previous };
+    },
+    onSuccess: (asset, _file, context) => {
+      queryClient.setQueryData<Array<BrandAsset>>(queryKey, (current = []) =>
+        current.map((item) => (item.id === context.optimisticId ? asset : item)),
+      );
       toast.success("Referência adicionada.");
-      void queryClient.invalidateQueries({ queryKey: BRAND_QUERY_KEY });
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation<boolean, Error, string, DeleteContext>({
     mutationFn: (id: string) => deleteBrandAsset(id),
-    onError: () => {
+    onError: (_error, _id, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
       toast.error("Não foi possível remover.");
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: BRAND_QUERY_KEY });
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Array<BrandAsset>>(queryKey);
+      queryClient.setQueryData<Array<BrandAsset>>(queryKey, (current = []) =>
+        current.filter((asset) => asset.id !== id),
+      );
+      return { previous };
     },
   });
 
@@ -94,7 +159,7 @@ const BrandAssets = () => {
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             Categoria
             <select
-              className="h-9 rounded-lg border border-input bg-background px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 sm:text-sm"
+              className="h-11 rounded-lg border border-input bg-background px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 sm:h-9 sm:text-sm"
               onChange={(e) => {
                 const { value } = e.currentTarget;
                 if (isBrandCategory(value)) {

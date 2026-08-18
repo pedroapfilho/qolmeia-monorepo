@@ -1,10 +1,25 @@
+import { instant } from "@next/playwright";
 import { expect, test } from "@playwright/test";
 
 import { backofficeUrl } from "../../../playwright.config";
 
 const backofficeRoot = new RegExp(`${backofficeUrl.replaceAll(".", String.raw`\.`)}/$`, "v");
 
-test.describe("Soft navigation", () => {
+test.describe("Instant navigation", () => {
+  test("ticket shell renders on initial load", async ({ page }) => {
+    await page.context().addCookies([{ name: "e2e-role", url: backofficeUrl, value: "OWNER" }]);
+
+    await instant(
+      page,
+      async () => {
+        await page.goto("/tickets");
+        await expect(page.locator("aside[aria-hidden]")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Tickets" })).toBeHidden();
+      },
+      { baseURL: backofficeUrl },
+    );
+  });
+
   test("navigating to the dashboard home keeps the persistent shell without a reload", async ({
     page,
   }) => {
@@ -19,10 +34,11 @@ test.describe("Soft navigation", () => {
       document.documentElement.dataset.softNavMarker = "1";
     });
 
-    await shell.locator('nav a[href="/"]').click();
-
-    await expect(page).toHaveURL(backofficeRoot);
-    await expect(page.getByRole("heading", { name: "Início" })).toBeVisible();
+    await instant(page, async () => {
+      await shell.locator('nav a[href="/"]').click();
+      await expect(page).toHaveURL(backofficeRoot);
+      await expect(page.getByRole("heading", { name: "Início" })).toBeVisible();
+    });
 
     await expect(page.locator("html")).toHaveAttribute("data-soft-nav-marker", "1");
   });

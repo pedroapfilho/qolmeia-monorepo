@@ -15,21 +15,22 @@ const Sidebar = createSidebar({
 describe("Sidebar", () => {
   it("renders every nav link in pt-BR", () => {
     render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /Início/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Aprovações/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Tickets/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Modelos/v })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Atividade/v })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Início/v })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /Aprovações/v })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /Tickets/v })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /Modelos/v })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /Atividade/v })).toHaveLength(2);
   });
 
   it("marks the active route with aria-current", () => {
     render(<Sidebar />);
-    const active = screen.getByRole("link", { name: /Aprovações/v });
-    expect(active.getAttribute("aria-current")).toBe("page");
+    const activeLinks = screen.getAllByRole("link", { name: /Aprovações/v });
+    expect(activeLinks).toHaveLength(2);
+    expect(activeLinks.every((link) => link.getAttribute("aria-current") === "page")).toBe(true);
   });
 
   it("renders the sign-out control in the footer", () => {
     render(<Sidebar />);
-    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Sair" })).toHaveLength(2);
   });
 });

@@ -12,9 +12,15 @@ import { toast } from "@repo/ui/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { type BriefPatch, type CompanyBrief, fetchCompany, patchCompanyBrief } from "@/lib/company";
+import {
+  type BriefPatch,
+  type CompanyBrief,
+  type CompanyResponse,
+  fetchCompany,
+  patchCompanyBrief,
+} from "@/lib/company";
 
-const COMPANY_QUERY_KEY = ["company"] as const;
+const companyQueryKey = (companyId: string) => ["company", companyId] as const;
 const REQUIRED_COUNT = 6;
 
 type FormState = {
@@ -71,10 +77,11 @@ const MissingMark = ({ show }: { show: boolean }) =>
     </Badge>
   ) : null;
 
-type BriefCardProps = { initial: CompanyBrief };
+type BriefCardProps = { companyId: string; initial: CompanyBrief };
 
-const BriefCard = ({ initial }: BriefCardProps) => {
+const BriefCard = ({ companyId, initial }: BriefCardProps) => {
   const queryClient = useQueryClient();
+  const queryKey = companyQueryKey(companyId);
   const [form, setForm] = useState<FormState>(() => briefToForm(initial));
 
   const mutation = useMutation({
@@ -83,7 +90,7 @@ const BriefCard = ({ initial }: BriefCardProps) => {
       toast.error("Não foi possível salvar. Tente novamente.");
     },
     onSuccess: (res) => {
-      queryClient.setQueryData(COMPANY_QUERY_KEY, res);
+      queryClient.setQueryData(queryKey, res);
       toast.success("Informações da empresa salvas.");
     },
   });
@@ -224,11 +231,17 @@ const BriefCard = ({ initial }: BriefCardProps) => {
   );
 };
 
-const CompanyBriefForm = () => {
+type CompanyBriefFormProps = {
+  companyId: string;
+  initialData?: CompanyResponse;
+};
+
+const CompanyBriefForm = ({ companyId, initialData }: CompanyBriefFormProps) => {
   const { data, isPending } = useQuery({
+    initialData,
     meta: { errorToast: "Falha ao carregar dados da empresa" },
     queryFn: fetchCompany,
-    queryKey: COMPANY_QUERY_KEY,
+    queryKey: companyQueryKey(companyId),
   });
 
   if (isPending || !data) {
@@ -245,7 +258,13 @@ const CompanyBriefForm = () => {
     );
   }
 
-  return <BriefCard initial={data.company.brief} key={JSON.stringify(data.company.brief)} />;
+  return (
+    <BriefCard
+      companyId={companyId}
+      initial={data.company.brief}
+      key={JSON.stringify(data.company.brief)}
+    />
+  );
 };
 
 export { CompanyBriefForm };

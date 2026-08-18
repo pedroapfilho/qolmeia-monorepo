@@ -4,7 +4,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["qolmeia.landing.localhost", "*.qolmeia.landing.localhost", "*.vercel.app"],
   cacheComponents: true,
 
-  experimental: { turbopackRustReactCompiler: true },
+  experimental: {
+    exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
+    instantInsights: { validationLevel: "manual-warning" },
+    turbopackRustReactCompiler: true,
+  },
 
   headers: () =>
     Promise.resolve([
