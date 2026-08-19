@@ -16,7 +16,7 @@ type MailerConfig = {
   from?: string;
 };
 
-const DEFAULT_FROM = "Qolmeia <noreply@qolmeia.com>";
+const DEFAULT_FROM = "Qolmeia <noreply@email.qolmeia.com>";
 
 type WelcomePayload = {
   userEmail: string;

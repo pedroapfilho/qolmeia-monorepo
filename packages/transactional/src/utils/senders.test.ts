@@ -126,7 +126,7 @@ describe("sendTransactionalEmail", () => {
 
     expect(result.success).toBe(true);
     expect(sendMock.mock.calls[0][0]).toMatchObject({
-      from: "Qolmeia <noreply@qolmeia.com>",
+      from: "Qolmeia <noreply@email.qolmeia.com>",
       subject: "Welcome to Qolmeia, Pedro! Please verify your email",
       tags: [
         { name: "type", value: "welcome" },
@@ -143,12 +143,12 @@ describe("sendTransactionalEmail", () => {
         url: "https://app.qolmeia.com/auth/magic?token=mlk-123",
         userEmail: "user@example.com",
       },
-      { apiKey: "re_test", from: "noreply@qolmeia.com" },
+      { apiKey: "re_test", from: "noreply@email.qolmeia.com" },
     );
 
     expect(result.success).toBe(true);
     expect(sendMock.mock.calls[0][0]).toMatchObject({
-      from: "noreply@qolmeia.com",
+      from: "noreply@email.qolmeia.com",
       subject: "Seu link de acesso à Qolmeia",
       tags: [{ name: "type", value: "magic-link" }],
       to: "user@example.com",

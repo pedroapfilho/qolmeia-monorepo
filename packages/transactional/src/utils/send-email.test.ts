@@ -21,7 +21,7 @@ describe("sendEmail from validation", () => {
     const result = await sendEmail(
       {
         apiKey: "re_test",
-        from: "Qolmeia <noreply@qolmeia.com>",
+        from: "Qolmeia <noreply@email.qolmeia.com>",
         subject: "x",
         template,
         to: "delivered+test@resend.dev",
@@ -32,7 +32,7 @@ describe("sendEmail from validation", () => {
     expect(result.success).toBe(true);
     expect(sendMock).toHaveBeenCalledOnce();
     expect(sendMock.mock.calls[0][0]).toMatchObject({
-      from: "Qolmeia <noreply@qolmeia.com>",
+      from: "Qolmeia <noreply@email.qolmeia.com>",
     });
   });
 
@@ -40,7 +40,7 @@ describe("sendEmail from validation", () => {
     const result = await sendEmail(
       {
         apiKey: "re_test",
-        from: "noreply@qolmeia.com",
+        from: "noreply@email.qolmeia.com",
         subject: "x",
         template,
         to: "delivered+test@resend.dev",
@@ -64,7 +64,7 @@ describe("sendEmail from validation", () => {
 
     expect(result.success).toBe(true);
     expect(sendMock.mock.calls[0][0]).toMatchObject({
-      from: "Qolmeia <noreply@qolmeia.com>",
+      from: "Qolmeia <noreply@email.qolmeia.com>",
     });
   });
 

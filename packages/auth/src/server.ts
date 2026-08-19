@@ -45,7 +45,7 @@ export const createAuth = (config: AuthConfig) => {
     allowedHosts,
     cookieDomain,
     extraPlugins = [],
-    fromEmail = "noreply@qolmeia.com",
+    fromEmail = "noreply@email.qolmeia.com",
     prisma,
     rateLimitEnabled = false,
     resendApiKey,
