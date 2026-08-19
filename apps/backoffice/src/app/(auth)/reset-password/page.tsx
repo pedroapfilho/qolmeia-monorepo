@@ -69,7 +69,7 @@ const ResetPasswordForm = ({ searchParams }: Props) => {
         <CardTitle className="text-2xl">Redefinir senha</CardTitle>
         <CardDescription>Crie uma nova senha para sua conta.</CardDescription>
       </CardHeader>
-      <form noValidate onSubmit={handleSubmit}>
+      <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={handleSubmit}>
         <CardContent>
           <FieldGroup>
             <form.Field name="password">
@@ -121,7 +121,7 @@ const ResetPasswordForm = ({ searchParams }: Props) => {
             </form.Field>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 pt-6">
+        <CardFooter className="flex flex-col gap-3">
           <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
             {([canSubmit, isSubmitting]) => (
               <Button
