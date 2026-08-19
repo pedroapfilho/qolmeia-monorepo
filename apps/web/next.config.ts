@@ -48,6 +48,20 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/client", "@repo/db"],
 
   transpilePackages: ["@repo/app-shell", "@repo/ui", "@repo/worker-api"],
+  turbopack: {
+    rules: {
+      "*.{ts,tsx}": {
+        condition: {
+          all: [
+            { not: "foreign" },
+            // oxlint-disable-next-line eslint/require-unicode-regexp -- Turbopack rejects RegExp flags.
+            { content: /[Zz]od/ },
+          ],
+        },
+        loaders: ["zod-compiler/turbopack"],
+      },
+    },
+  },
 };
 
 export default nextConfig;
