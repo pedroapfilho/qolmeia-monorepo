@@ -6,9 +6,8 @@ import { z } from "zod";
 import { provisionCompany } from "@/data/agents/companies";
 import { jsonError, unauthorized } from "@/lib/api-response";
 import { auth as defaultAuth } from "@/lib/auth";
-import { log } from "@/lib/logger";
 
-type OrgsPrisma = Pick<PrismaClient, "$transaction" | "organization" | "orgMembership">;
+type OrgsPrisma = Pick<PrismaClient, "$transaction">;
 
 type AuthLike = {
   api: {
@@ -22,7 +21,10 @@ type AuthLike = {
 type OrgsRouteDeps = {
   auth?: AuthLike;
   prisma?: OrgsPrisma;
-  provision?: (input: { id: string; name: string; slug: string }) => Promise<{ ok: true }>;
+  provision?: (
+    prisma: Prisma.TransactionClient,
+    input: { id: string; name: string; slug: string },
+  ) => Promise<{ ok: true }>;
 };
 
 const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
@@ -48,21 +50,10 @@ const createOrgSchema = z.object({
     .refine(isValidSlug, "slug must be lowercase alphanumeric or dashes"),
 });
 
-const provisionProductCompany = async (
-  provision: NonNullable<OrgsRouteDeps["provision"]>,
-  input: { id: string; name: string; slug: string },
-): Promise<{ ok: true } | { error: string; ok: false }> => {
-  try {
-    return await provision(input);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "unknown error", ok: false };
-  }
-};
-
 const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
   const prisma = deps.prisma ?? defaultPrisma;
   const auth = deps.auth ?? defaultAuth;
-  const provision = deps.provision ?? ((input) => provisionCompany(defaultPrisma, input));
+  const provision = deps.provision ?? provisionCompany;
   const app = new Hono();
 
   app.post("/", async (c) => {
@@ -97,6 +88,11 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
         await tx.orgMembership.create({
           data: { orgId: created.id, role: "OWNER", userId: session.user.id },
         });
+        await provision(tx, {
+          id: created.id,
+          name: created.name,
+          slug: created.slug,
+        });
         return created;
       });
     } catch (error) {
@@ -106,23 +102,10 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       throw error;
     }
 
-    const relay = await provisionProductCompany(provision, {
-      id: org.id,
-      name: org.name,
-      slug: org.slug,
-    });
-    if (!relay.ok) {
-      log.error({
-        companyId: org.id,
-        error: relay.error,
-        message: "[orgs] product provision failed",
-      });
-    }
-
     return c.json(
       {
         currentOrg: { id: org.id, name: org.name, role: "OWNER" as const, slug: org.slug },
-        productProvisioned: relay.ok,
+        productProvisioned: true,
       },
       201,
     );
