@@ -41,8 +41,11 @@ if (databaseUrl === undefined || secret === undefined) {
 const parsedDatabaseUrl = new URL(databaseUrl);
 const allowedHost =
   parsedDatabaseUrl.hostname === "localhost" || parsedDatabaseUrl.hostname === "127.0.0.1";
-if (!allowedHost || parsedDatabaseUrl.searchParams.get("schema") !== "agents_test") {
-  throw new Error("Fixture service requires the local agents_test schema");
+const allowedDatabase =
+  parsedDatabaseUrl.searchParams.get("schema") === "agents_test" ||
+  parsedDatabaseUrl.pathname === "/qolmeia_test";
+if (!allowedHost || !allowedDatabase) {
+  throw new Error("Fixture service requires a local test database");
 }
 
 const runDbPush = (repoRoot: string): Promise<void> =>
@@ -63,7 +66,7 @@ const runDbPush = (repoRoot: string): Promise<void> =>
 
 const ensureSchema = async (): Promise<void> => {
   const existing = await prisma.$queryRawUnsafe<Array<{ table_name: string | null }>>(
-    "SELECT to_regclass('agents_test.company')::text AS table_name",
+    "SELECT to_regclass('company')::text AS table_name",
   );
   if (existing[0]?.table_name === null || existing[0]?.table_name === undefined) {
     await runDbPush(path.resolve(import.meta.dirname, "../../../.."));
