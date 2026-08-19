@@ -23,10 +23,8 @@ const readBearerToken = (header: string | null | undefined): string | null => {
 };
 
 /**
- * Fails closed: an unset `expected` yields "disabled" so the caller can refuse
- * service rather than authenticate everyone. Callers must not collapse
- * "disabled" and "forbidden" into one status; they mean different things to
- * whoever is debugging a deploy.
+ * An unset `expected` disables the service instead of authenticating every request.
+ * Callers keep "disabled" separate from "forbidden" for deployment diagnosis.
  */
 const verifyInternalSecret = (input: {
   expected: string | undefined;

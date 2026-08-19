@@ -8,9 +8,9 @@ import type {
 import { z } from "zod";
 
 import type { Database } from "#/db/client";
-import { toRecord } from "#/lib/records";
 
 const policiesSchema = z.record(z.string(), z.string());
+const skillConfigSchema = z.record(z.string(), z.union([z.boolean(), z.number(), z.string()]));
 const skillIdsSchema = z.array(z.string());
 const stringHintsSchema = z.record(z.string(), z.string());
 
@@ -30,7 +30,7 @@ const mapTemplate = (row: AgentTemplate): Template => ({
   workerKind: row.workerKind,
 });
 const mapSkillOverlay = (row: PrismaSkill): SkillOverlay => ({
-  defaultConfig: row.defaultConfig === null ? null : toRecord(row.defaultConfig),
+  defaultConfig: row.defaultConfig === null ? null : skillConfigSchema.parse(row.defaultConfig),
   description: row.description,
   displayName: row.displayName,
   enabled: row.enabled,

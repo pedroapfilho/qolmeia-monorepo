@@ -79,8 +79,10 @@ type CompanyOverview = {
   status: CompanyStatus;
 };
 
+type SkillConfigValue = boolean | number | string;
+
 type SkillOverlay = {
-  defaultConfig: Record<string, unknown> | null;
+  defaultConfig: Record<string, SkillConfigValue> | null;
   description: string;
   displayName: string;
   enabled: boolean;
