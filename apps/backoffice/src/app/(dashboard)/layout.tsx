@@ -25,31 +25,38 @@ const SidebarData = async () => {
 };
 
 const SidebarSkeleton = () => (
-  <aside
-    aria-hidden
-    className="hidden h-screen w-[238px] shrink-0 flex-col gap-2 border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
-  >
-    <Skeleton className="h-6 w-24" />
-    <div className="mt-4 flex flex-col gap-1.5">
-      {Array.from({ length: 5 }, (_, index) => (
-        <Skeleton className="h-8 w-full" key={index} />
-      ))}
+  <>
+    <div
+      aria-hidden
+      className="flex h-24 flex-col gap-3 border-b border-border bg-card p-4 md:hidden"
+    >
+      <Skeleton className="h-6 w-24" />
+      <Skeleton className="h-8 w-full" />
     </div>
-    <Skeleton className="mt-auto h-10 w-full" />
-  </aside>
+    <aside
+      aria-hidden
+      className="hidden h-screen w-[238px] shrink-0 flex-col gap-2 border-r border-border bg-card px-3.5 pt-5 pb-4 md:sticky md:top-0 md:flex"
+    >
+      <Skeleton className="h-6 w-24" />
+      <div className="mt-4 flex flex-col gap-1.5">
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton className="h-8 w-full" key={index} />
+        ))}
+      </div>
+      <Skeleton className="mt-auto h-10 w-full" />
+    </aside>
+  </>
 );
 
 const DashboardLayout = ({ children }: { children: ReactNode }) => (
-  <div className="flex min-h-screen bg-background">
-    {/* Instant navigation: the static sidebar shell streams immediately while the
-        session-bound user and pending count resolve on the server. */}
+  <div className="flex min-h-svh flex-col bg-background md:flex-row">
     <Suspense fallback={<SidebarSkeleton />}>
       <SidebarData />
     </Suspense>
     <div className="flex flex-1 flex-col">
-      <div className="flex-1 px-10 py-8 pb-16">
+      <main className="flex-1 px-4 py-6 pb-16 sm:px-6 md:px-10 md:py-8" id="main-content">
         <div className="mx-auto w-full max-w-6xl">{children}</div>
-      </div>
+      </main>
     </div>
   </div>
 );

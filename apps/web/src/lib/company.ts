@@ -93,20 +93,33 @@ const fetchBrandAssets = async (): Promise<Array<BrandAsset>> => {
   return body.items;
 };
 
-const uploadBrandAsset = async (file: File, category: BrandCategory): Promise<void> => {
+const uploadBrandAsset = async (file: File, category: BrandCategory): Promise<BrandAsset> => {
   const form = new FormData();
   form.append("file", file);
   form.append("category", category);
-  await request("/api/me/brand-assets", "POST /api/me/brand-assets", {
-    body: form,
-    method: "POST",
-  });
+  const uploaded = await request<{ assetId: string; mime: string; url: string }>(
+    "/api/me/brand-assets",
+    "POST /api/me/brand-assets",
+    {
+      body: form,
+      method: "POST",
+    },
+  );
+  return {
+    category,
+    createdAt: new Date().toISOString(),
+    id: uploaded.assetId,
+    mimeType: uploaded.mime,
+    name: file.name || null,
+    url: uploaded.url,
+  };
 };
 
-const deleteBrandAsset = async (id: string): Promise<void> => {
+const deleteBrandAsset = async (id: string): Promise<boolean> => {
   await request(`/api/me/brand-assets/${id}`, `DELETE /api/me/brand-assets/${id}`, {
     method: "DELETE",
   });
+  return true;
 };
 
 export {

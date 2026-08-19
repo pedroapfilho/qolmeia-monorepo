@@ -19,6 +19,7 @@ import { BrandAssets } from "@/components/brand-assets";
 import { CompanyBriefForm } from "@/components/company-brief-form";
 import { HireDialog } from "@/components/hire-dialog";
 import { PromptEditor } from "@/components/prompt-editor";
+import type { BrandAsset, CompanyResponse } from "@/lib/company";
 import {
   fetchCatalogue,
   fetchMemberDetail,
@@ -26,27 +27,40 @@ import {
   setPaused,
   type HireableTemplate,
   type TeamMemberDetailView,
+  type TeamMemberView,
 } from "@/lib/team";
-import { useTeamRoster } from "@/lib/use-team-roster";
+import { teamQueryKey, useTeamRoster } from "@/lib/use-team-roster";
 
-const CATALOGUE_QUERY_KEY = ["catalogue"] as const;
+const catalogueQueryKey = (companyId: string) => ["catalogue", companyId] as const;
 
 type EmpresaClientProps = {
   companyId: string;
-  sessionToken: string;
+  initialBrandAssets?: Array<BrandAsset>;
+  initialCatalogue?: Array<HireableTemplate>;
+  initialCompany?: CompanyResponse;
+  initialMembers?: Array<TeamMemberView>;
 };
 
-const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
+const EmpresaClient = ({
+  companyId,
+  initialBrandAssets,
+  initialCatalogue,
+  initialCompany,
+  initialMembers,
+}: EmpresaClientProps) => {
   const [hireTemplate, setHireTemplate] = useState<HireableTemplate | null>(null);
   const [detail, setDetail] = useState<TeamMemberDetailView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
-  const { members, refetch } = useTeamRoster(companyId, sessionToken);
+  const rosterQueryKey = teamQueryKey(companyId);
+  const catalogueKey = catalogueQueryKey(companyId);
+  const { members, refetch } = useTeamRoster(companyId, initialMembers);
   const { data: catalogue = [] } = useQuery({
+    initialData: initialCatalogue,
     meta: { errorToast: "Falha ao carregar catálogo" },
     queryFn: fetchCatalogue,
-    queryKey: CATALOGUE_QUERY_KEY,
+    queryKey: catalogueKey,
   });
 
   const handleOpenDetail = async (id: string) => {
@@ -91,10 +105,22 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
 
   const handleTogglePause = async (id: string, paused: boolean) => {
     setBusyId(id);
+    await queryClient.cancelQueries({ queryKey: rosterQueryKey });
+    const previousMembers = queryClient.getQueryData<Array<TeamMemberView>>(rosterQueryKey);
+    queryClient.setQueryData<Array<TeamMemberView>>(rosterQueryKey, (current) =>
+      current?.map((member) =>
+        member.id === id ? { ...member, status: paused ? "paused" : "available" } : member,
+      ),
+    );
     try {
-      await setPaused(id, paused);
-      await refetch();
+      const updated = await setPaused(id, paused);
+      queryClient.setQueryData<Array<TeamMemberView>>(rosterQueryKey, (current) =>
+        current?.map((member) => (member.id === id ? updated : member)),
+      );
     } catch (error) {
+      if (previousMembers !== undefined) {
+        queryClient.setQueryData(rosterQueryKey, previousMembers);
+      }
       toast.error(error instanceof Error ? error.message : String(error));
     }
     setBusyId(null);
@@ -102,7 +128,7 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
 
   const handleHired = () => {
     void refetch();
-    void queryClient.invalidateQueries({ queryKey: CATALOGUE_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: catalogueKey });
   };
 
   return (
@@ -112,9 +138,9 @@ const EmpresaClient = ({ companyId, sessionToken }: EmpresaClientProps) => {
         title="Minha empresa"
       />
 
-      <CompanyBriefForm />
+      <CompanyBriefForm companyId={companyId} initialData={initialCompany} />
 
-      <BrandAssets />
+      <BrandAssets companyId={companyId} initialData={initialBrandAssets} />
 
       <section aria-label="Meu time" className="flex flex-col gap-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">Meu time</h2>

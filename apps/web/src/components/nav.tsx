@@ -39,7 +39,7 @@ type NavProps = {
 };
 
 type NavDependencies = {
-  SignOutControl: ComponentType;
+  SignOutControl: ComponentType<{ className?: string }>;
   useCurrentPathname: () => string;
 };
 
@@ -51,40 +51,39 @@ const createNav = ({ SignOutControl, useCurrentPathname }: NavDependencies) => {
     return (
       <header
         aria-label="Navegação principal"
-        className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-5"
+        className="sticky top-0 z-10 flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 border-b border-border bg-card px-4 md:h-14 md:flex-nowrap md:px-5"
       >
-        <div className="flex min-w-0 items-center gap-5 sm:gap-7">
-          <Link
-            className="inline-flex shrink-0 items-center transition-opacity hover:opacity-80"
-            href="/"
-          >
-            <Logo className="h-6 w-auto" />
-          </Link>
-          <nav>
-            <ul className="flex items-center gap-1">
-              {NAV_ITEMS.map((item) => {
-                const active = isActive(pathname, item.href);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "flex items-center rounded-lg px-3 py-1.5 text-sm transition-colors",
-                        active
-                          ? "bg-highlight-surface font-semibold text-primary"
-                          : "font-medium text-muted-foreground hover:text-foreground",
-                      )}
-                      href={item.href}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
+        <Link
+          aria-label="Qolmeia"
+          className="order-1 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center transition-opacity hover:opacity-80"
+          href="/"
+        >
+          <Logo className="h-6 w-auto" />
+        </Link>
+        <nav className="order-3 -mx-4 w-[calc(100%+2rem)] overflow-x-auto border-t border-border px-4 py-2 md:order-2 md:mx-0 md:w-auto md:border-0 md:p-0">
+          <ul className="flex min-w-max items-center gap-1">
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-11 shrink-0 items-center rounded-lg px-3 py-1.5 text-sm transition-colors",
+                      active
+                        ? "bg-highlight-surface font-semibold text-primary"
+                        : "font-medium text-muted-foreground hover:text-foreground",
+                    )}
+                    href={item.href}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <div className="order-2 ml-auto flex items-center gap-3 md:order-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="hidden truncate text-sm font-semibold text-foreground sm:inline">
               {org}
@@ -97,7 +96,7 @@ const createNav = ({ SignOutControl, useCurrentPathname }: NavDependencies) => {
               {getInitials(org)}
             </span>
           </div>
-          <SignOutControl />
+          <SignOutControl className="min-h-11" />
         </div>
       </header>
     );

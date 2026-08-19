@@ -4,7 +4,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { EmpresaClient } from "@/components/empresa-client";
-import { requireCustomer, requireSession } from "@/lib/auth-helpers";
+import { apiGetServer } from "@/lib/api-server";
+import { requireCustomer } from "@/lib/auth-helpers";
+import type { BrandAsset, CompanyResponse } from "@/lib/company";
+import type { HireableTemplate, TeamMemberView } from "@/lib/team";
 
 export const metadata: Metadata = {
   title: "Minha empresa",
@@ -14,9 +17,23 @@ export const metadata: Metadata = {
 export const instant = true;
 
 const EmpresaContent = async () => {
-  const [session, me] = await Promise.all([requireSession(), requireCustomer()]);
+  const me = await requireCustomer();
+  const [company, brandAssets, members, catalogue] = await Promise.allSettled([
+    apiGetServer<CompanyResponse>("/api/me/company"),
+    apiGetServer<{ items: Array<BrandAsset> }>("/api/me/brand-assets"),
+    apiGetServer<{ members: Array<TeamMemberView> }>("/api/me/team"),
+    apiGetServer<{ templates: Array<HireableTemplate> }>("/api/me/catalogue"),
+  ]);
 
-  return <EmpresaClient companyId={me.currentOrg.id} sessionToken={session.session.token} />;
+  return (
+    <EmpresaClient
+      companyId={me.currentOrg.id}
+      initialBrandAssets={brandAssets.status === "fulfilled" ? brandAssets.value.items : undefined}
+      initialCatalogue={catalogue.status === "fulfilled" ? catalogue.value.templates : undefined}
+      initialCompany={company.status === "fulfilled" ? company.value : undefined}
+      initialMembers={members.status === "fulfilled" ? members.value.members : undefined}
+    />
+  );
 };
 
 const EmpresaSkeleton = () => (
