@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { listActivity } from "#/activity/log";
 import {
   decideAction,
   getAction,
@@ -8,6 +9,7 @@ import {
   markExecuted,
   proposeAction,
 } from "#/db/action";
+import { loadTicket } from "#/db/ticket";
 
 const COMPANY_ID = "co_action_test";
 
@@ -198,5 +200,74 @@ describe("markExecuted + listPendingActions", () => {
       ticketId: "tkt-action-test",
     });
     expect(second.id).not.toBe(first.id);
+  });
+});
+
+describe("workflow operations", () => {
+  it("proposes an action and moves its ticket in one request", async () => {
+    const db = env.DB;
+    const action = await db("workflows.propose", {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      feedback: null,
+      policy: "require_approval",
+      proposed: { summary: "review this" },
+      round: 0,
+      summary: "review this",
+      ticketId: "tkt-action-test",
+    });
+
+    const storedAction = await getAction(env.DB, action.id);
+    const ticket = await loadTicket(env.DB, "tkt-action-test");
+    const activity = await listActivity(env.DB, { companyId: COMPANY_ID });
+    expect(storedAction?.status).toBe("pending");
+    expect(ticket?.status).toBe("awaiting_approval");
+    expect(activity.some((entry) => entry.type === "ACTION_PROPOSED")).toBe(true);
+  });
+
+  it("applies approval to the action and ticket in one request", async () => {
+    const db = env.DB;
+    const action = await db("workflows.propose", {
+      actionType: "worker_deliverable",
+      companyId: COMPANY_ID,
+      feedback: null,
+      policy: "require_approval",
+      proposed: { summary: "approved result" },
+      round: 0,
+      summary: "approved result",
+      ticketId: "tkt-action-test",
+    });
+
+    await db("workflows.applyDecision", {
+      actionId: action.id,
+      companyId: COMPANY_ID,
+      decidedByUserId: "operator-1",
+      decision: "approved",
+      summary: "approved result",
+      ticketId: "tkt-action-test",
+    });
+
+    const storedAction = await getAction(env.DB, action.id);
+    const ticket = await loadTicket(env.DB, "tkt-action-test");
+    expect(storedAction?.status).toBe("executed");
+    expect(ticket?.status).toBe("done");
+    expect(ticket?.result).toEqual({ summary: "approved result" });
+  });
+
+  it("completes notify-only work with both activity entries", async () => {
+    const db = env.DB;
+    await db("workflows.complete", {
+      companyId: COMPANY_ID,
+      policy: "notify_only",
+      summary: "finished",
+      ticketId: "tkt-action-test",
+    });
+
+    const ticket = await loadTicket(env.DB, "tkt-action-test");
+    const activity = await listActivity(env.DB, { companyId: COMPANY_ID });
+    expect(ticket?.status).toBe("done");
+    expect(activity.map((entry) => entry.type)).toEqual(
+      expect.arrayContaining(["ACTION_NOTIFY", "TICKET_DONE"]),
+    );
   });
 });

@@ -3,11 +3,6 @@ import path from "node:path";
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
-const TEST_DATABASE_URL =
-  process.env.DATABASE_URL ??
-  "postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia?schema=agents_test";
-process.env.DATABASE_URL = TEST_DATABASE_URL;
-
 export default defineConfig({
   plugins: [
     cloudflareTest({
@@ -15,42 +10,21 @@ export default defineConfig({
       miniflare: {
         bindings: {
           ASSETS_SIGNING_KEY: "vitest-assets-signing-key",
-          DATABASE_URL: TEST_DATABASE_URL,
+          INTERNAL_SHARED_SECRET: "vitest-internal-shared-secret-value",
+          OPENROUTER_API_KEY: "test-openrouter-key",
+          TEST_FIXTURE_SECRET: "vitest-fixture-service-secret-value",
+          TEST_FIXTURE_URL: "http://127.0.0.1:4011",
         },
       },
-      wrangler: { configPath: "./wrangler.jsonc" },
+      wrangler: { configPath: "./wrangler.jsonc", environment: "test" },
     }),
   ],
   resolve: {
     alias: { "@": path.join(import.meta.dirname, "src") },
   },
   test: {
-    deps: {
-      optimizer: {
-        ssr: {
-          enabled: true,
-          include: ["pg", "pg-cloudflare", "pg-protocol", "@prisma/adapter-pg"],
-          rolldownOptions: {
-            external: [
-              "assert",
-              "crypto",
-              "dns",
-              "events",
-              "fs",
-              "net",
-              "path",
-              "stream",
-              "string_decoder",
-              "tls",
-              "util",
-              "util/types",
-            ],
-          },
-        },
-      },
-    },
     fileParallelism: false,
-    globalSetup: ["./src/__tests__/setup-postgres.ts"],
+    globalSetup: ["../api/src/testing/setup-agents-worker.ts"],
     setupFiles: ["./src/__tests__/apply-migrations.ts"],
     testTimeout: 20_000,
   },

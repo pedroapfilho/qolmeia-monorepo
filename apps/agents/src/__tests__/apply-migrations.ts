@@ -1,28 +1,18 @@
-import { seedProductDefaults } from "@repo/db/worker";
 import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
 
-import { createSqlFixtureCompat } from "#/__tests__/sql-fixture-compat";
+import { createSqlFixtureCompat, resetSqlFixture } from "#/__tests__/sql-fixture-compat";
 import { getDb } from "#/db/client";
 
-const db = getDb(env);
-Object.assign(env, { DB: createSqlFixtureCompat(db) });
+const api = getDb(env);
+const fixtureConfig = {
+  baseUrl: env.TEST_FIXTURE_URL,
+  secret: env.TEST_FIXTURE_SECRET,
+};
+Object.assign(env, { DB: Object.assign(api, createSqlFixtureCompat(fixtureConfig)) });
 
 beforeEach(async () => {
-  await db.action.deleteMany();
-  await db.activityLog.deleteMany();
-  await db.memoryFact.deleteMany();
-  await db.teamMember.deleteMany();
-  await db.ticket.deleteMany();
-  await db.team.deleteMany();
-  await db.agentInstance.deleteMany();
-  await db.companyTemplateEntitlement.deleteMany();
-  await db.asset.deleteMany();
-  await db.operatorAssignment.deleteMany();
-  await db.company.deleteMany();
-  await db.agentTemplate.deleteMany();
-  await db.skill.deleteMany();
-  await seedProductDefaults(db);
+  await resetSqlFixture(fixtureConfig);
   const keys = await env.SESSIONS.list();
-  await Promise.all(keys.keys.map(({ name }) => env.SESSIONS.delete(name)));
+  await Promise.allSettled(keys.keys.map(({ name }) => env.SESSIONS.delete(name)));
 });

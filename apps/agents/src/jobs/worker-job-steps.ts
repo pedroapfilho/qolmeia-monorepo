@@ -3,13 +3,13 @@ import type { DecisionOutcome } from "@repo/worker-api/contracts";
 
 import { logActivity } from "#/activity/log";
 import { CorrespondentV2 } from "#/agents/correspondent";
-import { decideAction, markExecuted, proposeAction } from "#/db/action";
 import { getDb } from "#/db/client";
 import { resolvePolicy } from "#/db/policy";
 import { getCompany } from "#/db/schema";
-import { loadInstanceWithTemplate, transitionTicket } from "#/db/ticket";
+import { loadInstanceWithTemplate } from "#/db/ticket";
 import { logError, logInfo } from "#/lib/logger";
 import { toRecord } from "#/lib/records";
+import { emitTeamEvent } from "#/team/events";
 
 const MAX_REVISIONS = 3;
 
@@ -69,70 +69,34 @@ const proposeDeliverable = async (
   const policy = resolvePolicy(actionType, template);
 
   if (policy === "auto_execute" || policy === "notify_only") {
-    await transitionTicket(env, db, {
-      activity: {
-        companyId,
-        refId: ticketId,
-        refType: "ticket",
-        summary:
-          policy === "notify_only"
-            ? "Ticket concluído (notify-only): disponível para conferência."
-            : "Ticket concluído automaticamente (auto-execute).",
-        type: "TICKET_DONE",
-      },
-      result: { summary: current.summary },
-      status: "done",
+    await db("workflows.complete", {
+      companyId,
+      policy,
+      summary: current.summary,
       ticketId,
     });
-    if (policy === "notify_only") {
-      await logActivity(db, {
-        companyId,
-        payload: { summary: current.summary },
-        refId: ticketId,
-        refType: "ticket",
-        summary: "Ação executada sem bloqueio, para conferência do operador.",
-        type: "ACTION_NOTIFY",
-      });
-    }
+    await emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" });
     await presentToCustomer(ctx, current.summary);
     return { actionId: null, policy };
   }
 
   const skillResults = toRecord(JSON.parse(current.skillResultsJson));
   const draft = skillResults.draftSocialPost;
-  const proposedPayload =
-    actionType === "publish_post" && draft !== undefined
-      ? { draft, summary: current.summary, ticketId }
-      : { summary: current.summary, ticketId };
-  const { id: actionId } = await proposeAction(db, {
+  const proposedPayload: Record<string, unknown> = { summary: current.summary, ticketId };
+  if (actionType === "publish_post" && draft !== undefined) {
+    proposedPayload.draft = draft;
+  }
+  const { id: actionId } = await db("workflows.propose", {
     actionType,
     companyId,
+    feedback,
     policy,
     proposed: proposedPayload,
+    round,
+    summary: current.summary,
     ticketId,
   });
-  await transitionTicket(env, db, {
-    activity:
-      round > 0
-        ? {
-            companyId,
-            payload: { feedback, revision: round },
-            refId: actionId,
-            refType: "action",
-            summary: `Entrega revisada (revisão ${round}) aguardando decisão.`,
-            type: "ACTION_REVISED",
-          }
-        : {
-            companyId,
-            payload: { actionId, summary: current.summary },
-            refId: actionId,
-            refType: "action",
-            summary: "Ação proposta aguardando decisão.",
-            type: "ACTION_PROPOSED",
-          },
-    status: "awaiting_approval",
-    ticketId,
-  });
+  await emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" });
 
   logInfo("workflow.propose.ok", { actionId, agentInstanceId, companyId, policy, ticketId });
   return { actionId, policy };
@@ -156,53 +120,18 @@ const applyDecision = async (
     feedback: feedback ?? null,
     ticketId,
   });
-  await decideAction(db, { actionId, decidedByUserId, decision, feedback });
+  await db("workflows.applyDecision", {
+    actionId,
+    companyId,
+    decidedByUserId,
+    decision,
+    feedback,
+    summary: current.summary,
+    ticketId,
+  });
+  await emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" });
   if (decision === "approved") {
-    await Promise.all([
-      markExecuted(db, actionId),
-      transitionTicket(env, db, {
-        activity: {
-          actorId: decidedByUserId,
-          companyId,
-          refId: actionId,
-          refType: "action",
-          summary: "Ação aprovada e executada.",
-          type: "ACTION_EXECUTED",
-        },
-        result: { summary: current.summary },
-        status: "done",
-        ticketId,
-      }),
-    ]);
     await presentToCustomer(ctx, current.summary);
-  } else if (decision === "rejected") {
-    await transitionTicket(env, db, {
-      activity: {
-        actorId: decidedByUserId,
-        companyId,
-        payload: { feedback: feedback ?? null },
-        refId: actionId,
-        refType: "action",
-        summary: "Ação rejeitada.",
-        type: "ACTION_REJECTED",
-      },
-      status: "rejected",
-      ticketId,
-    });
-  } else {
-    await transitionTicket(env, db, {
-      activity: {
-        actorId: decidedByUserId,
-        companyId,
-        payload: { feedback: feedback ?? null },
-        refId: actionId,
-        refType: "action",
-        summary: "Alterações solicitadas.",
-        type: "ACTION_CHANGES_REQUESTED",
-      },
-      status: "in_progress",
-      ticketId,
-    });
   }
   return decision;
 };

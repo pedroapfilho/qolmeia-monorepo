@@ -1,4 +1,4 @@
-import { parseBrief, type CompanyBrief } from "@repo/worker-api/brief";
+import type { CompanyBrief } from "@repo/worker-api/brief";
 import { z } from "zod";
 
 import { getDb } from "#/db/client";
@@ -24,11 +24,11 @@ const proposeTeamSkill: UnknownSkill = {
     "Lê o catálogo de especialistas disponíveis e propõe um Time para a empresa com base no brief atual. Use depois de coletar informação suficiente no debrief.",
   async execute(_input: SkillInput, ctx: SkillContext): Promise<ProposeResult> {
     const db = getDb(ctx.env);
-    const [templates, row] = await Promise.all([
+    const [templates, company] = await Promise.all([
       listEntitledActiveTemplates(db, ctx.companyId),
-      db.company.findUnique({ select: { brief: true }, where: { id: ctx.companyId } }),
+      db("companies.getCustomer", { companyId: ctx.companyId }),
     ]);
-    const brief = parseBrief(row?.brief);
+    const brief = company?.brief ?? {};
     const industry = typeof brief.industry === "string" ? brief.industry : "";
 
     const candidates: ReadonlyArray<TeamCandidate> = templates.map((t) => ({

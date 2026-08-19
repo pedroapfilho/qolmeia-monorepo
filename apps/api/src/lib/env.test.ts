@@ -16,7 +16,7 @@ describe("envSchema", () => {
     const result = envSchema.parse(base);
     expect(result.NODE_ENV).toBe("development");
     expect(result.PORT).toBe("4000");
-    expect(result.AGENTS_INTERNAL_URL).toBe("http://127.0.0.1:8787");
+    expect(result.CORS_ORIGINS).toBe("*");
   });
 
   it("rejects when BETTER_AUTH_SECRET is shorter than 32 chars", () => {

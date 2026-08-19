@@ -61,12 +61,6 @@ importers:
       '@flue/runtime':
         specifier: 2.0.3
         version: 2.0.3(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(typescript@7.0.2)(ws@8.21.2)(zod@4.4.3)
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@repo/internal-auth':
-        specifier: workspace:*
-        version: link:../../packages/internal-auth
       '@repo/worker-api':
         specifier: workspace:*
         version: link:../../packages/worker-api

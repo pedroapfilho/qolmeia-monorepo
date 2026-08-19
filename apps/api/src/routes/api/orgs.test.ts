@@ -54,8 +54,8 @@ describe("POST /api/orgs", () => {
   it("401 when no session", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(null),
-      fetch: vi.fn(),
       prisma: buildPrisma() as never,
+      provision: vi.fn().mockResolvedValue({ ok: true }),
     });
     const res = await postOrgs(app, { name: "X", slug: "x" });
     expect(res.status).toBe(401);
@@ -64,8 +64,8 @@ describe("POST /api/orgs", () => {
   it("400 on invalid JSON", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: vi.fn(),
       prisma: buildPrisma() as never,
+      provision: vi.fn().mockResolvedValue({ ok: true }),
     });
     const res = await postOrgs(app, "not json");
     expect(res.status).toBe(400);
@@ -74,8 +74,8 @@ describe("POST /api/orgs", () => {
   it("400 on invalid slug (uppercase letters)", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: vi.fn(),
       prisma: buildPrisma() as never,
+      provision: vi.fn().mockResolvedValue({ ok: true }),
     });
     const res = await postOrgs(app, { name: "X", slug: "BAD-SLUG" });
     expect(res.status).toBe(400);
@@ -84,8 +84,8 @@ describe("POST /api/orgs", () => {
   it("400 on invalid slug (whitespace)", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: vi.fn(),
       prisma: buildPrisma() as never,
+      provision: vi.fn().mockResolvedValue({ ok: true }),
     });
     const res = await postOrgs(app, { name: "X", slug: "bad slug" });
     expect(res.status).toBe(400);
@@ -94,20 +94,20 @@ describe("POST /api/orgs", () => {
   it("400 on empty slug", async () => {
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: vi.fn(),
       prisma: buildPrisma() as never,
+      provision: vi.fn().mockResolvedValue({ ok: true }),
     });
     const res = await postOrgs(app, { name: "X", slug: "" });
     expect(res.status).toBe(400);
   });
 
-  it("201 happy path: creates org + OWNER membership + relays to agents", async () => {
+  it("201 happy path: creates org + OWNER membership + product company", async () => {
     const prisma = buildPrisma();
-    const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+    const provision = vi.fn().mockResolvedValue({ ok: true as const });
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: fetchMock,
       prisma: prisma as never,
+      provision,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
@@ -124,16 +124,20 @@ describe("POST /api/orgs", () => {
     expect(prisma.orgMembership.create).toHaveBeenCalledWith({
       data: { orgId: "new_org_id", role: "OWNER", userId: "user_a" },
     });
-    expect(fetchMock).toHaveBeenCalled();
+    expect(provision).toHaveBeenCalledWith({
+      id: "new_org_id",
+      name: "Fresh Co",
+      slug: "fresh-co",
+    });
   });
 
   it("creates org + OWNER membership inside one transaction", async () => {
     const prisma = buildPrisma();
-    const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+    const provision = vi.fn().mockResolvedValue({ ok: true as const });
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: fetchMock,
       prisma: prisma as never,
+      provision,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
@@ -145,15 +149,15 @@ describe("POST /api/orgs", () => {
   it("rolls back (no 201) when the OWNER membership write fails inside the transaction", async () => {
     const prisma = buildPrisma();
     prisma.orgMembership.create.mockRejectedValueOnce(new Error("membership insert blew up"));
-    const fetchMock = vi.fn();
+    const provision = vi.fn();
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: fetchMock,
       prisma: prisma as never,
+      provision,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(500);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(provision).not.toHaveBeenCalled();
   });
 
   it("409 when the create transaction loses the slug race (P2002)", async () => {
@@ -167,8 +171,8 @@ describe("POST /api/orgs", () => {
     );
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: vi.fn(),
       prisma: prisma as never,
+      provision: vi.fn().mockResolvedValue({ ok: true }),
     });
     const res = await postOrgs(app, { name: "X", slug: "raced" });
     expect(res.status).toBe(409);
@@ -176,13 +180,13 @@ describe("POST /api/orgs", () => {
     expect(body.error.code).toBe("SLUG_TAKEN");
   });
 
-  it("201 with productProvisioned=false when the agents relay fails (org row still created)", async () => {
+  it("201 with productProvisioned=false when product provisioning fails", async () => {
     const prisma = buildPrisma();
-    const fetchMock = vi.fn().mockResolvedValue(new Response("Forbidden", { status: 403 }));
+    const provision = vi.fn().mockRejectedValue(new Error("product write failed"));
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: fetchMock,
       prisma: prisma as never,
+      provision,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);
@@ -192,13 +196,13 @@ describe("POST /api/orgs", () => {
     expect(prisma.orgMembership.create).toHaveBeenCalled();
   });
 
-  it("201 with productProvisioned=false when the agents Worker is unreachable", async () => {
+  it("201 with productProvisioned=false when product provisioning throws", async () => {
     const prisma = buildPrisma();
-    const fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    const provision = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
     const app = buildOrgsRoutes({
       auth: buildAuth(sessionA),
-      fetch: fetchMock,
       prisma: prisma as never,
+      provision,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
     expect(res.status).toBe(201);

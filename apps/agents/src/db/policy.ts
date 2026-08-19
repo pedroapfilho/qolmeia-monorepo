@@ -1,4 +1,4 @@
-import type { ActionPolicy } from "@repo/db/worker";
+import type { ActionPolicy } from "@repo/worker-api/contracts";
 
 type TemplateWithPolicies = { defaultPolicies: Record<string, string> };
 
@@ -15,4 +15,4 @@ const resolvePolicy = (actionType: string, template: TemplateWithPolicies): Acti
 };
 
 export { resolvePolicy };
-export type { ActionPolicy as Policy } from "@repo/db/worker";
+export type { ActionPolicy as Policy } from "@repo/worker-api/contracts";

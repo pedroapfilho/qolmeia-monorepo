@@ -36,7 +36,7 @@ beforeEach(async () => {
 });
 
 describe("getTemplate / listSkillOverlays", () => {
-  it("reads the seeded Designer template from Prisma", async () => {
+  it("reads the seeded Designer template", async () => {
     const t = await getTemplate(env.DB, "tpl-designer");
     expect(t?.workerKind).toBe("designer");
     expect(t?.skillIds).toContain("generateBrandImage");
@@ -53,7 +53,7 @@ describe("getTemplate / listSkillOverlays", () => {
   });
 });
 
-describe("buildSkillTools — Prisma overlay join", () => {
+describe("buildSkillTools overlay join", () => {
   it("uses the database overlay description over the code default when present", async () => {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO skill

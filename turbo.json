@@ -8,7 +8,6 @@
       "dependsOn": ["^build", "db:generate"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "env": [
-        "AGENTS_INTERNAL_URL",
         "API_INTERNAL_URL",
         "AUTH_ALLOWED_HOSTS",
         "AUTH_SERVICE_INTERNAL_URL",

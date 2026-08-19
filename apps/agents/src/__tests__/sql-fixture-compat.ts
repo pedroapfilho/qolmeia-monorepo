@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@repo/db/worker";
+import type { AgentsApi } from "@repo/worker-api/internal";
 
 type FixtureResult<T> = {
   meta?: { changes: number };
@@ -13,43 +13,37 @@ type FixtureStatement = {
   run: <T = Record<string, unknown>>() => Promise<FixtureResult<T>>;
 };
 
-type TestDatabase = PrismaClient & {
+type SqlFixtureCompat = {
   batch: (statements: ReadonlyArray<FixtureStatement>) => Promise<Array<FixtureResult<unknown>>>;
   prepare: (sql: string) => FixtureStatement;
 };
 
-const JSON_COLUMNS = new Set([
-  "brief",
-  "can_delegate_to",
-  "default_config",
-  "default_policies",
-  "metadata",
-  "param_hints",
-  "payload",
-  "proposed",
-  "result",
-  "skill_ids",
-]);
+type TestDatabase = AgentsApi & SqlFixtureCompat;
 
-// oxlint-disable-next-line no-unnecessary-type-parameters -- mirrors D1's PreparedStatement.all<T>(): the row shape is asserted by the caller, as the real binding does
-const normalizeRow = <T>(row: Record<string, unknown>): T =>
-  Object.fromEntries(
-    Object.entries(row).map(([key, value]) => {
-      if (value instanceof Date) {
-        return [key, value.getTime()];
-      }
-      if (JSON_COLUMNS.has(key) && value !== null && typeof value !== "string") {
-        return [key, JSON.stringify(value)];
-      }
-      if (typeof value === "bigint") {
-        return [key, Number(value)];
-      }
-      if (typeof value === "boolean") {
-        return [key, value ? 1 : 0];
-      }
-      return [key, value];
-    }),
-  ) as T;
+type SqlFixtureConfig = { baseUrl: string; secret: string };
+type QueryMode = "all" | "run";
+
+const defaultFetch = globalThis.fetch.bind(globalThis);
+
+const requestFixture = async <T>(
+  config: SqlFixtureConfig,
+  path: string,
+  body?: unknown,
+): Promise<T> => {
+  const response = await defaultFetch(`${config.baseUrl}${path}`, {
+    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${config.secret}`,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Fixture service failed (${response.status}): ${await response.text()}`);
+  }
+  return response.json();
+};
 
 const primaryKeyFor = (table: string): ReadonlyArray<string> => {
   if (table === "team_member") {
@@ -127,13 +121,13 @@ const toPostgres = (input: string): string => {
   return sql;
 };
 
-class PrismaFixtureStatement implements FixtureStatement {
-  readonly #db: PrismaClient;
+class HttpFixtureStatement implements FixtureStatement {
+  readonly #config: SqlFixtureConfig;
   readonly #sql: string;
   #bindings: Array<unknown> = [];
 
-  constructor(db: PrismaClient, sql: string) {
-    this.#db = db;
+  constructor(config: SqlFixtureConfig, sql: string) {
+    this.#config = config;
     this.#sql = toPostgres(sql);
   }
 
@@ -142,12 +136,12 @@ class PrismaFixtureStatement implements FixtureStatement {
     return this;
   }
 
-  async all<T = Record<string, unknown>>(): Promise<FixtureResult<T>> {
-    const rows = await this.#db.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      this.#sql,
-      ...this.#bindings,
-    );
-    return { results: rows.map(normalizeRow<T>), success: true };
+  all<T = Record<string, unknown>>(): Promise<FixtureResult<T>> {
+    return requestFixture<FixtureResult<T>>(this.#config, "/query", {
+      bindings: this.#bindings,
+      mode: "all" satisfies QueryMode,
+      sql: this.#sql,
+    });
   }
 
   async first<T = Record<string, unknown>>(): Promise<T | null> {
@@ -155,14 +149,17 @@ class PrismaFixtureStatement implements FixtureStatement {
     return results[0] ?? null;
   }
 
-  async run<T = Record<string, unknown>>(): Promise<FixtureResult<T>> {
-    const changes = await this.#db.$executeRawUnsafe(this.#sql, ...this.#bindings);
-    return { meta: { changes }, results: [], success: true };
+  run<T = Record<string, unknown>>(): Promise<FixtureResult<T>> {
+    return requestFixture<FixtureResult<T>>(this.#config, "/query", {
+      bindings: this.#bindings,
+      mode: "run" satisfies QueryMode,
+      sql: this.#sql,
+    });
   }
 }
 
-const createSqlFixtureCompat = (db: PrismaClient): TestDatabase => {
-  const prepare = (sql: string): PrismaFixtureStatement => new PrismaFixtureStatement(db, sql);
+const createSqlFixtureCompat = (config: SqlFixtureConfig): SqlFixtureCompat => {
+  const prepare = (sql: string): HttpFixtureStatement => new HttpFixtureStatement(config, sql);
   const batch = async (statements: ReadonlyArray<FixtureStatement>) => {
     const results: Array<FixtureResult<unknown>> = [];
     for (const statement of statements) {
@@ -170,8 +167,12 @@ const createSqlFixtureCompat = (db: PrismaClient): TestDatabase => {
     }
     return results;
   };
-  return Object.assign(db, { batch, prepare });
+  return { batch, prepare };
 };
 
-export { createSqlFixtureCompat };
-export type { TestDatabase };
+const resetSqlFixture = async (config: SqlFixtureConfig): Promise<void> => {
+  await requestFixture(config, "/reset");
+};
+
+export { createSqlFixtureCompat, resetSqlFixture };
+export type { SqlFixtureConfig, TestDatabase };

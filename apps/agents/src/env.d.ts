@@ -3,7 +3,6 @@ interface Env {
   AI?: Ai;
   API_INTERNAL_URL: string;
   ASSETS_SIGNING_KEY: string;
-  DATABASE_URL: string;
   EXA_API_KEY?: string;
   FIRECRAWL_API_KEY?: string;
   FIRECRAWL_BASE_URL?: string;
@@ -17,7 +16,6 @@ namespace Cloudflare {
   interface Env {
     AI?: Ai;
     ASSETS_SIGNING_KEY: string;
-    DATABASE_URL: string;
     EXA_API_KEY?: string;
     FIRECRAWL_API_KEY?: string;
     FIRECRAWL_BASE_URL?: string;

@@ -83,8 +83,8 @@
     // no wildcards. Local: http://localhost:3000,http://localhost:3001.
     "CLIENT_ORIGINS": "https://app.qolmeia.com,https://admin.qolmeia.com",
   },
-  // DATABASE_URL and INTERNAL_SHARED_SECRET are Worker secrets configured
-  // with `wrangler secret put`; local development reads them from .dev.vars.
+  // INTERNAL_SHARED_SECRET is configured with `wrangler secret put`; local
+  // development reads it from .dev.vars.
   "r2_buckets": [
     {
       "binding": "ASSETS",
@@ -101,27 +101,37 @@
       "id": "4de0e3d0d0364a058ac348a882d7ebb8",
     },
   ],
-  // ── PROD-ONLY (uncomment immediately before `wrangler deploy`) ──────────────
-  // Provisioned on the Unlockers account: qolmeia-memory (1024-dim, cosine) and
-  // the agents.qolmeia.com custom domain.
-  //
-  // These CANNOT stay uncommented: vitest reads this same file, Vectorize has no
-  // local emulation ("Binding VECTORIZE needs to be run remotely"), and an `ai`
-  // binding makes the pool open a remote proxy session that needs Cloudflare
-  // credentials CI does not have. Uncommenting breaks `pnpm test` in CI and
-  // fails the two memory skills tests locally.
-  //
+  "env": {
+    "test": {
+      "name": "worker-bees-test",
+      "routes": [],
+      "vars": {
+        "AI_GATEWAY_ACCOUNT_ID": "test-account-id",
+        "AI_GATEWAY_NAME": "test-gateway",
+        "CORRESPONDENT_MODEL": "test/model",
+        "IMAGE_GEN_MODEL": "test/image-model",
+        "WORKER_PUBLIC_URL": "http://127.0.0.1:8787",
+        "AUTH_SERVICE_URL": "http://127.0.0.1:4000",
+        "API_INTERNAL_URL": "http://127.0.0.1:4010",
+        "CLIENT_ORIGINS": "http://localhost:3000,http://localhost:3001",
+      },
+      "durable_objects": {
+        "bindings": [{ "class_name": "TeamEvents", "name": "TEAM_EVENTS" }],
+      },
+      "workflows": [
+        {
+          "binding": "WORKER_JOB",
+          "class_name": "WorkerJobWorkflow",
+          "name": "qolmeia-worker-job-test",
+        },
+      ],
+      "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "qolmeia-assets-test" }],
+      "kv_namespaces": [{ "binding": "SESSIONS", "id": "test" }],
+    },
+  },
   "routes": [{ "pattern": "agents.qolmeia.com", "custom_domain": true }],
-  //
-  // Agent Memory backend (ADR 0007): Workers AI embeddings (@cf/baai/bge-m3,
-  // 1024-dim) + Vectorize recall. Drop either binding and getMemoryAdapter
-  // silently falls back to an in-process store that's lost on DO eviction.
-  //
-  // UNCOMMENT BOTH IMMEDIATELY BEFORE `pnpm run deploy`, THEN RE-COMMENT.
-  // They cannot stay on: vitest reads this same file, Vectorize has no local
-  // emulation ("Binding VECTORIZE needs to be run remotely"), and an `ai`
-  // binding makes the pool open a remote proxy session needing Cloudflare
-  // credentials CI does not have.
-  // "ai": { "binding": "AI" },
-  // "vectorize": [{ "binding": "VECTORIZE", "index_name": "qolmeia-memory" }],
+  // Workers AI and Vectorize have no local emulators. Vite and Vitest remove
+  // these bindings from local runtimes while production builds keep them.
+  "ai": { "binding": "AI" },
+  "vectorize": [{ "binding": "VECTORIZE", "index_name": "qolmeia-memory" }],
 }

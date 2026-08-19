@@ -23,7 +23,7 @@ type DelegateResult =
   | { status: "queued"; ticketId: string; workflowId: string };
 
 type WorkerCandidate = {
-  busy_count: number;
+  busyCount: number;
   id: string;
 };
 
@@ -36,7 +36,7 @@ const pickWorker = (
   if (eligible.length === 0) {
     return null;
   }
-  const idle = eligible.filter((c) => c.busy_count === 0);
+  const idle = eligible.filter((c) => c.busyCount === 0);
   const pool = idle.length > 0 ? idle : eligible;
   const idx = Number(BigInt(Date.now()) % BigInt(pool.length));
   const chosen = pool[idx] ?? pool[0];
@@ -49,26 +49,7 @@ const delegateToWorkerSkill: UnknownSkill = {
   async execute(input: SkillInput, ctx: SkillContext): Promise<DelegateResult> {
     const { brief, workerKind } = delegateInputSchema.parse(input);
     const db = getDb(ctx.env);
-    const rows = await db.agentInstance.findMany({
-      include: {
-        _count: {
-          select: {
-            tickets: { where: { status: { in: ["in_progress", "awaiting_approval"] } } },
-          },
-        },
-      },
-      where: {
-        companyId: ctx.companyId,
-        role: "worker",
-        status: "active",
-        template: { status: "active", workerKind },
-      },
-    });
-    const candidates: Array<WorkerCandidate> = rows.map((row) => ({
-      // oxlint-disable-next-line no-underscore-dangle -- Prisma aggregate result.
-      busy_count: row._count.tickets,
-      id: row.id,
-    }));
+    const candidates = await db("workers.candidates", { companyId: ctx.companyId, workerKind });
 
     if (candidates.length === 0) {
       return { error: `Nenhum especialista do tipo "${workerKind}" no Time desta empresa.` };
@@ -82,15 +63,12 @@ const delegateToWorkerSkill: UnknownSkill = {
 
     const ticketId = crypto.randomUUID();
     // oxlint-disable-next-line react-doctor/async-parallel -- ordered: the ticket row must exist before the workflow starts, and the workflow id comes from the create call
-    await db.ticket.create({
-      data: {
-        agentInstanceId: target.id,
-        brief,
-        companyId: ctx.companyId,
-        id: ticketId,
-        origin: "delegation",
-        title: `${workerKind}: ${brief.slice(0, 80)}`,
-      },
+    await db("tickets.createDelegated", {
+      agentInstanceId: target.id,
+      brief,
+      companyId: ctx.companyId,
+      ticketId,
+      workerKind,
     });
 
     const instance = await ctx.env.WORKER_JOB.create({

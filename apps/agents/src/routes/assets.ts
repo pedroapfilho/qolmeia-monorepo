@@ -32,10 +32,7 @@ assetsRoutes.get("/:id", async (c) => {
     return c.text("Invalid or expired token", 401);
   }
 
-  const row = await getDb(c.env).asset.findUnique({
-    select: { mime: true, r2Key: true },
-    where: { id },
-  });
+  const row = await getDb(c.env)("assets.access", { assetId: id });
   if (!row) {
     return c.text("Not found", 404);
   }

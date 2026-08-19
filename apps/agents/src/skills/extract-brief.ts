@@ -1,9 +1,4 @@
-import {
-  companyBriefSchema,
-  mergeBrief,
-  parseBrief,
-  type CompanyBrief,
-} from "@repo/worker-api/brief";
+import { companyBriefSchema, type CompanyBrief } from "@repo/worker-api/brief";
 
 import { getDb } from "#/db/client";
 import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
@@ -16,17 +11,14 @@ const extractBriefSkill: UnknownSkill = {
   async execute(input: SkillInput, ctx: SkillContext): Promise<{ brief: CompanyBrief }> {
     const updates = extractBriefInputSchema.parse(input);
 
-    const db = getDb(ctx.env);
-    const row = await db.company.findUnique({
-      select: { brief: true },
-      where: { id: ctx.companyId },
+    const row = await getDb(ctx.env)("companies.updateBrief", {
+      companyId: ctx.companyId,
+      updates,
     });
-    const existing = parseBrief(row?.brief);
-    const merged = mergeBrief(existing, updates);
-
-    await db.company.update({ data: { brief: merged }, where: { id: ctx.companyId } });
-
-    return { brief: merged };
+    if (!row) {
+      throw new Error(`company ${ctx.companyId} not found`);
+    }
+    return { brief: row.brief };
   },
   id: "extractBrief",
   inputSchema: extractBriefInputSchema,

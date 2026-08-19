@@ -21,14 +21,8 @@ const proactiveGate = (input: {
   return { ok: true, reason: "" };
 };
 
-const lastProactiveSuggestionAt = async (env: Env, companyId: string): Promise<number | null> => {
-  const row = await getDb(env).activityLog.findFirst({
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-    where: { companyId, type: "WORKER_PROACTIVE_SUGGESTION" },
-  });
-  return row?.createdAt.getTime() ?? null;
-};
+const lastProactiveSuggestionAt = (env: Env, companyId: string): Promise<number | null> =>
+  getDb(env)("proactive.lastSuggestedAt", { companyId });
 
 const recordProactiveSuggestion = async (env: Env, companyId: string): Promise<void> => {
   await logActivity(getDb(env), {
