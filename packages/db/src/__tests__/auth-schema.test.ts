@@ -59,12 +59,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined || process.env.DATABASE_U
       const account = await prisma.account.create({
         data: {
           accountId: email,
+          issuer: "local:credential",
           password: "$2b$10$abcdefghijklmnopqrstuv",
           providerId: "credential",
           userId: user.id,
         },
       });
       expect(account.providerId).toBe("credential");
+      expect(account.issuer).toBe("local:credential");
       expect(account.password).toContain("$2b$10$");
 
       const verification = await prisma.verification.create({
