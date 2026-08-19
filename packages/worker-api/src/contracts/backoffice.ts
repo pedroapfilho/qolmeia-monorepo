@@ -6,6 +6,15 @@ import type {
   TicketStatus,
 } from "@repo/db/enums";
 
+type WireValue =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<WireValue>
+  | { readonly [key: string]: WireValue };
+type WireObject = Readonly<Record<string, WireValue>>;
+
 /**
  * The Worker and both Next apps share these wire shapes. Closed-set fields use
  * Prisma enums so schema changes fail typechecking instead of silently drifting
@@ -17,7 +26,7 @@ type Ticket = {
   brief: string;
   companyId: string;
   id: string;
-  result: Record<string, unknown> | null;
+  result: WireObject | null;
   status: TicketStatus;
   workflowId: string | null;
 };
@@ -47,7 +56,7 @@ type Action = {
   feedback: string | null;
   id: string;
   policy: ActionPolicy;
-  proposed: Record<string, unknown>;
+  proposed: WireObject;
   status: ActionStatus;
   ticketId: string;
 };
@@ -62,7 +71,7 @@ type ActivityEntry = {
   companyName: string;
   createdAt: number;
   id: string;
-  payload: Record<string, unknown> | null;
+  payload: WireObject | null;
   refId: string | null;
   refType: string | null;
   summary: string;
@@ -148,6 +157,8 @@ export type {
   TicketDetailResponse,
   TicketListRow,
   TicketsResponse,
+  WireObject,
+  WireValue,
 };
 export type {
   ActionPolicy,

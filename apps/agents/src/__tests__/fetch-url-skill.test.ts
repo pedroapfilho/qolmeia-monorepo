@@ -27,14 +27,10 @@ describe("fetchUrl skill", () => {
         }),
       ),
     );
-    const out = (await fetchUrlSkill.execute(
+    const out = await fetchUrlSkill.execute(
       { url: "https://localcine.com.br" },
       ctx({ FIRECRAWL_API_KEY: "fc-x" }),
-    )) as {
-      markdown: string;
-      title: string;
-      url: string;
-    };
+    );
     expect(out.title).toBe("Localcine");
     expect(out.markdown).toContain("Produtora audiovisual");
     expect(out.url).toBe("https://localcine.com.br");

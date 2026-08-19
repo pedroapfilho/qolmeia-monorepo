@@ -41,14 +41,6 @@ type MeFetch =
   | { kind: "no-credentials" }
   | { kind: "unreachable" };
 
-/**
- * The single door to the auth service's /api/me. Both readers used to own a
- * copy: `validateSession` accepted `Authorization: Bearer` while the relay
- * handler read only the `cf_session` query param, so a bearer-token client got
- * 401 from GET /api/me and 200 from GET /api/me/company. They also kept two KV
- * entries with two TTLs for one upstream answer. One entry holds the raw
- * upstream body so every reader sees the same bytes.
- */
 const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
   const tokenParam = new URL(request.url).searchParams.get("cf_session");
   const authHeader = request.headers.get("Authorization");
@@ -59,7 +51,9 @@ const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
   const token = bearerToken ?? tokenParam;
   const orgId = readOrgId(request);
 
-  const headers: Record<string, string> = { Accept: "application/json" };
+  type HeadersContract = Record<string, string>;
+
+  const headers: HeadersContract = { Accept: "application/json" };
   if (token !== null && token !== "") {
     headers.Authorization = `Bearer ${token}`;
   } else if (cookieHeader !== null && cookieHeader !== "") {
@@ -92,10 +86,16 @@ const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
     return { kind: "unreachable" };
   }
 
-  const body = await response.text();
-  if (response.ok) {
-    await writeCachedString(env, cacheKey, body, ME_CACHE_TTL_SECONDS);
+  if (!response.ok) {
+    return {
+      body: await response.text(),
+      cached: false,
+      kind: "upstream",
+      status: response.status,
+    };
   }
+  const body = await response.text();
+  await writeCachedString(env, cacheKey, body, ME_CACHE_TTL_SECONDS);
   return { body, cached: false, kind: "upstream", status: response.status };
 };
 
@@ -111,12 +111,6 @@ const parseJson = (body: string): JsonValue | null => {
   }
 };
 
-/**
- * Every way a session can fail to resolve. `unauthenticated` deliberately merges
- * four upstream outcomes (no credentials, non-200, unparseable body, zero orgs)
- * because a client can act on none of them differently; `upstream-unavailable`
- * stays separate so a dependency outage is not reported as bad credentials.
- */
 type SessionResult =
   | { kind: "ok"; session: ValidatedSession }
   | { kind: "org-required"; orgs: ReadonlyArray<OrgSummary> }
@@ -197,14 +191,6 @@ const requireStaffSession = sessionGuard({ allow: STAFF_ROLES });
 
 const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-/**
- * Every write behind a customer session is a customer action: STAFF and OWNER
- * operate through the backoffice router, which authorizes them separately.
- * Gating by method rather than by handler means a write route is guarded the
- * day it is added. The two that shipped unguarded (POST /api/me/uploads and
- * POST /api/teams/:companyId/confirm) were each a missing copy of a line that
- * every sibling handler had.
- */
 const requireCustomerForWrites: MiddlewareHandler<SessionEnv> = (c, next) => {
   if (READ_ONLY_METHODS.has(c.req.method) || c.get("session").role === "CUSTOMER") {
     return next();

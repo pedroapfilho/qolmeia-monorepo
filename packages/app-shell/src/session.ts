@@ -7,7 +7,12 @@ import { cache } from "react";
 import { AGENTS_SERVER_URL } from "./agents-url";
 import { getAuth, type Auth } from "./auth-server";
 
-type AppLogger = { error: (fields: Record<string, unknown>) => void };
+type AppLogFields = {
+  error?: unknown;
+  message: string;
+  status?: number;
+};
+type AppLogger = { error: (fields: AppLogFields) => void };
 
 type AuthSession = NonNullable<Awaited<ReturnType<Auth["api"]["getSession"]>>>;
 
@@ -19,12 +24,6 @@ type SessionHelpers<Role extends OrgRole> = {
   requireSession: () => Promise<AuthSession>;
 };
 
-/**
- * `allow` is an allow-list on both surfaces on purpose. The customer app and the
- * operator panel previously expressed the same rule in opposite directions (one
- * listed the role it accepted, the other the role it rejected), so adding a
- * fourth OrgRole would have silently admitted it to the operator panel.
- */
 const createSessionHelpers = <Role extends OrgRole>(config: {
   allow: ReadonlyArray<Role>;
   log: AppLogger;

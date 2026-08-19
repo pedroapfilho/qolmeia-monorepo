@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const webSearchInputSchema = z.object({
   numResults: z
@@ -36,7 +36,7 @@ const SNIPPET_MAX = 800;
 const webSearchSkill: UnknownSkill = {
   description:
     "Busca na web (notícias, tendências, concorrentes, fatos atuais) e retorna trechos com as fontes. Use para fundamentar conteúdo em informação verificável e recente.",
-  async execute(input: unknown, ctx: SkillContext): Promise<WebSearchResult> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<WebSearchResult> {
     const { numResults, query } = webSearchInputSchema.parse(input);
     const apiKey = ctx.env.EXA_API_KEY;
     if (apiKey === undefined || apiKey === "") {

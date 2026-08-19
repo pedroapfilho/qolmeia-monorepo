@@ -3,6 +3,7 @@ import type { Action, DecisionOutcome } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
 import type { Policy } from "#/db/policy";
+import { toRecord } from "#/lib/records";
 
 const actionInclude = {
   company: { select: { name: true } },
@@ -36,9 +37,7 @@ const mapAction = (row: ActionRecord): Action => ({
   feedback: row.feedback,
   id: row.id,
   policy: row.policy,
-  // SAFETY: proposeAction is the only writer and accepts Record<string, unknown>.
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  proposed: row.proposed as Record<string, unknown>,
+  proposed: toRecord(row.proposed),
   status: row.status,
   ticketId: row.ticketId,
 });
@@ -47,7 +46,7 @@ type ProposeActionInput = {
   actionType: string;
   companyId: string;
   policy: Policy;
-  proposed: Record<string, unknown>;
+  proposed: Prisma.InputJsonObject;
   ticketId: string;
 };
 
@@ -65,9 +64,7 @@ const proposeAction = async (db: Database, input: ProposeActionInput): Promise<{
       companyId: input.companyId,
       id: crypto.randomUUID(),
       policy: input.policy,
-      // SAFETY: ProposeActionInput restricts proposals to JSON-serializable records.
-      // oxlint-disable-next-line no-unsafe-type-assertion
-      proposed: input.proposed as Prisma.InputJsonValue,
+      proposed: input.proposed,
       status: "pending",
       ticketId: input.ticketId,
     },

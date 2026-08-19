@@ -25,20 +25,24 @@ type TicketDetailPageProps = {
 
 type StepTone = "done" | "current" | "waiting" | "blocked";
 
-const STEP_TONE: Record<Action["status"], StepTone> = {
+type StepToneContract = Record<Action["status"], StepTone>;
+
+const STEP_TONE = {
   approved: "current",
   changes_requested: "waiting",
   executed: "done",
   pending: "waiting",
   rejected: "blocked",
-};
+} satisfies StepToneContract;
 
-const STEP_DOT: Record<StepTone, string> = {
+type StepDotContract = Record<StepTone, string>;
+
+const STEP_DOT = {
   blocked: "border-destructive bg-destructive",
   current: "border-info bg-info",
   done: "border-success bg-success",
   waiting: "border-warning bg-warning",
-};
+} satisfies StepDotContract;
 
 const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
   const { id } = await params;
@@ -108,7 +112,7 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
                           <div className="text-sm leading-snug font-medium text-foreground">
                             {truncate(summary, 120)}
                           </div>
-                          <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                          <div className="mt-1 font-mono text-xs text-muted-foreground">
                             {formatRelative(action.createdAt)}
                           </div>
                         </div>
@@ -130,7 +134,7 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
               </pre>
             ) : (
               <div className="flex h-40 items-center justify-center bg-muted/40">
-                <span className="rounded-md border border-border bg-card px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
+                <span className="rounded-md border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-muted-foreground">
                   aguardando entrega
                 </span>
               </div>
@@ -143,10 +147,10 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
 
         <Card>
           <CardContent>
-            <div className="mb-3 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            <div className="mb-3 font-mono text-xs tracking-wide text-muted-foreground uppercase">
               Detalhes
             </div>
-            <div className="flex flex-col gap-2.5 text-[13px]">
+            <div className="flex flex-col gap-2.5 text-[0.8125rem]">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Empresa</span>
                 <span className="truncate font-semibold text-foreground">{ticket.companyId}</span>
@@ -185,7 +189,7 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
                   href={`/approvals/${relatedAction.id}`}
                 >
                   <span aria-hidden className="size-2 shrink-0 rounded-full bg-warning" />
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+                  <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-semibold text-foreground">
                     {relatedAction.actionType}
                   </span>
                   <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />

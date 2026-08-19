@@ -24,28 +24,23 @@ const categoriseType = (type: string): Category => {
   return "neutral";
 };
 
-const CATEGORY_CLASSES: Record<Category, string> = {
+type CategoryClassesContract = Record<Category, string>;
+
+const CATEGORY_CLASSES = {
   action: "bg-highlight-surface text-highlight-surface-foreground",
   member: "bg-destructive-surface text-destructive-surface-foreground",
   neutral: "bg-muted text-muted-foreground",
   team: "bg-success-surface text-success-surface-foreground",
   ticket: "bg-info-surface text-info-surface-foreground",
   worker: "bg-worker-surface text-worker-surface-foreground",
-};
+} satisfies CategoryClassesContract;
 
 type ActivityRowProps = {
   row: ActivityEntry;
 };
 
-const hasPayload = (payload: unknown): boolean => {
-  if (payload === null || payload === undefined) {
-    return false;
-  }
-  if (typeof payload !== "object") {
-    return true;
-  }
-  return Object.keys(payload).length > 0;
-};
+const hasPayload = (payload: ActivityEntry["payload"]): boolean =>
+  payload !== null && Object.keys(payload).length > 0;
 
 const ActivityRow = ({ row }: ActivityRowProps) => {
   const category = categoriseType(row.type);
@@ -56,7 +51,7 @@ const ActivityRow = ({ row }: ActivityRowProps) => {
       <div className="flex items-center gap-3.5">
         <span
           className={cn(
-            "inline-flex w-[188px] shrink-0 items-center overflow-hidden rounded-md px-2 py-1 font-mono text-[10.5px] font-medium tracking-tight text-ellipsis whitespace-nowrap",
+            "inline-flex w-[188px] shrink-0 items-center overflow-hidden rounded-md px-2 py-1 font-mono text-xs font-medium tracking-tight text-ellipsis whitespace-nowrap",
             tagClass,
           )}
           title={row.type}
@@ -67,7 +62,7 @@ const ActivityRow = ({ row }: ActivityRowProps) => {
         <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">
           {row.companyName}
         </span>
-        <time className="w-[54px] shrink-0 text-right font-mono text-[11px] whitespace-nowrap text-muted-foreground/80">
+        <time className="w-[54px] shrink-0 text-right font-mono text-xs whitespace-nowrap text-muted-foreground/80">
           {formatRelative(row.createdAt)}
         </time>
       </div>

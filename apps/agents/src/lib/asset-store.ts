@@ -15,7 +15,9 @@ type AssetSummary = {
   visibility: AssetVisibility;
 };
 
-const EXT_BY_MIME: Record<string, string> = {
+type ExtByMimeContract = Record<string, string>;
+
+const EXT_BY_MIME = {
   "application/json": "json",
   "image/gif": "gif",
   "image/jpeg": "jpg",
@@ -26,11 +28,13 @@ const EXT_BY_MIME: Record<string, string> = {
   "text/csv": "csv",
   "text/markdown": "md",
   "text/plain": "txt",
-};
+} satisfies ExtByMimeContract;
+
+const extensionByMime = new Map<string, string>(Object.entries(EXT_BY_MIME));
 
 const TEXT_MIME_PREFIXES = ["text/", "application/json"];
 
-const assetName = (metadata: unknown, id: string, kind: string): string => {
+const assetName = (metadata: Prisma.JsonValue, id: string, kind: string): string => {
   const meta = toRecord(metadata);
   const name = typeof meta.name === "string" && meta.name !== "" ? meta.name : undefined;
   const originalName =
@@ -59,7 +63,7 @@ type PersistAssetInput = {
 const persistAsset = async (env: Env, input: PersistAssetInput): Promise<{ assetId: string }> => {
   const { bytes, companyId, kind, metadata, mime, visibility } = input;
   const sha = await sha256Hex(bytes);
-  const ext = EXT_BY_MIME[mime] ?? input.fallbackExt ?? "bin";
+  const ext = extensionByMime.get(mime) ?? input.fallbackExt ?? "bin";
   const folder = kind === "brand_asset" ? `${visibility}/brand` : visibility;
   const r2Key = `org_${companyId}/${folder}/${sha}.${ext}`;
 

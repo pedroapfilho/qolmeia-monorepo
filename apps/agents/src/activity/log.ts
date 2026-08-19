@@ -2,6 +2,7 @@ import type { ActivityEntry } from "@repo/worker-api/contracts";
 
 import type { ActivityEvent } from "#/activity/types";
 import type { Database } from "#/db/client";
+import { toRecord } from "#/lib/records";
 
 type LogActivityInput = ActivityEvent & {
   actorId?: string;
@@ -64,9 +65,7 @@ const listActivity = async (
     companyName: row.company.name,
     createdAt: row.createdAt.getTime(),
     id: row.id,
-    // SAFETY: logActivity is the only writer and accepts the ActivityEvent payload contract.
-    // oxlint-disable-next-line no-unsafe-type-assertion
-    payload: row.payload as Record<string, unknown> | null,
+    payload: row.payload === null ? null : toRecord(row.payload),
     refId: row.refId,
     refType: row.refType,
     summary: row.summary,

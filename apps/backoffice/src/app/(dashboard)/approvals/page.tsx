@@ -25,13 +25,13 @@ export const metadata: Metadata = { title: "Aprovações" };
 /** @public Next.js app-router reads the instant segment config via the module loader */
 export const instant = true;
 
-const AGE_TIER_CLASS: Record<AgeTier, string> = {
+const AGE_TIER_CLASS = {
   calm: "text-muted-foreground",
   urgent: "font-semibold text-destructive-surface-foreground",
   warning: "font-semibold text-warning-surface-foreground",
-};
+} satisfies Record<AgeTier, string>;
 
-const proposedSummary = (proposed: Record<string, unknown>): string => {
+const proposedSummary = (proposed: ActionsResponse["items"][number]["proposed"]): string => {
   const summary = typeof proposed.summary === "string" ? proposed.summary : "";
   return summary.split("\n")[0]?.trim() ?? "";
 };
@@ -64,7 +64,7 @@ const ApprovalsContent = async () => {
           />
         ) : (
           <div>
-            <div className="grid grid-cols-[1fr_180px_150px_110px_92px] items-center gap-3 border-b border-border bg-secondary/40 px-5 py-3 font-mono text-[10.5px] tracking-wide text-muted-foreground uppercase">
+            <div className="grid grid-cols-[1fr_180px_150px_110px_92px] items-center gap-3 border-b border-border bg-secondary/40 px-5 py-3 font-mono text-xs tracking-wide text-muted-foreground uppercase">
               <span>Ação</span>
               <span>Empresa</span>
               <span>Agente</span>
@@ -100,7 +100,7 @@ const ApprovalsContent = async () => {
                     <div className="flex min-w-0 items-center gap-2">
                       <span
                         aria-hidden
-                        className={`flex size-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
+                        className={`flex size-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
                       >
                         {agentInitials(action.agent.name)}
                       </span>

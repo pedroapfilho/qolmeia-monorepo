@@ -4,7 +4,9 @@ import { cn } from "../lib/utils";
 
 type StatusTone = "danger" | "info" | "neutral" | "success" | "warning";
 
-const TONE: Record<StatusTone, { dot: string; pill: string }> = {
+type ToneContract = Record<StatusTone, { dot: string; pill: string }>;
+
+const TONE = {
   danger: {
     dot: "bg-destructive",
     pill: "bg-destructive-surface text-destructive-surface-foreground",
@@ -13,7 +15,7 @@ const TONE: Record<StatusTone, { dot: string; pill: string }> = {
   neutral: { dot: "bg-muted-foreground/60", pill: "bg-muted text-muted-foreground" },
   success: { dot: "bg-success", pill: "bg-success-surface text-success-surface-foreground" },
   warning: { dot: "bg-warning", pill: "bg-warning-surface text-warning-surface-foreground" },
-};
+} satisfies ToneContract;
 
 type StatusPillProps = ComponentProps<"span"> & {
   dotless?: boolean;

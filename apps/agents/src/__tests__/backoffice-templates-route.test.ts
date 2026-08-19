@@ -2,6 +2,13 @@ import { exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalFetch = globalThis.fetch;
+type JsonBody =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<JsonBody>
+  | { readonly [key: string]: JsonBody | undefined };
 
 const meStaff = {
   currentOrg: { id: "co_tpl_test", role: "STAFF" },
@@ -27,14 +34,14 @@ type Template = {
   version: number;
 };
 
-const post = (body: unknown) =>
+const post = (body: JsonBody) =>
   exports.default.fetch("https://agents.test/api/backoffice/templates?cf_session=tok", {
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
 
-const patch = (path: string, body: unknown) =>
+const patch = (path: string, body: JsonBody) =>
   exports.default.fetch(`https://agents.test/api/backoffice${path}?cf_session=tok`, {
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },

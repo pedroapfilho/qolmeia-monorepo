@@ -7,7 +7,7 @@ import { resolveSkills, type SkillContext, type SkillOverlayMap } from "#/skills
 
 type JsonSchemaNode = {
   description?: string;
-  enum?: ReadonlyArray<unknown>;
+  enum?: ReadonlyArray<JsonValue>;
   format?: string;
   items?: JsonSchemaNode;
   maxLength?: number;
@@ -86,7 +86,7 @@ const convert = (node: JsonSchemaNode, path: string): AnySchema => {
 const buildInputSchema = (
   schema: ZodType,
   skillId: string,
-): v.GenericSchema<Record<string, unknown>, unknown> => {
+): v.GenericSchema<Record<string, JsonValue>, unknown> => {
   // SAFETY: JsonSchemaNode is an all-optional view and convert validates every field it reads.
   // oxlint-disable-next-line no-unsafe-type-assertion
   const node = z.toJSONSchema(schema) as JsonSchemaNode;
@@ -95,7 +95,7 @@ const buildInputSchema = (
   }
   // SAFETY: The checked object node makes convert return a record-producing schema.
   // oxlint-disable-next-line no-unsafe-type-assertion
-  return convert(node, skillId) as v.GenericSchema<Record<string, unknown>, unknown>;
+  return convert(node, skillId) as v.GenericSchema<Record<string, JsonValue>, unknown>;
 };
 
 const buildFlueTools = (

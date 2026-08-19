@@ -100,11 +100,11 @@ const listTeamRosters = async (
     orderBy: { createdAt: "asc" },
     where: { companyId: { in: ids } },
   });
-  for (const companyId of ids) {
-    result.set(
-      companyId,
-      sortRoster(rows.filter((row) => row.companyId === companyId).map(projectMember)),
-    );
+  for (const row of rows) {
+    result.get(row.companyId)?.push(projectMember(row));
+  }
+  for (const [companyId, members] of result) {
+    result.set(companyId, sortRoster(members));
   }
   return result;
 };

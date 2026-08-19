@@ -47,9 +47,9 @@ const DashboardLayout = ({ children }: { children: ReactNode }) => (
       <SidebarData />
     </Suspense>
     <div className="flex flex-1 flex-col">
-      <main className="flex-1 px-10 py-8 pb-16" id="main-content">
+      <div className="flex-1 px-10 py-8 pb-16">
         <div className="mx-auto w-full max-w-6xl">{children}</div>
-      </main>
+      </div>
     </div>
   </div>
 );

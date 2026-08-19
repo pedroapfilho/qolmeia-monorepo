@@ -9,10 +9,16 @@ type OperatorCoverage = {
 
 const listCoverage = async (db: Database, operatorUserId: string): Promise<OperatorCoverage> => {
   const rows = await db.operatorAssignment.findMany({ where: { operatorUserId } });
-  return {
-    companies: rows.filter((row) => row.kind === "company").map((row) => row.value),
-    disciplines: rows.filter((row) => row.kind === "discipline").map((row) => row.value),
-  };
+  const companies: Array<string> = [];
+  const disciplines: Array<string> = [];
+  for (const row of rows) {
+    if (row.kind === "company") {
+      companies.push(row.value);
+    } else {
+      disciplines.push(row.value);
+    }
+  }
+  return { companies, disciplines };
 };
 
 const setCoverage = async (

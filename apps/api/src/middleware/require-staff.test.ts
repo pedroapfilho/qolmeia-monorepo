@@ -11,7 +11,12 @@ type Membership = {
   userId: string;
 };
 
-const buildAuth = (session: unknown) => ({
+type AuthSession = {
+  session: { id: string; userId: string };
+  user: { email: string; id: string; name: string };
+} | null;
+
+const buildAuth = (session: AuthSession) => ({
   api: { getSession: vi.fn().mockResolvedValue(session) },
 });
 

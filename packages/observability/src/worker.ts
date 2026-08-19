@@ -8,6 +8,9 @@ const initWorkerLogger = (opts: { service: string }): void => {
   initLogger(buildConfig(opts.service));
 };
 
-const createJobLogger = (ctx: Record<string, unknown>) => createLogger(ctx);
+type JobLogValue = boolean | number | string | null | undefined;
+type JobLogContext = Readonly<Record<string, JobLogValue>>;
+
+const createJobLogger = (ctx: JobLogContext) => createLogger(ctx);
 
 export { createJobLogger, initWorkerLogger };

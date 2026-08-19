@@ -7,10 +7,7 @@ export const metadata: Metadata = {
 };
 
 const NotFound = () => (
-  <main
-    className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center"
-    id="main-content"
-  >
+  <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center">
     <p className="text-8xl font-bold tracking-tight text-foreground">404</p>
     <div className="flex flex-col gap-2">
       <h1 className="text-2xl font-semibold text-foreground">Página não encontrada</h1>
@@ -21,7 +18,7 @@ const NotFound = () => (
     <Link className={buttonVariants()} href="/">
       Ir para o início
     </Link>
-  </main>
+  </div>
 );
 
 export default NotFound;

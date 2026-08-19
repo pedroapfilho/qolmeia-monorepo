@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const fetchUrlInputSchema = z.object({
   url: z.url().describe("A URL completa da página a ler (ex: https://exemplo.com.br)."),
@@ -15,11 +15,13 @@ type FirecrawlResponse = {
 const FIRECRAWL_CLOUD = "https://api.firecrawl.dev";
 const CONTENT_MAX = 8000;
 
-const fetchUrlSkill: UnknownSkill = {
+type FetchUrlSkillContract = UnknownSkill;
+
+const fetchUrlSkill = {
   description:
     "Lê o conteúdo de uma página da web (texto em markdown) a partir da sua URL. Use para analisar o site do cliente, de um concorrente, ou uma referência específica.",
   async execute(
-    input: unknown,
+    input: SkillInput,
     ctx: SkillContext,
   ): Promise<{ markdown: string; title: string; url: string }> {
     const { url } = fetchUrlInputSchema.parse(input);
@@ -32,9 +34,9 @@ const fetchUrlSkill: UnknownSkill = {
       );
     }
 
-    const headers: Record<string, string> = { "content-type": "application/json" };
+    const headers = new Headers({ "content-type": "application/json" });
     if (hasApiKey) {
-      headers.authorization = `Bearer ${apiKey}`;
+      headers.set("authorization", `Bearer ${apiKey}`);
     }
     const res = await fetch(`${baseUrl}/v2/scrape`, {
       body: JSON.stringify({ formats: ["markdown"], onlyMainContent: true, url }),
@@ -59,6 +61,6 @@ const fetchUrlSkill: UnknownSkill = {
   },
   id: "fetchUrl",
   inputSchema: fetchUrlInputSchema,
-};
+} satisfies FetchUrlSkillContract;
 
 export { fetchUrlSkill };

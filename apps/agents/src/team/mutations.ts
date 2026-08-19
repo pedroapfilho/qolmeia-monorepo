@@ -190,7 +190,9 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
     throw new TeamMemberNotFoundError(input.agentInstanceId, input.companyId);
   }
 
-  const data: { displayName?: string; promptOverride?: string | null } = {};
+  type DataContract = { displayName?: string; promptOverride?: string | null };
+
+  const data: DataContract = {};
   const activityBase = {
     actorId: input.operatorId ?? undefined,
     companyId: input.companyId,
@@ -247,7 +249,7 @@ const updateMember = async (db: PrismaClient, input: UpdateInput): Promise<TeamM
   for (const activity of activities) {
     // Sequential on purpose: the activity feed is read in insertion order, so a
     // rename has to land before the prompt edit that arrived in the same request.
-    // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop
+    // oxlint-disable-next-line react-doctor/async-await-in-loop
     await logActivity(db, activity);
   }
 

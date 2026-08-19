@@ -16,10 +16,12 @@ import { toast } from "@repo/ui/lib/toast";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Suspense, use, useState } from "react";
+import { Suspense, useState } from "react";
 
 import { loginSchema } from "@/lib/form-schemas";
 import { safeRedirectPath } from "@/lib/redirect-validation";
+
+import { RegisterLink } from "./register-link";
 
 type Props = {
   searchParams: Promise<{ from?: string }>;
@@ -32,26 +34,6 @@ type LoginDependencies = {
     password: string;
   }) => Promise<{ error: { code?: string; message?: string } | null }>;
   useAppRouter: () => Pick<ReturnType<typeof useRouter>, "push" | "refresh">;
-};
-
-const RegisterLinkFallback = () => (
-  <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/register">
-    Criar conta
-  </Link>
-);
-
-const RegisterLink = ({ searchParams }: Props) => {
-  const { from } = use(searchParams);
-  const redirectTo = safeRedirectPath(from);
-
-  return (
-    <Link
-      className="font-medium text-primary underline-offset-4 hover:underline"
-      href={redirectTo === "/" ? "/register" : `/register?from=${encodeURIComponent(redirectTo)}`}
-    >
-      Criar conta
-    </Link>
-  );
 };
 
 const createLoginPage = ({ showError, signInEmail, useAppRouter }: LoginDependencies) => {
@@ -181,7 +163,16 @@ const createLoginPage = ({ showError, signInEmail, useAppRouter }: LoginDependen
             </form.Subscribe>
             <p className="text-center text-sm text-muted-foreground">
               Ainda não tem conta?{" "}
-              <Suspense fallback={<RegisterLinkFallback />}>
+              <Suspense
+                fallback={
+                  <Link
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                    href="/register"
+                  >
+                    Criar conta
+                  </Link>
+                }
+              >
                 <RegisterLink searchParams={searchParams} />
               </Suspense>
             </p>

@@ -6,11 +6,15 @@ import { PublishPostCard } from "./publish-post-card";
 type ActionRendererProps = { proposed: Action["proposed"] };
 type ActionRenderer = ComponentType<ActionRendererProps>;
 
-const RENDERERS: Record<string, ActionRenderer> = {
+type RenderersContract = Record<string, ActionRenderer>;
+
+const RENDERERS = {
   publish_post: PublishPostCard,
-};
+} satisfies RenderersContract;
+
+const rendererByActionType = new Map<string, ActionRenderer>(Object.entries(RENDERERS));
 
 const getActionRenderer = (actionType: string): ActionRenderer | null =>
-  RENDERERS[actionType] ?? null;
+  rendererByActionType.get(actionType) ?? null;
 
 export { getActionRenderer };

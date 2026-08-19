@@ -65,7 +65,9 @@ const provisionProductCompany = async (args: {
     ? env.AGENTS_INTERNAL_URL.slice(0, -1)
     : env.AGENTS_INTERNAL_URL;
   const url = `${base}/api/internal/companies`;
-  const headers: Record<string, string> = {
+  type HeadersContract = Record<string, string>;
+
+  const headers: HeadersContract = {
     Authorization: `Bearer ${env.INTERNAL_SHARED_SECRET}`,
     "Content-Type": "application/json",
   };

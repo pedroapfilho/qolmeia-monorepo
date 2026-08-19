@@ -1,4 +1,12 @@
 type FetchInit = Omit<RequestInit, "body" | "method">;
+type JsonRequestValue =
+  | boolean
+  | number
+  | string
+  | null
+  | undefined
+  | ReadonlyArray<JsonRequestValue>
+  | { readonly [key: string]: JsonRequestValue };
 
 class ApiError extends Error {
   body: string;
@@ -40,7 +48,12 @@ type SendMethod = "DELETE" | "PATCH" | "POST" | "PUT";
 
 type BrowserApi = {
   apiGet: <T>(path: string, init?: FetchInit) => Promise<T>;
-  apiSend: <T>(method: SendMethod, path: string, body?: unknown, init?: FetchInit) => Promise<T>;
+  apiSend: <T>(
+    method: SendMethod,
+    path: string,
+    body?: JsonRequestValue,
+    init?: FetchInit,
+  ) => Promise<T>;
   apiSendForm: <T>(path: string, formData: FormData, init?: FetchInit) => Promise<T>;
 };
 
@@ -59,7 +72,7 @@ const createBrowserApi = (agentsUrl: string, basePath = ""): BrowserApi => {
     apiSend: async <T>(
       method: SendMethod,
       path: string,
-      body?: unknown,
+      body?: JsonRequestValue,
       init?: FetchInit,
     ): Promise<T> => {
       const serialized = body === undefined ? undefined : JSON.stringify(body);
@@ -101,13 +114,13 @@ type ServerApi = {
 const createServerApi = (config: ServerApiConfig): ServerApi => ({
   apiGetServer: async <T>(path: string): Promise<T> => {
     const [cookie, orgId] = await Promise.all([config.readCookieHeader(), config.readOrgId()]);
+    const headers = new Headers({ Accept: "application/json", "X-Org-Id": orgId });
+    if (cookie !== "") {
+      headers.set("Cookie", cookie);
+    }
     const res = await fetch(`${config.baseUrl}${config.basePath ?? ""}${path}`, {
       cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        "X-Org-Id": orgId,
-        ...(cookie === "" ? {} : { Cookie: cookie }),
-      },
+      headers,
     });
     return handleResponse<T>(res);
   },

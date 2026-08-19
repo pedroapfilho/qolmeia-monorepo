@@ -47,7 +47,7 @@ const AssetPreviewDialog = ({ asset, onClose }: AssetPreviewDialogProps) => {
     if (isPending) {
       return (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 aria-hidden className="size-4 animate-spin" />
+          <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />
           Carregando…
         </div>
       );
@@ -94,7 +94,9 @@ const AssetPreviewDialog = ({ asset, onClose }: AssetPreviewDialogProps) => {
             <img
               alt={asset.name}
               className="mx-auto max-h-[60vh] rounded-lg object-contain"
+              height={800}
               src={asset.url}
+              width={1200}
             />
           ) : null}
 

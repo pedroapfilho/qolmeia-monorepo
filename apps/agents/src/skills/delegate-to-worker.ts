@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb } from "#/db/client";
 import { getDelegationTargets } from "#/db/team";
 import { setTicketWorkflowId } from "#/db/ticket";
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 import { emitTeamEvent } from "#/team/events";
 
 const delegateInputSchema = z.object({
@@ -31,7 +31,8 @@ const pickWorker = (
   candidates: ReadonlyArray<WorkerCandidate>,
   allowed: ReadonlyArray<string>,
 ): WorkerCandidate | null => {
-  const eligible = candidates.filter((c) => allowed.includes(c.id));
+  const allowedIds = new Set(allowed);
+  const eligible = candidates.filter((candidate) => allowedIds.has(candidate.id));
   if (eligible.length === 0) {
     return null;
   }
@@ -45,7 +46,7 @@ const pickWorker = (
 const delegateToWorkerSkill: UnknownSkill = {
   description:
     "Delega uma tarefa a um especialista do Time. Use quando o pedido exige uma especialidade que você não executa diretamente (ex: criar imagem → designer).",
-  async execute(input: unknown, ctx: SkillContext): Promise<DelegateResult> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<DelegateResult> {
     const { brief, workerKind } = delegateInputSchema.parse(input);
     const db = getDb(ctx.env);
     const rows = await db.agentInstance.findMany({

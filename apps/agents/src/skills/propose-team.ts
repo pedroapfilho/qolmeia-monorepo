@@ -3,7 +3,8 @@ import { z } from "zod";
 import { getDb } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
 import { parseBrief } from "#/lib/company-brief";
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { CompanyBrief } from "#/lib/company-brief";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const proposeTeamInputSchema = z.object({});
 
@@ -15,14 +16,14 @@ type TeamCandidate = {
 };
 
 type ProposeResult = {
-  brief: Record<string, unknown>;
+  brief: Partial<CompanyBrief>;
   candidates: ReadonlyArray<TeamCandidate>;
 };
 
 const proposeTeamSkill: UnknownSkill = {
   description:
     "Lê o catálogo de especialistas disponíveis e propõe um Time para a empresa com base no brief atual. Use depois de coletar informação suficiente no debrief.",
-  async execute(_input: unknown, ctx: SkillContext): Promise<ProposeResult> {
+  async execute(_input: SkillInput, ctx: SkillContext): Promise<ProposeResult> {
     const db = getDb(ctx.env);
     const [templates, row] = await Promise.all([
       listEntitledActiveTemplates(db, ctx.companyId),

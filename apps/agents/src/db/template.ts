@@ -1,10 +1,16 @@
-import type { AgentTemplate, Skill as PrismaSkill } from "@repo/db/worker";
+import type { AgentTemplate, Prisma, Skill as PrismaSkill } from "@repo/db/worker";
 import type { Template, TemplateInput, TemplateStatus } from "@repo/worker-api/contracts";
+import { z } from "zod";
 
 import type { Database } from "#/db/client";
+import { toRecord } from "#/lib/records";
+
+const policiesSchema = z.record(z.string(), z.string());
+const skillIdsSchema = z.array(z.string());
+const stringHintsSchema = z.record(z.string(), z.string());
 
 type SkillOverlay = {
-  defaultConfig: Record<string, unknown> | null;
+  defaultConfig: Prisma.JsonObject | null;
   description: string;
   displayName: string;
   enabled: boolean;
@@ -16,16 +22,12 @@ type SkillOverlay = {
 const mapTemplate = (row: AgentTemplate): Template => ({
   createdAt: row.createdAt.getTime(),
   defaultActionType: row.defaultActionType,
-  // SAFETY: The product seed owns this JSON column and writes string policy values.
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  defaultPolicies: row.defaultPolicies as Record<string, string>,
+  defaultPolicies: policiesSchema.parse(row.defaultPolicies),
   description: row.description,
   displayName: row.displayName,
   id: row.id,
   model: row.model,
-  // SAFETY: The product seed owns this JSON column and writes string skill IDs.
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  skillIds: row.skillIds as Array<string>,
+  skillIds: skillIdsSchema.parse(row.skillIds),
   status: row.status,
   systemPrompt: row.systemPrompt,
   updatedAt: row.updatedAt.getTime(),
@@ -33,16 +35,12 @@ const mapTemplate = (row: AgentTemplate): Template => ({
   workerKind: row.workerKind,
 });
 const mapSkillOverlay = (row: PrismaSkill): SkillOverlay => ({
-  // SAFETY: The product seed owns this JSON column and writes object configuration.
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  defaultConfig: row.defaultConfig as Record<string, unknown> | null,
+  defaultConfig: row.defaultConfig === null ? null : toRecord(row.defaultConfig),
   description: row.description,
   displayName: row.displayName,
   enabled: row.enabled,
   id: row.id,
-  // SAFETY: The product seed owns this JSON column and writes string hints.
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  paramHints: row.paramHints as Record<string, string> | null,
+  paramHints: row.paramHints === null ? null : stringHintsSchema.parse(row.paramHints),
   updatedAt: row.updatedAt.getTime(),
 });
 

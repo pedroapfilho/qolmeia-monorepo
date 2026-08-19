@@ -73,8 +73,9 @@ const mergeBrief = (
 const hasText = (value: string | undefined): boolean => value !== undefined && value !== "";
 
 const jsonValueSchema = z.json();
+type BriefInput = Parameters<typeof jsonValueSchema.safeParse>[0];
 
-const parseBrief = (raw: unknown): Partial<CompanyBrief> => {
+const parseBrief = (raw: BriefInput): Partial<CompanyBrief> => {
   if (raw === null || raw === undefined || raw === "") {
     return {};
   }
@@ -111,14 +112,14 @@ const BRIEF_REQUIRED_FIELDS = [
 
 type BriefFieldId = (typeof BRIEF_REQUIRED_FIELDS)[number];
 
-const BRIEF_FIELD_FILLED: Record<BriefFieldId, (brief: Partial<CompanyBrief>) => boolean> = {
+const BRIEF_FIELD_FILLED = {
   audience: (brief) => hasText(brief.audience),
   "brand.palette": (brief) => hasText(brief.brand?.palette),
   "brand.references": (brief) => hasText(brief.brand?.references),
   "brand.voice": (brief) => hasText(brief.brand?.voice),
   industry: (brief) => hasText(brief.industry),
   primaryGoal: (brief) => hasText(brief.primaryGoal),
-};
+} satisfies Record<BriefFieldId, (brief: Partial<CompanyBrief>) => boolean>;
 
 const isBriefFieldFilled = (brief: Partial<CompanyBrief>, field: BriefFieldId): boolean =>
   BRIEF_FIELD_FILLED[field](brief);

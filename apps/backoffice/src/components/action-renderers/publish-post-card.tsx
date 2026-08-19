@@ -2,19 +2,27 @@ import { Card } from "@repo/ui/components/card";
 import type { Action } from "@repo/worker-api/contracts";
 import { z } from "zod";
 
-const PLATFORM_COPY: Record<string, string> = {
+type PlatformCopyContract = Record<string, string>;
+
+const PLATFORM_COPY = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
   twitter: "Twitter / X",
-};
+} satisfies PlatformCopyContract;
 
-const PLATFORM_ABBR: Record<string, string> = {
+const platformCopy = new Map<string, string>(Object.entries(PLATFORM_COPY));
+
+type PlatformAbbrContract = Record<string, string>;
+
+const PLATFORM_ABBR = {
   facebook: "FB",
   instagram: "IG",
   linkedin: "in",
   twitter: "X",
-};
+} satisfies PlatformAbbrContract;
+
+const platformAbbrByName = new Map<string, string>(Object.entries(PLATFORM_ABBR));
 
 type Draft = {
   body?: string;
@@ -56,16 +64,18 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
   }
 
   const platformLabel = hasText(draft.platform)
-    ? (PLATFORM_COPY[draft.platform] ?? draft.platform)
+    ? (platformCopy.get(draft.platform) ?? draft.platform)
     : "Rede social";
-  const platformAbbr = hasText(draft.platform) ? (PLATFORM_ABBR[draft.platform] ?? "•") : "•";
+  const platformAbbr = hasText(draft.platform)
+    ? (platformAbbrByName.get(draft.platform) ?? "•")
+    : "•";
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <div className="flex items-center gap-2.5 border-b border-border/60 px-4 py-3.5">
         <div
           aria-hidden
-          className="flex size-7 items-center justify-center rounded-[10px] bg-destructive-surface text-[11px] font-bold text-destructive-surface-foreground"
+          className="flex size-7 items-center justify-center rounded-[10px] bg-destructive-surface text-xs font-bold text-destructive-surface-foreground"
         >
           {platformAbbr}
         </div>
@@ -75,16 +85,14 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
             <div className="text-xs text-muted-foreground">Tom · {draft.tone}</div>
           )}
         </div>
-        <span className="ml-auto font-mono text-[10.5px] text-muted-foreground">
-          feed · 1080×1080
-        </span>
+        <span className="ml-auto font-mono text-xs text-muted-foreground">feed · 1080×1080</span>
       </div>
 
       <div
         aria-label="Pré-visualização da arte gerada pelo Designer"
         className="flex h-[320px] items-center justify-center bg-[repeating-linear-gradient(45deg,var(--color-muted),var(--color-muted)_13px,var(--color-secondary)_13px,var(--color-secondary)_26px)]"
       >
-        <span className="rounded-md border border-border bg-card px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
+        <span className="rounded-md border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-muted-foreground">
           arte gerada pelo Designer
         </span>
       </div>
@@ -104,7 +112,7 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
           <ul className="flex flex-wrap gap-1.5">
             {draft.hashtags.map((tag) => (
               <li
-                className="rounded-full bg-highlight-surface px-2 py-0.5 text-xs font-medium text-highlight-surface-foreground"
+                className="rounded-full bg-highlight-surface px-2 py-2 text-xs font-medium text-highlight-surface-foreground"
                 key={tag}
               >
                 #{tag}
@@ -116,7 +124,7 @@ const PublishPostCard = ({ proposed }: PublishPostCardProps) => {
         <div className="flex items-center gap-2 border-t border-border/60 pt-3">
           <div
             aria-hidden
-            className="flex size-[22px] items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
+            className="flex size-[22px] items-center justify-center rounded-[6px] text-xs font-bold text-white"
             style={{ background: "var(--color-avatar-2)" }}
           >
             DE

@@ -34,10 +34,11 @@ const buildPrisma = () => {
 };
 
 const DEFAULT_HEADERS: Record<string, string> = { "Content-Type": "application/json" };
+type OrgRequestBody = string | { name: string; slug: string };
 
 const postOrgs = (
   app: ReturnType<typeof buildOrgsRoutes>,
-  body: unknown,
+  body: OrgRequestBody,
   headers: Record<string, string> = DEFAULT_HEADERS,
 ): Promise<Response> => {
   const request = new Request("http://localhost/", {

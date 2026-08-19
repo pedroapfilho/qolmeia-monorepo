@@ -1,4 +1,11 @@
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? "";
+type JsonRequestValue =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<JsonRequestValue>
+  | { readonly [key: string]: JsonRequestValue };
 
 const ME_PATH = "/api/me";
 
@@ -28,14 +35,10 @@ const fetchActiveOrgId = async (): Promise<string | null> => {
   return body.currentOrg?.id ?? body.orgs.find((org) => org.role === "CUSTOMER")?.id ?? null;
 };
 
-const orgDiscovery: { promise: Promise<string | null> | null } = { promise: null };
+type OrgDiscoveryContract = { promise: Promise<string | null> | null };
 
-/**
- * The browser learns its org the same way the server does: from /api/me, the one
- * read that answers without an org id. Memoized per tab so naming the org costs
- * one request per session rather than one per call, and cleared on failure so a
- * transient outage does not poison every later call.
- */
+const orgDiscovery: OrgDiscoveryContract = { promise: null };
+
 const activeOrgId = async (): Promise<string | null> => {
   orgDiscovery.promise ??= fetchActiveOrgId();
   try {
@@ -65,7 +68,7 @@ const request = async <T>(path: string, label: string, init?: RequestInit): Prom
   return (await res.json()) as T;
 };
 
-const jsonInit = (method: "PATCH" | "POST", body: unknown): RequestInit => ({
+const jsonInit = (method: "PATCH" | "POST", body: JsonRequestValue): RequestInit => ({
   body: JSON.stringify(body),
   headers: { "content-type": "application/json" },
   method,

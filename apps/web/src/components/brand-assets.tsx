@@ -94,7 +94,7 @@ const BrandAssets = () => {
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             Categoria
             <select
-              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+              className="h-9 rounded-lg border border-input bg-background px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 sm:text-sm"
               onChange={(e) => {
                 const { value } = e.currentTarget;
                 if (isBrandCategory(value)) {
@@ -125,7 +125,7 @@ const BrandAssets = () => {
             variant="outline"
           >
             {uploadMutation.isPending ? (
-              <Loader2 aria-hidden className="size-4 animate-spin" />
+              <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />
             ) : (
               <ImagePlus aria-hidden className="size-4" />
             )}

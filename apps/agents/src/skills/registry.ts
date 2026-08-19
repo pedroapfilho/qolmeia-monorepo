@@ -22,11 +22,12 @@ type SkillContext = {
   env: Env;
 };
 
+type SkillInput = Parameters<ZodType["parse"]>[0];
 type SkillResult = boolean | null | number | object | string;
 
 type UnknownSkill = {
   description: string;
-  execute: (input: unknown, ctx: SkillContext) => Promise<SkillResult>;
+  execute: (input: SkillInput, ctx: SkillContext) => Promise<SkillResult>;
   id: string;
   inputSchema: ZodType;
 };
@@ -61,7 +62,7 @@ const previewResult = <Result extends SkillResult>(result: Result): Result | str
 
 type ResolvedSkill = {
   description: string;
-  execute: (input: unknown) => Promise<SkillResult>;
+  execute: (input: SkillInput) => Promise<SkillResult>;
   id: string;
   inputSchema: ZodType;
 };
@@ -70,7 +71,7 @@ const runSkill = async (
   ctx: SkillContext,
   id: string,
   code: UnknownSkill,
-  input: unknown,
+  input: SkillInput,
 ): Promise<SkillResult> => {
   const start = Date.now();
   const baseFields = {
@@ -197,6 +198,7 @@ export type {
   ResolvedSkill,
   SkillCatalogEntry,
   SkillContext,
+  SkillInput,
   SkillOverlayMap,
   SkillResult,
   UnknownSkill,

@@ -3,13 +3,15 @@ import type { HTMLAttributes } from "react";
 
 type BadgeVariant = "default" | "success" | "warning" | "info" | "muted";
 
-const VARIANT_CLASSES: Record<BadgeVariant, string> = {
+type VariantClassesContract = Record<BadgeVariant, string>;
+
+const VARIANT_CLASSES = {
   default: "bg-foreground/10 text-foreground",
   info: "bg-info-surface text-info-surface-foreground",
   muted: "bg-muted text-muted-foreground",
   success: "bg-success-surface text-success-surface-foreground",
   warning: "bg-warning-surface text-warning-surface-foreground",
-};
+} satisfies VariantClassesContract;
 
 type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
   variant?: BadgeVariant;

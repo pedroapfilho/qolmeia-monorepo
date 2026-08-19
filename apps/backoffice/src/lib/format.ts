@@ -65,15 +65,16 @@ const truncate = (value: string, limit = 120): string => {
   return `${value.slice(0, limit - 1).trimEnd()}…`;
 };
 
-const ACTION_TYPE_LABEL: Record<string, string> = {
+const ACTION_TYPE_LABEL = {
   publish_post: "Publicar post",
   send_collection_message: "Enviar cobrança",
   worker_deliverable: "Entrega",
-};
+} satisfies Record<string, string>;
+const actionTypeLabelById = new Map<string, string>(Object.entries(ACTION_TYPE_LABEL));
 
 const actionTypeLabel = (actionType: string): string => {
-  const known = ACTION_TYPE_LABEL[actionType];
-  if (known) {
+  const known = actionTypeLabelById.get(actionType);
+  if (known !== undefined && known !== "") {
     return known;
   }
   const pretty = actionType.replaceAll(/[_\-]+/gv, " ").trim();

@@ -21,15 +21,16 @@ import { AssetPreviewDialog } from "@/components/asset-preview-dialog";
 import type { WebChatAsset } from "@/lib/api-types";
 import { deleteAssets } from "@/lib/assets";
 
-const KIND_LABEL: Record<string, string> = {
+const KIND_LABEL = {
   audio: "Áudio",
   brand_asset: "Marca",
   generated_image: "Imagens",
   knowledge_doc: "Documentos",
   user_upload: "Uploads",
-};
+} satisfies Record<string, string>;
+const kindLabelById = new Map<string, string>(Object.entries(KIND_LABEL));
 
-const kindLabel = (kind: string): string => KIND_LABEL[kind] ?? "Outros";
+const kindLabel = (kind: string): string => kindLabelById.get(kind) ?? "Outros";
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) {
@@ -134,7 +135,7 @@ const AssetPreview = ({ asset }: { asset: WebChatAsset }) => {
   return (
     <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-muted text-muted-foreground">
       <Icon aria-hidden className="size-9" />
-      <span className="font-mono text-[10px] tracking-wide uppercase">{kindLabel(asset.kind)}</span>
+      <span className="font-mono text-xs tracking-wide uppercase">{kindLabel(asset.kind)}</span>
     </div>
   );
 };
@@ -274,7 +275,7 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
                   <div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
-                      <p className="truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                      <p className="truncate font-mono text-xs tracking-wide text-muted-foreground uppercase">
                         {kindLabel(asset.kind)} · {formatBytes(asset.size)}
                       </p>
                     </div>
@@ -341,7 +342,7 @@ const AssetsGallery = ({ assets }: AssetsGalleryProps) => {
               variant="destructive"
             >
               {deleting ? (
-                <Loader2 aria-hidden className="size-4 animate-spin" />
+                <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />
               ) : (
                 <Trash2 aria-hidden className="size-4" />
               )}

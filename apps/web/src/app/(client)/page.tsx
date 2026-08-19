@@ -32,13 +32,6 @@ type TemplatesResponse = {
 
 type FetchOutcome<T> = { data: T; kind: "ok" } | { kind: "missing" };
 
-/**
- * orgId is sent explicitly so these reads land on the same org the page just
- * rendered, instead of whichever one the Worker would resolve on its own. Only
- * 404 folds into a value, because a company with no row genuinely has not been
- * onboarded. Every other refusal (403 for the wrong org, 5xx, a dead socket) is
- * raised: rendering onboarding at an onboarded customer would hide it.
- */
 const fetchJson = async <T,>(
   url: string,
   token: string,

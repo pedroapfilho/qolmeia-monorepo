@@ -7,10 +7,7 @@ export const metadata: Metadata = {
 };
 
 const VerifyLayout = ({ children }: { children: ReactNode }) => (
-  <main
-    className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12"
-    id="main-content"
-  >
+  <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
     <div className="flex w-full max-w-md flex-col gap-6">
       <Link
         aria-label="Qolmeia"
@@ -27,7 +24,7 @@ const VerifyLayout = ({ children }: { children: ReactNode }) => (
       </Link>
       {children}
     </div>
-  </main>
+  </div>
 );
 
 export default VerifyLayout;

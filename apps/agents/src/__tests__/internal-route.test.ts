@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const SECRET = "test-internal-secret-rotate-me";
 let originalSecret: string | undefined;
+type CompanyBody = { id: string; name: string; slug: string };
 
 beforeAll(() => {
   originalSecret = env.INTERNAL_SHARED_SECRET;
@@ -13,17 +14,17 @@ afterAll(() => {
   env.INTERNAL_SHARED_SECRET = originalSecret as string;
 });
 
-const post = (body: unknown, init: { authorization?: string } = {}) =>
-  exports.default.fetch("https://agents.test/api/internal/companies", {
+const post = (body: CompanyBody, init: { authorization?: string } = {}) => {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (init.authorization !== undefined && init.authorization !== "") {
+    headers.set("Authorization", init.authorization);
+  }
+  return exports.default.fetch("https://agents.test/api/internal/companies", {
     body: JSON.stringify(body),
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.authorization === undefined || init.authorization === ""
-        ? {}
-        : { Authorization: init.authorization }),
-    },
+    headers,
     method: "POST",
   });
+};
 
 describe("POST /api/internal/companies", () => {
   it("503 when the shared secret is missing on the receiver", async () => {

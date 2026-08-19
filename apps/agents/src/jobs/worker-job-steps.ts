@@ -100,10 +100,10 @@ const proposeDeliverable = async (
 
   const skillResults = toRecord(JSON.parse(current.skillResultsJson));
   const draft = skillResults.draftSocialPost;
-  const proposedPayload: Record<string, unknown> = { summary: current.summary, ticketId };
-  if (actionType === "publish_post" && draft !== undefined) {
-    proposedPayload.draft = draft;
-  }
+  const proposedPayload =
+    actionType === "publish_post" && draft !== undefined
+      ? { draft, summary: current.summary, ticketId }
+      : { summary: current.summary, ticketId };
   const { id: actionId } = await proposeAction(db, {
     actionType,
     companyId,

@@ -10,10 +10,12 @@ type ButtonProps = {
 const BASE_CLASSES =
   "box-border rounded-lg px-5 py-3 text-center text-base font-semibold no-underline break-words whitespace-normal";
 
-const VARIANT_CLASSES: Record<NonNullable<ButtonProps["variant"]>, string> = {
+type VariantClassesContract = Record<NonNullable<ButtonProps["variant"]>, string>;
+
+const VARIANT_CLASSES = {
   outline: "border border-border bg-card text-foreground",
   primary: "bg-primary text-primary-foreground",
-};
+} satisfies VariantClassesContract;
 
 const Button = ({ children, fullWidth = false, href, variant = "primary" }: ButtonProps) => {
   const widthClass = fullWidth ? "block w-full max-w-full" : "inline-block";

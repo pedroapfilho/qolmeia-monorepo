@@ -5,14 +5,17 @@ import { fetchAsset, verifyAssetToken } from "#/lib/r2";
 
 const assetsRoutes = new Hono<{ Bindings: Env }>();
 
-const buildAssetHeaders = (mime: string): Record<string, string> => {
-  const headers: Record<string, string> = {
+const buildAssetHeaders = (mime: string) => {
+  const headers = new Headers({
     "Cache-Control": "private, max-age=3600",
     "Content-Type": mime,
     "X-Content-Type-Options": "nosniff",
-  };
+  });
   if (mime === "image/svg+xml") {
-    headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+    headers.set(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    );
   }
   return headers;
 };

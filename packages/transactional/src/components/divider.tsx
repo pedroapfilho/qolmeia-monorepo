@@ -4,11 +4,13 @@ type DividerProps = {
   spacing?: "sm" | "md" | "lg";
 };
 
-const SPACING_CLASSES: Record<NonNullable<DividerProps["spacing"]>, string> = {
+type SpacingClassesContract = Record<NonNullable<DividerProps["spacing"]>, string>;
+
+const SPACING_CLASSES = {
   lg: "py-5",
   md: "py-4",
   sm: "py-3",
-};
+} satisfies SpacingClassesContract;
 
 const Divider = ({ spacing = "md" }: DividerProps) => {
   return (

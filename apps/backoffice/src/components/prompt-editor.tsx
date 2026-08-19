@@ -38,7 +38,7 @@ const PromptEditor = ({
     <section aria-label="Prompt do agente" className="flex flex-col gap-3">
       <div className="flex items-center">
         <span className="text-sm font-bold text-foreground">Prompt do agente</span>
-        <span className="ml-auto font-mono text-[10.5px] tracking-wide text-muted-foreground">
+        <span className="ml-auto font-mono text-xs tracking-wide text-muted-foreground">
           editável
         </span>
       </div>
@@ -54,7 +54,7 @@ const PromptEditor = ({
 
       <Field>
         <Textarea
-          className="min-h-[150px] resize-y text-[13.5px] leading-relaxed"
+          className="min-h-[150px] resize-y text-[0.84375rem] leading-relaxed"
           disabled={busy}
           id="prompt-editor"
           onChange={(e) => {

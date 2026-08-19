@@ -15,16 +15,18 @@ type Props = { params: Promise<{ companyId: string; memberId: string }> };
 const MemberEditContent = async ({ params }: Props) => {
   const { companyId, memberId } = await params;
 
-  const member = await apiGetServer<{ member: TeamMemberDetailView }>(
-    `/teams/${companyId}/members/${memberId}`,
-  )
-    .then((body) => body.member)
-    .catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 404) {
-        return null;
-      }
+  let member: TeamMemberDetailView | null;
+  try {
+    const body = await apiGetServer<{ member: TeamMemberDetailView }>(
+      `/teams/${companyId}/members/${memberId}`,
+    );
+    member = body.member;
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 404) {
       throw error;
-    });
+    }
+    member = null;
+  }
   if (!member) {
     notFound();
   }

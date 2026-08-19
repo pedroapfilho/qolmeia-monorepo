@@ -27,9 +27,7 @@ const ClientLayout = ({ children }: { children: ReactNode }) => (
     <Suspense fallback={<NavSkeleton />}>
       <NavData />
     </Suspense>
-    <main className="flex-1" id="main-content">
-      {children}
-    </main>
+    <div className="flex-1">{children}</div>
   </div>
 );
 
