@@ -36,6 +36,7 @@ describe("LoginForm", () => {
     expect(screen.getByLabelText(/E-mail/v)).toBeInTheDocument();
     expect(screen.getByLabelText(/Senha/v)).toHaveAttribute("autocomplete", "current-password");
     expect(screen.getByRole("button", { name: "Entrar" })).toBeInTheDocument();
+    expect(screen.getByText("OU")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enviar link/v })).toBeInTheDocument();
   });
 

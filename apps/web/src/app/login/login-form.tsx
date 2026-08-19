@@ -176,6 +176,11 @@ const createLoginForm = ({
                 >
                   {isSubmitting ? "Entrando…" : "Entrar"}
                 </Button>
+                <div aria-hidden="true" className="flex items-center gap-3 py-1">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-xs font-medium text-muted-foreground">OU</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
                 <Button
                   className="w-full"
                   disabled={isSubmitting || isSendingMagicLink}
