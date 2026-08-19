@@ -7,10 +7,14 @@ declare global {
   // oxlint-disable typescript/consistent-type-definitions
   interface Env {
     DB: TestDatabase;
+    TEST_FIXTURE_SECRET: string;
+    TEST_FIXTURE_URL: string;
   }
   namespace Cloudflare {
     interface Env {
       DB: TestDatabase;
+      TEST_FIXTURE_SECRET: string;
+      TEST_FIXTURE_URL: string;
     }
     interface GlobalProps {
       durableNamespaces: "TeamEvents";

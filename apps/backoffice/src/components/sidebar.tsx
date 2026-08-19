@@ -148,7 +148,7 @@ const SidebarNav = ({ mobile = false, pathname, pendingCount }: SidebarNavProps)
           {item.icon}
           {item.label}
           {showBadge ? (
-            <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 font-mono text-[11px] font-semibold text-white">
+            <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 font-mono text-[0.6875rem] font-semibold text-white">
               {pendingCount}
             </span>
           ) : null}
@@ -194,7 +194,7 @@ const createSidebar = ({ SignOutControl, useCurrentPathname }: SidebarDependenci
               <Logo className="h-6 w-auto" />
             </Link>
           </div>
-          <p className="px-2 pt-4 pb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+          <p className="px-2 pt-4 pb-2 font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
             Painel operador
           </p>
           <SidebarNav pathname={pathname} pendingCount={pendingCount} />
@@ -203,17 +203,15 @@ const createSidebar = ({ SignOutControl, useCurrentPathname }: SidebarDependenci
               <div className="flex items-center gap-2.5 px-1.5">
                 <span
                   aria-hidden
-                  className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] bg-foreground text-[13px] font-bold text-background"
+                  className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] bg-foreground text-[0.8125rem] font-bold text-background"
                 >
                   {initialsFrom(user.name)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-bold text-foreground">{user.name}</p>
-                  <p className="truncate font-mono text-[10px] text-muted-foreground">
-                    {user.email}
-                  </p>
+                  <p className="truncate text-[0.8125rem] font-bold text-foreground">{user.name}</p>
+                  <p className="truncate font-mono text-xs text-muted-foreground">{user.email}</p>
                 </div>
-                <span className="rounded-md bg-highlight-surface px-1.5 py-1 font-mono text-[9.5px] font-semibold text-highlight-surface-foreground">
+                <span className="rounded-md bg-highlight-surface px-1.5 py-1 font-mono text-xs font-semibold text-highlight-surface-foreground">
                   {user.role}
                 </span>
               </div>

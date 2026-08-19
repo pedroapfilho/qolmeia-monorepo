@@ -6,6 +6,7 @@ import {
   usePersistentState,
   useTool,
 } from "@flue/runtime";
+import { correspondentIdFor } from "@repo/worker-api/contracts";
 import { env } from "cloudflare:workers";
 
 import { buildFlueTools } from "#/lib/skill-tool";
@@ -41,7 +42,7 @@ export function CorrespondentV2({ id }: AgentProps): string {
 
   useModel(`openrouter/${env.CORRESPONDENT_MODEL || DEFAULT_MODEL}`);
 
-  const ctx: SkillContext = { agentInstanceId: `corr-${id}`, companyId: id, env };
+  const ctx: SkillContext = { agentInstanceId: correspondentIdFor(id), companyId: id, env };
   for (const skillTool of buildFlueTools(ctx, CORRESPONDENT_SKILLS, overlays)) {
     useTool(skillTool);
   }

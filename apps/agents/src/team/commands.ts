@@ -1,9 +1,9 @@
-import type { PrismaClient } from "@repo/db/worker";
+import type { TeamMemberView } from "@repo/worker-api/contracts";
 import { z } from "zod";
 
+import type { Database } from "#/db/client";
 import { emitTeamEvent } from "#/team/events";
 import { hireMember, setMemberStatus, updateMember, type UpdateInput } from "#/team/mutations";
-import type { TeamMemberView } from "#/team/types";
 
 const teamMemberPatchSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
@@ -39,16 +39,12 @@ type HireTeamMemberInput = {
 
 const hireTeamMember = (
   env: Env,
-  db: PrismaClient,
+  db: Database,
   input: HireTeamMemberInput,
 ): Promise<TeamMemberView> =>
   runTeamCommand(env, input.companyId, "hired", () => hireMember(db, input));
 
-const updateTeamMember = (
-  env: Env,
-  db: PrismaClient,
-  input: UpdateInput,
-): Promise<TeamMemberView> =>
+const updateTeamMember = (env: Env, db: Database, input: UpdateInput): Promise<TeamMemberView> =>
   runTeamCommand(
     env,
     input.companyId,
@@ -67,7 +63,7 @@ const STATUS_EVENT_REASON = { active: "resumed", paused: "paused" } as const;
 
 const setTeamMemberStatus = (
   env: Env,
-  db: PrismaClient,
+  db: Database,
   input: SetTeamMemberStatusInput,
 ): Promise<TeamMemberView> =>
   runTeamCommand(env, input.companyId, STATUS_EVENT_REASON[input.status], () =>

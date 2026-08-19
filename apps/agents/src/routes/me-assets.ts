@@ -1,4 +1,4 @@
-import type { Prisma } from "@repo/db/worker";
+import type { JsonRecord } from "@repo/worker-api/internal";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -15,15 +15,11 @@ const meAssetsRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 meAssetsRoutes.get("/assets", async (c) => {
   const { companyId } = c.get("session");
   const limit = parsePositiveInt(c.req.query("limit"), 100, 200);
-  const results = await getDb(c.env).asset.findMany({
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    where: { companyId, visibility: "customer" },
-  });
+  const results = await getDb(c.env)("assets.listCustomer", { companyId, limit });
 
   const items = await Promise.all(
     results.map(async (row) => ({
-      createdAt: row.createdAt.toISOString(),
+      createdAt: new Date(row.createdAt).toISOString(),
       id: row.id,
       kind: row.kind,
       metadata: row.metadata,
@@ -55,7 +51,7 @@ const persistImageAsset = async (
   env: Env,
   opts: {
     companyId: string;
-    extraMeta: Prisma.InputJsonObject;
+    extraMeta: JsonRecord;
     file: File;
     kind: "brand_asset" | "user_upload";
   },
@@ -130,17 +126,14 @@ meAssetsRoutes.post("/uploads", async (c) => {
 
 meAssetsRoutes.get("/brand-assets", async (c) => {
   const { companyId } = c.get("session");
-  const results = await getDb(c.env).asset.findMany({
-    orderBy: { createdAt: "desc" },
-    where: { companyId, kind: "brand_asset" },
-  });
+  const results = await getDb(c.env)("assets.listBrand", { companyId });
 
   const items = await Promise.all(
     results.map(async (row) => {
       const metadata = brandAssetMetadataSchema.safeParse(row.metadata);
       return {
         category: metadata.success ? (metadata.data.category ?? "other") : "other",
-        createdAt: row.createdAt.toISOString(),
+        createdAt: new Date(row.createdAt).toISOString(),
         id: row.id,
         mimeType: row.mime,
         name: metadata.success ? (metadata.data.originalName ?? null) : null,
@@ -194,15 +187,13 @@ meAssetsRoutes.post("/brand-assets", async (c) => {
 meAssetsRoutes.delete("/brand-assets/:id", async (c) => {
   const session = c.get("session");
   const id = c.req.param("id");
-  const db = getDb(c.env);
-  const row = await db.asset.findFirst({
-    select: { r2Key: true },
-    where: { companyId: session.companyId, id, kind: "brand_asset" },
+  const row = await getDb(c.env)("assets.deleteBrand", {
+    assetId: id,
+    companyId: session.companyId,
   });
   if (!row) {
     return c.json({ error: "not found" }, 404);
   }
-  await db.asset.deleteMany({ where: { companyId: session.companyId, id } });
   await c.env.ASSETS.delete(row.r2Key);
   return c.json({ ok: true });
 });
@@ -218,16 +209,13 @@ meAssetsRoutes.post("/assets/delete", async (c) => {
     return c.json({ error: "invalid body" }, 400);
   }
   const { ids } = parsed.data;
-  const db = getDb(c.env);
-  const results = await db.asset.findMany({
-    select: { id: true, r2Key: true },
-    where: { companyId: session.companyId, id: { in: ids }, visibility: "customer" },
+  const results = await getDb(c.env)("assets.deleteCustomer", {
+    companyId: session.companyId,
+    ids,
   });
   if (results.length === 0) {
     return c.json({ deleted: 0 });
   }
-  const foundIds = results.map((row) => row.id);
-  await db.asset.deleteMany({ where: { companyId: session.companyId, id: { in: foundIds } } });
   await Promise.allSettled(results.map((row) => c.env.ASSETS.delete(row.r2Key)));
   return c.json({ deleted: results.length });
 });

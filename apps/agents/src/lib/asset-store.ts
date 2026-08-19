@@ -1,19 +1,10 @@
-import type { AssetKind, AssetVisibility, Prisma } from "@repo/db/worker";
+import type { AssetKind, AssetSummary, AssetVisibility } from "@repo/worker-api/contracts";
+import type { JsonRecord, JsonValue } from "@repo/worker-api/internal";
 
 import type { Database } from "#/db/client";
 import { getDb } from "#/db/client";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
 import { toRecord } from "#/lib/records";
-
-type AssetSummary = {
-  bytes: number;
-  createdAt: number;
-  id: string;
-  kind: AssetKind;
-  mime: string;
-  name: string;
-  visibility: AssetVisibility;
-};
 
 type ExtByMimeContract = Record<string, string>;
 
@@ -34,7 +25,7 @@ const extensionByMime = new Map<string, string>(Object.entries(EXT_BY_MIME));
 
 const TEXT_MIME_PREFIXES = ["text/", "application/json"];
 
-const assetName = (metadata: Prisma.JsonValue, id: string, kind: string): string => {
+const assetName = (metadata: JsonValue, id: string, kind: string): string => {
   const meta = toRecord(metadata);
   const name = typeof meta.name === "string" && meta.name !== "" ? meta.name : undefined;
   const originalName =
@@ -54,7 +45,7 @@ type PersistAssetInput = {
   companyId: string;
   fallbackExt?: string;
   kind: AssetKind;
-  metadata: Prisma.InputJsonObject;
+  metadata: JsonRecord;
   mime: string;
   uploadMetadata: Record<string, string>;
   visibility: AssetVisibility;
@@ -72,22 +63,18 @@ const persistAsset = async (env: Env, input: PersistAssetInput): Promise<{ asset
     { bytes, key: r2Key, metadata: input.uploadMetadata, mime },
   );
 
-  const asset = await getDb(env).asset.upsert({
-    create: {
-      bytes: bytes.length,
-      companyId,
-      id: crypto.randomUUID(),
-      kind,
-      metadata,
-      mime,
-      r2Key,
-      sha256: sha,
-      visibility,
-    },
-    update: {},
-    where: { companyId_sha256: { companyId, sha256: sha } },
+  const asset = await getDb(env)("assets.persist", {
+    bytes: bytes.length,
+    companyId,
+    id: crypto.randomUUID(),
+    kind,
+    metadata,
+    mime,
+    r2Key,
+    sha256: sha,
+    visibility,
   });
-  return { assetId: asset.id };
+  return asset;
 };
 
 const listCompanyAssets = async (
@@ -95,20 +82,8 @@ const listCompanyAssets = async (
   companyId: string,
   options: { kind?: AssetKind; limit?: number; visibility?: AssetVisibility } = {},
 ): Promise<Array<AssetSummary>> => {
-  const rows = await db.asset.findMany({
-    orderBy: { createdAt: "desc" },
-    take: Math.min(options.limit ?? 100, 200),
-    where: { companyId, kind: options.kind, visibility: options.visibility },
-  });
-  return rows.map((row) => ({
-    bytes: row.bytes,
-    createdAt: row.createdAt.getTime(),
-    id: row.id,
-    kind: row.kind,
-    mime: row.mime,
-    name: assetName(row.metadata, row.id, row.kind),
-    visibility: row.visibility,
-  }));
+  const rows = await db("assets.list", { companyId, ...options });
+  return [...rows];
 };
 
 const readAssetText = async (
@@ -116,7 +91,7 @@ const readAssetText = async (
   companyId: string,
   assetId: string,
 ): Promise<{ content: string; mime: string; name: string } | null> => {
-  const row = await getDb(env).asset.findFirst({ where: { companyId, id: assetId } });
+  const row = await getDb(env)("assets.textMetadata", { assetId, companyId });
   if (!row || !TEXT_MIME_PREFIXES.some((prefix) => row.mime.startsWith(prefix))) {
     return null;
   }
@@ -132,5 +107,5 @@ const readAssetText = async (
 };
 
 export { assetName, listCompanyAssets, persistAsset, readAssetText };
-export type { AssetSummary };
-export type { AssetKind, AssetVisibility } from "@repo/db/worker";
+export type { AssetSummary } from "@repo/worker-api/contracts";
+export type { AssetKind, AssetVisibility } from "@repo/worker-api/contracts";

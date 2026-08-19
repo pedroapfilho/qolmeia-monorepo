@@ -114,7 +114,7 @@ const RegisterForm = ({ searchParams }: Props) => {
         <CardTitle className="text-2xl">Criar conta</CardTitle>
         <CardDescription>Cadastre-se para acessar o painel da Qolmeia.</CardDescription>
       </CardHeader>
-      <form noValidate onSubmit={handleSubmit}>
+      <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={handleSubmit}>
         <CardContent>
           <FieldGroup>
             <form.Field name="name">
@@ -215,7 +215,7 @@ const RegisterForm = ({ searchParams }: Props) => {
             </form.Field>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 pt-6">
+        <CardFooter className="flex flex-col gap-3">
           <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
             {([canSubmit, isSubmitting]) => (
               <Button

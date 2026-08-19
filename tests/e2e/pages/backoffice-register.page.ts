@@ -23,10 +23,10 @@ export class BackofficeRegisterPage {
   };
 
   register = async (name: string, email: string, password: string, confirmPassword: string) => {
-    await this.nameInput.fill(name);
-    await this.emailInput.fill(email);
-    await this.passwordInput.fill(password);
-    await this.confirmPasswordInput.fill(confirmPassword);
+    await this.nameInput.pressSequentially(name);
+    await this.emailInput.pressSequentially(email);
+    await this.passwordInput.pressSequentially(password);
+    await this.confirmPasswordInput.pressSequentially(confirmPassword);
     await this.submitButton.click();
   };
 

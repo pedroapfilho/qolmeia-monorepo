@@ -1,14 +1,16 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  AGENTS_INTERNAL_URL: z.string().default("http://127.0.0.1:8787"),
   AUTH_ALLOWED_HOSTS: z.string().optional(),
   AUTH_FROM_EMAIL: z.string().optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
   CORS_ORIGINS: z.string().default("*"),
   DATABASE_URL: z.string().min(1),
   HOST: z.string().default("0.0.0.0"),
-  INTERNAL_SHARED_SECRET: z.string().optional(),
+  // Required, not optional: the agents Worker authenticates every /api/internal/*
+  // call with this, and that surface is now the only path it has to Postgres.
+  // Booting without it would serve 503s to the entire product (ADR 0010).
+  INTERNAL_SHARED_SECRET: z.string().min(32),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.string().default("4000"),
   RESEND_API_KEY: z.string().optional(),

@@ -1,3 +1,5 @@
+import { briefCompleteness, companyBriefSchema } from "@repo/worker-api/brief";
+import type { TeamMemberView } from "@repo/worker-api/contracts";
 import { type Context, Hono } from "hono";
 
 import { listActivity } from "#/activity/log";
@@ -9,7 +11,6 @@ import {
   requireSession,
   type ValidatedSession,
 } from "#/lib/auth";
-import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
 import { meAssetsRoutes } from "#/routes/me-assets";
@@ -23,7 +24,6 @@ import {
 import { TEAM_ERROR_STATUS, TeamDomainError } from "#/team/errors";
 import { subscribeTeamEvents } from "#/team/events";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
-import type { TeamMemberView } from "#/team/types";
 
 type MeEnv = { Bindings: Env; Variables: { session: ValidatedSession } };
 
@@ -63,22 +63,13 @@ meRoutes.use("*", requireCustomerForWrites);
 
 meRoutes.get("/company", async (c) => {
   const { companyId } = c.get("session");
-  const row = await getDb(c.env).company.findUnique({
-    select: { brief: true, id: true, slug: true, status: true },
-    where: { id: companyId },
-  });
+  const row = await getDb(c.env)("companies.getCustomer", { companyId });
   if (!row) {
     return c.json({ error: "company not found" }, 404);
   }
-  const brief = parseBrief(row.brief);
   return c.json({
-    company: {
-      brief,
-      id: row.id,
-      slug: row.slug,
-      status: row.status,
-    },
-    completeness: briefCompleteness(brief),
+    company: row,
+    completeness: briefCompleteness(row.brief),
   });
 });
 
@@ -90,19 +81,16 @@ meRoutes.patch("/company", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "invalid body" }, 400);
   }
-  const db = getDb(c.env);
-  const row = await db.company.findUnique({
-    select: { brief: true, id: true, slug: true, status: true },
-    where: { id: session.companyId },
+  const row = await getDb(c.env)("companies.updateBrief", {
+    companyId: session.companyId,
+    updates: parsed.data,
   });
   if (!row) {
     return c.json({ error: "company not found" }, 404);
   }
-  const merged = mergeBrief(parseBrief(row.brief), parsed.data);
-  await db.company.update({ data: { brief: merged }, where: { id: session.companyId } });
   return c.json({
-    company: { brief: merged, id: row.id, slug: row.slug, status: row.status },
-    completeness: briefCompleteness(merged),
+    company: row,
+    completeness: briefCompleteness(row.brief),
   });
 });
 

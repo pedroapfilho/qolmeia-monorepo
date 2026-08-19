@@ -27,7 +27,7 @@ jobs:
       AUTH_SERVICE_INTERNAL_URL: http://127.0.0.1:4000
       NEXT_PUBLIC_AGENTS_URL: http://127.0.0.1:8787
       WEB_APP_URL: http://127.0.0.1:3001
-      INTERNAL_SHARED_SECRET: e2e-internal-shared-secret
+      INTERNAL_SHARED_SECRET: e2e-internal-shared-secret-minimum-32-chars
       # Gates tests/e2e/client-magic-link/ and any future auth-email specs.
       # When unset (forks, contributors without secret access), those specs
       # `test.skip()` themselves; the rest of the e2e suite still runs.

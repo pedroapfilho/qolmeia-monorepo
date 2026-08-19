@@ -8,6 +8,7 @@ const { envSchema } = await import("./env");
 const base = {
   BETTER_AUTH_SECRET: "test-secret-minimum-32-characters-long",
   DATABASE_URL: "postgresql://u:p@localhost:5432/db",
+  INTERNAL_SHARED_SECRET: "test-internal-shared-secret-minimum-32-chars",
 };
 
 describe("envSchema", () => {
@@ -15,7 +16,7 @@ describe("envSchema", () => {
     const result = envSchema.parse(base);
     expect(result.NODE_ENV).toBe("development");
     expect(result.PORT).toBe("4000");
-    expect(result.AGENTS_INTERNAL_URL).toBe("http://127.0.0.1:8787");
+    expect(result.CORS_ORIGINS).toBe("*");
   });
 
   it("rejects when BETTER_AUTH_SECRET is shorter than 32 chars", () => {
@@ -27,8 +28,12 @@ describe("envSchema", () => {
     expect(() => envSchema.parse(withoutDb)).toThrow();
   });
 
-  it("accepts an INTERNAL_SHARED_SECRET override for the agents relay", () => {
-    const result = envSchema.parse({ ...base, INTERNAL_SHARED_SECRET: "topsecret" });
-    expect(result.INTERNAL_SHARED_SECRET).toBe("topsecret");
+  it("rejects when INTERNAL_SHARED_SECRET is missing", () => {
+    const { INTERNAL_SHARED_SECRET: _secret, ...withoutSecret } = base;
+    expect(() => envSchema.parse(withoutSecret)).toThrow();
+  });
+
+  it("rejects when INTERNAL_SHARED_SECRET is shorter than 32 chars", () => {
+    expect(() => envSchema.parse({ ...base, INTERNAL_SHARED_SECRET: "topsecret" })).toThrow();
   });
 });

@@ -1,6 +1,6 @@
+import { companyBriefSchema, type CompanyBrief } from "@repo/worker-api/brief";
+
 import { getDb } from "#/db/client";
-import { companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
-import type { CompanyBrief } from "#/lib/company-brief";
 import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const extractBriefInputSchema = companyBriefSchema.partial();
@@ -8,20 +8,17 @@ const extractBriefInputSchema = companyBriefSchema.partial();
 const extractBriefSkill: UnknownSkill = {
   description:
     "Atualiza o brief da empresa com o que você acabou de aprender na conversa. Envie apenas os campos que mudaram; campos não enviados são preservados. Chame conforme a conversa evolui.",
-  async execute(input: SkillInput, ctx: SkillContext): Promise<{ brief: CompanyBrief }> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<{ brief: Partial<CompanyBrief> }> {
     const updates = extractBriefInputSchema.parse(input);
 
-    const db = getDb(ctx.env);
-    const row = await db.company.findUnique({
-      select: { brief: true },
-      where: { id: ctx.companyId },
+    const row = await getDb(ctx.env)("companies.updateBrief", {
+      companyId: ctx.companyId,
+      updates,
     });
-    const existing = parseBrief(row?.brief);
-    const merged = mergeBrief(existing, updates);
-
-    await db.company.update({ data: { brief: merged }, where: { id: ctx.companyId } });
-
-    return { brief: merged };
+    if (!row) {
+      throw new Error(`company ${ctx.companyId} not found`);
+    }
+    return { brief: row.brief };
   },
   id: "extractBrief",
   inputSchema: extractBriefInputSchema,

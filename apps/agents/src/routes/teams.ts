@@ -1,11 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { logActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
-import { materializeTeam } from "#/db/team";
 import { requireCustomerForWrites, requireSession, type ValidatedSession } from "#/lib/auth";
-import { parseBrief } from "#/lib/company-brief";
 import { seedCompanyMemory } from "#/team/seed-memory";
 
 type Vars = { session: ValidatedSession };
@@ -37,18 +34,10 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
   }
 
-  const db = getDb(c.env);
-  const company = await db.company.findUnique({
-    select: { brief: true, status: true },
-    where: { id: companyId },
-  });
-  if (!company) {
-    return c.text("Not found", 404);
-  }
-
-  let team;
+  let result;
   try {
-    team = await materializeTeam(db, {
+    result = await getDb(c.env)("teams.confirm", {
+      actorId: session.userId,
       companyId,
       templateIds: parsed.data.templateIds,
     });
@@ -57,12 +46,9 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     return c.json({ error: message }, 400);
   }
 
-  await db.company.update({ data: { status: "active" }, where: { id: companyId } });
-
   try {
-    const brief = parseBrief(company.brief);
     await seedCompanyMemory(c.env, companyId, {
-      brief,
+      brief: result.brief,
       debriefSummary: "Time confirmado via onboarding.",
     });
   } catch (error) {
@@ -70,17 +56,7 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
     console.error("[teams] seedCompanyMemory failed (best-effort)", { companyId, error });
   }
 
-  await logActivity(db, {
-    actorId: session.userId,
-    companyId,
-    payload: { templateIds: parsed.data.templateIds, ...team },
-    refId: team.teamId,
-    refType: "team",
-    summary: "Time confirmado.",
-    type: "TEAM_CONFIRMED",
-  });
-
-  return c.json({ team });
+  return c.json({ team: result.team });
 });
 
 export { teamsRoutes };

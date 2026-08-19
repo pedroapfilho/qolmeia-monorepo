@@ -81,7 +81,7 @@ const createLoginPage = ({ showError, signInEmail, useAppRouter }: LoginDependen
           <CardTitle className="text-2xl">Entrar</CardTitle>
           <CardDescription>Acesse o painel operacional da Qolmeia.</CardDescription>
         </CardHeader>
-        <form noValidate onSubmit={handleSubmit}>
+        <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={handleSubmit}>
           <CardContent>
             <FieldGroup>
               <form.Field name="email">
@@ -148,7 +148,7 @@ const createLoginPage = ({ showError, signInEmail, useAppRouter }: LoginDependen
               </output>
             )}
           </CardContent>
-          <CardFooter className="flex flex-col gap-3 pt-6">
+          <CardFooter className="flex flex-col gap-3">
             <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
               {([canSubmit, isSubmitting]) => (
                 <Button

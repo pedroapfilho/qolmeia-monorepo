@@ -1,7 +1,7 @@
+import { parseBrief } from "@repo/worker-api/brief";
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { parseBrief } from "#/lib/company-brief";
 import { extractBriefSkill } from "#/skills/extract-brief";
 import type { SkillContext } from "#/skills/registry";
 

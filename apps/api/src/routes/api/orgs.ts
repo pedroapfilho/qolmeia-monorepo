@@ -3,9 +3,9 @@ import { Prisma, prisma as defaultPrisma } from "@repo/db";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { provisionCompany } from "@/data/agents/companies";
 import { jsonError, unauthorized } from "@/lib/api-response";
 import { auth as defaultAuth } from "@/lib/auth";
-import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
 
 type OrgsPrisma = Pick<PrismaClient, "$transaction" | "organization" | "orgMembership">;
@@ -21,8 +21,8 @@ type AuthLike = {
 
 type OrgsRouteDeps = {
   auth?: AuthLike;
-  fetch?: typeof fetch;
   prisma?: OrgsPrisma;
+  provision?: (input: { id: string; name: string; slug: string }) => Promise<{ ok: true }>;
 };
 
 const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
@@ -48,40 +48,12 @@ const createOrgSchema = z.object({
     .refine(isValidSlug, "slug must be lowercase alphanumeric or dashes"),
 });
 
-const provisionProductCompany = async (args: {
-  companyId: string;
-  fetchImpl: typeof fetch;
-  name: string;
-  slug: string;
-}): Promise<{ ok: true } | { error: string; ok: false }> => {
-  if (env.INTERNAL_SHARED_SECRET === undefined || env.INTERNAL_SHARED_SECRET === "") {
-    return {
-      error:
-        "INTERNAL_SHARED_SECRET not configured on apps/api; set it and apps/agents to the same value",
-      ok: false,
-    };
-  }
-  const base = env.AGENTS_INTERNAL_URL.endsWith("/")
-    ? env.AGENTS_INTERNAL_URL.slice(0, -1)
-    : env.AGENTS_INTERNAL_URL;
-  const url = `${base}/api/internal/companies`;
-  type HeadersContract = Record<string, string>;
-
-  const headers: HeadersContract = {
-    Authorization: `Bearer ${env.INTERNAL_SHARED_SECRET}`,
-    "Content-Type": "application/json",
-  };
+const provisionProductCompany = async (
+  provision: NonNullable<OrgsRouteDeps["provision"]>,
+  input: { id: string; name: string; slug: string },
+): Promise<{ ok: true } | { error: string; ok: false }> => {
   try {
-    const res = await args.fetchImpl(url, {
-      body: JSON.stringify({ id: args.companyId, name: args.name, slug: args.slug }),
-      headers,
-      method: "POST",
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      return { error: `agents responded ${res.status}: ${detail.slice(0, 200)}`, ok: false };
-    }
-    return { ok: true };
+    return await provision(input);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "unknown error", ok: false };
   }
@@ -90,7 +62,7 @@ const provisionProductCompany = async (args: {
 const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
   const prisma = deps.prisma ?? defaultPrisma;
   const auth = deps.auth ?? defaultAuth;
-  const fetchImpl = deps.fetch ?? fetch;
+  const provision = deps.provision ?? ((input) => provisionCompany(defaultPrisma, input));
   const app = new Hono();
 
   app.post("/", async (c) => {
@@ -134,14 +106,17 @@ const buildOrgsRoutes = (deps: OrgsRouteDeps = {}): Hono => {
       throw error;
     }
 
-    const relay = await provisionProductCompany({
-      companyId: org.id,
-      fetchImpl,
+    const relay = await provisionProductCompany(provision, {
+      id: org.id,
       name: org.name,
       slug: org.slug,
     });
     if (!relay.ok) {
-      log.error({ companyId: org.id, error: relay.error, message: "[orgs] product relay failed" });
+      log.error({
+        companyId: org.id,
+        error: relay.error,
+        message: "[orgs] product provision failed",
+      });
     }
 
     return c.json(

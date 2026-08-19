@@ -6,6 +6,7 @@ import {
   usePersistentState,
   useTool,
 } from "@flue/runtime";
+import { plannerIdFor } from "@repo/worker-api/contracts";
 import { env } from "cloudflare:workers";
 
 import { buildFlueTools } from "#/lib/skill-tool";
@@ -33,7 +34,7 @@ export function PlannerV2({ id }: AgentProps): string {
 
   useModel(DEFAULT_MODEL);
 
-  const ctx: SkillContext = { agentInstanceId: `planner-${id}`, companyId: id, env };
+  const ctx: SkillContext = { agentInstanceId: plannerIdFor(id), companyId: id, env };
   for (const skillTool of buildFlueTools(ctx, PLANNER_SKILLS, overlays)) {
     useTool(skillTool);
   }

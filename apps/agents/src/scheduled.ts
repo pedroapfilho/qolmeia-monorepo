@@ -1,8 +1,8 @@
 import { dispatch } from "@flue/runtime";
+import { briefCompleteness } from "@repo/worker-api/brief";
 
 import { CorrespondentV2 } from "#/agents/correspondent";
 import { getDb } from "#/db/client";
-import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 import { logInfo } from "#/lib/logger";
 import {
   lastProactiveSuggestionAt,
@@ -14,12 +14,9 @@ import {
 const runProactiveSweep = async (
   env: Env,
 ): Promise<{ errored: number; skipped: number; suggested: number }> => {
-  const results = await getDb(env).company.findMany({
-    select: { brief: true, id: true },
-    where: { status: "active" },
-  });
+  const results = await getDb(env)("companies.listProactive", {});
 
-  const eligible = results.filter((row) => briefCompleteness(parseBrief(row.brief)).isComplete);
+  const eligible = results.filter((row) => briefCompleteness(row.brief).isComplete);
 
   const outcomes = await Promise.allSettled(
     eligible.map(async (company): Promise<"skipped" | "suggested"> => {

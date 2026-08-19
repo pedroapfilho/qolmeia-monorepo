@@ -65,7 +65,7 @@ const buildV1WithMocks = (
   guard: MiddlewareHandler,
   prisma: ReturnType<typeof buildMockPrisma>,
 ): Hono => {
-  const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 201 }));
+  const provision = vi.fn().mockResolvedValue({ ok: true as const });
 
   return buildApiRoutes({
     memberGuard: guard,
@@ -73,8 +73,8 @@ const buildV1WithMocks = (
       me: buildMeRoutes({ prisma: prisma as never }),
       orgs: buildOrgsRoutes({
         auth: { api: { getSession: () => Promise.resolve(sessionA) } },
-        fetch: fetchMock,
         prisma: prisma as never,
+        provision,
       }),
     },
   });

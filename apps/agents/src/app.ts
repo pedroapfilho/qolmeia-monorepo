@@ -11,7 +11,6 @@ import type { SessionEnv } from "#/lib/auth";
 import { logError } from "#/lib/logger";
 import { assetsRoutes } from "#/routes/assets";
 import { backofficeRoutes } from "#/routes/backoffice";
-import { internalRoutes } from "#/routes/internal";
 import { meRoutes } from "#/routes/me";
 import { teamsRoutes } from "#/routes/teams";
 
@@ -51,7 +50,6 @@ app.onError((error, c) => {
 
 app.get("/healthz", (c) => c.json({ status: "ok" }));
 app.route("/api/backoffice", backofficeRoutes);
-app.route("/api/internal", internalRoutes);
 app.route("/api/me", meRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/assets", assetsRoutes);

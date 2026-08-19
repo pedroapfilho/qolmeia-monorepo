@@ -19,8 +19,8 @@ export class BackofficeLoginPage {
   };
 
   login = async (email: string, password: string) => {
-    await this.emailInput.fill(email);
-    await this.passwordInput.fill(password);
+    await this.emailInput.pressSequentially(email);
+    await this.passwordInput.pressSequentially(password);
     await this.submitButton.click();
   };
 

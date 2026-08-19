@@ -2,18 +2,15 @@
 # Tests stub the model, so .dev.vars is only needed for manual chat testing.
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
-# Product data and Better Auth share Postgres. In production, configure this
-# with `wrangler secret put DATABASE_URL`.
-DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia
-
 # HMAC secret for /assets/:id signed URLs. Generate any 32+ byte hex string:
 #   openssl rand -hex 32
 ASSETS_SIGNING_KEY=replace-me-with-a-random-32-byte-hex-string
 
-# Shared secret with apps/auth for the /api/internal/companies relay.
-# Must match apps/auth INTERNAL_SHARED_SECRET. Rotating breaks org create
-# until both sides are redeployed.
-INTERNAL_SHARED_SECRET=replace-me-with-the-same-value-as-apps-auth
+# Shared secret with apps/api for the /api/internal routes.
+# Must match apps/api INTERNAL_SHARED_SECRET byte for byte, and apps/api
+# requires at least 32 characters. Rotating breaks org create until both
+# sides are redeployed.
+INTERNAL_SHARED_SECRET=replace-me-with-the-same-value-as-apps-api
 
 # Exa web-search API key (https://exa.ai) for the webSearch skill. Optional —
 # leave unset and the skill returns a clear "indisponível" error.

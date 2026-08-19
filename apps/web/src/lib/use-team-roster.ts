@@ -87,4 +87,4 @@ const useTeamRoster = createUseTeamRoster({
 });
 
 export { createUseTeamRoster, teamQueryKey, useTeamRoster };
-export type { TeamRosterDependencies, UseTeamRosterResult };
+export type { TeamRosterDependencies };

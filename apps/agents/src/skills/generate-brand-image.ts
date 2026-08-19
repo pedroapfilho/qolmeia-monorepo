@@ -54,11 +54,9 @@ const encodeBase64 = (bytes: Uint8Array): string => {
 const MAX_BRAND_REFS = 3;
 
 const loadBrandReferences = async (ctx: SkillContext): Promise<Array<string>> => {
-  const results = await getDb(ctx.env).asset.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { mime: true, r2Key: true },
-    take: MAX_BRAND_REFS,
-    where: { companyId: ctx.companyId, kind: "brand_asset", mime: { not: "image/svg+xml" } },
+  const results = await getDb(ctx.env)("assets.listReferences", {
+    companyId: ctx.companyId,
+    limit: MAX_BRAND_REFS,
   });
 
   const settled = await Promise.allSettled(

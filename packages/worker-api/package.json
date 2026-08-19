@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./contracts": "./src/contracts/index.ts"
+    "./brief": "./src/brief.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./internal": "./src/internal.ts"
   },
   "scripts": {
     "lint": "oxlint src",
@@ -13,7 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@repo/db": "workspace:*"
+    "@repo/db": "workspace:*",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@repo/config-vitest": "workspace:*",

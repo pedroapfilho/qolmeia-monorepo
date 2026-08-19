@@ -54,7 +54,7 @@ const RecoverPage = () => {
           Informe o e-mail cadastrado para receber o link de redefinição.
         </CardDescription>
       </CardHeader>
-      <form noValidate onSubmit={handleSubmit}>
+      <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={handleSubmit}>
         <CardContent>
           <FieldGroup>
             <form.Field name="email">
@@ -83,7 +83,7 @@ const RecoverPage = () => {
             </form.Field>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 pt-6">
+        <CardFooter className="flex flex-col gap-3">
           <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
             {([canSubmit, isSubmitting]) => (
               <Button
