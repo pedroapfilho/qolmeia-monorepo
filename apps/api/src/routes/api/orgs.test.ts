@@ -15,10 +15,7 @@ const buildAuth = (session: AuthSession | null) => ({
 });
 
 const buildPrisma = () => {
-  const prisma = {
-    $transaction: vi.fn(<Result>(callback: (tx: typeof prisma) => Promise<Result>) =>
-      callback(prisma),
-    ),
+  const transactionClient = {
     organization: {
       create: vi
         .fn()
@@ -29,6 +26,14 @@ const buildPrisma = () => {
     orgMembership: {
       create: vi.fn().mockResolvedValue({}),
     },
+  };
+  const prisma = {
+    $transaction: vi.fn(<Result>(callback: (tx: typeof transactionClient) => Promise<Result>) =>
+      callback(transactionClient),
+    ),
+    organization: transactionClient.organization,
+    orgMembership: transactionClient.orgMembership,
+    transactionClient,
   };
   return prisma;
 };
@@ -124,14 +129,14 @@ describe("POST /api/orgs", () => {
     expect(prisma.orgMembership.create).toHaveBeenCalledWith({
       data: { orgId: "new_org_id", role: "OWNER", userId: "user_a" },
     });
-    expect(provision).toHaveBeenCalledWith({
+    expect(provision).toHaveBeenCalledWith(prisma.transactionClient, {
       id: "new_org_id",
       name: "Fresh Co",
       slug: "fresh-co",
     });
   });
 
-  it("creates org + OWNER membership inside one transaction", async () => {
+  it("creates org, OWNER membership, and product company inside one transaction", async () => {
     const prisma = buildPrisma();
     const provision = vi.fn().mockResolvedValue({ ok: true as const });
     const app = buildOrgsRoutes({
@@ -144,6 +149,11 @@ describe("POST /api/orgs", () => {
     expect(prisma.$transaction).toHaveBeenCalledOnce();
     expect(prisma.organization.create).toHaveBeenCalled();
     expect(prisma.orgMembership.create).toHaveBeenCalled();
+    expect(provision).toHaveBeenCalledWith(prisma.transactionClient, {
+      id: "new_org_id",
+      name: "Fresh Co",
+      slug: "fresh-co",
+    });
   });
 
   it("rolls back (no 201) when the OWNER membership write fails inside the transaction", async () => {
@@ -180,7 +190,7 @@ describe("POST /api/orgs", () => {
     expect(body.error.code).toBe("SLUG_TAKEN");
   });
 
-  it("201 with productProvisioned=false when product provisioning fails", async () => {
+  it("rolls back (no 201) when product provisioning fails inside the transaction", async () => {
     const prisma = buildPrisma();
     const provision = vi.fn().mockRejectedValue(new Error("product write failed"));
     const app = buildOrgsRoutes({
@@ -189,24 +199,9 @@ describe("POST /api/orgs", () => {
       provision,
     });
     const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { productProvisioned: boolean };
-    expect(body.productProvisioned).toBe(false);
+    expect(res.status).toBe(500);
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
     expect(prisma.organization.create).toHaveBeenCalled();
     expect(prisma.orgMembership.create).toHaveBeenCalled();
-  });
-
-  it("201 with productProvisioned=false when product provisioning throws", async () => {
-    const prisma = buildPrisma();
-    const provision = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
-    const app = buildOrgsRoutes({
-      auth: buildAuth(sessionA),
-      prisma: prisma as never,
-      provision,
-    });
-    const res = await postOrgs(app, { name: "Fresh Co", slug: "fresh-co" });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { productProvisioned: boolean };
-    expect(body.productProvisioned).toBe(false);
   });
 });
