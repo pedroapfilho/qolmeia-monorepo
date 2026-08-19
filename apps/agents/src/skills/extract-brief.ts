@@ -8,7 +8,7 @@ const extractBriefInputSchema = companyBriefSchema.partial();
 const extractBriefSkill: UnknownSkill = {
   description:
     "Atualiza o brief da empresa com o que você acabou de aprender na conversa. Envie apenas os campos que mudaram; campos não enviados são preservados. Chame conforme a conversa evolui.",
-  async execute(input: SkillInput, ctx: SkillContext): Promise<{ brief: CompanyBrief }> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<{ brief: Partial<CompanyBrief> }> {
     const updates = extractBriefInputSchema.parse(input);
 
     const row = await getDb(ctx.env)("companies.updateBrief", {

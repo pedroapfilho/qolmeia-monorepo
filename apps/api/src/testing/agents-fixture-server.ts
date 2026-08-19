@@ -4,6 +4,7 @@ import path from "node:path";
 import { serve } from "@hono/node-server";
 import { prisma, seedProductDefaults } from "@repo/db";
 import { verifyInternalSecret } from "@repo/internal-auth";
+import type { JsonRecord, JsonValue } from "@repo/worker-api/internal";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -26,6 +27,9 @@ const querySchema = z.object({
   mode: z.enum(["all", "run"]),
   sql: z.string().min(1),
 });
+
+type FixtureRowValue = Date | JsonValue | bigint;
+type FixtureRow = Record<string, FixtureRowValue>;
 
 const databaseUrl = process.env.DATABASE_URL;
 const secret = process.env.AGENTS_FIXTURE_SECRET;
@@ -66,7 +70,7 @@ const ensureSchema = async (): Promise<void> => {
   }
 };
 
-const normalizeRow = (row: Record<string, unknown>): Record<string, unknown> =>
+const normalizeRow = (row: FixtureRow): JsonRecord =>
   Object.fromEntries(
     Object.entries(row).map(([key, value]) => {
       if (value instanceof Date) {
@@ -132,10 +136,7 @@ app.post("/query", async (c) => {
     const changes = await prisma.$executeRawUnsafe(input.sql, ...input.bindings);
     return c.json({ meta: { changes }, results: [], success: true });
   }
-  const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-    input.sql,
-    ...input.bindings,
-  );
+  const rows = await prisma.$queryRawUnsafe<Array<FixtureRow>>(input.sql, ...input.bindings);
   return c.json({ results: rows.map(normalizeRow), success: true });
 });
 

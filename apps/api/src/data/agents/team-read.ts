@@ -74,14 +74,20 @@ const projectMember = (row: ProjectableRow): TeamMemberView => {
 };
 
 const sortRoster = (members: ReadonlyArray<TeamMemberView>): Array<TeamMemberView> => {
-  const correspondent = members.filter(({ role }) => role === "correspondent");
-  const others = members
-    .filter(({ role }) => role !== "correspondent")
-    .toSorted((a, b) =>
-      a.currentWork.length === b.currentWork.length
-        ? a.displayName.localeCompare(b.displayName, "pt-BR")
-        : b.currentWork.length - a.currentWork.length,
-    );
+  const correspondent: Array<TeamMemberView> = [];
+  const others: Array<TeamMemberView> = [];
+  for (const member of members) {
+    if (member.role === "correspondent") {
+      correspondent.push(member);
+    } else {
+      others.push(member);
+    }
+  }
+  others.sort((a, b) =>
+    a.currentWork.length === b.currentWork.length
+      ? a.displayName.localeCompare(b.displayName, "pt-BR")
+      : b.currentWork.length - a.currentWork.length,
+  );
   return [...correspondent, ...others];
 };
 
@@ -101,10 +107,14 @@ const listTeamRosters = async (
     orderBy: { createdAt: "asc" },
     where: { companyId: { in: ids } },
   });
-  for (const companyId of ids) {
-    result[companyId] = sortRoster(
-      rows.filter((row) => row.companyId === companyId).map(projectMember),
-    );
+  const membersByCompany = new Map<string, Array<TeamMemberView>>(
+    ids.map((companyId) => [companyId, []]),
+  );
+  for (const row of rows) {
+    membersByCompany.get(row.companyId)?.push(projectMember(row));
+  }
+  for (const [companyId, members] of membersByCompany) {
+    result[companyId] = sortRoster(members);
   }
   return result;
 };
@@ -210,10 +220,16 @@ const getDelegationTargets = async (
 
 const listCoverage = async (db: Database, operatorUserId: string): Promise<OperatorCoverage> => {
   const rows = await db.operatorAssignment.findMany({ where: { operatorUserId } });
-  return {
-    companies: rows.filter((row) => row.kind === "company").map((row) => row.value),
-    disciplines: rows.filter((row) => row.kind === "discipline").map((row) => row.value),
-  };
+  const companies: Array<string> = [];
+  const disciplines: Array<string> = [];
+  for (const row of rows) {
+    if (row.kind === "company") {
+      companies.push(row.value);
+    } else {
+      disciplines.push(row.value);
+    }
+  }
+  return { companies, disciplines };
 };
 
 const assignmentOptions = async (db: Database) => {

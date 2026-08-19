@@ -1,12 +1,12 @@
 import type { PrismaClient } from "@repo/db";
 import { z } from "zod";
 
-import { AgentDataError } from "./types";
+import { AgentDataError, type JsonValue } from "./types";
 import { applyWorkflowDecision, completeWorkflow, proposeWorkflow } from "./workflows";
 
 const jsonRecordSchema = z.record(z.string(), z.json());
 
-const dispatchWorkflowOperation = async (db: PrismaClient, operation: string, raw: unknown) => {
+const dispatchWorkflowOperation = async (db: PrismaClient, operation: string, raw: JsonValue) => {
   switch (operation) {
     case "workflows.applyDecision": {
       const input = z

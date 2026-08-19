@@ -1,4 +1,5 @@
 import type { AssetKind, AssetSummary, AssetVisibility } from "@repo/worker-api/contracts";
+import type { JsonRecord, JsonValue } from "@repo/worker-api/internal";
 
 import type { Database } from "#/db/client";
 import { getDb } from "#/db/client";
@@ -24,7 +25,7 @@ const extensionByMime = new Map<string, string>(Object.entries(EXT_BY_MIME));
 
 const TEXT_MIME_PREFIXES = ["text/", "application/json"];
 
-const assetName = (metadata: Prisma.JsonValue, id: string, kind: string): string => {
+const assetName = (metadata: JsonValue, id: string, kind: string): string => {
   const meta = toRecord(metadata);
   const name = typeof meta.name === "string" && meta.name !== "" ? meta.name : undefined;
   const originalName =
@@ -44,7 +45,7 @@ type PersistAssetInput = {
   companyId: string;
   fallbackExt?: string;
   kind: AssetKind;
-  metadata: Record<string, unknown>;
+  metadata: JsonRecord;
   mime: string;
   uploadMetadata: Record<string, string>;
   visibility: AssetVisibility;

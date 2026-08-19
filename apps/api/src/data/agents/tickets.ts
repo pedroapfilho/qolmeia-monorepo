@@ -1,3 +1,4 @@
+import type { Prisma } from "@repo/db";
 import type {
   InstanceWithTemplate,
   Ticket,
@@ -15,7 +16,7 @@ const mapTicket = (row: {
   brief: string;
   companyId: string;
   id: string;
-  result: unknown;
+  result: Prisma.JsonValue;
   status: TicketStatus;
   workflowId: string | null;
 }): Ticket => ({

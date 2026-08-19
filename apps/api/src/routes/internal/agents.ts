@@ -9,7 +9,7 @@ import {
 } from "@/data/agents/dispatch";
 import { dispatchAssetOperation, dispatchTeamOperation } from "@/data/agents/dispatch-team-assets";
 import { dispatchWorkflowOperation } from "@/data/agents/dispatch-workflows";
-import { AgentDataError } from "@/data/agents/types";
+import { AgentDataError, jsonValueSchema } from "@/data/agents/types";
 import { requireInternalAuth } from "@/middleware/internal-auth";
 
 const agentsInternalRoutes = new Hono();
@@ -18,8 +18,8 @@ agentsInternalRoutes.use("*", requireInternalAuth);
 
 agentsInternalRoutes.post("/:operation", async (c) => {
   const operation = c.req.param("operation");
-  const raw: unknown = await c.req.json().catch(() => null);
   try {
+    const raw = jsonValueSchema.parse(await c.req.json().catch(() => null));
     let result: unknown;
     if (operation.startsWith("actions.") || operation.startsWith("activity.")) {
       result = await dispatchActionOperation(prisma, operation, raw);

@@ -2,11 +2,13 @@ import type { Prisma, PrismaClient } from "@repo/db";
 import { z } from "zod";
 
 type Database = PrismaClient | Prisma.TransactionClient;
+type JsonValue = z.infer<typeof jsonValueSchema>;
 type JsonRecord = z.infer<typeof jsonRecordSchema>;
 
-const jsonRecordSchema = z.record(z.string(), z.json());
+const jsonValueSchema = z.json();
+const jsonRecordSchema = z.record(z.string(), jsonValueSchema);
 
-const nullableJsonRecord = (value: unknown): JsonRecord | null => {
+const nullableJsonRecord = (value: Prisma.JsonValue): JsonRecord | null => {
   const parsed = jsonRecordSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 };
@@ -23,5 +25,5 @@ class AgentDataError extends Error {
   }
 }
 
-export { AgentDataError, jsonRecordSchema, nullableJsonRecord };
-export type { Database, JsonRecord };
+export { AgentDataError, jsonRecordSchema, jsonValueSchema, nullableJsonRecord };
+export type { Database, JsonRecord, JsonValue };

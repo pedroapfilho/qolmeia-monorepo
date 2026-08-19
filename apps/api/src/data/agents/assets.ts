@@ -1,11 +1,12 @@
+import type { Prisma } from "@repo/db";
 import type { AssetKind, AssetSummary, AssetVisibility } from "@repo/worker-api/contracts";
 import type { AssetRecord } from "@repo/worker-api/internal";
 
 import { jsonRecordSchema, nullableJsonRecord, type Database, type JsonRecord } from "./types";
 
-const toRecord = (value: unknown): JsonRecord | null => nullableJsonRecord(value);
+const toRecord = (value: Prisma.JsonValue): JsonRecord | null => nullableJsonRecord(value);
 
-const assetName = (metadata: unknown, id: string, kind: string): string => {
+const assetName = (metadata: Prisma.JsonValue, id: string, kind: string): string => {
   const record = toRecord(metadata);
   const name = typeof record?.name === "string" && record.name !== "" ? record.name : undefined;
   const originalName =
@@ -20,7 +21,7 @@ const mapAsset = (row: {
   createdAt: Date;
   id: string;
   kind: AssetKind;
-  metadata: unknown;
+  metadata: Prisma.JsonValue;
   mime: string;
   r2Key: string;
   visibility: AssetVisibility;

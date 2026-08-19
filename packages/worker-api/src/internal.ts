@@ -23,7 +23,8 @@ import type {
   TicketStatus,
 } from "./contracts";
 
-type JsonRecord = Record<string, unknown>;
+type JsonValue = boolean | null | number | string | Array<JsonValue> | { [key: string]: JsonValue };
+type JsonRecord = Record<string, JsonValue>;
 
 type ActivityInput = {
   actorId?: string;
@@ -380,6 +381,8 @@ export type {
   AssetRecord,
   AssetReference,
   CustomerCompany,
+  JsonRecord,
+  JsonValue,
   ProactiveCompany,
   TeamStatusInput,
   TeamUpdateInput,

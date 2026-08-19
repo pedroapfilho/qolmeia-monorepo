@@ -1,5 +1,6 @@
 import { dispatch } from "@flue/runtime";
 import type { DecisionOutcome } from "@repo/worker-api/contracts";
+import type { JsonValue } from "@repo/worker-api/internal";
 
 import { logActivity } from "#/activity/log";
 import { CorrespondentV2 } from "#/agents/correspondent";
@@ -26,6 +27,10 @@ type GenerateResult = {
 };
 
 type ProposeResult = { actionId: string | null; policy: string };
+
+type ProposedPayload =
+  | { draft: JsonValue; summary: string; ticketId: string }
+  | { summary: string; ticketId: string };
 
 type DecisionEvent = {
   decidedByUserId: string;
@@ -82,10 +87,10 @@ const proposeDeliverable = async (
 
   const skillResults = toRecord(JSON.parse(current.skillResultsJson));
   const draft = skillResults.draftSocialPost;
-  const proposedPayload: Record<string, unknown> = { summary: current.summary, ticketId };
-  if (actionType === "publish_post" && draft !== undefined) {
-    proposedPayload.draft = draft;
-  }
+  const proposedPayload: ProposedPayload =
+    actionType === "publish_post" && draft !== undefined
+      ? { draft, summary: current.summary, ticketId }
+      : { summary: current.summary, ticketId };
   const { id: actionId } = await db("workflows.propose", {
     actionType,
     companyId,

@@ -16,6 +16,11 @@ import { AgentDataError } from "./types";
 
 const normalizeDisplayName = (value: string): string => value.toLocaleLowerCase("pt-BR");
 
+type MemberUpdateData = {
+  displayName?: string;
+  promptOverride?: string | null;
+};
+
 const settleValues = async <Value>(
   operations: ReadonlyArray<Promise<Value>>,
 ): Promise<Array<Value>> => {
@@ -49,15 +54,15 @@ const materializeTeam = async (
   if (input.templateIds.length === 0) {
     throw new Error("materializeTeam requires at least one templateId");
   }
-  const templates = await settleValues(
-    input.templateIds.map(async (templateId): Promise<Template> => {
-      const template = await getTemplate(db, templateId);
-      if (!template) {
-        throw new Error(`Template ${templateId} not found`);
-      }
-      return template;
-    }),
+  const templateRows = await settleValues(
+    input.templateIds.map((templateId) => getTemplate(db, templateId)),
   );
+  const templates = templateRows.map((template, index): Template => {
+    if (!template) {
+      throw new Error(`Template ${input.templateIds[index] ?? "unknown"} not found`);
+    }
+    return template;
+  });
   await assertTemplatesEntitled(db, input.companyId, input.templateIds);
 
   const correspondentId = correspondentIdFor(input.companyId);
@@ -131,7 +136,12 @@ const confirmTeam = async (
   await logActivity(db, {
     actorId: input.actorId,
     companyId: input.companyId,
-    payload: { templateIds: input.templateIds, ...team },
+    payload: {
+      correspondentId: team.correspondentId,
+      teamId: team.teamId,
+      templateIds: [...input.templateIds],
+      workerIds: [...team.workerIds],
+    },
     refId: team.teamId,
     refType: "team",
     summary: "Time confirmado.",
@@ -256,7 +266,7 @@ const updateMember = async (db: PrismaClient, input: TeamUpdateInput): Promise<T
   if (!existing) {
     throw new AgentDataError("member_not_found", "not found", 404);
   }
-  const data: { displayName?: string; promptOverride?: string | null } = {};
+  const data: MemberUpdateData = {};
   if (input.displayName !== undefined) {
     const displayName = input.displayName.trim();
     if (displayName.length === 0) {

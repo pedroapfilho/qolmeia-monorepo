@@ -22,21 +22,29 @@ type TestDatabase = AgentsApi & SqlFixtureCompat;
 
 type SqlFixtureConfig = { baseUrl: string; secret: string };
 type QueryMode = "all" | "run";
+type FixtureRequestBody = {
+  bindings: Array<unknown>;
+  mode: QueryMode;
+  sql: string;
+};
 
 const defaultFetch = globalThis.fetch.bind(globalThis);
 
 const requestFixture = async <T>(
   config: SqlFixtureConfig,
   path: string,
-  body?: unknown,
+  body?: FixtureRequestBody,
 ): Promise<T> => {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${config.secret}`,
+  };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   const response = await defaultFetch(`${config.baseUrl}${path}`, {
     body: body === undefined ? undefined : JSON.stringify(body),
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${config.secret}`,
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
+    headers,
     method: "POST",
   });
   if (!response.ok) {

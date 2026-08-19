@@ -7,10 +7,11 @@ import type {
 } from "@repo/worker-api/contracts";
 import { z } from "zod";
 
-import { nullableJsonRecord, type Database } from "./types";
+import type { Database } from "./types";
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const stringArraySchema = z.array(z.string());
+const skillConfigSchema = z.record(z.string(), z.union([z.boolean(), z.number(), z.string()]));
 
 const mapTemplate = (row: AgentTemplate): Template => ({
   createdAt: row.createdAt.getTime(),
@@ -29,7 +30,7 @@ const mapTemplate = (row: AgentTemplate): Template => ({
 });
 
 const mapSkillOverlay = (row: PrismaSkill): SkillOverlay => ({
-  defaultConfig: nullableJsonRecord(row.defaultConfig),
+  defaultConfig: row.defaultConfig === null ? null : skillConfigSchema.parse(row.defaultConfig),
   description: row.description,
   displayName: row.displayName,
   enabled: row.enabled,

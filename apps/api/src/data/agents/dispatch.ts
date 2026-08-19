@@ -44,7 +44,7 @@ import {
   setTicketWorkflowId,
   transitionTicket,
 } from "./tickets";
-import { AgentDataError } from "./types";
+import { AgentDataError, type JsonValue } from "./types";
 
 const emptySchema = z.object({});
 const companyIdSchema = z.object({ companyId: z.string().min(1) });
@@ -92,7 +92,7 @@ const ticketStatusSchema = z.enum([
   "rejected",
 ]);
 
-const dispatchActionOperation = async (db: PrismaClient, operation: string, raw: unknown) => {
+const dispatchActionOperation = async (db: PrismaClient, operation: string, raw: JsonValue) => {
   switch (operation) {
     case "actions.decide": {
       const input = z
@@ -160,7 +160,7 @@ const dispatchActionOperation = async (db: PrismaClient, operation: string, raw:
   }
 };
 
-const dispatchCompanyOperation = async (db: PrismaClient, operation: string, raw: unknown) => {
+const dispatchCompanyOperation = async (db: PrismaClient, operation: string, raw: JsonValue) => {
   switch (operation) {
     case "assignments.get": {
       const input = z.object({ operatorUserId: z.string().min(1) }).parse(raw);
@@ -235,7 +235,7 @@ const dispatchCompanyOperation = async (db: PrismaClient, operation: string, raw
 const dispatchTemplateTicketOperation = async (
   db: PrismaClient,
   operation: string,
-  raw: unknown,
+  raw: JsonValue,
 ) => {
   switch (operation) {
     case "templates.create": {

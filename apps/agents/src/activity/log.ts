@@ -4,6 +4,7 @@ import type { ActivityInput, ActivityOptions } from "@repo/worker-api/internal";
 import type { ActivityEvent } from "#/activity/types";
 import type { Database } from "#/db/client";
 import { logError } from "#/lib/logger";
+import { toRecord } from "#/lib/records";
 
 type LogActivityInput = ActivityEvent & {
   actorId?: string;
@@ -12,7 +13,10 @@ type LogActivityInput = ActivityEvent & {
 };
 
 const logActivity = async (db: Database, input: LogActivityInput): Promise<void> => {
-  const remoteInput: ActivityInput = input;
+  const remoteInput: ActivityInput = {
+    ...input,
+    payload: input.payload === undefined ? undefined : toRecord(input.payload),
+  };
   try {
     await db("activity.log", remoteInput);
   } catch (error) {

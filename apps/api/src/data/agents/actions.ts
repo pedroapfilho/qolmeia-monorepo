@@ -2,7 +2,7 @@ import type { Prisma } from "@repo/db";
 import type { Action, DecisionOutcome } from "@repo/worker-api/contracts";
 import type { ActivityInput, ActivityOptions } from "@repo/worker-api/internal";
 
-import { jsonRecordSchema, nullableJsonRecord, type Database } from "./types";
+import { jsonRecordSchema, nullableJsonRecord, type Database, type JsonRecord } from "./types";
 
 const actionInclude = {
   company: { select: { name: true } },
@@ -47,7 +47,7 @@ const proposeAction = async (
     actionType: string;
     companyId: string;
     policy: Action["policy"];
-    proposed: Record<string, unknown>;
+    proposed: JsonRecord;
     ticketId: string;
   },
 ): Promise<{ id: string }> => {

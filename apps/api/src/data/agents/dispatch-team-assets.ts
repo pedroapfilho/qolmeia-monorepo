@@ -20,7 +20,7 @@ import {
   listTeamRosters,
 } from "./team-read";
 import { confirmTeam, hireMember, setMemberStatus, updateMember } from "./team-write";
-import { AgentDataError } from "./types";
+import { AgentDataError, type JsonValue } from "./types";
 
 const companyIdSchema = z.object({ companyId: z.string().min(1) });
 const assetKindSchema = z.enum([
@@ -32,7 +32,7 @@ const assetKindSchema = z.enum([
 ]);
 const assetVisibilitySchema = z.enum(["agent", "customer"]);
 
-const dispatchAssetOperation = (db: PrismaClient, operation: string, raw: unknown) => {
+const dispatchAssetOperation = (db: PrismaClient, operation: string, raw: JsonValue) => {
   switch (operation) {
     case "assets.access": {
       const input = z.object({ assetId: z.string().min(1) }).parse(raw);
@@ -105,7 +105,7 @@ const dispatchAssetOperation = (db: PrismaClient, operation: string, raw: unknow
   }
 };
 
-const dispatchTeamOperation = (db: PrismaClient, operation: string, raw: unknown) => {
+const dispatchTeamOperation = (db: PrismaClient, operation: string, raw: JsonValue) => {
   switch (operation) {
     case "teams.catalogue": {
       const input = companyIdSchema.parse(raw);

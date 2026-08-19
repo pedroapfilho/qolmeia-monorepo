@@ -1,3 +1,4 @@
+import type { JsonRecord } from "@repo/worker-api/internal";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -50,7 +51,7 @@ const persistImageAsset = async (
   env: Env,
   opts: {
     companyId: string;
-    extraMeta: Record<string, unknown>;
+    extraMeta: JsonRecord;
     file: File;
     kind: "brand_asset" | "user_upload";
   },

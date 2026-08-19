@@ -1,4 +1,5 @@
 import type { Action, DecisionOutcome } from "@repo/worker-api/contracts";
+import type { JsonRecord } from "@repo/worker-api/internal";
 
 import type { Database } from "#/db/client";
 import type { Policy } from "#/db/policy";
@@ -7,7 +8,7 @@ type ProposeActionInput = {
   actionType: string;
   companyId: string;
   policy: Policy;
-  proposed: Record<string, unknown>;
+  proposed: JsonRecord;
   ticketId: string;
 };
 
