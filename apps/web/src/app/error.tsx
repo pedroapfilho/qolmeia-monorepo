@@ -19,10 +19,7 @@ const ClientError = ({ error, reset }: ClientErrorProps) => {
   }, [error]);
 
   return (
-    <main
-      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center"
-      id="main-content"
-    >
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold text-foreground" ref={headingRef} tabIndex={-1}>
           Não foi possível conectar ao chat
@@ -39,7 +36,7 @@ const ClientError = ({ error, reset }: ClientErrorProps) => {
       >
         Tentar novamente
       </Button>
-    </main>
+    </div>
   );
 };
 

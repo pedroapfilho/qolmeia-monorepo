@@ -7,13 +7,20 @@ import { ZodError } from "zod";
 import { createErrorHandler, notFound } from "./error-handler";
 
 const errorHandler = createErrorHandler("development");
+type JsonBody =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<JsonBody>
+  | { readonly [key: string]: JsonBody | undefined };
 
 const mockLogger = { error: vi.fn(), info: vi.fn() };
 
 const createMockContext = (headers: Record<string, string> = {}) => {
   return {
     get: vi.fn((key: string) => (key === "log" ? mockLogger : undefined)),
-    json: vi.fn((body: unknown, status?: number) => ({ body, status })),
+    json: vi.fn((body: JsonBody, status?: number) => ({ body, status })),
     req: {
       header: vi.fn((name: string) => headers[name]),
       method: "GET",

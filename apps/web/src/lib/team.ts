@@ -46,12 +46,12 @@ type HireableTemplate = {
   workerKind: string;
 };
 
-const STATUS_LABEL: Record<AgentDisplayStatus, string> = {
+const STATUS_LABEL = {
   available: "Disponível",
   awaiting_approval: "Aguardando aprovação",
   paused: "Pausado",
   working: "Trabalhando",
-};
+} satisfies Record<AgentDisplayStatus, string>;
 
 const fetchTeam = async (): Promise<Array<TeamMemberView>> => {
   const body = await request<{ members: Array<TeamMemberView> }>(

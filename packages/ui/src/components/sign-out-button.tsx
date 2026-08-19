@@ -43,6 +43,7 @@ const createSignOutButton = ({ showError, signOut, useAppRouter }: SignOutButton
         refresh();
       } catch {
         showError("Não foi possível sair. Tente novamente.");
+      } finally {
         setPending(false);
       }
     };

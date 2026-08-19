@@ -1,4 +1,5 @@
 import { generateText, isStepCount } from "ai";
+import { z } from "zod";
 
 import { getDb } from "#/db/client";
 import { loadInstanceWithTemplate, loadTicket } from "#/db/ticket";
@@ -29,12 +30,17 @@ const buildRevisionMessages = (
 };
 
 const IMAGE_SKILLS = ["generateBrandImage"] as const;
+const skillResultSchema = z.json();
+type SkillResultValue = z.infer<typeof skillResultSchema>;
 
 const escapeRegExp = (value: string): string =>
   value.replaceAll(/[.*+?^$\{\}\(\)\|\[\]\\]/gv, String.raw`\$&`);
 
 /* oxlint-disable react-doctor/js-hoist-regexp, react-doctor/js-set-map-lookups */
-const embedGeneratedImages = (summary: string, skillResults: Record<string, unknown>): string => {
+const embedGeneratedImages = (
+  summary: string,
+  skillResults: Record<string, SkillResultValue>,
+): string => {
   let out = summary;
   for (const skillId of IMAGE_SKILLS) {
     const result = skillResults[skillId];
@@ -98,13 +104,13 @@ const generateDeliverable = async (
     tools,
   });
   const summary = result.text.trim();
-  const skillResults: Record<string, unknown> = {};
+  const skillResults: Record<string, SkillResultValue> = {};
   for (const stepResult of result.steps ?? []) {
     for (const toolResult of stepResult.toolResults ?? []) {
       const name = toolResult.toolName;
-      const output: unknown = toolResult.output;
-      if (typeof name === "string" && output !== undefined) {
-        skillResults[name] = output;
+      const output = skillResultSchema.safeParse(toolResult.output);
+      if (typeof name === "string" && output.success) {
+        skillResults[name] = output.data;
       }
     }
   }

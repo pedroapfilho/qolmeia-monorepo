@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb } from "#/db/client";
 import { persistAsset } from "#/lib/asset-store";
 import { buildSignedAssetUrl } from "#/lib/r2";
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -95,7 +95,7 @@ type GenerateResult = { assetId: string; url: string } | { error: string };
 const generateBrandImageSkill: UnknownSkill = {
   description:
     "Gera uma imagem alinhada à marca. Use quando o cliente pedir uma imagem, post visual, ou peça de design.",
-  async execute(input: unknown, ctx: SkillContext): Promise<GenerateResult> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<GenerateResult> {
     const { aspectRatio = "1:1", prompt } = generateBrandImageInputSchema.parse(input);
     const fullPrompt = `${prompt}${aspectHint(aspectRatio)}`;
 

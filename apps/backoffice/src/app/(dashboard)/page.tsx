@@ -59,7 +59,7 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
         hasHref ? "transition-colors hover:border-input" : undefined,
       )}
     >
-      <p className="text-[13px] text-muted-foreground">{label}</p>
+      <p className="text-[0.8125rem] text-muted-foreground">{label}</p>
       <p
         className={cn(
           "mt-2 font-display text-3xl font-bold tracking-tight tabular-nums",
@@ -117,7 +117,7 @@ const HomeContent = async () => {
     <div className="flex flex-col gap-6">
       <PageHeader
         actions={
-          <span className="rounded-lg border border-border bg-card px-3 py-2 text-[13px] font-semibold text-foreground">
+          <span className="rounded-lg border border-border bg-card px-3 py-2 text-[0.8125rem] font-semibold text-foreground">
             Últimos 7 dias
           </span>
         }
@@ -150,9 +150,9 @@ const HomeContent = async () => {
       <div className="grid gap-3.5 lg:grid-cols-[1.25fr_1fr]">
         <Card className="gap-0 overflow-hidden p-0">
           <div className="flex items-center border-b border-border px-[18px] py-[15px]">
-            <h2 className="text-[14.5px] font-bold text-foreground">Próximas aprovações</h2>
+            <h2 className="text-[0.90625rem] font-bold text-foreground">Próximas aprovações</h2>
             <Link
-              className="ml-auto text-[12.5px] font-semibold text-primary transition-colors hover:text-primary/80"
+              className="ml-auto text-[0.78125rem] font-semibold text-primary transition-colors hover:text-primary/80"
               href="/approvals"
             >
               Ver todas
@@ -176,14 +176,14 @@ const HomeContent = async () => {
                       <span
                         aria-hidden
                         className={cn(
-                          "flex size-[34px] shrink-0 items-center justify-center rounded-[9px] text-[13px] font-bold text-white",
+                          "flex size-[34px] shrink-0 items-center justify-center rounded-[9px] text-[0.8125rem] font-bold text-white",
                           agentAvatarClass(action.agent.role, action.agent.workerKind),
                         )}
                       >
                         {agentInitials(action.agent.name)}
                       </span>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate text-[13.5px] font-semibold text-foreground">
+                        <span className="truncate text-[0.84375rem] font-semibold text-foreground">
                           {action.actionType}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
@@ -191,7 +191,7 @@ const HomeContent = async () => {
                         </span>
                       </div>
                       {action.ageSeconds === undefined ? null : (
-                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
                           {formatDurationSeconds(action.ageSeconds)}
                         </span>
                       )}
@@ -205,7 +205,7 @@ const HomeContent = async () => {
 
         <Card className="gap-0 overflow-hidden p-0">
           <div className="border-b border-border px-[18px] py-[15px]">
-            <h2 className="text-[14.5px] font-bold text-foreground">Eventos recentes</h2>
+            <h2 className="text-[0.90625rem] font-bold text-foreground">Eventos recentes</h2>
           </div>
           {activity.length === 0 ? (
             <EmptyState
@@ -228,8 +228,8 @@ const HomeContent = async () => {
                     )}
                   />
                   <div className="min-w-0">
-                    <p className="text-[13px] leading-snug text-foreground">{row.summary}</p>
-                    <p className="mt-[3px] font-mono text-[10px] text-muted-foreground">
+                    <p className="text-[0.8125rem] leading-snug text-foreground">{row.summary}</p>
+                    <p className="mt-[3px] font-mono text-xs text-muted-foreground">
                       {row.type} · {formatRelative(row.createdAt)}
                     </p>
                   </div>

@@ -202,10 +202,8 @@ describe("requireStaffSession", () => {
       globalThis.fetch = vi.fn(() =>
         Promise.resolve(Response.json({ currentOrg: { id: "co_1", role }, user: { id: "u_1" } })),
       );
-      // oxlint-disable-next-line no-await-in-loop -- each iteration rebinds the fetch stub
       const res = await probe(`tok-${role}`);
       expect(res.status).toBe(200);
-      // oxlint-disable-next-line no-await-in-loop -- see above
       expect(await res.json()).toEqual({ role });
     }
   });

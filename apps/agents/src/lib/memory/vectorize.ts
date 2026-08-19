@@ -4,7 +4,8 @@ const EMBEDDING_MODEL = "@cf/baai/bge-m3";
 
 type Bindings = { AI: Ai; VECTORIZE: VectorizeIndex };
 
-const metaString = (value: unknown): string => (typeof value === "string" ? value : "");
+const metaString = (value: VectorizeVectorMetadata | undefined): string =>
+  typeof value === "string" ? value : "";
 
 class VectorizeMemoryAdapter implements MemoryAdapter {
   constructor(private readonly env: Bindings) {}

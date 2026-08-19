@@ -13,6 +13,7 @@ const meResponseSchema = z.object({
   orgs: z.array(namedOrgSchema).default([]),
   user: z.object({ id: z.string() }),
 });
+type MeResponseInput = Parameters<typeof meResponseSchema.safeParse>[0];
 
 type OrgSummary = Pick<MeOrg, "id" | "name" | "role">;
 
@@ -22,7 +23,7 @@ type MeSessionClaims = {
   userId: MeResponse["user"]["id"];
 };
 
-const parseMeResponse = (data: unknown): MeSessionClaims | null => {
+const parseMeResponse = (data: MeResponseInput): MeSessionClaims | null => {
   const parsed = meResponseSchema.safeParse(data);
   if (!parsed.success) {
     return null;

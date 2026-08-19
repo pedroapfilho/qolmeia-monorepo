@@ -17,10 +17,7 @@ export const metadata: Metadata = {
 export const instant = true;
 
 const NoAccessPage = () => (
-  <main
-    className="flex min-h-screen items-center justify-center bg-background px-4 py-12"
-    id="main-content"
-  >
+  <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
     <Card className="w-full max-w-md">
       <CardHeader>
         <div
@@ -39,7 +36,7 @@ const NoAccessPage = () => (
         <SignOutButton className="w-full" label="Sair desta conta" />
       </CardContent>
     </Card>
-  </main>
+  </div>
 );
 
 export default NoAccessPage;

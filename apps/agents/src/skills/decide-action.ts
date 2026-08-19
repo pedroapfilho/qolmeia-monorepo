@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAction } from "#/db/action";
 import { getDb } from "#/db/client";
 import { loadTicket } from "#/db/ticket";
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const decideActionInputSchema = z.object({
   actionId: z.string().min(1),
@@ -20,7 +20,7 @@ type DecideResult = { decision: string; ok: true } | { error: string };
 const decideActionSkill: UnknownSkill = {
   description:
     "Interprete a resposta do cliente a uma ação pendente e registre a decisão. Use quando houver uma ação no estado 'pending' e o cliente responder com aprovação, rejeição ou pedido de mudança.",
-  async execute(input: unknown, ctx: SkillContext): Promise<DecideResult> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<DecideResult> {
     const { actionId, decision, feedback } = decideActionInputSchema.parse(input);
 
     const db = getDb(ctx.env);

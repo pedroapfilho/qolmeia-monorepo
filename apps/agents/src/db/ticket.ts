@@ -4,6 +4,7 @@ import type { Ticket, TicketListRow, TicketStatus } from "@repo/worker-api/contr
 import { logActivity, type LogActivityInput } from "#/activity/log";
 import type { Database } from "#/db/client";
 import { getTemplate, type Template } from "#/db/template";
+import { toRecord } from "#/lib/records";
 import { emitTeamEvent } from "#/team/events";
 
 const mapTicket = (row: {
@@ -11,7 +12,7 @@ const mapTicket = (row: {
   brief: string;
   companyId: string;
   id: string;
-  result: unknown;
+  result: Prisma.JsonValue;
   status: TicketStatus;
   workflowId: string | null;
 }): Ticket => ({
@@ -19,9 +20,7 @@ const mapTicket = (row: {
   brief: row.brief,
   companyId: row.companyId,
   id: row.id,
-  // SAFETY: markTicketDone is the only writer and accepts a JSON-compatible record.
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  result: row.result as Record<string, unknown> | null,
+  result: row.result === null ? null : toRecord(row.result),
   status: row.status,
   workflowId: row.workflowId,
 });
@@ -99,12 +98,10 @@ const setTicketStatus = async (
 const markTicketDone = async (
   db: Database,
   ticketId: string,
-  result: Record<string, unknown>,
+  result: Prisma.InputJsonObject,
 ): Promise<void> => {
   await db.ticket.update({
-    // SAFETY: Ticket transitions receive JSON-compatible skill output.
-    // oxlint-disable-next-line no-unsafe-type-assertion
-    data: { result: result as Prisma.InputJsonValue, status: "done" },
+    data: { result, status: "done" },
     where: { id: ticketId },
   });
 };
@@ -113,7 +110,7 @@ type TicketTransition = {
   activity: LogActivityInput;
   ticketId: string;
 } & (
-  | { result: Record<string, unknown>; status: "done" }
+  | { result: Prisma.InputJsonObject; status: "done" }
   | { status: Exclude<TicketStatus, "done"> }
 );
 

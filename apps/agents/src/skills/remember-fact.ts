@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb } from "#/db/client";
 import { insertMemoryFact } from "#/db/schema";
 import { getMemoryAdapter } from "#/lib/memory";
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const rememberFactInputSchema = z.object({
   content: z.string().min(1).describe("O fato a ser lembrado, em uma frase clara em pt-BR."),
@@ -16,7 +16,7 @@ const rememberFactInputSchema = z.object({
 const rememberFactSkill: UnknownSkill = {
   description:
     "Salva um fato importante que você deve lembrar em conversas futuras (preferências, decisões, fatos do negócio).",
-  async execute(input: unknown, ctx: SkillContext): Promise<{ id: string; savedAt: number }> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<{ id: string; savedAt: number }> {
     const { content, kind } = rememberFactInputSchema.parse(input);
     const id = crypto.randomUUID();
     const factKind = kind ?? "fact";

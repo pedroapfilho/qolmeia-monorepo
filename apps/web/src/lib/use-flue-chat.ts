@@ -7,7 +7,7 @@ import {
   type FlueConversationMessage,
 } from "@flue/sdk";
 import type { FileUIPart } from "ai";
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 
 type ChatMessage = FlueConversationMessage;
 
@@ -22,7 +22,6 @@ type UseFlueChatOptions = {
   agent: "correspondent" | "planner";
   baseUrl: string;
   companyId: string;
-  onError?: (error: unknown) => void;
   sessionToken?: string;
 };
 
@@ -97,8 +96,8 @@ const useConversation: UseConversation = ({ sessionToken, url }) => {
     () =>
       createFlueClient({
         fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
+        token: sessionToken === "" ? undefined : sessionToken,
         url,
-        ...(sessionToken !== undefined && sessionToken !== "" ? { token: sessionToken } : {}),
       }),
     [sessionToken, url],
   );
@@ -111,7 +110,6 @@ const createUseFlueChat = (useAgentConversation: UseConversation) => {
     agent,
     baseUrl,
     companyId,
-    onError,
     sessionToken,
   }: UseFlueChatOptions): UseFlueChatResult => {
     const conversation = useAgentConversation({
@@ -119,26 +117,12 @@ const createUseFlueChat = (useAgentConversation: UseConversation) => {
       url: `${(baseUrl || "").replace(/\/+$/v, "")}/agents/${agent}/${companyId}`,
     });
 
-    const lastErrorRef = useRef<Error | undefined>(undefined);
-    useEffect(() => {
-      if (conversation.error && conversation.error !== lastErrorRef.current) {
-        lastErrorRef.current = conversation.error;
-        // oxlint-disable-next-line react-doctor/no-pass-data-to-parent -- @flue/react only exposes stream errors as state; this bridges them to the onError callback API
-        onError?.(conversation.error);
-      }
-    }, [conversation.error, onError]);
-
     const sendMessage = async (input: SendInput) => {
       const text = input.text.trim();
       if (!text && input.files.length === 0) {
         return;
       }
-      try {
-        await conversation.sendMessage(text, { images: await toPromptImages(input.files) });
-      } catch (error) {
-        onError?.(error);
-        throw error;
-      }
+      await conversation.sendMessage(text, { images: await toPromptImages(input.files) });
     };
 
     return {

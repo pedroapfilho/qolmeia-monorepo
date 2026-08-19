@@ -15,27 +15,26 @@ import type { CompanyOverview, TeamMemberView } from "@/lib/team-fetch";
 /** @public Next.js app-router reads the instant segment config via the module loader */
 export const instant = true;
 
-const COMPANY_STATUS: Record<CompanyOverview["status"], { label: string; tone: StatusTone }> = {
+type CompanyStatusContract = Record<CompanyOverview["status"], { label: string; tone: StatusTone }>;
+
+const COMPANY_STATUS = {
   active: { label: "Ativo", tone: "success" },
   onboarding: { label: "Onboarding", tone: "warning" },
   paused: { label: "Pausado", tone: "neutral" },
-};
+} satisfies CompanyStatusContract;
 
-const MEMBER_STATUS: Record<
-  TeamMemberView["status"],
-  { label: string; pulse: boolean; tone: StatusTone }
-> = {
+const MEMBER_STATUS = {
   available: { label: "Disponível", pulse: false, tone: "success" },
   awaiting_approval: { label: "Aguardando", pulse: false, tone: "warning" },
   paused: { label: "Pausado", pulse: false, tone: "neutral" },
   working: { label: "Trabalhando", pulse: true, tone: "info" },
-};
+} satisfies Record<TeamMemberView["status"], { label: string; pulse: boolean; tone: StatusTone }>;
 
-const ROLE_LABEL: Record<TeamMemberView["role"], string> = {
+const ROLE_LABEL = {
   correspondent: "Correspondente",
   planner: "Planejador",
   worker: "",
-};
+} satisfies Record<TeamMemberView["role"], string>;
 
 const memberRoleLabel = (m: TeamMemberView): string =>
   m.role === "worker" ? (m.workerKind ?? "Especialista") : ROLE_LABEL[m.role];
@@ -84,13 +83,13 @@ const TeamsContent = async () => {
                       <span
                         aria-hidden
                         className={cn(
-                          "flex size-[30px] shrink-0 items-center justify-center rounded-lg font-display text-[11px] font-bold text-white",
+                          "flex size-[30px] shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white",
                           agentAvatarClass(m.role, m.workerKind),
                         )}
                       >
                         {agentInitials(m.displayName)}
                       </span>
-                      <span className="flex-1 truncate text-[13.5px] font-semibold text-foreground">
+                      <span className="flex-1 truncate text-[0.84375rem] font-semibold text-foreground">
                         {memberRoleLabel(m)}
                       </span>
                       <StatusPill

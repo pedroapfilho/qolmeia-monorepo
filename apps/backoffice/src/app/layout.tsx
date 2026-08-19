@@ -14,6 +14,7 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains",
 });
+const metadataBase = URL.parse(process.env.WEB_APP_URL ?? "") ?? new URL("https://app.qolmeia.com");
 
 export const metadata: Metadata = {
   authors: [{ name: "Qolmeia" }],
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
   },
   keywords: ["qolmeia", "backoffice", "ai agency", "agentes"],
-  metadataBase: new URL(process.env.WEB_APP_URL ?? "https://app.qolmeia.com"),
+  metadataBase,
   openGraph: {
     description: "Painel operacional da Qolmeia.",
     images: [
@@ -82,7 +83,9 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
         >
           Pular para o conteúdo
         </a>
-        <Providers>{children}</Providers>
+        <main id="main-content">
+          <Providers>{children}</Providers>
+        </main>
         <Toaster />
       </body>
     </html>

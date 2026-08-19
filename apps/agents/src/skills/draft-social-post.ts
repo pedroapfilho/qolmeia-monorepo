@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const PLATFORMS = ["instagram", "facebook", "linkedin", "twitter"] as const;
 
@@ -35,7 +35,7 @@ type DraftSocialPostResult = {
 const draftSocialPostSkill: UnknownSkill = {
   description:
     "Rascunha um post para redes sociais (Instagram, Facebook, LinkedIn, Twitter). Use quando o cliente pedir um post, conteúdo de feed/stories, ou copy de publicação.",
-  execute: (input: unknown, _ctx: SkillContext): Promise<DraftSocialPostResult> => {
+  execute: (input: SkillInput, _ctx: SkillContext): Promise<DraftSocialPostResult> => {
     const { body, callToAction, hashtags, platform, tone } =
       draftSocialPostInputSchema.parse(input);
     return Promise.resolve({

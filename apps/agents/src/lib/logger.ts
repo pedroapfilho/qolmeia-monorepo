@@ -1,6 +1,10 @@
+import { z } from "zod";
+
 type Level = "info" | "warn" | "error";
 
-type LogPayload = Record<string, unknown>;
+const logPayloadSchema = z.record(z.string(), z.unknown());
+
+type LogPayload = z.infer<typeof logPayloadSchema>;
 
 const MAX_STRING_LEN = 500;
 
@@ -11,7 +15,7 @@ const truncate = <Value>(value: Value): Value | string => {
   return value;
 };
 
-const truncatePayload = (payload: LogPayload): LogPayload => {
+const truncatePayload = (payload: LogPayload) => {
   const out: LogPayload = {};
   for (const [key, value] of Object.entries(payload)) {
     out[key] = truncate(value);

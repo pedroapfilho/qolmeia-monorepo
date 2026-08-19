@@ -31,11 +31,15 @@ const jsonError = (args: JsonErrorArgs) => {
   const body: ApiErrorBody = {
     error: {
       code: args.code,
-      ...(args.details ? { details: args.details } : {}),
-      ...(args.issues ? { issues: args.issues } : {}),
       message: args.message,
     },
   };
+  if (args.details !== undefined) {
+    body.error.details = args.details;
+  }
+  if (args.issues !== undefined) {
+    body.error.issues = args.issues;
+  }
   return args.c.json(body, args.status);
 };
 

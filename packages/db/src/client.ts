@@ -13,6 +13,9 @@ const createPrismaClient = (): PrismaClient => {
   if (databaseUrl === undefined || databaseUrl === "") {
     throw new Error("DATABASE_URL is required");
   }
+  if (!URL.canParse(databaseUrl)) {
+    throw new Error("DATABASE_URL must be a valid URL");
+  }
   const schema = new URL(databaseUrl).searchParams.get("schema") ?? undefined;
   const adapter = new PrismaPg(
     {

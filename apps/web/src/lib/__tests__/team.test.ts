@@ -2,11 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as TeamModule from "@/lib/team";
 
+type JsonBody =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<JsonBody>
+  | { readonly [key: string]: JsonBody | undefined };
+
 const ORG_ID = "co_1";
 const ORG_HEADERS = { "x-org-id": ORG_ID };
 const JSON_HEADERS = { "content-type": "application/json", ...ORG_HEADERS };
 
-const okJson = (body: unknown): Response =>
+const okJson = (body: JsonBody): Response =>
   ({ json: () => Promise.resolve(body), ok: true, status: 200 }) as unknown as Response;
 
 const errorResponse = (status: number): Response =>

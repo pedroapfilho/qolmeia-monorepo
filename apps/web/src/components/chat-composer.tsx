@@ -16,7 +16,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeft, Paperclip, Square, X } from "lucide-react";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent, SubmitEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { apiSendForm } from "@/lib/api-client";
 
@@ -41,6 +41,9 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_UPLOAD_MIME = ["image/gif", "image/jpeg", "image/png", "image/webp"];
 
 const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  if (event.nativeEvent.isComposing) {
+    return;
+  }
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
@@ -58,39 +61,9 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
   const [attachments, setAttachments] = useState<ReadonlyArray<Attachment>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const objectUrlsRef = useRef<Set<string> | null>(null);
 
   const isUploading = attachments.some((attachment) => attachment.state === "uploading");
   const readyAttachments = attachments.filter((attachment) => attachment.state === "done");
-
-  const getObjectUrls = () => {
-    const existing = objectUrlsRef.current;
-    if (existing) {
-      return existing;
-    }
-    const created = new Set<string>();
-    objectUrlsRef.current = created;
-    return created;
-  };
-
-  const revokeObjectUrl = (url: string) => {
-    if (getObjectUrls().delete(url)) {
-      URL.revokeObjectURL(url);
-    }
-  };
-
-  useEffect(
-    () => () => {
-      const urls = objectUrlsRef.current;
-      if (urls) {
-        for (const url of urls) {
-          URL.revokeObjectURL(url);
-        }
-        urls.clear();
-      }
-    },
-    [],
-  );
 
   const handleAttachClick = () => {
     fileInputRef.current?.click();
@@ -107,18 +80,15 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
     }
 
     const tempId = crypto.randomUUID();
-    const previewUrl = URL.createObjectURL(file);
-    getObjectUrls().add(previewUrl);
     setAttachments((current) => [
       ...current,
-      { id: tempId, mediaType: file.type, name: file.name, state: "uploading", url: previewUrl },
+      { id: tempId, mediaType: file.type, name: file.name, state: "uploading", url: "" },
     ]);
 
     try {
       const form = new FormData();
       form.append("file", file);
       const result = await apiSendForm<UploadResponse>("/api/me/uploads", form);
-      revokeObjectUrl(previewUrl);
       setAttachments((current) =>
         current.map((attachment) =>
           attachment.id === tempId
@@ -162,7 +132,6 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
   };
 
   const handleRemoveAttachment = (target: Attachment) => {
-    revokeObjectUrl(target.url);
     setAttachments((current) => current.filter((attachment) => attachment.id !== target.id));
   };
 
@@ -192,11 +161,6 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
     }));
     onSend({ files, text: text || " " });
     setInput("");
-    const urls = getObjectUrls();
-    for (const url of urls) {
-      URL.revokeObjectURL(url);
-    }
-    urls.clear();
     setAttachments([]);
     const el = textareaRef.current;
     if (el) {
@@ -226,6 +190,7 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
           accept={ALLOWED_UPLOAD_MIME.join(",")}
           aria-label="Anexar imagem"
           className="sr-only"
+          name="attachment"
           onChange={handleFileSelected}
           ref={fileInputRef}
           tabIndex={-1}
@@ -241,7 +206,7 @@ const ChatComposer = ({ disabled, onSend, status }: ChatComposerProps) => {
                     <Spinner />
                   ) : (
                     // oxlint-disable-next-line no-img-element
-                    <img alt="" src={attachment.url} />
+                    <img alt="" height={64} src={attachment.url} width={64} />
                   )}
                 </AttachmentMedia>
                 <AttachmentContent>

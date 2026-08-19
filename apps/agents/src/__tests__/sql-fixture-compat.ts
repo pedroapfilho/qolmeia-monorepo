@@ -166,7 +166,6 @@ const createSqlFixtureCompat = (db: PrismaClient): TestDatabase => {
   const batch = async (statements: ReadonlyArray<FixtureStatement>) => {
     const results: Array<FixtureResult<unknown>> = [];
     for (const statement of statements) {
-      // oxlint-disable-next-line no-await-in-loop -- SQL fixture batches preserve statement order.
       results.push(await statement.run());
     }
     return results;

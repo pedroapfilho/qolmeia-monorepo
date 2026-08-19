@@ -14,10 +14,12 @@ import Link from "next/link";
 import { ApiError } from "@/lib/api-client";
 import { fetchTemplates, setTemplateStatus, templateKeys } from "@/lib/templates-api";
 
-const STATUS_LABEL: Record<TemplateStatus, { label: string; tone: StatusTone }> = {
+type StatusLabelContract = Record<TemplateStatus, { label: string; tone: StatusTone }>;
+
+const STATUS_LABEL = {
   active: { label: "Ativo", tone: "success" },
   retired: { label: "Desativado", tone: "neutral" },
-};
+} satisfies StatusLabelContract;
 
 type TemplateRowProps = {
   busy: boolean;
@@ -110,8 +112,9 @@ const TemplatesTableBody = ({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
+        <caption className="sr-only">Modelos de especialistas</caption>
         <thead>
-          <tr className="border-b border-border text-left font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+          <tr className="border-b border-border text-left font-mono text-xs tracking-wide text-muted-foreground uppercase">
             <th className="px-5 py-3 font-medium">Nome</th>
             <th className="px-5 py-3 font-medium">Tipo</th>
             <th className="px-5 py-3 font-medium">Modelo</th>

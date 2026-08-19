@@ -30,7 +30,7 @@ const CAPABILITIES = [
 ] as const;
 
 const LoginPage = () => (
-  <main className="flex min-h-svh flex-col lg:grid lg:grid-cols-[3fr_2fr]" id="main-content">
+  <div className="flex min-h-svh flex-col lg:grid lg:grid-cols-[3fr_2fr]">
     <section className="relative isolate flex flex-col justify-between gap-12 overflow-hidden border-b border-border px-6 pt-10 pb-9 sm:px-8 lg:border-r lg:border-b-0 lg:px-12 lg:py-14 xl:px-20">
       <Logo className="h-8 w-auto self-start" />
 
@@ -75,7 +75,7 @@ const LoginPage = () => (
     <section className="flex flex-1 items-center bg-card px-6 py-12 sm:px-8 lg:justify-center lg:px-12">
       <LoginForm />
     </section>
-  </main>
+  </div>
 );
 
 export { metadata };

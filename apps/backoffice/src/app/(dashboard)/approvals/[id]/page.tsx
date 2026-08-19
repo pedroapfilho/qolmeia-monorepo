@@ -29,11 +29,11 @@ type ApprovalDetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-const POLICY_COPY: Record<string, string> = {
+const POLICY_COPY = {
   auto_execute: "Execução automática",
   notify_only: "Apenas notificar",
   require_approval: "Sob aprovação",
-};
+} satisfies Record<string, string>;
 
 const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
   const { id } = await params;
@@ -63,7 +63,7 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
       <header className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-[1.625rem]">
               Revisar ação
             </h1>
             <span className="font-mono text-xs text-muted-foreground">{action.id}</span>
@@ -84,7 +84,7 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
             createElement(TypedRenderer, { proposed: action.proposed })
           ) : (
             <Card className="gap-4 p-5">
-              <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              <span className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 Proposta
               </span>
               {summary !== null && summary !== "" && (
@@ -106,7 +106,7 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
 
         <div className="flex flex-col gap-4">
           <Card className="gap-3 p-5">
-            <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            <span className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               Contexto
             </span>
             <dl className="flex flex-col gap-2.5 text-sm">
@@ -119,7 +119,7 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
                 <dd className="flex min-w-0 items-center gap-2">
                   <span
                     aria-hidden="true"
-                    className={`flex size-5 flex-none items-center justify-center rounded-lg text-[9px] font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
+                    className={`flex size-5 flex-none items-center justify-center rounded-lg text-xs font-bold text-white ${agentAvatarClass(action.agent.role, action.agent.workerKind)}`}
                   >
                     {agentInitials(action.agent.name)}
                   </span>
@@ -161,14 +161,14 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
 
           {action.status === "pending" ? (
             <Card className="gap-3 p-5">
-              <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              <span className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 Decisão
               </span>
               <DecisionForm actionId={action.id} />
             </Card>
           ) : (
             <Card className="gap-3 p-5">
-              <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              <span className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 Decidido
               </span>
               <div className="flex flex-wrap items-center gap-2 text-sm">

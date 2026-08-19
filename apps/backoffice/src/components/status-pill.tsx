@@ -5,7 +5,7 @@ type StatusKind = ActionStatus | TicketStatus;
 
 type Tone = "success" | "warning" | "info" | "danger" | "neutral";
 
-const STATUS_COPY: Record<StatusKind, string> = {
+const STATUS_COPY = {
   approved: "Aprovado",
   awaiting_approval: "Aguardando aprovação",
   blocked: "Bloqueado",
@@ -17,9 +17,9 @@ const STATUS_COPY: Record<StatusKind, string> = {
   open: "Aberto",
   pending: "Pendente",
   rejected: "Rejeitado",
-};
+} satisfies Record<StatusKind, string>;
 
-const STATUS_TONE: Record<StatusKind, Tone> = {
+const STATUS_TONE = {
   approved: "success",
   awaiting_approval: "warning",
   blocked: "danger",
@@ -31,23 +31,23 @@ const STATUS_TONE: Record<StatusKind, Tone> = {
   open: "info",
   pending: "warning",
   rejected: "danger",
-};
+} satisfies Record<StatusKind, Tone>;
 
-const TONE_CLASSES: Record<Tone, string> = {
+const TONE_CLASSES = {
   danger: "bg-destructive-surface text-destructive-surface-foreground ring-destructive/20",
   info: "bg-info-surface text-info-surface-foreground ring-info/20",
   neutral: "bg-muted text-muted-foreground ring-border",
   success: "bg-success-surface text-success-surface-foreground ring-success/20",
   warning: "bg-warning-surface text-warning-surface-foreground ring-warning/20",
-};
+} satisfies Record<Tone, string>;
 
-const DOT_CLASSES: Record<Tone, string> = {
+const DOT_CLASSES = {
   danger: "bg-destructive",
   info: "bg-info",
   neutral: "bg-muted-foreground/60",
   success: "bg-success",
   warning: "bg-warning",
-};
+} satisfies Record<Tone, string>;
 
 type StatusPillProps = {
   className?: string;

@@ -9,7 +9,7 @@ const proactiveGate = (input: {
   isComplete: boolean;
   lastSuggestedAt: number | null;
   now: number;
-}): { ok: boolean; reason: string } => {
+}) => {
   if (!input.isComplete) {
     return { ok: false, reason: "brief incomplete" };
   }

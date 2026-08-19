@@ -35,7 +35,6 @@ const forMagicLink = async (
   let lastError: string | undefined;
 
   while (Date.now() < deadline) {
-    // eslint-disable-next-line no-await-in-loop
     const row = await prisma.verification.findFirst({
       orderBy: { createdAt: "desc" },
       where: {
@@ -53,7 +52,6 @@ const forMagicLink = async (
     }
 
     lastError = `no row yet at ${new Date().toISOString()}`;
-    // eslint-disable-next-line no-await-in-loop
     await sleep(100);
   }
 
@@ -79,7 +77,6 @@ const forResetPassword = async (
   let lastError: string | undefined;
 
   while (Date.now() < deadline) {
-    // eslint-disable-next-line no-await-in-loop
     const row = await prisma.verification.findFirst({
       orderBy: { createdAt: "desc" },
       where: {
@@ -96,7 +93,6 @@ const forResetPassword = async (
     }
 
     lastError = `no row yet at ${new Date().toISOString()}`;
-    // eslint-disable-next-line no-await-in-loop
     await sleep(100);
   }
 

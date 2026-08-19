@@ -13,11 +13,13 @@ const PALETTE: ReadonlyArray<string> = [
   "bg-avatar-8",
 ];
 
-const SIZES: Record<AvatarSize, string> = {
+type SizesContract = Record<AvatarSize, string>;
+
+const SIZES = {
   lg: "size-12 text-base",
   md: "size-9 text-sm",
   sm: "size-7 text-xs",
-};
+} satisfies SizesContract;
 
 const hashSeed = (seed: string): number => {
   let h = 0;

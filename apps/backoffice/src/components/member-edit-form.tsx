@@ -20,19 +20,19 @@ type MemberEditFormProps = {
   memberId: string;
 };
 
-const STATUS_LABEL: Record<TeamMemberDetailView["status"], string> = {
+const STATUS_LABEL = {
   available: "Disponível",
   awaiting_approval: "Aguardando aprovação",
   paused: "Pausado",
   working: "Trabalhando",
-};
+} satisfies Record<TeamMemberDetailView["status"], string>;
 
-const STATUS_TONE: Record<TeamMemberDetailView["status"], StatusTone> = {
+const STATUS_TONE = {
   available: "success",
   awaiting_approval: "warning",
   paused: "neutral",
   working: "info",
-};
+} satisfies Record<TeamMemberDetailView["status"], StatusTone>;
 
 const WORKER_KIND_AVATAR: ReadonlyArray<{ cls: string; match: RegExp }> = [
   { cls: "bg-avatar-2", match: /design|art|imagem/iv },
@@ -76,19 +76,18 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
     status?: "active" | "paused";
   }) => {
     setBusy(true);
-    const result = await apiSend<{ member: TeamMemberDetailView }>(
-      "PATCH",
-      `/teams/${companyId}/members/${memberId}`,
-      body,
-    ).then(
-      (data) => ({ data, ok: true as const }),
-      (error: unknown) => ({ error, ok: false as const }),
-    );
-    setBusy(false);
-    if (!result.ok) {
-      throw result.error;
+    try {
+      const data = await apiSend<{ member: TeamMemberDetailView }>(
+        "PATCH",
+        `/teams/${companyId}/members/${memberId}`,
+        body,
+      );
+      setMember(data.member);
+    } catch (error) {
+      setBusy(false);
+      throw error;
     }
-    setMember(result.data.member);
+    setBusy(false);
   };
 
   const handleSaveName = async () => {
@@ -132,6 +131,7 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
   const monogram = (member.displayName.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
   const memberSince = new Date(member.createdAt).toLocaleDateString("pt-BR", {
     month: "short",
+    timeZone: "UTC",
     year: "numeric",
   });
 
@@ -183,7 +183,7 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent>
-            <div className="text-[12.5px] text-muted-foreground">Entregas</div>
+            <div className="text-[0.78125rem] text-muted-foreground">Entregas</div>
             <div className="mt-1.5 font-display text-2xl font-bold tracking-tight text-foreground">
               {member.lifetimeDone}
             </div>
@@ -191,7 +191,7 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
         </Card>
         <Card>
           <CardContent>
-            <div className="text-[12.5px] text-muted-foreground">Em andamento</div>
+            <div className="text-[0.78125rem] text-muted-foreground">Em andamento</div>
             <div className="mt-1.5 font-display text-2xl font-bold tracking-tight text-foreground">
               {member.currentWork.length}
             </div>
@@ -199,7 +199,7 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
         </Card>
         <Card>
           <CardContent>
-            <div className="text-[12.5px] text-muted-foreground">No time desde</div>
+            <div className="text-[0.78125rem] text-muted-foreground">No time desde</div>
             <div className="mt-1.5 font-display text-2xl font-bold tracking-tight text-foreground">
               {memberSince}
             </div>

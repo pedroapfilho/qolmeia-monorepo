@@ -69,12 +69,12 @@ const BRAND_CATEGORIES: ReadonlyArray<{ label: string; value: BrandCategory }> =
   { label: "Outro", value: "other" },
 ];
 
-const BRAND_CATEGORY_LABEL: Record<BrandCategory, string> = {
+const BRAND_CATEGORY_LABEL = {
   logo: "Logotipo",
   other: "Outro",
   post: "Post de exemplo",
   reference: "Referência visual",
-};
+} satisfies Record<BrandCategory, string>;
 
 type BrandAsset = {
   category: BrandCategory;

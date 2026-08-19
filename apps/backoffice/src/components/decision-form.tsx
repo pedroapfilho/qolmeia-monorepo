@@ -14,11 +14,11 @@ type DecisionFormProps = {
   actionId: string;
 };
 
-const PLACEHOLDER: Record<DecisionOutcome, string> = {
+const PLACEHOLDER = {
   approved: "Comentário opcional ao especialista.",
   changes_requested: "Diga o que precisa mudar; o especialista vai usar para revisar.",
   rejected: "Diga por que está rejeitando; vai virar memória do agente.",
-};
+} satisfies Record<DecisionOutcome, string>;
 
 const OPTIONS: ReadonlyArray<{
   description: string;
@@ -42,11 +42,11 @@ const OPTIONS: ReadonlyArray<{
   },
 ];
 
-const SUBMIT_LABEL: Record<DecisionOutcome, string> = {
+const SUBMIT_LABEL = {
   approved: "Aprovar e executar",
   changes_requested: "Pedir ajustes",
   rejected: "Rejeitar ação",
-};
+} satisfies Record<DecisionOutcome, string>;
 
 const MAX_FEEDBACK = 2000;
 
@@ -73,11 +73,11 @@ const DecisionForm = ({ actionId }: DecisionFormProps) => {
         decision,
         feedback: feedback.trim() || undefined,
       });
-      const successCopy: Record<typeof decision, string> = {
+      const successCopy = {
         approved: "Aprovado. O especialista vai executar.",
         changes_requested: "Ajustes pedidos. Especialista notificado.",
         rejected: "Rejeitado.",
-      };
+      } satisfies Record<typeof decision, string>;
       toast.success(successCopy[decision]);
       push("/approvals");
       refresh();

@@ -6,8 +6,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@repo/ui/compon
 import { Input } from "@repo/ui/components/input";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/lib/toast";
-import { cn } from "@repo/ui/lib/utils";
-import type { SkillCatalogEntry, Template, TemplateInput } from "@repo/worker-api/contracts";
+import type { Template, TemplateInput } from "@repo/worker-api/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
@@ -22,6 +21,8 @@ import {
   templateKeys,
   updateTemplate,
 } from "@/lib/templates-api";
+
+import { TemplateFormSkillPicker } from "./template-form-skill-picker";
 
 type TemplateFormProps = {
   initial?: Template;
@@ -60,7 +61,7 @@ const formSchema = z.object({
   workerKind: z.string().trim().min(1, "Informe o tipo (worker kind)."),
 });
 
-const isFieldKey = (key: unknown): key is FieldKey =>
+const isFieldKey = (key: PropertyKey | undefined): key is FieldKey =>
   typeof key === "string" && key in formSchema.shape;
 
 const fieldError = (message: string | undefined): [string] | undefined =>
@@ -72,58 +73,6 @@ const parsePolicies = (raw: string): Record<string, string> => {
     return {};
   }
   return policiesRecordSchema.parse(JSON.parse(trimmed));
-};
-
-type SkillPickerProps = {
-  busy: boolean;
-  loading: boolean;
-  onToggle: (id: string) => void;
-  selected: ReadonlyArray<string>;
-  skills: ReadonlyArray<SkillCatalogEntry>;
-};
-
-const SkillPicker = ({ busy, loading, onToggle, selected, skills }: SkillPickerProps) => {
-  if (loading) {
-    return <p className="text-sm text-muted-foreground">Carregando habilidades…</p>;
-  }
-  if (skills.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nenhuma habilidade disponível.</p>;
-  }
-  return (
-    <div className="grid gap-1.5 sm:grid-cols-2">
-      {skills.map((skill) => {
-        const checked = selected.includes(skill.id);
-        return (
-          <label
-            className={cn(
-              "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors",
-              checked
-                ? "border-primary bg-highlight-surface ring-1 ring-primary/40"
-                : "border-border hover:border-input hover:bg-accent",
-            )}
-            key={skill.id}
-          >
-            <input
-              aria-label={skill.displayName}
-              checked={checked}
-              className="mt-0.5 size-4 accent-primary"
-              disabled={busy}
-              onChange={() => {
-                onToggle(skill.id);
-              }}
-              type="checkbox"
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-foreground">{skill.displayName}</span>
-              <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                {skill.id}
-              </span>
-            </span>
-          </label>
-        );
-      })}
-    </div>
-  );
 };
 
 const TemplateForm = ({ initial }: TemplateFormProps) => {
@@ -315,7 +264,7 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
             <Field>
               <FieldLabel htmlFor="systemPrompt">Prompt do sistema</FieldLabel>
               <Textarea
-                className="min-h-40 font-mono text-[13px]"
+                className="min-h-40 font-mono text-[0.8125rem]"
                 disabled={busy}
                 id="systemPrompt"
                 name="systemPrompt"
@@ -369,7 +318,7 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
               <p className="text-xs text-muted-foreground">
                 As habilidades (skills) que este especialista pode usar.
               </p>
-              <SkillPicker
+              <TemplateFormSkillPicker
                 busy={busy}
                 loading={skillsLoading}
                 onToggle={toggleSkill}
@@ -388,7 +337,7 @@ const TemplateForm = ({ initial }: TemplateFormProps) => {
                 Objeto {`{ tipoDeAção: política }`}. Vazio = nenhuma política.
               </FieldDescription>
               <Textarea
-                className="min-h-28 font-mono text-[13px]"
+                className="min-h-28 font-mono text-[0.8125rem]"
                 disabled={busy}
                 id={policiesFieldId}
                 name="defaultPolicies"

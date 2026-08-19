@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { getDb } from "#/db/client";
 import { listCompanyAssets, persistAsset, readAssetText } from "#/lib/asset-store";
-import type { SkillContext, UnknownSkill } from "#/skills/registry";
+import type { AssetSummary } from "#/lib/asset-store";
+import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const ASSET_KINDS = [
   "audio",
@@ -25,7 +26,7 @@ const listAssetsInputSchema = z.object({
 const listAssetsSkill: UnknownSkill = {
   description:
     "Lista os arquivos da biblioteca da empresa (imagens, documentos, áudios, uploads). Use para descobrir o que já foi criado antes. Você enxerga as duas pastas (cliente e agente).",
-  async execute(input: unknown, ctx: SkillContext): Promise<{ assets: unknown }> {
+  async execute(input: SkillInput, ctx: SkillContext): Promise<{ assets: Array<AssetSummary> }> {
     const { folder, kind } = listAssetsInputSchema.parse(input);
     const assets = await listCompanyAssets(getDb(ctx.env), ctx.companyId, {
       kind,
@@ -45,7 +46,7 @@ const readAssetSkill: UnknownSkill = {
   description:
     "Lê o conteúdo de um documento de texto da biblioteca (markdown, texto, JSON, CSV). Imagens e binários não podem ser lidos; referencie o asset pelo id.",
   async execute(
-    input: unknown,
+    input: SkillInput,
     ctx: SkillContext,
   ): Promise<{ content: string; name: string } | { error: string }> {
     const { assetId } = readAssetInputSchema.parse(input);
@@ -77,7 +78,7 @@ const saveAssetInputSchema = z.object({
 const saveAssetSkill: UnknownSkill = {
   description:
     "Salva um documento de texto na biblioteca da empresa. Use 'customer' para uma entrega final que o cliente deve ver, ou 'agent' para material de trabalho interno.",
-  execute: (input: unknown, ctx: SkillContext): Promise<{ assetId: string }> => {
+  execute: (input: SkillInput, ctx: SkillContext): Promise<{ assetId: string }> => {
     const { content, folder, mime, name } = saveAssetInputSchema.parse(input);
     return persistAsset(ctx.env, {
       bytes: new TextEncoder().encode(content),

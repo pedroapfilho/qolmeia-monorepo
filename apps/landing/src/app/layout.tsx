@@ -16,6 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const SHORT_DESCRIPTION = "Um time de IA que trabalha na conversa";
+const metadataBase =
+  URL.parse(process.env.NEXT_PUBLIC_LANDING_URL ?? "") ?? new URL("https://www.qolmeia.com");
 
 export const metadata: Metadata = {
   authors: [{ name: "Qolmeia" }],
@@ -24,7 +26,7 @@ export const metadata: Metadata = {
   description:
     "A Qolmeia monta um time de agentes de IA para a sua marca. Peça na conversa, acompanhe o trabalho e aprove as entregas.",
   keywords: ["qolmeia", "agentes de ia", "marketing", "marca", "campanhas"],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_LANDING_URL ?? "https://www.qolmeia.com"),
+  metadataBase,
   openGraph: {
     description: SHORT_DESCRIPTION,
     locale: "pt_BR",

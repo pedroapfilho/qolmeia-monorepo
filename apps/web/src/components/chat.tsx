@@ -36,7 +36,7 @@ const PLANNER_KICKOFF =
 const PLANNER_GREETING =
   "Oi! Vou fazer algumas perguntas para conhecer seu negócio e montar o time certo para você. Para começar: o que sua empresa faz e quem ela atende?";
 
-const TOOL_ACTIVITY_LABELS: Record<string, string> = {
+const TOOL_ACTIVITY_LABELS = {
   delegateToWorker: "Encaminhando para o time…",
   extractBrief: "Registrando o brief…",
   fetchUrl: "Lendo uma página…",
@@ -47,10 +47,11 @@ const TOOL_ACTIVITY_LABELS: Record<string, string> = {
   rememberFact: "Anotando na memória…",
   saveAsset: "Salvando na biblioteca…",
   webSearch: "Pesquisando na web…",
-};
+} satisfies Record<string, string>;
+const toolActivityLabelByName = new Map<string, string>(Object.entries(TOOL_ACTIVITY_LABELS));
 
 const toolActivityLabel = (toolName: string): string =>
-  TOOL_ACTIVITY_LABELS[toolName] ?? "Trabalhando…";
+  toolActivityLabelByName.get(toolName) ?? "Trabalhando…";
 
 const isKickoffMessage = (message: ChatMessage): boolean =>
   message.role === "user" &&
@@ -131,8 +132,10 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
               <img
                 alt={part.filename ?? "Imagem"}
                 className="max-h-80 rounded-lg object-contain"
+                height={800}
                 key={partKey}
                 src={part.url}
+                width={800}
               />
             );
           }
@@ -148,7 +151,9 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
                 <img
                   alt={part.filename ?? "Entrega do time"}
                   className="max-h-80 w-full object-contain"
+                  height={800}
                   src={part.url}
+                  width={800}
                 />
               </a>
               <figcaption className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -194,7 +199,7 @@ const ChatSkeleton = () => (
 const PlannerGreeting = ({ scrollAnchor }: { scrollAnchor: boolean }) => (
   <MessageScrollerItem messageId="planner-greeting" scrollAnchor={scrollAnchor}>
     <Message align="start">
-      <MessageAvatar className="size-7 self-end rounded-lg bg-avatar-1 text-[11px] font-bold text-white">
+      <MessageAvatar className="size-7 self-end rounded-lg bg-avatar-1 text-xs font-bold text-white">
         C
       </MessageAvatar>
       <MessageContent>
@@ -230,7 +235,7 @@ const ChatView = ({
       try {
         await sendMessage(message);
       } catch {
-        // noop
+        toast.error("Não foi possível enviar. Tente novamente.");
       }
     };
     void run();
@@ -246,7 +251,7 @@ const ChatView = ({
         <header className="flex h-[54px] flex-none items-center gap-3 border-b border-border bg-card px-6">
           <span
             aria-hidden
-            className="flex size-8 flex-none items-center justify-center rounded-lg bg-avatar-1 text-[13px] font-bold text-white"
+            className="flex size-8 flex-none items-center justify-center rounded-lg bg-avatar-1 text-[0.8125rem] font-bold text-white"
           >
             C
           </span>
@@ -282,7 +287,7 @@ const ChatView = ({
                     >
                       <Message align={message.role === "user" ? "end" : "start"}>
                         {message.role === "user" ? null : (
-                          <MessageAvatar className="size-7 self-end rounded-lg bg-avatar-1 text-[11px] font-bold text-white">
+                          <MessageAvatar className="size-7 self-end rounded-lg bg-avatar-1 text-xs font-bold text-white">
                             C
                           </MessageAvatar>
                         )}
@@ -334,9 +339,6 @@ const ChatClient = ({ agent = "correspondent", agentsUrl, companyId, sessionToke
     agent,
     baseUrl: agentsUrl,
     companyId,
-    onError: () => {
-      toast.error("Não foi possível enviar. Tente novamente.");
-    },
     sessionToken,
   });
 

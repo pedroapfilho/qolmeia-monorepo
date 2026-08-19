@@ -43,7 +43,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
     let priorSummary: string | null = null;
     let latestFeedback: string | null = null;
 
-    /* oxlint-disable no-await-in-loop, react-doctor/async-await-in-loop */
+    /* oxlint-disable react-doctor/async-await-in-loop */
     for (;;) {
       const round = revision;
       const priorForRound = priorSummary;
@@ -109,7 +109,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       }
       logInfo("workflow.revise", { companyId, revision, ticketId });
     }
-    /* oxlint-enable no-await-in-loop */
+    /* oxlint-enable react-doctor/async-await-in-loop */
   }
 }
 

@@ -3,8 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import { forbidden, jsonError, notFound, unauthorized } from "./api-response";
 
+type JsonBody =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<JsonBody>
+  | { readonly [key: string]: JsonBody | undefined };
+
 const buildContext = () => {
-  const json = vi.fn((body: unknown, status?: number) => ({ body, status }));
+  const json = vi.fn((body: JsonBody, status?: number) => ({ body, status }));
   return { c: { json } as unknown as Context, json };
 };
 

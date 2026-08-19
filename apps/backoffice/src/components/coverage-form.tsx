@@ -33,8 +33,10 @@ const toggle = (set: ReadonlySet<string>, value: string): Set<string> => {
 
 const CoverageForm = ({ initial, options }: CoverageFormProps) => {
   const { refresh } = useRouter();
-  const [companies, setCompanies] = useState<ReadonlySet<string>>(new Set(initial.companies));
-  const [disciplines, setDisciplines] = useState<ReadonlySet<string>>(new Set(initial.disciplines));
+  const [companies, setCompanies] = useState<ReadonlySet<string>>(() => new Set(initial.companies));
+  const [disciplines, setDisciplines] = useState<ReadonlySet<string>>(
+    () => new Set(initial.disciplines),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const seesEverything = companies.size === 0 && disciplines.size === 0;
@@ -94,6 +96,7 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
                     aria-label={company.name}
                     checked={checked}
                     className="size-4 accent-primary"
+                    name="companies"
                     onChange={() => {
                       setCompanies((s) => toggle(s, company.id));
                     }}
@@ -133,6 +136,7 @@ const CoverageForm = ({ initial, options }: CoverageFormProps) => {
                     aria-label={disciplineLabel(discipline)}
                     checked={checked}
                     className="size-3.5 accent-primary"
+                    name="disciplines"
                     onChange={() => {
                       setDisciplines((s) => toggle(s, discipline));
                     }}

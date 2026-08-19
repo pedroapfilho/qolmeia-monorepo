@@ -47,12 +47,12 @@ const avatarClass = (m: TeamMemberView): string => {
 
 const monogramOf = (name: string): string => (name.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
 
-const STATUS_TONE: Record<AgentDisplayStatus, StatusTone> = {
+const STATUS_TONE = {
   available: "success",
   awaiting_approval: "warning",
   paused: "neutral",
   working: "info",
-};
+} satisfies Record<AgentDisplayStatus, StatusTone>;
 
 const AgentCard = ({ member, variant }: AgentCardProps) => {
   const currentWork = member.currentWork.at(0);

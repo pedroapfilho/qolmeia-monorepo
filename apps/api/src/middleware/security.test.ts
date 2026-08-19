@@ -3,21 +3,30 @@ import { describe, expect, it, vi } from "vitest";
 
 import { requestId, requestSizeLimit } from "./security";
 
+type ContextValue = boolean | number | string | null | undefined;
+type JsonBody =
+  | boolean
+  | number
+  | string
+  | null
+  | ReadonlyArray<JsonBody>
+  | { readonly [key: string]: JsonBody | undefined };
+
 const createMockContext = (options: { headers?: Record<string, string> } = {}) => {
   const { headers = {} } = options;
-  const variables = new Map<string, unknown>();
+  const variables = new Map<string, ContextValue>();
 
   return {
     get: vi.fn((key: string) => variables.get(key)),
     header: vi.fn(),
-    json: vi.fn((body: unknown, status?: number) => ({ body, status })),
+    json: vi.fn((body: JsonBody, status?: number) => ({ body, status })),
     req: {
       header: vi.fn((name: string) => headers[name]),
       method: "GET",
       path: "/test",
       url: "http://localhost/test",
     },
-    set: vi.fn((key: string, value: unknown) => {
+    set: vi.fn((key: string, value: ContextValue) => {
       variables.set(key, value);
     }),
   } as unknown as Context & { json: ReturnType<typeof vi.fn> };
