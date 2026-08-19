@@ -64,6 +64,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/internal-auth':
+        specifier: workspace:*
+        version: link:../../packages/internal-auth
       '@repo/worker-api':
         specifier: workspace:*
         version: link:../../packages/worker-api
@@ -125,6 +128,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/internal-auth':
+        specifier: workspace:*
+        version: link:../../packages/internal-auth
       '@repo/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -529,6 +535,21 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))
 
+  packages/internal-auth:
+    devDependencies:
+      '@repo/config-vitest':
+        specifier: workspace:*
+        version: link:../config-vitest
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../config-typescript
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))
+
   packages/observability:
     dependencies:
       evlog:
@@ -675,6 +696,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../db
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@repo/config-vitest':
         specifier: workspace:*

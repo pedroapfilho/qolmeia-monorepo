@@ -1,19 +1,10 @@
 import type { AssetKind, AssetVisibility, Prisma } from "@repo/db/worker";
+import type { AssetSummary } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
 import { getDb } from "#/db/client";
 import { fetchAsset, uploadAsset } from "#/lib/r2";
 import { toRecord } from "#/lib/records";
-
-type AssetSummary = {
-  bytes: number;
-  createdAt: number;
-  id: string;
-  kind: AssetKind;
-  mime: string;
-  name: string;
-  visibility: AssetVisibility;
-};
 
 type ExtByMimeContract = Record<string, string>;
 
@@ -132,5 +123,5 @@ const readAssetText = async (
 };
 
 export { assetName, listCompanyAssets, persistAsset, readAssetText };
-export type { AssetSummary };
+export type { AssetSummary } from "@repo/worker-api/contracts";
 export type { AssetKind, AssetVisibility } from "@repo/db/worker";

@@ -1,9 +1,9 @@
 import type { PrismaClient } from "@repo/db/worker";
+import type { TeamMemberView } from "@repo/worker-api/contracts";
 import { z } from "zod";
 
 import { emitTeamEvent } from "#/team/events";
 import { hireMember, setMemberStatus, updateMember, type UpdateInput } from "#/team/mutations";
-import type { TeamMemberView } from "#/team/types";
 
 const teamMemberPatchSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),

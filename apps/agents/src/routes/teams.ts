@@ -1,3 +1,4 @@
+import { parseBrief } from "@repo/worker-api/brief";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -5,7 +6,6 @@ import { logActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 import { materializeTeam } from "#/db/team";
 import { requireCustomerForWrites, requireSession, type ValidatedSession } from "#/lib/auth";
-import { parseBrief } from "#/lib/company-brief";
 import { seedCompanyMemory } from "#/team/seed-memory";
 
 type Vars = { session: ValidatedSession };

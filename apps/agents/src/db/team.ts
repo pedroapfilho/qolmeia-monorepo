@@ -1,14 +1,11 @@
 import type { PrismaClient } from "@repo/db/worker";
+import { correspondentIdFor, teamIdFor, workerIdFor } from "@repo/worker-api/contracts";
+import type { MaterializeResult } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
 import { assertTemplatesEntitledForCompany, getTemplate, type Template } from "#/db/template";
 
 type MaterializeInput = { companyId: string; templateIds: ReadonlyArray<string> };
-type MaterializeResult = {
-  correspondentId: string;
-  teamId: string;
-  workerIds: ReadonlyArray<string>;
-};
 type Color = "black" | "gray" | "white";
 
 const isAcyclic = (edges: ReadonlyMap<string, ReadonlyArray<string>>): boolean => {
@@ -34,11 +31,6 @@ const isAcyclic = (edges: ReadonlyMap<string, ReadonlyArray<string>>): boolean =
   }
   return true;
 };
-
-const correspondentIdFor = (companyId: string): string => `corr-${companyId}`;
-const workerIdFor = (templateId: string, companyId: string): string =>
-  `worker-${templateId}-${companyId}`;
-const teamIdFor = (companyId: string): string => `team-${companyId}`;
 
 const materializeTeam = async (
   db: PrismaClient,
@@ -142,5 +134,7 @@ const getDelegationTargets = async (
     : [];
 };
 
-export { correspondentIdFor, getDelegationTargets, isAcyclic, materializeTeam, teamIdFor };
-export type { MaterializeInput, MaterializeResult };
+export { getDelegationTargets, isAcyclic, materializeTeam };
+export { correspondentIdFor, teamIdFor } from "@repo/worker-api/contracts";
+export type { MaterializeInput };
+export type { MaterializeResult } from "@repo/worker-api/contracts";

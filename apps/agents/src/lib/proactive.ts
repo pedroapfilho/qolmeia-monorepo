@@ -1,3 +1,5 @@
+import { correspondentIdFor } from "@repo/worker-api/contracts";
+
 import { logActivity } from "#/activity/log";
 import { getDb } from "#/db/client";
 
@@ -31,7 +33,7 @@ const lastProactiveSuggestionAt = async (env: Env, companyId: string): Promise<n
 const recordProactiveSuggestion = async (env: Env, companyId: string): Promise<void> => {
   await logActivity(getDb(env), {
     companyId,
-    refId: `corr-${companyId}`,
+    refId: correspondentIdFor(companyId),
     refType: "agent_instance",
     summary: "Sugestão proativa de trabalho enviada ao cliente.",
     type: "WORKER_PROACTIVE_SUGGESTION",

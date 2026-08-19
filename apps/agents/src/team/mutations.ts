@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@repo/db/worker";
+import type { TeamMemberView } from "@repo/worker-api/contracts";
 
 import { logActivity, type LogActivityInput } from "#/activity/log";
 import { correspondentIdFor, teamIdFor } from "#/db/team";
@@ -13,7 +14,6 @@ import {
 } from "#/team/errors";
 import { nextDisplayName } from "#/team/naming";
 import { getTeamMember, getTeamRoster } from "#/team/queries";
-import type { TeamMemberView } from "#/team/types";
 
 type HireInput = {
   actorId: string | null;

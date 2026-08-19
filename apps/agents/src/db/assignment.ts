@@ -1,11 +1,7 @@
 import type { OperatorAssignmentKind } from "@repo/db/worker";
+import type { OperatorCoverage } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
-
-type OperatorCoverage = {
-  companies: ReadonlyArray<string>;
-  disciplines: ReadonlyArray<string>;
-};
 
 const listCoverage = async (db: Database, operatorUserId: string): Promise<OperatorCoverage> => {
   const rows = await db.operatorAssignment.findMany({ where: { operatorUserId } });
@@ -56,4 +52,4 @@ const listDisciplines = async (db: Database): Promise<ReadonlyArray<string>> => 
 };
 
 export { listCoverage, listDisciplines, setCoverage };
-export type { OperatorCoverage };
+export type { OperatorCoverage } from "@repo/worker-api/contracts";

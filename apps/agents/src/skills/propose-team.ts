@@ -1,9 +1,8 @@
+import { parseBrief, type CompanyBrief } from "@repo/worker-api/brief";
 import { z } from "zod";
 
 import { getDb } from "#/db/client";
 import { listEntitledActiveTemplates } from "#/db/template";
-import { parseBrief } from "#/lib/company-brief";
-import type { CompanyBrief } from "#/lib/company-brief";
 import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const proposeTeamInputSchema = z.object({});

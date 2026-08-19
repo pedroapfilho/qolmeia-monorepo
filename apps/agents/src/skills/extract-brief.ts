@@ -1,6 +1,11 @@
+import {
+  companyBriefSchema,
+  mergeBrief,
+  parseBrief,
+  type CompanyBrief,
+} from "@repo/worker-api/brief";
+
 import { getDb } from "#/db/client";
-import { companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
-import type { CompanyBrief } from "#/lib/company-brief";
 import type { SkillContext, SkillInput, UnknownSkill } from "#/skills/registry";
 
 const extractBriefInputSchema = companyBriefSchema.partial();

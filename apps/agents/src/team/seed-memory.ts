@@ -1,6 +1,8 @@
+import type { CompanyBriefPartial } from "@repo/worker-api/brief";
+import { correspondentIdFor } from "@repo/worker-api/contracts";
+
 import { getDb } from "#/db/client";
 import { insertMemoryFact } from "#/db/schema";
-import type { CompanyBriefPartial } from "#/lib/company-brief";
 import { getMemoryAdapter } from "#/lib/memory";
 
 const seedCompanyMemory = async (
@@ -8,7 +10,7 @@ const seedCompanyMemory = async (
   companyId: string,
   input: { brief: Partial<CompanyBriefPartial>; debriefSummary: string },
 ): Promise<void> => {
-  const agentInstanceId = `corr-${companyId}`;
+  const agentInstanceId = correspondentIdFor(companyId);
   const memory = getMemoryAdapter(env);
   const db = getDb(env);
 

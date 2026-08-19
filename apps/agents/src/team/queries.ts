@@ -1,15 +1,15 @@
 import type { AgentInstanceStatus, AgentRole, Prisma, TicketStatus } from "@repo/db/worker";
-
-import type { Database } from "#/db/client";
-import { listEntitledActiveTemplates } from "#/db/template";
-import { resolveAgentStatus } from "#/team/status";
 import type {
   HireableTemplate,
   OpenTicketSlim,
   TeamMemberBase,
   TeamMemberDetailView,
   TeamMemberView,
-} from "#/team/types";
+} from "@repo/worker-api/contracts";
+
+import type { Database } from "#/db/client";
+import { listEntitledActiveTemplates } from "#/db/template";
+import { resolveAgentStatus } from "#/team/status";
 
 const OPEN_TICKET_STATUSES: ReadonlyArray<TicketStatus> = ["in_progress", "awaiting_approval"];
 
@@ -184,4 +184,8 @@ const getMemberDetail = async (
 };
 
 export { getCatalogue, getMemberDetail, getTeamMember, getTeamRoster, listTeamRosters };
-export type { HireableTemplate, TeamMemberDetailView, TeamMemberView } from "#/team/types";
+export type {
+  HireableTemplate,
+  TeamMemberDetailView,
+  TeamMemberView,
+} from "@repo/worker-api/contracts";

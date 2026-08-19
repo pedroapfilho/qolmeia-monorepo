@@ -1,9 +1,14 @@
 import type { Prisma } from "@repo/db/worker";
-import type { Ticket, TicketListRow, TicketStatus } from "@repo/worker-api/contracts";
+import type {
+  InstanceWithTemplate,
+  Ticket,
+  TicketListRow,
+  TicketStatus,
+} from "@repo/worker-api/contracts";
 
 import { logActivity, type LogActivityInput } from "#/activity/log";
 import type { Database } from "#/db/client";
-import { getTemplate, type Template } from "#/db/template";
+import { getTemplate } from "#/db/template";
 import { toRecord } from "#/lib/records";
 import { emitTeamEvent } from "#/team/events";
 
@@ -59,11 +64,6 @@ const loadAgentInstance = (
     select: { id: true, promptOverride: true, templateId: true },
     where: { id },
   });
-
-type InstanceWithTemplate = {
-  agentInstance: { id: string; promptOverride: string | null; templateId: string };
-  template: Template;
-};
 
 const loadInstanceWithTemplate = async (
   db: Database,
@@ -136,4 +136,4 @@ export {
   setTicketWorkflowId,
   transitionTicket,
 };
-export type { InstanceWithTemplate };
+export type { InstanceWithTemplate } from "@repo/worker-api/contracts";

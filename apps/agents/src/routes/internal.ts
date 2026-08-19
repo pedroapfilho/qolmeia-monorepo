@@ -1,9 +1,9 @@
+import { constantTimeEqual } from "@repo/internal-auth";
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { getDb } from "#/db/client";
 import { entitleCompanyToAllActiveTemplates } from "#/db/template";
-import { constantTimeEqual } from "#/lib/constant-time";
 
 const internalRoutes = new Hono<{ Bindings: Env }>();
 

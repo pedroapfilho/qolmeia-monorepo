@@ -1,8 +1,8 @@
 import { dispatch } from "@flue/runtime";
+import { briefCompleteness, parseBrief } from "@repo/worker-api/brief";
 
 import { CorrespondentV2 } from "#/agents/correspondent";
 import { getDb } from "#/db/client";
-import { briefCompleteness, parseBrief } from "#/lib/company-brief";
 import { logInfo } from "#/lib/logger";
 import {
   lastProactiveSuggestionAt,

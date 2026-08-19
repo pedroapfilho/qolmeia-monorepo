@@ -16,7 +16,6 @@ export default defineConfig({
         bindings: {
           ASSETS_SIGNING_KEY: "vitest-assets-signing-key",
           DATABASE_URL: TEST_DATABASE_URL,
-          TEST_DATABASE_URL,
         },
       },
       wrangler: { configPath: "./wrangler.jsonc" },

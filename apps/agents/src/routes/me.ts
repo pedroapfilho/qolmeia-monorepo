@@ -1,3 +1,10 @@
+import {
+  briefCompleteness,
+  companyBriefSchema,
+  mergeBrief,
+  parseBrief,
+} from "@repo/worker-api/brief";
+import type { TeamMemberView } from "@repo/worker-api/contracts";
 import { type Context, Hono } from "hono";
 
 import { listActivity } from "#/activity/log";
@@ -9,7 +16,6 @@ import {
   requireSession,
   type ValidatedSession,
 } from "#/lib/auth";
-import { briefCompleteness, companyBriefSchema, mergeBrief, parseBrief } from "#/lib/company-brief";
 import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
 import { meAssetsRoutes } from "#/routes/me-assets";
@@ -23,7 +29,6 @@ import {
 import { TEAM_ERROR_STATUS, TeamDomainError } from "#/team/errors";
 import { subscribeTeamEvents } from "#/team/events";
 import { getCatalogue, getMemberDetail, getTeamRoster } from "#/team/queries";
-import type { TeamMemberView } from "#/team/types";
 
 type MeEnv = { Bindings: Env; Variables: { session: ValidatedSession } };
 

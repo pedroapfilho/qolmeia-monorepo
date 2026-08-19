@@ -1,26 +1,20 @@
 {
-  "name": "@repo/worker-api",
+  "name": "@repo/internal-auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./brief": "./src/brief.ts",
-    "./contracts": "./src/contracts/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "lint": "oxlint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@repo/db": "workspace:*",
-    "zod": "^4.4.3"
-  },
   "devDependencies": {
     "@repo/config-vitest": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }
 }

@@ -1,5 +1,10 @@
-import type { AgentTemplate, Prisma, Skill as PrismaSkill } from "@repo/db/worker";
-import type { Template, TemplateInput, TemplateStatus } from "@repo/worker-api/contracts";
+import type { AgentTemplate, Skill as PrismaSkill } from "@repo/db/worker";
+import type {
+  SkillOverlay,
+  Template,
+  TemplateInput,
+  TemplateStatus,
+} from "@repo/worker-api/contracts";
 import { z } from "zod";
 
 import type { Database } from "#/db/client";
@@ -8,16 +13,6 @@ import { toRecord } from "#/lib/records";
 const policiesSchema = z.record(z.string(), z.string());
 const skillIdsSchema = z.array(z.string());
 const stringHintsSchema = z.record(z.string(), z.string());
-
-type SkillOverlay = {
-  defaultConfig: Prisma.JsonObject | null;
-  description: string;
-  displayName: string;
-  enabled: boolean;
-  id: string;
-  paramHints: Record<string, string> | null;
-  updatedAt: number;
-};
 
 const mapTemplate = (row: AgentTemplate): Template => ({
   createdAt: row.createdAt.getTime(),
@@ -158,5 +153,9 @@ export {
   setTemplateStatus,
   updateTemplate,
 };
-export type { SkillOverlay };
-export type { Template, TemplateInput, TemplateStatus } from "@repo/worker-api/contracts";
+export type {
+  SkillOverlay,
+  Template,
+  TemplateInput,
+  TemplateStatus,
+} from "@repo/worker-api/contracts";

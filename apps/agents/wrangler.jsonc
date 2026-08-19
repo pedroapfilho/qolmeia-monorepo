@@ -1,6 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "worker-bees",
+  // Pinned because this login can reach two accounts; without it wrangler and
+  // the vitest remote proxy both fail with "More than one account available".
+  "account_id": "e0d80dc903c7091fc398c6729971d0a7",
   // No "main": the flue() Vite plugin generates the Worker entry and merges it
   // (with the per-agent Durable Object bindings) into .flue-vite.wrangler.jsonc.
   "compatibility_date": "2026-05-01",
@@ -25,7 +28,10 @@
     },
     {
       "tag": "v2",
-      "new_classes": ["TeamEvents"],
+      // sqlite-backed, not "new_classes": KV-backed DOs require a paid plan
+      // (API error 10097). TeamEvents keeps subscribers in memory and never
+      // touches ctx.storage, so the backend choice is immaterial to it.
+      "new_sqlite_classes": ["TeamEvents"],
     },
     {
       "tag": "v3",
@@ -49,8 +55,8 @@
     },
   ],
   "vars": {
-    // PLACEHOLDER: replace with your Cloudflare account id (see `wrangler whoami`).
-    "AI_GATEWAY_ACCOUNT_ID": "PLACEHOLDER-cloudflare-account-id",
+    // Unlockers account, which owns the qolmeia.com zone.
+    "AI_GATEWAY_ACCOUNT_ID": "e0d80dc903c7091fc398c6729971d0a7",
     "AI_GATEWAY_NAME": "qolmeia",
     "CORRESPONDENT_MODEL": "anthropic/claude-sonnet-4.5",
     // Image generation model, hot-swappable without a deploy. Default is
@@ -61,16 +67,21 @@
     // (original Nano Banana). All route through /chat/completions with
     // modalities: ["image","text"].
     "IMAGE_GEN_MODEL": "google/gemini-3.1-flash-image-preview",
-    // Public URL of this Worker, used to build absolute asset URLs the client
-    // can fetch. Override at deploy with the *.workers.dev / custom domain URL.
-    // 127.0.0.1, not localhost: `vite dev` binds one address and vite.config.ts
-    // pins it to IPv4 so the Next rewrites reach it.
-    "WORKER_PUBLIC_URL": "http://127.0.0.1:8787",
+    // Public URL of this Worker, baked into every signed asset URL. For local
+    // `vite dev` swap to http://127.0.0.1:8787 (IPv4, not localhost: vite binds
+    // one address and vite.config.ts pins it there so the Next rewrites reach it).
+    "WORKER_PUBLIC_URL": "https://agents.qolmeia.com",
     // Better Auth service (apps/api); the Worker validates sessions against it.
-    "AUTH_SERVICE_URL": "http://localhost:4000",
-    // Comma-separated client origins allowed to call the Worker. The
-    // customer app runs on :3001 and the operator backoffice on :3000.
-    "CLIENT_ORIGINS": "http://localhost:3000,http://localhost:3001",
+    // Local: http://localhost:4000.
+    "AUTH_SERVICE_URL": "https://api.qolmeia.com",
+    // Same apps/api service, reached over /api/internal/* with the shared
+    // secret instead of a user session. All Postgres access goes through here:
+    // workerd rejects Railway's self-signed cert, so the Worker holds no
+    // database credentials at all (ADR 0010). Local: http://127.0.0.1:4000.
+    "API_INTERNAL_URL": "https://api.qolmeia.com",
+    // Comma-separated client origins allowed to call the Worker; matched exactly,
+    // no wildcards. Local: http://localhost:3000,http://localhost:3001.
+    "CLIENT_ORIGINS": "https://app.qolmeia.com,https://admin.qolmeia.com",
   },
   // DATABASE_URL and INTERNAL_SHARED_SECRET are Worker secrets configured
   // with `wrangler secret put`; local development reads them from .dev.vars.
@@ -87,23 +98,30 @@
       "binding": "SESSIONS",
       // 30s session cache for validateSession; keeps the auth service off
       // the hot path of every backoffice render + every chat request.
-      // Deploy: `wrangler kv namespace create qolmeia-sessions`.
-      "id": "PLACEHOLDER-sessions-namespace-id",
+      "id": "4de0e3d0d0364a058ac348a882d7ebb8",
     },
   ],
-  // ── PROD-ONLY (uncomment + provision at deploy; see docs/deploy.md) ─────────
-  // These stay commented so local `wrangler dev` and a pre-provisioning
-  // `wrangler deploy` don't fail on resources/zones that don't exist yet.
+  // ── PROD-ONLY (uncomment immediately before `wrangler deploy`) ──────────────
+  // Provisioned on the Unlockers account: qolmeia-memory (1024-dim, cosine) and
+  // the agents.qolmeia.com custom domain.
   //
-  // Custom domain: the Worker's public origin (agents.qolmeia.com). Requires the
-  // qolmeia.com zone to be active on this Cloudflare account. Also set
-  // WORKER_PUBLIC_URL=https://agents.qolmeia.com in `vars` above.
-  // "routes": [{ "pattern": "agents.qolmeia.com", "custom_domain": true }],
+  // These CANNOT stay uncommented: vitest reads this same file, Vectorize has no
+  // local emulation ("Binding VECTORIZE needs to be run remotely"), and an `ai`
+  // binding makes the pool open a remote proxy session that needs Cloudflare
+  // credentials CI does not have. Uncommenting breaks `pnpm test` in CI and
+  // fails the two memory skills tests locally.
   //
-  // Agent Memory backend (ADR 0007): Workers AI for embeddings + Vectorize for
-  // recall. Without these, the memory adapter falls back to an in-process store
-  // that's lost on DO eviction. Provision:
-  //   wrangler vectorize create qolmeia-memory --dimensions=1024 --metric=cosine
+  "routes": [{ "pattern": "agents.qolmeia.com", "custom_domain": true }],
+  //
+  // Agent Memory backend (ADR 0007): Workers AI embeddings (@cf/baai/bge-m3,
+  // 1024-dim) + Vectorize recall. Drop either binding and getMemoryAdapter
+  // silently falls back to an in-process store that's lost on DO eviction.
+  //
+  // UNCOMMENT BOTH IMMEDIATELY BEFORE `pnpm run deploy`, THEN RE-COMMENT.
+  // They cannot stay on: vitest reads this same file, Vectorize has no local
+  // emulation ("Binding VECTORIZE needs to be run remotely"), and an `ai`
+  // binding makes the pool open a remote proxy session needing Cloudflare
+  // credentials CI does not have.
   // "ai": { "binding": "AI" },
   // "vectorize": [{ "binding": "VECTORIZE", "index_name": "qolmeia-memory" }],
 }

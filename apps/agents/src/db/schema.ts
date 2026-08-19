@@ -1,20 +1,8 @@
 import type { CompanyStatus } from "@repo/db/worker";
+import { briefCompleteness, parseBrief } from "@repo/worker-api/brief";
+import type { Company, CompanyOverview } from "@repo/worker-api/contracts";
 
 import type { Database } from "#/db/client";
-import { briefCompleteness, parseBrief } from "#/lib/company-brief";
-import type { CompanyBrief } from "#/lib/company-brief";
-
-type Company = {
-  brief: Partial<CompanyBrief>;
-  createdAt: number;
-  id: string;
-  locale: string;
-  name: string;
-  slug: string;
-  status: CompanyStatus;
-  timezone: string;
-  updatedAt: number;
-};
 
 const mapCompany = (row: {
   brief: unknown;
@@ -43,7 +31,6 @@ const getCompany = async (db: Database, id: string): Promise<Company | null> => 
   return row ? mapCompany(row) : null;
 };
 
-type CompanyOverview = { briefPercent: number; id: string; name: string; status: CompanyStatus };
 const listCompaniesOverview = async (db: Database): Promise<Array<CompanyOverview>> => {
   const rows = await db.company.findMany({ orderBy: { createdAt: "asc" } });
   return rows.map((row) => ({
@@ -71,4 +58,4 @@ const insertMemoryFact = async (db: Database, input: InsertMemoryFactInput): Pro
 };
 
 export { getCompany, insertMemoryFact, listCompaniesOverview };
-export type { Company, CompanyOverview };
+export type { Company, CompanyOverview } from "@repo/worker-api/contracts";
