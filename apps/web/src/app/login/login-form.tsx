@@ -24,6 +24,19 @@ type LoginFormDependencies = {
   useAppRouter: () => Pick<ReturnType<typeof useRouter>, "push" | "refresh">;
 };
 
+type SubmitLabelState = {
+  isMagicLink: boolean;
+  isSendingMagicLink: boolean;
+  isSubmitting: boolean;
+};
+
+const getSubmitLabel = ({ isMagicLink, isSendingMagicLink, isSubmitting }: SubmitLabelState) => {
+  if (isMagicLink) {
+    return isSendingMagicLink ? "Enviando…" : "Enviar link mágico";
+  }
+  return isSubmitting ? "Entrando…" : "Entrar";
+};
+
 const createLoginForm = ({
   sendMagicLink,
   showError,
@@ -33,7 +46,9 @@ const createLoginForm = ({
   const LoginFormWithDependencies = () => {
     const { push, refresh } = useAppRouter();
     const [isSendingMagicLink, startSendingMagicLink] = useTransition();
+    const [loginMethod, setLoginMethod] = useState<"magicLink" | "password">("password");
     const [sent, setSent] = useState(false);
+    const isMagicLink = loginMethod === "magicLink";
 
     const form = useForm({
       defaultValues: { email: "", password: "" },
@@ -82,7 +97,15 @@ const createLoginForm = ({
     const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
+      if (isMagicLink) {
+        handleMagicLink();
+        return;
+      }
       void form.handleSubmit();
+    };
+
+    const handleLoginMethodChange = () => {
+      setLoginMethod(isMagicLink ? "password" : "magicLink");
     };
 
     if (sent) {
@@ -112,7 +135,9 @@ const createLoginForm = ({
       <div className="w-full max-w-xs">
         <h2 className="font-display text-2xl font-semibold tracking-tight">Entrar</h2>
         <p className="mt-3 max-w-[56ch] text-base text-pretty text-muted-foreground sm:text-sm">
-          Use o e-mail no qual você recebeu o convite e sua senha para entrar.
+          {isMagicLink
+            ? "Digite seu e-mail para receber um link mágico de acesso."
+            : "Digite seu e-mail e sua senha para entrar."}
         </p>
         <form className="mt-8" noValidate onSubmit={handleSubmit}>
           <FieldGroup>
@@ -141,56 +166,51 @@ const createLoginForm = ({
               }}
             </form.Field>
 
-            <form.Field name="password">
-              {(field) => {
-                const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-                return (
-                  <Field data-invalid={isInvalid || undefined}>
-                    <FieldLabel htmlFor={field.name}>Senha</FieldLabel>
-                    <Input
-                      aria-invalid={isInvalid}
-                      autoComplete="current-password"
-                      id={field.name}
-                      name={field.name}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => {
-                        field.handleChange(event.target.value);
-                      }}
-                      type="password"
-                      value={field.state.value}
-                    />
-                    {isInvalid && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
+            {!isMagicLink && (
+              <form.Field name="password">
+                {(field) => {
+                  const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                  return (
+                    <Field data-invalid={isInvalid || undefined}>
+                      <FieldLabel htmlFor={field.name}>Senha</FieldLabel>
+                      <Input
+                        aria-invalid={isInvalid}
+                        autoComplete="current-password"
+                        id={field.name}
+                        name={field.name}
+                        onBlur={field.handleBlur}
+                        onChange={(event) => {
+                          field.handleChange(event.target.value);
+                        }}
+                        type="password"
+                        value={field.state.value}
+                      />
+                      {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+            )}
           </FieldGroup>
           <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
             {([canSubmit, isSubmitting]) => (
               <div className="mt-6 flex flex-col gap-3">
                 <Button
                   className="w-full"
-                  disabled={!canSubmit || isSubmitting || isSendingMagicLink}
+                  disabled={(!isMagicLink && !canSubmit) || isSubmitting || isSendingMagicLink}
                   size="lg"
                   type="submit"
                 >
-                  {isSubmitting ? "Entrando…" : "Entrar"}
+                  {getSubmitLabel({ isMagicLink, isSendingMagicLink, isSubmitting })}
                 </Button>
-                <div aria-hidden="true" className="flex items-center gap-3 py-1">
-                  <span className="h-px flex-1 bg-border" />
-                  <span className="text-xs font-medium text-muted-foreground">OU</span>
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-                <Button
-                  className="w-full"
+                <button
+                  className="self-center text-sm font-medium text-primary underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-50"
                   disabled={isSubmitting || isSendingMagicLink}
-                  onClick={handleMagicLink}
-                  size="lg"
+                  onClick={handleLoginMethodChange}
                   type="button"
-                  variant="outline"
                 >
-                  {isSendingMagicLink ? "Enviando…" : "Enviar link mágico"}
-                </Button>
+                  {isMagicLink ? "Entrar com senha" : "Entrar com link mágico"}
+                </button>
               </div>
             )}
           </form.Subscribe>

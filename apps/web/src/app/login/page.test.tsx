@@ -31,13 +31,13 @@ const renderLoginForm = () => {
 };
 
 describe("LoginForm", () => {
-  it("renders password and magic-link login options", () => {
+  it("defaults to e-mail and password login", () => {
     renderLoginForm();
     expect(screen.getByLabelText(/E-mail/v)).toBeInTheDocument();
     expect(screen.getByLabelText(/Senha/v)).toHaveAttribute("autocomplete", "current-password");
     expect(screen.getByRole("button", { name: "Entrar" })).toBeInTheDocument();
-    expect(screen.getByText("OU")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Enviar link/v })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Entrar com link mágico" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar link mágico" })).not.toBeInTheDocument();
   });
 
   it("signs in with e-mail and password", async () => {
@@ -67,7 +67,12 @@ describe("LoginForm", () => {
     fireEvent.change(screen.getByLabelText(/E-mail/v), {
       target: { value: "pedro+customer@filho.me" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Enviar link/v }));
+    fireEvent.click(screen.getByRole("button", { name: "Entrar com link mágico" }));
+
+    expect(screen.queryByLabelText(/Senha/v)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/E-mail/v)).toHaveValue("pedro+customer@filho.me");
+    expect(screen.getByRole("button", { name: "Entrar com senha" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar link mágico" }));
 
     await waitFor(() => {
       expect(sendMagicLink).toHaveBeenCalledWith({
