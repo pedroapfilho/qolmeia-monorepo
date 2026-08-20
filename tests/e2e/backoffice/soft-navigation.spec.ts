@@ -14,7 +14,47 @@ test.describe("Instant navigation", () => {
       async () => {
         await page.goto("/tickets");
         await expect(page.locator("aside[aria-hidden]")).toBeVisible();
-        await expect(page.getByRole("heading", { name: "Tickets" })).toBeHidden();
+        await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
+      },
+      { baseURL: backofficeUrl },
+    );
+  });
+
+  const shellHeadings = [
+    { heading: "Início", path: "/" },
+    { heading: "Atividade", path: "/activity" },
+    { heading: "Times", path: "/teams" },
+    { heading: "Modelos", path: "/templates" },
+    { heading: "Minha cobertura", path: "/cobertura" },
+  ] as const;
+
+  for (const { heading, path } of shellHeadings) {
+    test(`${path} serves its page heading from the prerendered shell`, async ({ page }) => {
+      await page.context().addCookies([{ name: "e2e-role", url: backofficeUrl, value: "OWNER" }]);
+
+      await instant(
+        page,
+        async () => {
+          await page.goto(path);
+          await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+        },
+        { baseURL: backofficeUrl },
+      );
+    });
+  }
+
+  test("the home shell paints its heading while the data areas are still skeletons", async ({
+    page,
+  }) => {
+    await page.context().addCookies([{ name: "e2e-role", url: backofficeUrl, value: "OWNER" }]);
+
+    await instant(
+      page,
+      async () => {
+        await page.goto("/");
+        await expect(page.getByRole("heading", { level: 1, name: "Início" })).toBeVisible();
+        await expect(page.getByText("Últimos 7 dias")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Eventos recentes" })).toBeHidden();
       },
       { baseURL: backofficeUrl },
     );

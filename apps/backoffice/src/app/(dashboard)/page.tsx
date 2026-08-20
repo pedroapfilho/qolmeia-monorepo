@@ -16,6 +16,7 @@ import { Suspense } from "react";
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
 import { formatDurationSeconds, formatRelative } from "@/lib/format";
+import { log } from "@/lib/observability";
 import type { CompanyOverview } from "@/lib/team-fetch";
 
 export const metadata: Metadata = { title: "Início" };
@@ -83,8 +84,18 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
   );
 };
 
+const loadRecentEvents = async (): Promise<ActivityResponse | null> => {
+  try {
+    return await apiGetServer<ActivityResponse>("/activity?limit=8");
+  } catch (error) {
+    log.error({ error, message: "home: failed to load recent activity" });
+    return null;
+  }
+};
+
 const RecentEvents = async ({ activity }: { activity: Promise<ActivityResponse | null> }) => {
-  const items = (await activity)?.items ?? [];
+  const response = await activity;
+  const items = response?.items ?? [];
 
   if (items.length === 0) {
     return (
@@ -125,7 +136,7 @@ const RecentEventsSkeleton = () => (
 );
 
 const HomeContent = async () => {
-  const activity = apiGetServer<ActivityResponse>("/activity?limit=8").catch(() => null);
+  const activity = loadRecentEvents();
 
   const [pendingRes, ticketsRes, companiesRes] = await Promise.allSettled([
     apiGetServer<ActionsResponse>("/actions?status=pending&sort=age"),
