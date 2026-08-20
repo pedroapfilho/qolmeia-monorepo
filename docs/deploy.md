@@ -140,7 +140,7 @@ Environment:
 | `AGENTS_INTERNAL_URL`    | `https://agents.qolmeia.com` (org-create relay target)  |
 | `INTERNAL_SHARED_SECRET` | MUST match the Worker secret                            |
 | `RESEND_API_KEY`         | from Resend                                             |
-| `AUTH_FROM_EMAIL`        | e.g. `noreply@qolmeia.com`                              |
+| `AUTH_FROM_EMAIL`        | `noreply@email.qolmeia.com` (Resend verifies `email.`)  |
 | `WEB_APP_URL`            | `https://app.qolmeia.com` (drives `useSecureCookies`)   |
 | `NODE_ENV`               | `production` (Better Auth rate limiting is gated on it) |
 
