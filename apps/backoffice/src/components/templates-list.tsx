@@ -8,8 +8,9 @@ import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
 import { buttonVariants } from "@repo/ui/lib/button-variants";
 import { toast } from "@repo/ui/lib/toast";
 import type { Template, TemplateStatus } from "@repo/worker-api/contracts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useOptimistic, useTransition } from "react";
 
 import { ApiError } from "@/lib/api-client";
 import { fetchTemplates, setTemplateStatus, templateKeys } from "@/lib/templates-api";
@@ -133,6 +134,16 @@ const TemplatesTableBody = ({
   );
 };
 
+type StatusPatch = { id: string; status: TemplateStatus };
+
+const applyStatus = (
+  templates: ReadonlyArray<Template>,
+  patch: StatusPatch,
+): ReadonlyArray<Template> =>
+  templates.map((template) =>
+    template.id === patch.id ? { ...template, status: patch.status } : template,
+  );
+
 const TemplatesList = () => {
   const queryClient = useQueryClient();
   const { data, isError, isLoading } = useQuery({
@@ -140,28 +151,24 @@ const TemplatesList = () => {
     queryKey: templateKeys.all,
   });
 
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: TemplateStatus }) =>
-      setTemplateStatus(id, status),
-    onError: (error) => {
-      const message =
-        error instanceof ApiError
-          ? `Erro ${error.status}: ${error.body || "falha"}`
-          : "Não foi possível alterar o status.";
-      toast.error(message);
-    },
-    onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: templateKeys.all });
-      toast.success(
-        result.template.status === "retired" ? "Modelo desativado." : "Modelo reativado.",
-      );
-    },
-  });
+  const [isToggling, startToggle] = useTransition();
+  const [templates, applyOptimisticStatus] = useOptimistic(data?.items ?? [], applyStatus);
 
   const handleToggle = (template: Template) => {
-    statusMutation.mutate({
-      id: template.id,
-      status: template.status === "retired" ? "active" : "retired",
+    const status: TemplateStatus = template.status === "retired" ? "active" : "retired";
+    startToggle(async () => {
+      applyOptimisticStatus({ id: template.id, status });
+      try {
+        await setTemplateStatus(template.id, status);
+        await queryClient.invalidateQueries({ queryKey: templateKeys.all });
+        toast.success(status === "retired" ? "Modelo desativado." : "Modelo reativado.");
+      } catch (error) {
+        const message =
+          error instanceof ApiError
+            ? `Erro ${error.status}: ${error.body || "falha"}`
+            : "Não foi possível alterar o status.";
+        toast.error(message);
+      }
     });
   };
 
@@ -179,11 +186,11 @@ const TemplatesList = () => {
 
       <Card className="overflow-hidden p-0">
         <TemplatesTableBody
-          busy={statusMutation.isPending}
+          busy={isToggling}
           isError={isError}
           isLoading={isLoading}
           onToggle={handleToggle}
-          templates={data?.items ?? []}
+          templates={templates}
         />
       </Card>
     </div>
