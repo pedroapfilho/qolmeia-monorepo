@@ -29,35 +29,27 @@ const loadAssets = async (): Promise<ReadonlyArray<WebChatAsset>> => {
 const AssetsContent = async () => {
   const assets = await loadAssets();
 
-  return (
-    <PageContainer>
-      <PageHeader
-        description="A biblioteca da sua empresa, com tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
-        title="Assets"
-      />
-      <AssetsGallery assets={assets} />
-    </PageContainer>
-  );
+  return <AssetsGallery assets={assets} />;
 };
 
 const AssetsSkeleton = () => (
-  <PageContainer aria-hidden>
+  <div aria-hidden className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+    <Skeleton className="h-40 w-full" />
+    <Skeleton className="h-40 w-full" />
+    <Skeleton className="h-40 w-full" />
+  </div>
+);
+
+const AssetsPage = () => (
+  <PageContainer>
     <PageHeader
       description="A biblioteca da sua empresa, com tudo que o Time criou e usa: imagens, documentos, planos e arquivos enviados."
       title="Assets"
     />
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      <Skeleton className="h-40 w-full" />
-      <Skeleton className="h-40 w-full" />
-      <Skeleton className="h-40 w-full" />
-    </div>
+    <Suspense fallback={<AssetsSkeleton />}>
+      <AssetsContent />
+    </Suspense>
   </PageContainer>
-);
-
-const AssetsPage = () => (
-  <Suspense fallback={<AssetsSkeleton />}>
-    <AssetsContent />
-  </Suspense>
 );
 
 export default AssetsPage;

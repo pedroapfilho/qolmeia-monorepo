@@ -3,7 +3,6 @@
 import { Button } from "@repo/ui/components/button";
 import { Card } from "@repo/ui/components/card";
 import { EmptyState } from "@repo/ui/components/empty-state";
-import { PageHeader } from "@repo/ui/components/page-header";
 import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
 import { buttonVariants } from "@repo/ui/lib/button-variants";
 import { toast } from "@repo/ui/lib/toast";
@@ -173,27 +172,15 @@ const TemplatesList = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        actions={
-          <Link className={buttonVariants()} href="/templates/new">
-            Novo modelo
-          </Link>
-        }
-        description="O catálogo de tipos de especialista que os times podem materializar."
-        title="Modelos"
+    <Card className="overflow-hidden p-0">
+      <TemplatesTableBody
+        busy={isToggling}
+        isError={isError}
+        isLoading={isLoading}
+        onToggle={handleToggle}
+        templates={templates}
       />
-
-      <Card className="overflow-hidden p-0">
-        <TemplatesTableBody
-          busy={isToggling}
-          isError={isError}
-          isLoading={isLoading}
-          onToggle={handleToggle}
-          templates={templates}
-        />
-      </Card>
-    </div>
+    </Card>
   );
 };
 

@@ -9,7 +9,6 @@ import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
 import { useOptimistic, useState, useTransition } from "react";
 
-import { BackLink } from "@/components/back-link";
 import { PromptEditor } from "@/components/prompt-editor";
 import { apiSend } from "@/lib/api-client";
 import type { TeamMemberDetailView } from "@/lib/team-fetch";
@@ -147,8 +146,6 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
 
   return (
     <div className="flex flex-col gap-6">
-      <BackLink href="/teams">Times</BackLink>
-
       <header className="flex flex-wrap items-center gap-4">
         <span
           aria-hidden

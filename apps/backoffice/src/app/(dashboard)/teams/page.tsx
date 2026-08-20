@@ -44,90 +44,86 @@ const TeamsContent = async () => {
   const { companies } = await apiGetServer<{ companies: Array<CompanyOverview> }>("/companies");
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader description="Empresas e seus agentes." title="Times" />
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {companies.map((company) => {
-          const companyStatus = COMPANY_STATUS[company.status];
-          return (
-            <Card className="gap-0 overflow-hidden p-0" key={company.id}>
-              <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-                <span
-                  aria-hidden
-                  className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-avatar-7 font-display text-sm font-bold text-white"
-                >
-                  {agentInitials(company.name)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-foreground">{company.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {company.members.length} agentes · brief {company.briefPercent}%
-                  </div>
+    <div className="grid gap-4 md:grid-cols-2">
+      {companies.map((company) => {
+        const companyStatus = COMPANY_STATUS[company.status];
+        return (
+          <Card className="gap-0 overflow-hidden p-0" key={company.id}>
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <span
+                aria-hidden
+                className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-avatar-7 font-display text-sm font-bold text-white"
+              >
+                {agentInitials(company.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-foreground">{company.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {company.members.length} agentes · brief {company.briefPercent}%
                 </div>
-                <StatusPill
-                  className="shrink-0"
-                  label={companyStatus.label}
-                  tone={companyStatus.tone}
-                />
               </div>
-              <div className="flex flex-col px-3 py-3">
-                {company.members.map((m) => {
-                  const memberStatus = MEMBER_STATUS[m.status];
-                  return (
-                    <Link
-                      className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
-                      href={`/teams/${company.id}/members/${m.id}`}
-                      key={m.id}
+              <StatusPill
+                className="shrink-0"
+                label={companyStatus.label}
+                tone={companyStatus.tone}
+              />
+            </div>
+            <div className="flex flex-col px-3 py-3">
+              {company.members.map((m) => {
+                const memberStatus = MEMBER_STATUS[m.status];
+                return (
+                  <Link
+                    className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                    href={`/teams/${company.id}/members/${m.id}`}
+                    key={m.id}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex size-[30px] shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white",
+                        agentAvatarClass(m.role, m.workerKind),
+                      )}
                     >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "flex size-[30px] shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white",
-                          agentAvatarClass(m.role, m.workerKind),
-                        )}
-                      >
-                        {agentInitials(m.displayName)}
-                      </span>
-                      <span className="flex-1 truncate text-[0.84375rem] font-semibold text-foreground">
-                        {memberRoleLabel(m)}
-                      </span>
-                      <StatusPill
-                        className="shrink-0"
-                        label={memberStatus.label}
-                        pulse={memberStatus.pulse}
-                        tone={memberStatus.tone}
-                      />
-                      <ChevronRight
-                        aria-hidden
-                        className="size-4 shrink-0 text-muted-foreground/60"
-                      />
-                    </Link>
-                  );
-                })}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+                      {agentInitials(m.displayName)}
+                    </span>
+                    <span className="flex-1 truncate text-[0.84375rem] font-semibold text-foreground">
+                      {memberRoleLabel(m)}
+                    </span>
+                    <StatusPill
+                      className="shrink-0"
+                      label={memberStatus.label}
+                      pulse={memberStatus.pulse}
+                      tone={memberStatus.tone}
+                    />
+                    <ChevronRight
+                      aria-hidden
+                      className="size-4 shrink-0 text-muted-foreground/60"
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 };
 
 const TeamsSkeleton = () => (
-  <div aria-hidden className="flex flex-col gap-6">
-    <PageHeader description="Empresas e seus agentes." title="Times" />
-    <div className="grid gap-4 md:grid-cols-2">
-      <Skeleton className="h-56 w-full" />
-      <Skeleton className="h-56 w-full" />
-    </div>
+  <div aria-hidden className="grid gap-4 md:grid-cols-2">
+    <Skeleton className="h-56 w-full" />
+    <Skeleton className="h-56 w-full" />
   </div>
 );
 
 const TeamsPage = () => (
-  <Suspense fallback={<TeamsSkeleton />}>
-    <TeamsContent />
-  </Suspense>
+  <div className="flex flex-col gap-6">
+    <PageHeader description="Empresas e seus agentes." title="Times" />
+    <Suspense fallback={<TeamsSkeleton />}>
+      <TeamsContent />
+    </Suspense>
+  </div>
 );
 
 export default TeamsPage;
