@@ -6,7 +6,7 @@ import { env } from "./env";
 
 const auth = createAuth({
   ...envAuthConfig(),
-  fromEmail: env.AUTH_FROM_EMAIL ?? "noreply@qolmeia.com",
+  fromEmail: env.AUTH_FROM_EMAIL ?? "noreply@email.qolmeia.com",
   prisma,
   resendApiKey: env.RESEND_API_KEY,
   secret: env.BETTER_AUTH_SECRET,
