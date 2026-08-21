@@ -9,6 +9,14 @@ const LOOPBACK_TRUSTED_ORIGINS = [
   "http://127.0.0.1:4000",
 ];
 
+// Also the fallback for the api's CORS allowlist; a zod `.default()` there would be invisible here,
+// leaving Hono and Better Auth disagreeing about which origins are allowed.
+const DEFAULT_CORS_ORIGINS = [
+  "https://qolmeia.web.localhost",
+  "https://qolmeia.landing.localhost",
+  "https://qolmeia.backoffice.localhost",
+];
+
 type EnvAuthConfigOptions = {
   additionalAllowedHosts?: Array<string>;
   additionalTrustedOrigins?: Array<string>;
@@ -34,9 +42,10 @@ const parseEnvList = (value: string | undefined): Array<string> => {
 };
 
 const envAuthConfig = (options: EnvAuthConfigOptions = {}): EnvAuthConfig => {
-  const corsTrustedOrigins = parseEnvList(process.env.CORS_ORIGINS).filter(
-    (origin) => origin !== "*",
-  );
+  const corsTrustedOrigins =
+    process.env.CORS_ORIGINS === undefined
+      ? DEFAULT_CORS_ORIGINS
+      : parseEnvList(process.env.CORS_ORIGINS).filter((origin) => origin !== "*");
 
   return {
     allowedHosts: [
@@ -58,5 +67,5 @@ const envAuthConfig = (options: EnvAuthConfigOptions = {}): EnvAuthConfig => {
   };
 };
 
-export { envAuthConfig, parseEnvList };
+export { DEFAULT_CORS_ORIGINS, envAuthConfig, parseEnvList };
 export type { EnvAuthConfig, EnvAuthConfigOptions };

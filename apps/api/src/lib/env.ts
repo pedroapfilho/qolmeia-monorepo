@@ -1,10 +1,11 @@
+import { DEFAULT_CORS_ORIGINS } from "@repo/auth/env-config";
 import { z } from "zod";
 
 export const envSchema = z.object({
   AUTH_ALLOWED_HOSTS: z.string().optional(),
   AUTH_FROM_EMAIL: z.string().optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
-  CORS_ORIGINS: z.string().default("*"),
+  CORS_ORIGINS: z.string().default(DEFAULT_CORS_ORIGINS.join(",")),
   DATABASE_URL: z.string().min(1),
   HOST: z.string().default("0.0.0.0"),
   // Required, not optional: the agents Worker authenticates every /api/internal/*
