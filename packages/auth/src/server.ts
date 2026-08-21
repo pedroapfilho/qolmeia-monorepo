@@ -29,7 +29,6 @@ export const safeCallbackPath = (value: string | null): string => {
 
 type AuthConfig = {
   allowedHosts: Array<string>;
-  cookieDomain?: string;
   extraPlugins?: Array<BetterAuthPlugin>;
   fromEmail?: string;
   prisma: PrismaClient;
@@ -43,7 +42,6 @@ type AuthConfig = {
 export const createAuth = (config: AuthConfig) => {
   const {
     allowedHosts,
-    cookieDomain,
     extraPlugins = [],
     fromEmail = "noreply@email.qolmeia.com",
     prisma,
@@ -69,10 +67,6 @@ export const createAuth = (config: AuthConfig) => {
 
     advanced: {
       cookiePrefix: "qolmeia",
-      crossSubDomainCookies:
-        cookieDomain !== undefined && cookieDomain !== ""
-          ? { domain: cookieDomain, enabled: true }
-          : undefined,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax" as const,

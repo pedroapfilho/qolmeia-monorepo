@@ -62,12 +62,6 @@ describe("envAuthConfig", () => {
     expect(envAuthConfig().trustedOrigins).not.toContain("*");
   });
 
-  it("omits cookieDomain unless COOKIE_DOMAIN is set", () => {
-    expect(envAuthConfig().cookieDomain).toBeUndefined();
-    vi.stubEnv("COOKIE_DOMAIN", " .qolmeia.com ");
-    expect(envAuthConfig().cookieDomain).toBe(".qolmeia.com");
-  });
-
   it("gates useSecureCookies on WEB_APP_URL being HTTPS", () => {
     vi.stubEnv("WEB_APP_URL", "http://localhost:3000");
     expect(envAuthConfig().useSecureCookies).toBe(false);

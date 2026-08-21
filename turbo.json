@@ -13,7 +13,6 @@
         "AUTH_SERVICE_INTERNAL_URL",
         "AUTH_FROM_EMAIL",
         "BETTER_AUTH_SECRET",
-        "COOKIE_DOMAIN",
         "CORS_ORIGINS",
         "DATABASE_URL",
         "INTERNAL_SHARED_SECRET",
