@@ -7,9 +7,8 @@ import { Input } from "@repo/ui/components/input";
 import { StatusPill, type StatusTone } from "@repo/ui/components/status-pill";
 import { toast } from "@repo/ui/lib/toast";
 import { cn } from "@repo/ui/lib/utils";
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 
-import { BackLink } from "@/components/back-link";
 import { PromptEditor } from "@/components/prompt-editor";
 import { apiSend } from "@/lib/api-client";
 import type { TeamMemberDetailView } from "@/lib/team-fetch";
@@ -63,10 +62,17 @@ const roleLabel = (m: TeamMemberDetailView): string => {
   return m.workerKind ?? "Especialista";
 };
 
+const applyStatus = (
+  member: TeamMemberDetailView,
+  status: TeamMemberDetailView["status"],
+): TeamMemberDetailView => ({ ...member, status });
+
 const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormProps) => {
   const [member, setMember] = useState(initialMember);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isTogglingPause, startPauseToggle] = useTransition();
+  const [optimisticMember, applyOptimisticStatus] = useOptimistic(member, applyStatus);
 
   const name = nameDraft ?? member.displayName;
 
@@ -118,14 +124,17 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
     }
   };
 
-  const handleTogglePause = async () => {
+  const handleTogglePause = () => {
     const next = member.status === "paused" ? "active" : "paused";
-    try {
-      await patch({ status: next });
-      toast.success(next === "paused" ? "Agente pausado." : "Agente retomado.");
-    } catch (error) {
-      toast.error(String(error));
-    }
+    startPauseToggle(async () => {
+      applyOptimisticStatus(next === "paused" ? "paused" : "available");
+      try {
+        await patch({ status: next });
+        toast.success(next === "paused" ? "Agente pausado." : "Agente retomado.");
+      } catch (error) {
+        toast.error(String(error));
+      }
+    });
   };
 
   const monogram = (member.displayName.trim()[0] ?? "?").toLocaleUpperCase("pt-BR");
@@ -137,8 +146,6 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
 
   return (
     <div className="flex flex-col gap-6">
-      <BackLink href="/teams">Times</BackLink>
-
       <header className="flex flex-wrap items-center gap-4">
         <span
           aria-hidden
@@ -155,9 +162,9 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
               {roleLabel(member)}
             </h1>
             <StatusPill
-              label={STATUS_LABEL[member.status]}
-              pulse={member.status === "working"}
-              tone={STATUS_TONE[member.status]}
+              label={STATUS_LABEL[optimisticMember.status]}
+              pulse={optimisticMember.status === "working"}
+              tone={STATUS_TONE[optimisticMember.status]}
             />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -168,14 +175,8 @@ const MemberEditForm = ({ companyId, initialMember, memberId }: MemberEditFormPr
           </p>
         </div>
         {member.role === "worker" ? (
-          <Button
-            disabled={busy}
-            onClick={() => {
-              void handleTogglePause();
-            }}
-            variant="outline"
-          >
-            {member.status === "paused" ? "Retomar" : "Pausar"}
+          <Button disabled={busy || isTogglingPause} onClick={handleTogglePause} variant="outline">
+            {optimisticMember.status === "paused" ? "Retomar" : "Pausar"}
           </Button>
         ) : null}
       </header>

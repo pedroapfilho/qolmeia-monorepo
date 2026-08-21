@@ -55,9 +55,7 @@ const FilterChips = ({ active }: { active?: Category }) => (
 
 type ActivitySearchParams = Promise<Record<string, string | Array<string> | undefined>>;
 
-const ActivityContent = async ({ searchParams }: { searchParams: ActivitySearchParams }) => {
-  const params = await searchParams;
-  const category = CATEGORIES.find((value) => value === params.category);
+const ActivityFeed = async ({ category }: { category?: Category }) => {
   const query = new URLSearchParams({ limit: "50" });
   if (category) {
     query.set("category", category);
@@ -65,53 +63,76 @@ const ActivityContent = async ({ searchParams }: { searchParams: ActivitySearchP
   const res = await apiGetServer<ActivityResponse>(`/activity?${query.toString()}`);
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader description="Registro completo do operador" title="Atividade" />
-
-      <FilterChips active={category} />
-
-      <Card>
-        <CardContent className="px-0">
-          {res.items.length === 0 ? (
-            <EmptyState
-              description={
-                category
-                  ? `Nenhum evento ${category}_* ainda.`
-                  : "Quando os agentes começarem a trabalhar, os eventos aparecem aqui."
-              }
-              icon={<Activity aria-hidden />}
-              title="Nenhum evento ainda"
-            />
-          ) : (
-            <ActivityList
-              category={category}
-              initial={res.items}
-              key={`${category ?? "all"}-${res.items[0]?.id ?? "empty"}`}
-            />
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardContent className="px-0">
+        {res.items.length === 0 ? (
+          <EmptyState
+            description={
+              category
+                ? `Nenhum evento ${category}_* ainda.`
+                : "Quando os agentes começarem a trabalhar, os eventos aparecem aqui."
+            }
+            icon={<Activity aria-hidden />}
+            title="Nenhum evento ainda"
+          />
+        ) : (
+          <ActivityList
+            category={category}
+            initial={res.items}
+            key={`${category ?? "all"}-${res.items[0]?.id ?? "empty"}`}
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
-const ActivitySkeleton = () => (
-  <div aria-hidden className="flex flex-col gap-5">
-    <PageHeader description="Registro completo do operador" title="Atividade" />
-    <Card>
-      <CardContent className="flex flex-col gap-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </CardContent>
-    </Card>
+const FeedSkeleton = () => (
+  <Card aria-hidden>
+    <CardContent className="flex flex-col gap-4">
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+    </CardContent>
+  </Card>
+);
+
+const ActivityContent = async ({ searchParams }: { searchParams: ActivitySearchParams }) => {
+  const params = await searchParams;
+  const category = CATEGORIES.find((value) => value === params.category);
+
+  return (
+    <>
+      <FilterChips active={category} />
+      <Suspense fallback={<FeedSkeleton />}>
+        <ActivityFeed category={category} />
+      </Suspense>
+    </>
+  );
+};
+
+const ChipsSkeleton = () => (
+  <div aria-hidden className="flex flex-wrap gap-2">
+    {Array.from({ length: 6 }, (_, index) => (
+      <Skeleton className="h-8 w-20 rounded-full" key={index} />
+    ))}
   </div>
 );
 
+const ActivitySkeleton = () => (
+  <>
+    <ChipsSkeleton />
+    <FeedSkeleton />
+  </>
+);
+
 const ActivityPage = ({ searchParams }: { searchParams: ActivitySearchParams }) => (
-  <Suspense fallback={<ActivitySkeleton />}>
-    <ActivityContent searchParams={searchParams} />
-  </Suspense>
+  <div className="flex flex-col gap-5">
+    <PageHeader description="Registro completo do operador" title="Atividade" />
+    <Suspense fallback={<ActivitySkeleton />}>
+      <ActivityContent searchParams={searchParams} />
+    </Suspense>
+  </div>
 );
 
 export default ActivityPage;

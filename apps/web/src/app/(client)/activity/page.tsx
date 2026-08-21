@@ -53,67 +53,60 @@ const ActivityContent = async () => {
   const rows = await loadActivity();
 
   return (
-    <PageContainer>
-      <PageHeader
-        description="Tudo que rolou no seu chat: mensagens trocadas, execuções dos agentes, ações concluídas."
-        title="Atividade"
-      />
-
-      <Card>
-        <CardContent className="px-0">
-          {rows.length === 0 ? (
-            <EmptyState
-              description="Quando o seu Time começar a trabalhar, os eventos aparecem aqui."
-              icon={<Activity aria-hidden />}
-              title="Nenhuma atividade ainda"
-            />
-          ) : (
-            <ul className="flex flex-col">
-              {rows.map((row) => (
-                <li
-                  className="flex gap-3 border-b border-border px-6 py-4 last:border-b-0"
-                  key={row.id}
-                >
-                  <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className="text-sm leading-relaxed text-foreground">{row.summary}</p>
-                    <time
-                      className="font-mono text-xs tracking-wide text-muted-foreground uppercase"
-                      dateTime={row.createdAt}
-                    >
-                      {formatTime(row.createdAt)}
-                    </time>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-    </PageContainer>
+    <Card>
+      <CardContent className="px-0">
+        {rows.length === 0 ? (
+          <EmptyState
+            description="Quando o seu Time começar a trabalhar, os eventos aparecem aqui."
+            icon={<Activity aria-hidden />}
+            title="Nenhuma atividade ainda"
+          />
+        ) : (
+          <ul className="flex flex-col">
+            {rows.map((row) => (
+              <li
+                className="flex gap-3 border-b border-border px-6 py-4 last:border-b-0"
+                key={row.id}
+              >
+                <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="text-sm leading-relaxed text-foreground">{row.summary}</p>
+                  <time
+                    className="font-mono text-xs tracking-wide text-muted-foreground uppercase"
+                    dateTime={row.createdAt}
+                  >
+                    {formatTime(row.createdAt)}
+                  </time>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
 const ActivitySkeleton = () => (
-  <PageContainer aria-hidden>
+  <Card aria-hidden>
+    <CardContent className="flex flex-col gap-4">
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+    </CardContent>
+  </Card>
+);
+
+const ActivityPage = () => (
+  <PageContainer>
     <PageHeader
       description="Tudo que rolou no seu chat: mensagens trocadas, execuções dos agentes, ações concluídas."
       title="Atividade"
     />
-    <Card>
-      <CardContent className="flex flex-col gap-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </CardContent>
-    </Card>
+    <Suspense fallback={<ActivitySkeleton />}>
+      <ActivityContent />
+    </Suspense>
   </PageContainer>
-);
-
-const ActivityPage = () => (
-  <Suspense fallback={<ActivitySkeleton />}>
-    <ActivityContent />
-  </Suspense>
 );
 
 export default ActivityPage;

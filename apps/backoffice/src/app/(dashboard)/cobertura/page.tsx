@@ -19,48 +19,41 @@ const CoverageContent = async () => {
   const coverage = await apiGetServer<CoverageResponse>("/assignments/me").catch(() => null);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura; sem nada marcado, você vê tudo."
-        title="Minha cobertura"
-      />
-
-      <Card className="max-w-2xl p-6">
-        {coverage ? (
-          <CoverageForm initial={coverage.assigned} options={coverage.options} />
-        ) : (
-          <EmptyState
-            className="py-10"
-            description="Não foi possível carregar sua cobertura. Recarregue a página."
-            icon={<TriangleAlert aria-hidden />}
-            title="Falha ao carregar"
-          />
-        )}
-      </Card>
-    </div>
+    <Card className="max-w-2xl p-6">
+      {coverage ? (
+        <CoverageForm initial={coverage.assigned} options={coverage.options} />
+      ) : (
+        <EmptyState
+          className="py-10"
+          description="Não foi possível carregar sua cobertura. Recarregue a página."
+          icon={<TriangleAlert aria-hidden />}
+          title="Falha ao carregar"
+        />
+      )}
+    </Card>
   );
 };
 
 const CoverageSkeleton = () => (
-  <div aria-hidden className="flex flex-col gap-6">
+  <Card aria-hidden className="max-w-2xl p-6">
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
+    </div>
+  </Card>
+);
+
+const CoveragePage = () => (
+  <div className="flex flex-col gap-6">
     <PageHeader
       description="Escolha as empresas e disciplinas que você revisa. A fila de aprovações passa a mostrar só o que está sob sua cobertura; sem nada marcado, você vê tudo."
       title="Minha cobertura"
     />
-    <Card className="max-w-2xl p-6">
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-      </div>
-    </Card>
+    <Suspense fallback={<CoverageSkeleton />}>
+      <CoverageContent />
+    </Suspense>
   </div>
-);
-
-const CoveragePage = () => (
-  <Suspense fallback={<CoverageSkeleton />}>
-    <CoverageContent />
-  </Suspense>
 );
 
 export default CoveragePage;

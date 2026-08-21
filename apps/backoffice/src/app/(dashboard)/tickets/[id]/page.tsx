@@ -64,8 +64,6 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackLink href="/tickets">Tickets</BackLink>
-
       <header className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 font-mono text-xs text-muted-foreground">{ticket.id}</div>
@@ -205,7 +203,6 @@ const TicketDetailContent = async ({ params }: TicketDetailPageProps) => {
 
 const TicketDetailSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
-    <Skeleton className="h-4 w-24" />
     <Skeleton className="h-8 w-72" />
     <Skeleton className="h-48 w-full" />
     <Skeleton className="h-48 w-full" />
@@ -213,9 +210,12 @@ const TicketDetailSkeleton = () => (
 );
 
 const TicketDetailPage = (props: TicketDetailPageProps) => (
-  <Suspense fallback={<TicketDetailSkeleton />}>
-    <TicketDetailContent {...props} />
-  </Suspense>
+  <div className="flex flex-col gap-6">
+    <BackLink href="/tickets">Tickets</BackLink>
+    <Suspense fallback={<TicketDetailSkeleton />}>
+      <TicketDetailContent {...props} />
+    </Suspense>
+  </div>
 );
 
 export default TicketDetailPage;

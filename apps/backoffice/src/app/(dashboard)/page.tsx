@@ -16,6 +16,7 @@ import { Suspense } from "react";
 import { agentAvatarClass, agentInitials } from "@/lib/agent-avatar";
 import { apiGetServer } from "@/lib/api-server";
 import { formatDurationSeconds, formatRelative } from "@/lib/format";
+import { log } from "@/lib/observability";
 import type { CompanyOverview } from "@/lib/team-fetch";
 
 export const metadata: Metadata = { title: "Início" };
@@ -83,17 +84,68 @@ const StatCard = ({ accent, href, label, sub, value }: StatCardProps) => {
   );
 };
 
+const loadRecentEvents = async (): Promise<ActivityResponse | null> => {
+  try {
+    return await apiGetServer<ActivityResponse>("/activity?limit=8");
+  } catch (error) {
+    log.error({ error, message: "home: failed to load recent activity" });
+    return null;
+  }
+};
+
+const RecentEvents = async ({ activity }: { activity: Promise<ActivityResponse | null> }) => {
+  const response = await activity;
+  const items = response?.items ?? [];
+
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        description="Quando os agentes começarem a trabalhar, os eventos aparecem aqui."
+        icon={<Activity aria-hidden />}
+        title="Nada para mostrar ainda"
+      />
+    );
+  }
+
+  return (
+    <ul className="flex flex-col px-[18px] py-1.5">
+      {items.slice(0, 6).map((row) => (
+        <li className="flex gap-[11px] border-b border-border py-2.5 last:border-b-0" key={row.id}>
+          <span
+            aria-hidden
+            className={cn("mt-1.5 size-[7px] shrink-0 rounded-full", eventDotClass(row.type))}
+          />
+          <div className="min-w-0">
+            <p className="text-[0.8125rem] leading-snug text-foreground">{row.summary}</p>
+            <p className="mt-[3px] font-mono text-xs text-muted-foreground">
+              {row.type} · {formatRelative(row.createdAt)}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+const RecentEventsSkeleton = () => (
+  <div aria-hidden className="flex flex-col gap-3 px-[18px] py-4">
+    {Array.from({ length: 5 }, (_, index) => (
+      <Skeleton className="h-9 w-full" key={index} />
+    ))}
+  </div>
+);
+
 const HomeContent = async () => {
-  const [pendingRes, ticketsRes, activityRes, companiesRes] = await Promise.allSettled([
+  const activity = loadRecentEvents();
+
+  const [pendingRes, ticketsRes, companiesRes] = await Promise.allSettled([
     apiGetServer<ActionsResponse>("/actions?status=pending&sort=age"),
     apiGetServer<TicketsResponse>("/tickets?limit=10"),
-    apiGetServer<ActivityResponse>("/activity?limit=8"),
     apiGetServer<{ companies: Array<CompanyOverview> }>("/companies"),
   ]);
 
   const pending = pendingRes.status === "fulfilled" ? pendingRes.value.items : [];
   const tickets = ticketsRes.status === "fulfilled" ? ticketsRes.value.items : [];
-  const activity = activityRes.status === "fulfilled" ? activityRes.value.items : [];
   const companies = companiesRes.status === "fulfilled" ? companiesRes.value.companies : null;
 
   const openTickets = tickets.filter((t) =>
@@ -115,16 +167,6 @@ const HomeContent = async () => {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        actions={
-          <span className="rounded-lg border border-border bg-card px-3 py-2 text-[0.8125rem] font-semibold text-foreground">
-            Últimos 7 dias
-          </span>
-        }
-        description="Visão operacional · todas as empresas"
-        title="Início"
-      />
-
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         <StatCard
           accent
@@ -207,36 +249,9 @@ const HomeContent = async () => {
           <div className="border-b border-border px-[18px] py-[15px]">
             <h2 className="text-[0.90625rem] font-bold text-foreground">Eventos recentes</h2>
           </div>
-          {activity.length === 0 ? (
-            <EmptyState
-              description="Quando os agentes começarem a trabalhar, os eventos aparecem aqui."
-              icon={<Activity aria-hidden />}
-              title="Nada para mostrar ainda"
-            />
-          ) : (
-            <ul className="flex flex-col px-[18px] py-1.5">
-              {activity.slice(0, 6).map((row) => (
-                <li
-                  className="flex gap-[11px] border-b border-border py-2.5 last:border-b-0"
-                  key={row.id}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "mt-1.5 size-[7px] shrink-0 rounded-full",
-                      eventDotClass(row.type),
-                    )}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-[0.8125rem] leading-snug text-foreground">{row.summary}</p>
-                    <p className="mt-[3px] font-mono text-xs text-muted-foreground">
-                      {row.type} · {formatRelative(row.createdAt)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Suspense fallback={<RecentEventsSkeleton />}>
+            <RecentEvents activity={activity} />
+          </Suspense>
         </Card>
       </div>
     </div>
@@ -245,13 +260,6 @@ const HomeContent = async () => {
 
 const HomeSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-6">
-    <div className="flex items-center justify-between">
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-7 w-40" />
-        <Skeleton className="h-4 w-56" />
-      </div>
-      <Skeleton className="h-9 w-28" />
-    </div>
     <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
       {Array.from({ length: 4 }, (_, index) => (
         <Skeleton className="h-24" key={index} />
@@ -265,9 +273,20 @@ const HomeSkeleton = () => (
 );
 
 const Home = () => (
-  <Suspense fallback={<HomeSkeleton />}>
-    <HomeContent />
-  </Suspense>
+  <div className="flex flex-col gap-6">
+    <PageHeader
+      actions={
+        <span className="rounded-lg border border-border bg-card px-3 py-2 text-[0.8125rem] font-semibold text-foreground">
+          Últimos 7 dias
+        </span>
+      }
+      description="Visão operacional · todas as empresas"
+      title="Início"
+    />
+    <Suspense fallback={<HomeSkeleton />}>
+      <HomeContent />
+    </Suspense>
+  </div>
 );
 
 export default Home;

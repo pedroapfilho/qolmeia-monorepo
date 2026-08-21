@@ -1,5 +1,9 @@
+import { Card } from "@repo/ui/components/card";
+import { PageHeader } from "@repo/ui/components/page-header";
 import { Skeleton } from "@repo/ui/components/skeleton";
+import { buttonVariants } from "@repo/ui/lib/button-variants";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { TemplatesList } from "@/components/templates-list";
@@ -16,16 +20,26 @@ const TemplatesContent = async () => {
 };
 
 const TemplatesSkeleton = () => (
-  <div aria-hidden className="flex flex-col gap-6">
-    <Skeleton className="h-8 w-48" />
+  <Card aria-hidden className="overflow-hidden p-0">
     <Skeleton className="h-64 w-full" />
-  </div>
+  </Card>
 );
 
 const TemplatesPage = () => (
-  <Suspense fallback={<TemplatesSkeleton />}>
-    <TemplatesContent />
-  </Suspense>
+  <div className="flex flex-col gap-6">
+    <PageHeader
+      actions={
+        <Link className={buttonVariants()} href="/templates/new">
+          Novo modelo
+        </Link>
+      }
+      description="O catálogo de tipos de especialista que os times podem materializar."
+      title="Modelos"
+    />
+    <Suspense fallback={<TemplatesSkeleton />}>
+      <TemplatesContent />
+    </Suspense>
+  </div>
 );
 
 export default TemplatesPage;

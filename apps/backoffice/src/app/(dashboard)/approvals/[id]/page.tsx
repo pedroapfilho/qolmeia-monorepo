@@ -58,8 +58,6 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
 
   return (
     <div className="flex flex-col gap-5">
-      <BackLink href="/approvals">Aprovações</BackLink>
-
       <header className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -198,7 +196,6 @@ const ApprovalDetailContent = async ({ params }: ApprovalDetailPageProps) => {
 
 const ApprovalDetailSkeleton = () => (
   <div aria-hidden className="flex flex-col gap-5">
-    <Skeleton className="h-4 w-28" />
     <Skeleton className="h-8 w-72" />
     <Skeleton className="h-48 w-full" />
     <Skeleton className="h-48 w-full" />
@@ -206,9 +203,12 @@ const ApprovalDetailSkeleton = () => (
 );
 
 const ApprovalDetailPage = (props: ApprovalDetailPageProps) => (
-  <Suspense fallback={<ApprovalDetailSkeleton />}>
-    <ApprovalDetailContent {...props} />
-  </Suspense>
+  <div className="flex flex-col gap-5">
+    <BackLink href="/approvals">Aprovações</BackLink>
+    <Suspense fallback={<ApprovalDetailSkeleton />}>
+      <ApprovalDetailContent {...props} />
+    </Suspense>
+  </div>
 );
 
 export default ApprovalDetailPage;

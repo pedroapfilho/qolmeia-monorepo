@@ -2,6 +2,7 @@ import { Skeleton } from "@repo/ui/components/skeleton";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { BackLink } from "@/components/back-link";
 import { MemberEditForm } from "@/components/member-edit-form";
 import { ApiError } from "@/lib/api-client";
 import { apiGetServer } from "@/lib/api-server";
@@ -49,9 +50,12 @@ const MemberEditSkeleton = () => (
 );
 
 const MemberEditPage = (props: Props) => (
-  <Suspense fallback={<MemberEditSkeleton />}>
-    <MemberEditContent {...props} />
-  </Suspense>
+  <div className="flex flex-col gap-6">
+    <BackLink href="/teams">Times</BackLink>
+    <Suspense fallback={<MemberEditSkeleton />}>
+      <MemberEditContent {...props} />
+    </Suspense>
+  </div>
 );
 
 export default MemberEditPage;
