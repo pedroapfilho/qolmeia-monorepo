@@ -62,16 +62,11 @@ describe("Auth Server Configuration", () => {
     expect(httpsAuth.options.advanced?.useSecureCookies).toBe(true);
   });
 
-  it("should NOT set crossSubDomainCookies without a cookieDomain (dev stays same-origin)", () => {
-    expect(auth.options.advanced?.crossSubDomainCookies).toBeUndefined();
-  });
-
-  it("should enable crossSubDomainCookies on the parent when cookieDomain is set", () => {
-    const prodAuth = createAuth({ ...baseConfig, cookieDomain: ".qolmeia.com" });
-    expect(prodAuth.options.advanced?.crossSubDomainCookies).toEqual({
-      domain: ".qolmeia.com",
-      enabled: true,
-    });
+  it("keeps cookies host-only so each app has an independent session", () => {
+    expect(Object.hasOwn(auth.options.advanced ?? {}, "crossSubDomainCookies")).toBe(false);
+    expect(Object.hasOwn(auth.options.advanced?.defaultCookieAttributes ?? {}, "domain")).toBe(
+      false,
+    );
   });
 
   it("should configure dynamic baseURL with allowedHosts + protocol auto", () => {

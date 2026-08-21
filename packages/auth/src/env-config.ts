@@ -17,7 +17,6 @@ type EnvAuthConfigOptions = {
 
 type EnvAuthConfig = {
   allowedHosts: Array<string>;
-  cookieDomain?: string;
   rateLimitEnabled: boolean;
   trustedOrigins: Array<string>;
   useSecureCookies: boolean;
@@ -35,7 +34,6 @@ const parseEnvList = (value: string | undefined): Array<string> => {
 };
 
 const envAuthConfig = (options: EnvAuthConfigOptions = {}): EnvAuthConfig => {
-  const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
   const corsTrustedOrigins = parseEnvList(process.env.CORS_ORIGINS).filter(
     (origin) => origin !== "*",
   );
@@ -46,7 +44,6 @@ const envAuthConfig = (options: EnvAuthConfigOptions = {}): EnvAuthConfig => {
       ...parseEnvList(process.env.AUTH_ALLOWED_HOSTS),
       ...(options.additionalAllowedHosts ?? []),
     ],
-    cookieDomain: cookieDomain === "" ? undefined : cookieDomain,
     rateLimitEnabled:
       process.env.NODE_ENV === "production" &&
       (process.env.CI === undefined || process.env.CI === ""),
