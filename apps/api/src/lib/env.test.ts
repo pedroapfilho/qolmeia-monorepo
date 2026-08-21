@@ -16,7 +16,9 @@ describe("envSchema", () => {
     const result = envSchema.parse(base);
     expect(result.NODE_ENV).toBe("development");
     expect(result.PORT).toBe("4000");
-    expect(result.CORS_ORIGINS).toBe("*");
+    expect(result.CORS_ORIGINS).toBe(
+      "https://qolmeia.web.localhost,https://qolmeia.landing.localhost,https://qolmeia.backoffice.localhost",
+    );
   });
 
   it("rejects when BETTER_AUTH_SECRET is shorter than 32 chars", () => {

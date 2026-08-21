@@ -2,6 +2,8 @@ import type { Prisma } from "@repo/db";
 import type { Action, DecisionOutcome } from "@repo/worker-api/contracts";
 import type { ActivityInput, ActivityOptions } from "@repo/worker-api/internal";
 
+import { log } from "../../lib/logger";
+
 import { jsonRecordSchema, nullableJsonRecord, type Database, type JsonRecord } from "./types";
 
 const actionInclude = {
@@ -170,9 +172,9 @@ const logActivity = async (db: Database, input: ActivityInput): Promise<void> =>
       },
     });
   } catch (error) {
-    // oxlint-disable-next-line no-console -- Losing an audit entry must remain visible even though activity writes are best-effort.
-    console.error("[activity] log write failed (best-effort, continuing)", {
+    log.error({
       error,
+      message: "activity log write failed (best-effort, continuing)",
       type: input.type,
     });
   }

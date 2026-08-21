@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { envAuthConfig, parseEnvList } from "./env-config";
+import { DEFAULT_CORS_ORIGINS, envAuthConfig, parseEnvList } from "./env-config";
 
 describe("parseEnvList", () => {
   afterEach(() => {
@@ -22,6 +22,12 @@ describe("parseEnvList", () => {
 });
 
 describe("envAuthConfig", () => {
+  it("falls back to the shared default origins when CORS_ORIGINS is unset", () => {
+    expect(envAuthConfig().trustedOrigins).toEqual(
+      expect.arrayContaining([...DEFAULT_CORS_ORIGINS]),
+    );
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });
