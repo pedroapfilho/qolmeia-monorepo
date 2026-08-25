@@ -1,4 +1,4 @@
-import { logError } from "#/lib/logger";
+import { log } from "@repo/observability";
 
 const KV_TTL_FLOOR_SECONDS = 60;
 
@@ -45,9 +45,10 @@ const readCachedString = async (env: Env, key: string | null): Promise<string | 
   try {
     return await env.SESSIONS.get(key);
   } catch (error) {
-    logError("session-cache.read.err", {
+    log.error({
       cache: describeCacheKey(key),
       error: error instanceof Error ? error.message : String(error),
+      message: "session-cache.read.err",
     });
     return null;
   }
@@ -67,9 +68,10 @@ const writeCachedString = async (
       expirationTtl: Math.max(ttlSeconds, KV_TTL_FLOOR_SECONDS),
     });
   } catch (error) {
-    logError("session-cache.write.err", {
+    log.error({
       cache: describeCacheKey(key),
       error: error instanceof Error ? error.message : String(error),
+      message: "session-cache.write.err",
     });
   }
 };

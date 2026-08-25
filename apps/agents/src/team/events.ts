@@ -1,4 +1,4 @@
-import { logError } from "#/lib/logger";
+import { log } from "@repo/observability";
 
 type TeamEvent =
   | {
@@ -25,9 +25,10 @@ const emitTeamEvent = async (env: Env, event: TeamEvent): Promise<void> => {
       }),
     );
   } catch (error) {
-    logError("team.event.emit.err", {
+    log.error({
       companyId: event.companyId,
       error: error instanceof Error ? error.message : String(error),
+      message: "team.event.emit.err",
       type: event.type,
     });
   }

@@ -1,4 +1,8 @@
+import "#/lib/observability";
+
 import { createAgentRouter } from "@flue/runtime/routing";
+import { log } from "@repo/observability";
+import { honoEvlog } from "@repo/observability/hono";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
@@ -8,13 +12,14 @@ import { CorrespondentV2 } from "#/agents/correspondent";
 import { PlannerV2 } from "#/agents/planner";
 import { requireCustomerAgent } from "#/lib/agent-route-auth";
 import type { SessionEnv } from "#/lib/auth";
-import { logError } from "#/lib/logger";
 import { assetsRoutes } from "#/routes/assets";
 import { backofficeRoutes } from "#/routes/backoffice";
 import { meRoutes } from "#/routes/me";
 import { teamsRoutes } from "#/routes/teams";
 
 const app = new Hono<SessionEnv>();
+
+app.use("*", honoEvlog());
 
 app.use(
   "*",
@@ -40,8 +45,9 @@ app.onError((error, c) => {
   if (error instanceof HTTPException) {
     return error.getResponse();
   }
-  logError("worker.unhandled", {
+  log.error({
     error: error instanceof Error ? error.message : String(error),
+    message: "worker.unhandled",
     method: c.req.method,
     path: new URL(c.req.url).pathname,
   });

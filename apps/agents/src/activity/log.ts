@@ -1,9 +1,9 @@
+import { log } from "@repo/observability";
 import type { ActivityEntry } from "@repo/worker-api/contracts";
 import type { ActivityInput, ActivityOptions } from "@repo/worker-api/internal";
 
 import type { ActivityEvent } from "#/activity/types";
 import type { Database } from "#/db/client";
-import { logError } from "#/lib/logger";
 import { toRecord } from "#/lib/records";
 
 type LogActivityInput = ActivityEvent & {
@@ -20,8 +20,9 @@ const logActivity = async (db: Database, input: LogActivityInput): Promise<void>
   try {
     await db("activity.log", remoteInput);
   } catch (error) {
-    logError("activity.write_failed", {
+    log.error({
       error: error instanceof Error ? error.message : String(error),
+      message: "activity.write_failed",
       type: input.type,
     });
   }

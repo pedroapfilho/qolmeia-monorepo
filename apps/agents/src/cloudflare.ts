@@ -1,3 +1,5 @@
+import "#/lib/observability";
+
 import { runProactiveSweep } from "#/scheduled";
 
 export { TeamEvents } from "#/durable-objects/team-events";

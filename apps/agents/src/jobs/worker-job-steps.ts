@@ -1,4 +1,5 @@
 import { dispatch } from "@flue/runtime";
+import { log } from "@repo/observability";
 import type { DecisionOutcome } from "@repo/worker-api/contracts";
 import type { JsonValue } from "@repo/worker-api/internal";
 
@@ -8,7 +9,6 @@ import { getDb } from "#/db/client";
 import { resolvePolicy } from "#/db/policy";
 import { getCompany } from "#/db/schema";
 import { loadInstanceWithTemplate } from "#/db/ticket";
-import { logError, logInfo } from "#/lib/logger";
 import { toRecord } from "#/lib/records";
 import { emitTeamEvent } from "#/team/events";
 
@@ -51,7 +51,7 @@ const presentToCustomer = async (ctx: JobContext, result: string): Promise<void>
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logError("workflow.presentResult.err", { companyId, error: message, ticketId });
+    log.error({ companyId, error: message, message: "workflow.presentResult.err", ticketId });
   }
 };
 
@@ -103,7 +103,7 @@ const proposeDeliverable = async (
   });
   await emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" });
 
-  logInfo("workflow.propose.ok", { actionId, agentInstanceId, companyId, policy, ticketId });
+  log.info({ actionId, agentInstanceId, companyId, message: "workflow.propose.ok", policy, ticketId });
   return { actionId, policy };
 };
 
@@ -116,13 +116,14 @@ const applyDecision = async (
   const { agentInstanceId, companyId, env, ticketId } = ctx;
   const db = getDb(env);
   const { decidedByUserId, decision, feedback } = event;
-  logInfo("workflow.decision.received", {
+  log.info({
     actionId,
     agentInstanceId,
     companyId,
     decidedByUserId,
     decision,
     feedback: feedback ?? null,
+    message: "workflow.decision.received",
     ticketId,
   });
   await db("workflows.applyDecision", {
