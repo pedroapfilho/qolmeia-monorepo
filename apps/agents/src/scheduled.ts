@@ -1,9 +1,9 @@
 import { dispatch } from "@flue/runtime";
+import { log } from "@repo/observability";
 import { briefCompleteness } from "@repo/worker-api/brief";
 
 import { CorrespondentV2 } from "#/agents/correspondent";
 import { getDb } from "#/db/client";
-import { logInfo } from "#/lib/logger";
 import {
   lastProactiveSuggestionAt,
   PROACTIVE_PROMPT,
@@ -50,9 +50,10 @@ const runProactiveSweep = async (
     }
   }
 
-  logInfo("agent.proactiveSweep.done", {
+  log.info({
     eligible: eligible.length,
     errored,
+    message: "agent.proactiveSweep.done",
     scanned: results.length,
     skipped,
     suggested,

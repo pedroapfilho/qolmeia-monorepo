@@ -1,9 +1,9 @@
+import { log } from "@repo/observability";
 import { tool, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 
 import { getDb } from "#/db/client";
 import { listSkillOverlays } from "#/db/template";
-import { logError, logInfo } from "#/lib/logger";
 import { listAssetsSkill, readAssetSkill, saveAssetSkill } from "#/skills/assets";
 import { decideActionSkill } from "#/skills/decide-action";
 import { delegateToWorkerSkill } from "#/skills/delegate-to-worker";
@@ -80,22 +80,23 @@ const runSkill = async (
     input: JSON.stringify(input),
     skillId: id,
   };
-  logInfo("agent.tool.start", baseFields);
+  log.info({ ...baseFields, message: "agent.tool.start" });
   try {
     const [liveOverlay] = await listSkillOverlays(getDb(ctx.env), [id]);
     if (liveOverlay !== undefined && !liveOverlay.enabled) {
       throw new Error(`Skill "${id}" is disabled`);
     }
     const result = await code.execute(input, ctx);
-    logInfo("agent.tool.ok", {
+    log.info({
       ...baseFields,
       durationMs: Date.now() - start,
+      message: "agent.tool.ok",
       result: JSON.stringify(previewResult(result)),
     });
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logError("agent.tool.err", { ...baseFields, durationMs: Date.now() - start, error: message });
+    log.error({ ...baseFields, durationMs: Date.now() - start, error: message, message: "agent.tool.err" });
     throw error;
   }
 };

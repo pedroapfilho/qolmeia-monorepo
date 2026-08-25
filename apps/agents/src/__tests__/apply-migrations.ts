@@ -1,3 +1,5 @@
+import "#/lib/observability";
+
 import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
 

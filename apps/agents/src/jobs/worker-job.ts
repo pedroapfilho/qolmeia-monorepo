@@ -1,3 +1,4 @@
+import { log } from "@repo/observability";
 import type { DecisionOutcome } from "@repo/worker-api/contracts";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
@@ -12,7 +13,6 @@ import {
   proposeDeliverable,
   type ProposeResult,
 } from "#/jobs/worker-job-steps";
-import { logInfo } from "#/lib/logger";
 
 type WorkerJobParams = {
   agentInstanceId: string;
@@ -37,7 +37,7 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
     const ctx: JobContext = { agentInstanceId, companyId, env: this.env, ticketId };
     const workflowStart = Date.now();
 
-    logInfo("workflow.start", { agentInstanceId, companyId, ticketId });
+    log.info({ agentInstanceId, companyId, message: "workflow.start", ticketId });
 
     let revision = 0;
     let priorSummary: string | null = null;
@@ -58,10 +58,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       );
 
       if (proposed.actionId === null || proposed.actionId === "") {
-        logInfo("workflow.done.nogate", {
+        log.info({
           agentInstanceId,
           companyId,
           durationMs: Date.now() - workflowStart,
+          message: "workflow.done.nogate",
           policy: proposed.policy,
           ticketId,
         });
@@ -69,10 +70,11 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       }
 
       const actionId = proposed.actionId;
-      logInfo("workflow.waiting", {
+      log.info({
         actionId,
         agentInstanceId,
         companyId,
+        message: "workflow.waiting",
         revision: round,
         ticketId,
       });
@@ -87,11 +89,12 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
       );
 
       if (decision === "approved" || decision === "rejected") {
-        logInfo("workflow.ok", {
+        log.info({
           agentInstanceId,
           companyId,
           decision,
           durationMs: Date.now() - workflowStart,
+          message: "workflow.ok",
           revisions: round,
           ticketId,
         });
@@ -104,10 +107,10 @@ class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
 
       if (isRevisionCapReached(round, decision)) {
         await step.do("revise-capped", () => logRevisionCapped(ctx, actionId));
-        logInfo("workflow.revise.capped", { companyId, revision, ticketId });
+        log.info({ companyId, message: "workflow.revise.capped", revision, ticketId });
         return { decision, revisionCapped: true, revisions: round, summary: current.summary };
       }
-      logInfo("workflow.revise", { companyId, revision, ticketId });
+      log.info({ companyId, message: "workflow.revise", revision, ticketId });
     }
     /* oxlint-enable react-doctor/async-await-in-loop */
   }

@@ -1,3 +1,4 @@
+import { log } from "@repo/observability";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -52,8 +53,7 @@ teamsRoutes.post("/:companyId/confirm", async (c) => {
       debriefSummary: "Time confirmado via onboarding.",
     });
   } catch (error) {
-    // oxlint-disable-next-line no-console
-    console.error("[teams] seedCompanyMemory failed (best-effort)", { companyId, error });
+    log.error({ companyId, error, message: "teams.seedCompanyMemory.failed" });
   }
 
   return c.json({ team: result.team });

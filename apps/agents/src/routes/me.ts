@@ -1,3 +1,4 @@
+import { log } from "@repo/observability";
 import { briefCompleteness, companyBriefSchema } from "@repo/worker-api/brief";
 import type { TeamMemberView } from "@repo/worker-api/contracts";
 import { type Context, Hono } from "hono";
@@ -11,7 +12,6 @@ import {
   requireSession,
   type ValidatedSession,
 } from "#/lib/auth";
-import { logError } from "#/lib/logger";
 import { parsePositiveInt } from "#/lib/pagination";
 import { meAssetsRoutes } from "#/routes/me-assets";
 import {
@@ -113,9 +113,10 @@ meRoutes.get("/team", async (c) => {
     const members = await getTeamRoster(getDb(c.env), companyId);
     return c.json({ members });
   } catch (error) {
-    logError("me.team.failed", {
+    log.error({
       companyId,
       error: error instanceof Error ? error.message : String(error),
+      message: "me.team.failed",
     });
     return c.json({ error: "failed to load team" }, 500);
   }

@@ -11,6 +11,7 @@
     "./next/instrumentation": "./src/next-instrumentation.ts",
     "./hono": "./src/hono.ts",
     "./worker": "./src/worker.ts",
+    "./workers": "./src/workers.ts",
     "./auth": "./src/auth.ts"
   },
   "scripts": {

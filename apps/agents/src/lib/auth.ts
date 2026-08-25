@@ -1,8 +1,8 @@
+import { log } from "@repo/observability";
 import { ORG_ROLES, type OrgRole } from "@repo/worker-api/contracts";
 import type { Context, MiddlewareHandler } from "hono";
 import { z } from "zod";
 
-import { logError } from "#/lib/logger";
 import { parseMeResponse, type OrgSummary } from "#/lib/membership";
 import { buildCacheKey, readCachedString, writeCachedString } from "#/lib/session-cache";
 
@@ -80,8 +80,9 @@ const fetchMe = async (request: Request, env: Env): Promise<MeFetch> => {
   try {
     response = await fetch(`${env.AUTH_SERVICE_URL}/api/me`, { headers });
   } catch (error) {
-    logError("me.fetch.failed", {
+    log.error({
       error: error instanceof Error ? error.message : String(error),
+      message: "me.fetch.failed",
     });
     return { kind: "unreachable" };
   }

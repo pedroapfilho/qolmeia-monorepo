@@ -1,3 +1,4 @@
+import { log } from "@repo/observability";
 import { generateText, isStepCount } from "ai";
 import { z } from "zod";
 
@@ -5,7 +6,6 @@ import { getDb } from "#/db/client";
 import { loadInstanceWithTemplate, loadTicket } from "#/db/ticket";
 import type { GenerateResult, JobContext } from "#/jobs/worker-job-steps";
 import { getModel } from "#/lib/ai-gateway";
-import { logInfo } from "#/lib/logger";
 import { buildSkillTools } from "#/skills/registry";
 import { resolveSystemPrompt } from "#/team/resolve-system-prompt";
 
@@ -82,10 +82,11 @@ const generateDeliverable = async (
   if (ticket === null) {
     throw new Error(`ticket ${ticketId} not properly seeded`);
   }
-  logInfo("workflow.generate.start", {
+  log.info({
     agentInstanceId,
     brief: ticket.brief,
     companyId,
+    message: "workflow.generate.start",
     model: template.model,
     revision: round,
     skillIds: template.skillIds,
@@ -114,10 +115,11 @@ const generateDeliverable = async (
       }
     }
   }
-  logInfo("workflow.generate.ok", {
+  log.info({
     agentInstanceId,
     companyId,
     durationMs: Date.now() - stepStart,
+    message: "workflow.generate.ok",
     replyText: summary,
     revision: round,
     skillResultNames: Object.keys(skillResults),

@@ -105,8 +105,9 @@ describe("validateSession", () => {
     globalThis.fetch = vi.fn(() => Promise.reject(new Error("ECONNREFUSED")));
     const result = await validateSession(buildRequest("tok"), env);
     expect(result.kind).toBe("upstream-unavailable");
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("me.fetch.failed"));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("ECONNREFUSED"));
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ error: "ECONNREFUSED", message: "me.fetch.failed" }),
+    );
     consoleSpy.mockRestore();
   });
 
