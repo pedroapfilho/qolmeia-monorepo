@@ -103,7 +103,14 @@ const proposeDeliverable = async (
   });
   await emitTeamEvent(env, { companyId, reason: "ticket_changed", type: "team:status" });
 
-  log.info({ actionId, agentInstanceId, companyId, message: "workflow.propose.ok", policy, ticketId });
+  log.info({
+    actionId,
+    agentInstanceId,
+    companyId,
+    message: "workflow.propose.ok",
+    policy,
+    ticketId,
+  });
   return { actionId, policy };
 };
 
