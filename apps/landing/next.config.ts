@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
     ]),
 
   partialPrefetching: true,
+  poweredByHeader: false,
   reactCompiler: true,
   reactStrictMode: true,
 
