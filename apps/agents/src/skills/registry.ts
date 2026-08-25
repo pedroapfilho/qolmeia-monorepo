@@ -96,7 +96,12 @@ const runSkill = async (
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    log.error({ ...baseFields, durationMs: Date.now() - start, error: message, message: "agent.tool.err" });
+    log.error({
+      ...baseFields,
+      durationMs: Date.now() - start,
+      error: message,
+      message: "agent.tool.err",
+    });
     throw error;
   }
 };
