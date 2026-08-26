@@ -20,7 +20,7 @@
     "preview": "email dev --dir ./src"
   },
   "dependencies": {
-    "resend": "^6.17.2",
+    "resend": "^6.22.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -33,7 +33,7 @@
     "react-email": "^6.9.2",
     "tsdown": "^0.22.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "react": "^18.3.1 || ^19.0.0",
