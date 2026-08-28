@@ -11,7 +11,7 @@
     "cf-typegen": "wrangler types",
     "clean": "rm -rf .turbo node_modules .wrangler .flue-vite .flue-vite.wrangler.jsonc",
     "deploy": "vite build && wrangler deploy",
-    "dev": "vite dev",
+    "dev": "portless run --name qolmeia.agents vite dev",
     "lint": "oxlint src",
     "test": "vitest run",
     "typecheck": "wrangler types && tsc --noEmit"
