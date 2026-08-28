@@ -6,8 +6,8 @@ interface Env {
   EXA_API_KEY?: string;
   FIRECRAWL_API_KEY?: string;
   FIRECRAWL_BASE_URL?: string;
-  OPENROUTER_API_KEY: string;
   INTERNAL_SHARED_SECRET: string;
+  OPENROUTER_API_KEY: string;
   VECTORIZE?: VectorizeIndex;
 }
 
@@ -19,8 +19,8 @@ namespace Cloudflare {
     EXA_API_KEY?: string;
     FIRECRAWL_API_KEY?: string;
     FIRECRAWL_BASE_URL?: string;
-    OPENROUTER_API_KEY: string;
     INTERNAL_SHARED_SECRET: string;
+    OPENROUTER_API_KEY: string;
     VECTORIZE?: VectorizeIndex;
   }
 }
