@@ -14,7 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains",
 });
-const metadataBase = URL.parse(process.env.WEB_APP_URL ?? "") ?? new URL("https://app.qolmeia.com");
+const metadataBase =
+  URL.parse(process.env.BACKOFFICE_URL ?? "") ?? new URL("https://admin.qolmeia.com");
 
 export const metadata: Metadata = {
   authors: [{ name: "Qolmeia" }],
