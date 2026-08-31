@@ -1,3 +1,4 @@
+import "zod/compile";
 import "#/lib/observability";
 
 import { runProactiveSweep } from "#/scheduled";

@@ -1,3 +1,5 @@
+import "zod/compile";
+
 import { serve } from "@hono/node-server";
 import { createRoute, z } from "@hono/zod-openapi";
 import { prisma } from "@repo/db";
