@@ -18,14 +18,14 @@
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/worker-api": "workspace:*",
-    "better-auth": "^1.7.1"
+    "better-auth": "^1.7.2"
   },
   "devDependencies": {
     "@repo/config-vitest": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "next": "^16.3.0",
+    "next": "^16.3.3",
     "react": "^19.2.8",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
