@@ -12,6 +12,7 @@
         "AUTH_ALLOWED_HOSTS",
         "AUTH_SERVICE_INTERNAL_URL",
         "AUTH_FROM_EMAIL",
+        "BACKOFFICE_URL",
         "BETTER_AUTH_SECRET",
         "CORS_ORIGINS",
         "DATABASE_URL",
