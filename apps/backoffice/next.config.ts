@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+import { applyPortlessUrls } from "../../scripts/portless-env.ts";
+
+applyPortlessUrls({
+  AGENTS_INTERNAL_URL: ["qolmeia.agents"],
+  AUTH_SERVICE_INTERNAL_URL: ["qolmeia.api"],
+  BACKOFFICE_URL: ["qolmeia.backoffice"],
+});
+
 const authServiceUrl = process.env.AUTH_SERVICE_INTERNAL_URL ?? "http://127.0.0.1:4000";
 
 const agentsUrl = process.env.AGENTS_INTERNAL_URL ?? "http://127.0.0.1:8787";
