@@ -10,7 +10,6 @@ const metaString = (value: VectorizeVectorMetadata | undefined): string =>
 class VectorizeMemoryAdapter implements MemoryAdapter {
   constructor(private readonly env: Bindings) {}
 
-  // fallow-ignore-next-line unused-class-member
   async retrieve(args: RetrieveArgs): Promise<ReadonlyArray<ScoredRecord>> {
     const vector = await this.embed(args.query);
     const result = await this.env.VECTORIZE.query(vector, {
@@ -38,7 +37,6 @@ class VectorizeMemoryAdapter implements MemoryAdapter {
     return records;
   }
 
-  // fallow-ignore-next-line unused-class-member
   async upsert(record: MemoryRecord): Promise<void> {
     const values = await this.embed(record.content);
     await this.env.VECTORIZE.upsert([

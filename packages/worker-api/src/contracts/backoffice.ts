@@ -164,9 +164,6 @@ export type {
   ActionPolicy,
   ActionStatus,
   AgentRole,
-  AssetKind,
-  AssetVisibility,
-  CompanyStatus,
   TemplateStatus,
   TicketStatus,
 } from "@repo/db/enums";
