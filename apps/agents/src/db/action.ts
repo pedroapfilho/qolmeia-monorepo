@@ -1,13 +1,12 @@
-import type { Action, DecisionOutcome } from "@repo/worker-api/contracts";
+import type { Action, ActionPolicy, DecisionOutcome } from "@repo/worker-api/contracts";
 import type { JsonRecord } from "@repo/worker-api/internal";
 
 import type { Database } from "#/db/client";
-import type { Policy } from "#/db/policy";
 
 type ProposeActionInput = {
   actionType: string;
   companyId: string;
-  policy: Policy;
+  policy: ActionPolicy;
   proposed: JsonRecord;
   ticketId: string;
 };

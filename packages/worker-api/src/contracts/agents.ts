@@ -129,3 +129,4 @@ export type {
   TeamMemberView,
   TeamMemberWorker,
 };
+export type { AssetKind, AssetVisibility, CompanyStatus } from "@repo/db/enums";

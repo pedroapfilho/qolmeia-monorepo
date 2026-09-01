@@ -15,4 +15,3 @@ const resolvePolicy = (actionType: string, template: TemplateWithPolicies): Acti
 };
 
 export { resolvePolicy };
-export type { ActionPolicy as Policy } from "@repo/worker-api/contracts";
