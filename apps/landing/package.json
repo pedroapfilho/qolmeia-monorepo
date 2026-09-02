@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@repo/config-vitest": "workspace:*",
+    "@repo/portless-env": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^26.4.0",
