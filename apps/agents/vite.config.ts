@@ -1,9 +1,8 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { flue, flueWorkerConfig } from "@flue/vite";
+import { applyPortlessUrls } from "@repo/portless-env";
 import { defineConfig } from "vite";
 import zodCompiler from "zod-compiler/vite";
-
-import { applyPortlessUrls } from "../../scripts/portless-env.ts";
 
 const DEV_VARS = ["API_INTERNAL_URL", "AUTH_SERVICE_URL", "CLIENT_ORIGINS", "WORKER_PUBLIC_URL"];
 

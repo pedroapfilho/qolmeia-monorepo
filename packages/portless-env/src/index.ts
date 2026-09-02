@@ -5,6 +5,7 @@ type ProcessEnvironment = Record<string, string | undefined>;
 type PortlessMapping = Record<string, ReadonlyArray<string>>;
 
 const portless = (...args: Array<string>): string =>
+  // oxlint-disable-next-line node/no-sync -- Next, Vite, and tsdown evaluate their configs synchronously, so the lookup has to block.
   execFileSync("portless", args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "inherit"],
@@ -12,10 +13,7 @@ const portless = (...args: Array<string>): string =>
 
 const urls = new Map<string, string>();
 
-const isCanonicalLocalDefault = (
-  value: string,
-  names: ReadonlyArray<string>,
-): boolean => {
+const isCanonicalLocalDefault = (value: string, names: ReadonlyArray<string>): boolean => {
   const values = value.split(",").map((item) => item.trim());
   return (
     values.length === names.length &&
@@ -51,11 +49,7 @@ export const applyPortlessUrls = (
 
   for (const [envKey, names] of Object.entries(mapping)) {
     const current = env[envKey];
-    if (
-      current !== undefined &&
-      current !== "" &&
-      !isCanonicalLocalDefault(current, names)
-    ) {
+    if (current !== undefined && current !== "" && !isCanonicalLocalDefault(current, names)) {
       continue;
     }
     env[envKey] = names.map(resolve).join(",");
