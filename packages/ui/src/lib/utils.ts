@@ -7,4 +7,4 @@ import type { ReactNode } from "react";
 const isRenderable = (node: ReactNode): boolean => Boolean(node);
 
 export { isRenderable };
-export { cn } from "cnfast";
+export { cn } from "cn";
