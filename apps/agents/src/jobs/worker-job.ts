@@ -28,7 +28,6 @@ const isRevisionCapReached = (round: number, decision: DecisionOutcome): boolean
   decision === "changes_requested" && round >= MAX_REVISIONS;
 
 class WorkerJobWorkflow extends WorkflowEntrypoint<Env, WorkerJobParams> {
-  // fallow-ignore-next-line unused-class-member
   async run(
     event: Readonly<WorkflowEvent<WorkerJobParams>>,
     step: WorkflowStep,
