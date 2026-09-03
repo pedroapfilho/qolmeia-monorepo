@@ -48,6 +48,11 @@
     "valibot"
   ],
   "rules": {
-    "unused-dependencies": "warn"
+    "unused-dependencies": "warn",
+    "private-type-leaks": "off"
+  },
+  "typeAware": {
+    "enabled": true,
+    "require": "best-effort"
   }
 }
