@@ -20,4 +20,6 @@ jobs:
         with:
           runtime: node@24
           cache: true
+      - run: pnpm turbo db:generate
+      - run: pnpm --filter worker-bees cf-typegen
       - run: pnpm fallow:dead
