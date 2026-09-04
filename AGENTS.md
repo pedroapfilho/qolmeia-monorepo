@@ -40,6 +40,7 @@ Monorepo managed by pnpm workspaces + Turborepo. Node 24, pnpm 10. Mid-migration
 | `apps/agents`     | `worker-bees` | Cloudflare Worker | `http://127.0.0.1:8787` (vite dev)                | Customer chat (Flue HTTP+SSE), REST for operators (`/api/backoffice/*`) and customers (`/api/me/*`, `/api/teams/*`).                |
 | `apps/web`        | `web`         | Next.js 16        | `https://qolmeia.web.localhost` (portless)        | End-customer chat surface (CUSTOMER role).                                                                                          |
 | `apps/backoffice` | `backoffice`  | Next.js 16        | `https://qolmeia.backoffice.localhost` (portless) | Operator panel (OWNER/STAFF roles).                                                                                                 |
+| `apps/landing`    | `landing`     | Next.js 16        | `https://qolmeia.landing.localhost` (portless)    | Public marketing site. No auth, no Worker calls.                                                                                    |
 
 The browser never talks to `:8787` directly in dev: each Next app rewrites the Worker's surface to itself (`/api/backoffice/*` on backoffice; `/api/me/*`, `/api/teams/*`, and the `/agents/*` chat HTTP+SSE on client) so the Better Auth cookie stays first-party: `.localhost` hosts are a public suffix, so no cookie can span `qolmeia.web.localhost` and `localhost:8787`. Server-side code reaches the Worker via `AGENTS_INTERNAL_URL` (default `http://127.0.0.1:8787`); `NEXT_PUBLIC_AGENTS_URL` is only for a cross-origin prod Worker.
 
@@ -64,11 +65,16 @@ The browser never talks to `:8787` directly in dev: each Next app rewrites the W
 | `@repo/ui`                | shadcn-style component library + Tailwind preset shared by the two Next apps.                                    |
 | `@repo/config-vitest`     | Shared Vitest config.                                                                                            |
 | `@repo/typescript-config` | Shared tsconfig bases.                                                                                           |
+| `@repo/app-shell`         | Next-side auth/session glue shared by `web` and `backoffice`: `./auth-client`, `./auth-server`, `./session`, `./agents-url`. |
+| `@repo/worker-api`        | Typed client for the agents Worker plus its request/response contracts (`./contracts`, `./brief`, `./internal`). |
+| `@repo/internal-auth`     | Constant-time bearer-token check guarding Worker-to-service internal routes.                                     |
+| `@repo/observability`     | Structured logging. Exports `./client`, `./fields`, `./next`, `./next/instrumentation`, `./hono`.                |
+| `@repo/portless-env`      | `applyPortlessUrls`: fills dev URL env vars from `portless get`.                                                 |
 
 ### The canonical E2E flow
 
 1. **Sign-up / magic-link**: Better Auth on `apps/api` issues a cookie scoped to `localhost`.
-2. **Client opens**: `requireCustomer` → `apps/agents/api/me` (relays to `apps/api/api/v1/me` for membership).
+2. **Client opens**: `requireCustomer` → `GET /api/me` on `apps/agents`, which relays to `GET /api/me` on `apps/api` (`AUTH_SERVICE_URL`) for membership.
 3. **status === "onboarding"**: chat against `/agents/planner/<companyId>`. Planner calls `extractBrief` and `proposeTeam`, then surfaces a "Confirmar Time" button.
 4. **Customer confirms**: `POST /api/teams/:companyId/confirm` materialises `team` + `team_member`, flips `company.status = 'active'`, and seeds Correspondent memory.
 5. **status === "active"**: chat against `/agents/correspondent/<companyId>`. Correspondent uses `delegateToWorker` to spawn child tickets, each of which instantiates a `WorkerJobWorkflow` (the deliverable is generated with `generateText`, not a Flue agent).
@@ -112,7 +118,7 @@ DATABASE_URL=postgresql://qolmeia:qolmeia123@localhost:5436/qolmeia \
 # 3. Seed Postgres: creates auth users, product company, catalog, and team (idempotent)
 pnpm --filter=api exec tsx src/scripts/seed-dev.ts
 
-# 4. Run all four apps (or one per terminal with --filter)
+# 4. Run all five apps (or one per terminal with --filter)
 pnpm dev
 ```
 
@@ -124,6 +130,8 @@ pnpm dev
 | Client: `https://qolmeia.web.localhost`            | CUSTOMER | `customer@qolmeia.dev` | `Qolmeia-Dev-CustomerPass!` |
 
 The dev org is pinned to `cmpg10ke30000147uj4gpeadb` (slug `qolmeia-dev`). The client login is magic-link only; the password above only works on the backoffice. Watch `apps/api` logs for the magic link in dev.
+
+App configs resolve those URLs through `@repo/portless-env` rather than hardcoding them. `applyPortlessUrls({ ENV_VAR: ["<subdomain>"] })` runs at the top of each `next.config.ts` / `tsdown.config.ts` and shells out to `portless get` for every name, filling the env var only when it is unset or still holds the canonical `*.localhost` default. It is a no-op unless `PORTLESS_URL` is set, so CI and production keep their real values. Import it by bare specifier (`@repo/portless-env`): a relative path resolves from the process cwd and breaks `next start apps/web` from the repo root.
 
 ## Conventions
 
